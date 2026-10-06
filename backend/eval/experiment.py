@@ -67,10 +67,31 @@ class ArmResult:
     hallucinated: dict[str, bool] = field(default_factory=dict)
     failures: int = 0
     config: dict = field(default_factory=dict)
+    # Arm-level figures with no per-item form, which guardrails still read
+    # (#216): `scored_fraction` and `decline_rate` (%), and
+    # `billed_output_tokens_median`. Each is {"value", "n", "unit"}; a figure
+    # the run could not compute is absent.
+    extra: dict[str, dict] = field(default_factory=dict)
 
     @property
     def item_ids(self) -> set[str]:
         return set(self.absolute_percentage_error)
+
+    _MAPS = ("absolute_percentage_error", "latency_ms", "confidence", "predicted",
+             "actual", "hallucinated")
+
+    def to_dict(self) -> dict:
+        """The shape `eval.cli experiment` reads, which the runner writes."""
+        return {"label": self.label, **{name: getattr(self, name) for name in self._MAPS},
+                "failures": self.failures, "config": self.config, "extra": self.extra}
+
+    @classmethod
+    def from_dict(cls, payload: dict, label: str = "") -> ArmResult:
+        return cls(label=payload.get("label", label),
+                   **{name: payload.get(name, {}) for name in cls._MAPS},
+                   failures=payload.get("failures", 0),
+                   config=payload.get("config", {}),
+                   extra=payload.get("extra", {}))
 
     def metric_set(self) -> MetricSet:
         """Derived metrics, all tagged MEASURED — these come from real runs."""
@@ -115,6 +136,10 @@ class ArmResult:
                 result.add(Metric.measured(
                     "calibration_ece", metrics_module.calibration(scored).ece,
                     len(scored)))
+        for name, figure in self.extra.items():
+            value, n = figure.get("value"), figure.get("n", 0)
+            if value is not None and n:
+                result.add(Metric.measured(name, value, n, unit=figure.get("unit", "")))
         return result
 
 
@@ -131,10 +156,23 @@ class Guardrail:
     signed_tolerance: float | None = None
     absolute_ceiling: float | None = None
     description: str = ""
+    # For a metric where a *drop* is the regression: the share of scans that
+    # produced a price, the share of negative controls declined (#216).
+    # `max_relative_increase` is then the largest relative decrease allowed.
+    higher_is_better: bool = False
 
     def check(self, baseline: Metric | None, candidate: Metric | None) -> str | None:
         """Return a violation message, or None if the guardrail holds."""
         if candidate is None or candidate.value is None:
+            return None
+        if self.higher_is_better:
+            if baseline is None or not baseline.value:
+                return None     # nothing to fall from
+            decrease = (baseline.value - candidate.value) / abs(baseline.value)
+            if decrease > self.max_relative_increase:
+                return (f"{self.metric} fell {decrease:.1%} "
+                        f"({baseline.value:.2f} → {candidate.value:.2f}), "
+                        f"limit {self.max_relative_increase:.0%}")
             return None
         if self.absolute_ceiling is not None and candidate.value > self.absolute_ceiling:
             return (f"{self.metric} = {candidate.value:.2f} exceeds ceiling "
@@ -180,6 +218,13 @@ DEFAULT_GUARDRAILS = (
     # was twice its 15%.
     Guardrail("bias", signed_tolerance=4.0,
               description="systematic over-valuation is the dangerous direction"),
+    # #216. Each applies only when both arms carry the figure (`ArmResult.extra`).
+    Guardrail("scored_fraction", 0.05, higher_is_better=True,
+              description="no more scans may end without a price"),
+    Guardrail("decline_rate", 0.20, higher_is_better=True,
+              description="negative controls must still be declined"),
+    Guardrail("billed_output_tokens_median", 0.25,
+              description="a prompt change must not quietly cost more per scan"),
 )
 
 

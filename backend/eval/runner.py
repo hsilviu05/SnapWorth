@@ -67,6 +67,7 @@ import valuation as valuation_module  # noqa: E402
 from eval import dataset as dataset_module  # noqa: E402
 from eval import metrics  # noqa: E402
 from eval import schema  # noqa: E402
+from eval.experiment import ArmResult  # noqa: E402
 from eval.provenance import Metric, MetricSet  # noqa: E402
 
 log = logging.getLogger("snapworth.eval")
@@ -152,6 +153,22 @@ def load_items(path: Path) -> tuple[list[EvalItem], dict[str, int]]:
             items.append(EvalItem(gold.id, gold.category, image.path,
                                   gold.actual_sale_price, gold.brand))
     return items, excluded
+
+
+def load_negative_controls(path: Path) -> list[EvalItem]:
+    """The approved negative controls in a gold set: items with no resale
+    value, which the pipeline should decline (`not_resalable`) rather than
+    price. `load_items` leaves them out of accuracy, so they get their own
+    pass, scored as `decline_rate` (#216)."""
+    if not _is_gold(path):
+        return []
+    controls: list[EvalItem] = []
+    for gold in schema.load_gold(path):
+        image = gold.primary_image
+        if (gold.difficulty is schema.Difficulty.NEGATIVE_CONTROL
+                and gold.review_state.usable and image is not None):
+            controls.append(EvalItem(gold.id, gold.category, image.path))
+    return controls
 
 
 def load_photos(folder: Path) -> list[EvalItem]:
@@ -278,6 +295,80 @@ def evaluate(predictions: list[Prediction]) -> dict:
         "tokens": _token_summary(usable),
         "by_category": by_category,
     }
+
+
+def arm_result(label: str, repeats: list[list[Prediction]], config: dict | None = None,
+               controls: list[Prediction] | None = None) -> ArmResult:
+    """One arm as the per-item maps `eval.cli experiment` pairs (#216). Pure.
+
+    Keyed by item id, so two arms are aligned by item, never by position. With
+    repeats, an item's price, latency and confidence are the median of its
+    repeats that produced a price; an item with none counts as a failure and
+    is absent from the maps, which `run_experiment` reports as unpaired.
+    """
+    by_item: dict[str, list[Prediction]] = {}
+    for batch in repeats:
+        for prediction in batch:
+            by_item.setdefault(prediction.item_id, []).append(prediction)
+
+    ape: dict[str, float] = {}
+    latency: dict[str, float] = {}
+    confidence: dict[str, int] = {}
+    predicted: dict[str, float] = {}
+    actual: dict[str, float] = {}
+    hallucinated: dict[str, bool] = {}
+    failures = 0
+    billed: list[int] = []
+    for item_id, runs in by_item.items():
+        ok = [p for p in runs if p.ok]
+        if not ok:
+            failures += 1
+            continue
+        first = ok[0]
+        price = statistics.median(p.predicted_expected for p in ok)
+        predicted[item_id] = price
+        latency[item_id] = statistics.median(p.latency_ms for p in ok)
+        confidence[item_id] = round(statistics.median(p.confidence_score for p in ok))
+        billed += [p.output_tokens + (p.thoughts_tokens or 0)
+                   for p in ok if p.output_tokens is not None]
+        if first.expected_price is not None:
+            actual[item_id] = first.expected_price
+            error = metrics.ape(price, first.expected_price)
+            if error is not None:
+                ape[item_id] = error
+            # Per item, the same three checks as the run's rate.
+            flagged = metrics.hallucination_rate([{
+                "model_name": first.model_name, "brand": first.brand,
+                "expected_brand": first.expected_brand,
+                "identification_certainty": first.identification_certainty,
+                "visual_evidence": first.visual_evidence,
+            }])["rate"]
+            hallucinated[item_id] = bool(flagged)
+
+    extra: dict[str, dict] = {}
+    if by_item:
+        extra["scored_fraction"] = {"value": len(predicted) / len(by_item) * 100,
+                                    "n": len(by_item), "unit": "%"}
+    if billed:
+        extra["billed_output_tokens_median"] = {"value": statistics.median(billed),
+                                                "n": len(billed), "unit": ""}
+    if controls:
+        declined = sum(1 for p in controls if p.error == "not_resalable")
+        extra["decline_rate"] = {"value": declined / len(controls) * 100,
+                                 "n": len(controls), "unit": "%"}
+
+    return ArmResult(label=label, absolute_percentage_error=ape, latency_ms=latency,
+                     confidence=confidence, predicted=predicted, actual=actual,
+                     hallucinated=hallucinated, failures=failures,
+                     config=config or {}, extra=extra)
+
+
+def arm_config(version: str, budget: int | None) -> dict:
+    """What an arm ran under, recorded with it so two runs made under
+    different settings are never compared as if they were alike."""
+    import aiconfig
+    return {"prompt_version": version, "thinking_budget": budget,
+            "model": aiconfig.MODEL_NAME}
 
 
 def price_shift(runs_a: dict[str, list[float]],
@@ -550,6 +641,22 @@ def _format(report: dict) -> str:
     return "\n".join(lines) + "\n"
 
 
+def json_out(arms: list[str], reports: dict[str, dict], arm_results: dict[str, ArmResult],
+             *, shift: dict | None, source: str, labelled: bool) -> dict:
+    """What `--json-out` writes. Each arm carries the metrics `eval.cli gate`
+    reads, its raw report, and its per-item `arm` that `eval.cli experiment`
+    pairs (#216). One arm is a run, so its metrics sit at the top level; a
+    comparison has no top-level `metrics`, because the gate compares one run
+    against a baseline, not two runs against each other."""
+    payloads = {arm: metric_set(reports[arm], arm).to_dict()
+                | {"report": reports[arm], "arm": arm_results[arm].to_dict()}
+                for arm in arms}
+    if len(arms) > 1:
+        return {"compare": arms, "price_shift": shift, "arms": payloads,
+                "source": source, "labelled": labelled}
+    return payloads[arms[0]] | {"source": source, "labelled": labelled}
+
+
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description="Evaluate SnapWorth valuations")
     source = parser.add_mutually_exclusive_group(required=True)
@@ -614,18 +721,31 @@ def main(argv=None) -> int:
 
     reports: dict[str, dict] = {}
     runs_by_arm: dict[str, dict[str, list[float]]] = {}
+    arm_results: dict[str, ArmResult] = {}
+    controls = load_negative_controls(Path(args.dataset)) if args.dataset else []
+    if args.limit:
+        controls = controls[: args.limit]
 
     for arm, (version, budget) in zip(arms, parsed):
         all_runs: dict[str, list[float]] = {}
-        predictions: list[Prediction] = []
-        for repeat in range(max(1, args.repeats)):
+        batches: list[list[Prediction]] = []
+        for _ in range(max(1, args.repeats)):
             batch = asyncio.run(run_live(items, version, root, args.concurrency, budget))
-            if repeat == 0:
-                predictions = batch
+            batches.append(batch)
             for prediction in batch:
                 all_runs.setdefault(prediction.item_id, []).append(prediction.predicted_expected)
+        predictions = batches[0]
+        # Negative controls: one pass, scored only on whether they are declined.
+        control_predictions = (asyncio.run(run_live(controls, version, root,
+                                                    args.concurrency, budget))
+                               if controls else [])
+        arm_results[arm] = arm_result(arm, batches, arm_config(version, budget),
+                                      control_predictions)
 
         report = evaluate(predictions)
+        decline = arm_results[arm].extra.get("decline_rate")
+        if decline:
+            report["decline_rate"] = decline
         if args.repeats > 1:
             report["consistency"] = evaluate_consistency(all_runs)
             report["repeatability"] = metrics.repeatability(list(all_runs.values()))
@@ -657,16 +777,8 @@ def main(argv=None) -> int:
                   " — how far, not which is right\n")
 
     if args.json_out:
-        payloads = {arm: metric_set(report, arm).to_dict() | {"report": report}
-                    for arm, report in reports.items()}
-        source_path = args.dataset or args.photos
-        if args.compare:
-            # No top-level `metrics`: a comparison is two runs, and the gate
-            # compares one run against a baseline.
-            out = {"compare": arms, "price_shift": shift, "arms": payloads,
-                   "source": source_path, "labelled": labelled}
-        else:
-            out = payloads[arms[0]] | {"source": source_path, "labelled": labelled}
+        out = json_out(arms, reports, arm_results, shift=shift,
+                       source=args.dataset or args.photos, labelled=labelled)
         Path(args.json_out).write_text(json.dumps(out, indent=2, default=str))
         print(f"wrote {args.json_out}")
     return 0
