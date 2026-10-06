@@ -49,6 +49,7 @@ import prompts
 import ratelimit
 import appstorenotify
 import referral
+import outcomes
 import social
 import tokens
 import valuation as valuation_module
@@ -238,6 +239,7 @@ async def _lifespan(_app: FastAPI):
     # `/referral/*` was mounted with no limiter at all. Injected for the same
     # reason: `referral` cannot import this module.
     referral.limiter = _enforce_referral_limit
+    outcomes.limiter = _enforce_outcomes_limit
     auth.deps.signer = tokens.signer_from_env()
     auth.deps.device_check = dc
     auth.deps.entitlements = EntitlementService(
@@ -599,6 +601,7 @@ app.add_middleware(RequestContextMiddleware)
 app.include_router(auth.router)
 app.include_router(social.router)
 app.include_router(referral.router)
+app.include_router(outcomes.router)
 
 # The API serves a native app, which sends no Origin header and is unaffected by
 # CORS. A wildcard only widens the browser-reachable surface, so origins are
@@ -1010,6 +1013,28 @@ async def _enforce_entitlement_limit(subject: str, ip: str | None) -> None:
 #: an attestation, which is IP-limited on its own.
 REFERRAL_RATE_MAX_REQUESTS = int(os.environ.get("REFERRAL_RATE_MAX_REQUESTS", "60"))
 REFERRAL_IP_RATE_MAX_REQUESTS = int(os.environ.get("REFERRAL_IP_RATE_MAX_REQUESTS", "120"))
+
+
+#: Sharing sale outcomes (#224): a few sends a day from a seller, so these are
+#: loop-breakers; `outcomes.DAILY_CAP` bounds what one install can store.
+OUTCOMES_RATE_MAX_REQUESTS = int(os.environ.get("OUTCOMES_RATE_MAX_REQUESTS", "60"))
+
+
+async def _enforce_outcomes_limit(subject: str, ip: str | None) -> None:
+    """Limit for /outcomes, its own buckets. Injected onto `outcomes.limiter`."""
+    try:
+        if ip is not None:
+            if _ip_limiter is None:
+                _ip_memory.check_sync(f"outcomes-ip:{ip}", OUTCOMES_RATE_MAX_REQUESTS)
+            else:
+                await _ip_limiter.check(f"outcomes-ip:{ip}", OUTCOMES_RATE_MAX_REQUESTS)
+        if _device_limiter is None:
+            _device_memory.check_sync(f"outcomes:{subject[:64]}", OUTCOMES_RATE_MAX_REQUESTS)
+        else:
+            await _device_limiter.check(f"outcomes:{subject[:64]}", OUTCOMES_RATE_MAX_REQUESTS)
+    except RateLimitExceeded as exc:
+        raise HTTPException(status_code=429, detail=exc.message,
+                            headers={"Retry-After": str(exc.retry_after)}) from None
 
 
 async def _enforce_referral_limit(route: str, subject: str, ip: str | None) -> None:
