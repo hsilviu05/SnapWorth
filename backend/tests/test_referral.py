@@ -17,6 +17,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import auth  # noqa: E402
 import opsstats  # noqa: E402
 import referral  # noqa: E402
+import telegram  # noqa: E402
 from entitlements import Entitlement, entitlement_from_payload  # noqa: E402
 from main import app  # noqa: E402
 from referral import POOL_FRIEND, POOL_REWARD, ReferralConfig, ReferralError  # noqa: E402
@@ -757,7 +758,7 @@ def operator():
     import httpx
     import notify
     sent = _Sent()
-    notifier = notify.TelegramNotifier(
+    notifier = telegram.TelegramNotifier(
         "123456789:AAtest-token-abcdefghijklmnopqrstuvwx", "424242",
         client=httpx.AsyncClient(transport=httpx.MockTransport(sent.handler)))
     notify.configure(auth.deps.cache, notifier=notifier)

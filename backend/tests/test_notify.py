@@ -26,6 +26,8 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import auditlog  # noqa: E402
 import checkup  # noqa: E402
 import notify  # noqa: E402
+import telegram  # noqa: E402
+import chatlog  # noqa: E402
 import opsformat  # noqa: E402
 import opsindex  # noqa: E402
 import opsstats  # noqa: E402
@@ -104,7 +106,7 @@ def recorder() -> Recorder:
 @pytest_asyncio.fixture
 async def enabled_notify(cache, recorder):
     """notify configured against an in-memory cache and a mock transport."""
-    notifier = notify.TelegramNotifier(
+    notifier = telegram.TelegramNotifier(
         FAKE_TOKEN, FAKE_CHAT,
         client=httpx.AsyncClient(transport=httpx.MockTransport(recorder.handler)))
     notify.configure(cache, notifier=notifier)
@@ -183,7 +185,7 @@ class TestSend:
     @pytest.mark.asyncio
     async def test_http_error_returns_false_and_never_raises(self, cache, caplog):
         recorder = Recorder(status_code=500)
-        notifier = notify.TelegramNotifier(
+        notifier = telegram.TelegramNotifier(
             FAKE_TOKEN, FAKE_CHAT,
             client=httpx.AsyncClient(transport=httpx.MockTransport(recorder.handler)))
         notify.configure(cache, notifier=notifier)
@@ -201,7 +203,7 @@ class TestSend:
             # exactly what must never reach a log line.
             raise httpx.ConnectError("boom", request=request)
 
-        notifier = notify.TelegramNotifier(
+        notifier = telegram.TelegramNotifier(
             FAKE_TOKEN, FAKE_CHAT,
             client=httpx.AsyncClient(transport=httpx.MockTransport(explode)))
         notify.configure(cache, notifier=notifier)
@@ -630,7 +632,7 @@ class TestActivity:
 class TestCommands:
     @pytest.mark.asyncio
     async def test_status_reports_activity_scans_and_process_facts(self, cache, recorder):
-        notifier = notify.TelegramNotifier(
+        notifier = telegram.TelegramNotifier(
             FAKE_TOKEN, FAKE_CHAT,
             client=httpx.AsyncClient(transport=httpx.MockTransport(recorder.handler)))
         notify.configure(cache, notifier=notifier, status_provider=lambda: {
@@ -660,7 +662,7 @@ class TestCommands:
     async def test_status_names_the_replica_railway_gives(self, cache, recorder):
         """With one replica this says nothing new. With two, /status describes
         only the one that answered (RUNBOOK §11), so it says which."""
-        notifier = notify.TelegramNotifier(
+        notifier = telegram.TelegramNotifier(
             FAKE_TOKEN, FAKE_CHAT,
             client=httpx.AsyncClient(transport=httpx.MockTransport(recorder.handler)))
         notify.configure(cache, notifier=notifier, status_provider=lambda: {
@@ -766,7 +768,7 @@ class TestPolling:
             self.update(101, FAKE_CHAT, "/status"),     # the operator
             self.update(102, FAKE_CHAT, "thanks"),      # not a command
         ])
-        notifier = notify.TelegramNotifier(
+        notifier = telegram.TelegramNotifier(
             FAKE_TOKEN, FAKE_CHAT,
             client=httpx.AsyncClient(transport=httpx.MockTransport(bot.handler)))
         notify.configure(cache, notifier=notifier)
@@ -787,7 +789,7 @@ class TestPolling:
     @pytest.mark.asyncio
     async def test_command_menu_is_published_on_configure(self, cache):
         bot = self.Bot([])
-        notifier = notify.TelegramNotifier(
+        notifier = telegram.TelegramNotifier(
             FAKE_TOKEN, FAKE_CHAT,
             client=httpx.AsyncClient(transport=httpx.MockTransport(bot.handler)))
         notify.configure(cache, notifier=notifier)
@@ -827,7 +829,7 @@ class TestPolling:
         def explode(request: httpx.Request) -> httpx.Response:
             raise httpx.ConnectError("boom", request=request)
 
-        notifier = notify.TelegramNotifier(
+        notifier = telegram.TelegramNotifier(
             FAKE_TOKEN, FAKE_CHAT,
             client=httpx.AsyncClient(transport=httpx.MockTransport(explode)))
         notify.configure(cache, notifier=notifier)
@@ -1070,7 +1072,7 @@ class TestButtons:
                 "id": "cb-2", "data": "status",
                 "message": {"chat": {"id": 999999}}}},         # a stranger's press
         ])
-        notifier = notify.TelegramNotifier(
+        notifier = telegram.TelegramNotifier(
             FAKE_TOKEN, FAKE_CHAT,
             client=httpx.AsyncClient(transport=httpx.MockTransport(bot.handler)))
         notify.configure(cache, notifier=notifier)
@@ -1090,7 +1092,7 @@ class TestButtons:
                 "id": "cb", "data": "feed toggle",
                 "message": {"chat": {"id": int(FAKE_CHAT)}}}},
         ])
-        notifier = notify.TelegramNotifier(
+        notifier = telegram.TelegramNotifier(
             FAKE_TOKEN, FAKE_CHAT,
             client=httpx.AsyncClient(transport=httpx.MockTransport(bot.handler)))
         notify.configure(cache, notifier=notifier)
@@ -1699,7 +1701,7 @@ class TestDeployMessage:
 class TestDeployHandover:
     @pytest.mark.asyncio
     async def test_shutdown_releases_the_poll_lock_it_holds(self, cache, recorder):
-        notifier = notify.TelegramNotifier(
+        notifier = telegram.TelegramNotifier(
             FAKE_TOKEN, FAKE_CHAT,
             client=httpx.AsyncClient(transport=httpx.MockTransport(recorder.handler)))
         notify.configure(cache, notifier=notifier)
@@ -1712,7 +1714,7 @@ class TestDeployHandover:
     @pytest.mark.asyncio
     async def test_shutdown_leaves_another_replicas_lock_alone(self, cache, recorder):
         await cache.set(notify.POLL_LOCK_KEY, "the-other-replica", 60)
-        notifier = notify.TelegramNotifier(
+        notifier = telegram.TelegramNotifier(
             FAKE_TOKEN, FAKE_CHAT,
             client=httpx.AsyncClient(transport=httpx.MockTransport(recorder.handler)))
         notify.configure(cache, notifier=notifier)
@@ -1722,7 +1724,7 @@ class TestDeployHandover:
     @pytest.mark.asyncio
     async def test_poll_offset_is_persisted_for_the_successor(self, cache):
         bot = TestPolling.Bot([TestPolling.update(500, FAKE_CHAT, "/status")])
-        notifier = notify.TelegramNotifier(
+        notifier = telegram.TelegramNotifier(
             FAKE_TOKEN, FAKE_CHAT,
             client=httpx.AsyncClient(transport=httpx.MockTransport(bot.handler)))
         notify.configure(cache, notifier=notifier)
@@ -1753,7 +1755,7 @@ class TestDeployHandover:
                     raise httpx.ConnectError("network not up yet", request=request)
             return httpx.Response(200, json={"ok": True})
 
-        notifier = notify.TelegramNotifier(
+        notifier = telegram.TelegramNotifier(
             FAKE_TOKEN, FAKE_CHAT,
             client=httpx.AsyncClient(transport=httpx.MockTransport(flaky)))
         notify.configure(cache, notifier=notifier)
@@ -1776,7 +1778,7 @@ class TestDeployHandover:
                 return httpx.Response(200, json={"ok": True, "result": []})
             raise httpx.ConnectError("boom", request=request)
 
-        notifier = notify.TelegramNotifier(
+        notifier = telegram.TelegramNotifier(
             FAKE_TOKEN, FAKE_CHAT,
             client=httpx.AsyncClient(transport=httpx.MockTransport(down)))
         notify.configure(cache, notifier=notifier)
@@ -1808,7 +1810,7 @@ class TestDeployHandover:
             async def incr(self, *a, **k):
                 return 0
 
-        notifier = notify.TelegramNotifier(
+        notifier = telegram.TelegramNotifier(
             FAKE_TOKEN, FAKE_CHAT,
             client=httpx.AsyncClient(transport=httpx.MockTransport(recorder.handler)))
         notify.configure(BrokenCache(), notifier=notifier)
@@ -1829,7 +1831,7 @@ class TestDeployHandover:
                 "ok": False, "error_code": 400,
                 "description": "Bad Request: can't parse entities: Unsupported start tag"})
 
-        notifier = notify.TelegramNotifier(
+        notifier = telegram.TelegramNotifier(
             FAKE_TOKEN, FAKE_CHAT,
             client=httpx.AsyncClient(transport=httpx.MockTransport(refuse)))
         notify.configure(cache, notifier=notifier)
@@ -1895,7 +1897,7 @@ class TestFindsAndPostIdeas:
                  "hashtags": ["thrifting"], "why": "format"},
             ]})
 
-        notifier = notify.TelegramNotifier(
+        notifier = telegram.TelegramNotifier(
             FAKE_TOKEN, FAKE_CHAT,
             client=httpx.AsyncClient(transport=httpx.MockTransport(recorder.handler)))
         notify.configure(cache, notifier=notifier, generator=fake_model)
@@ -1925,7 +1927,7 @@ class TestFindsAndPostIdeas:
         async def broken(prompt: str, max_tokens: int) -> str:
             raise RuntimeError("upstream down")
 
-        notifier = notify.TelegramNotifier(
+        notifier = telegram.TelegramNotifier(
             FAKE_TOKEN, FAKE_CHAT,
             client=httpx.AsyncClient(transport=httpx.MockTransport(recorder.handler)))
         notify.configure(cache, notifier=notifier, generator=broken)
@@ -1979,7 +1981,7 @@ async def bot_with_model(cache, recorder):
             {"day": d, "idea": f"Idea for {d}", "format": "find" if i % 2 else "POV", "why": "evergreen"}
             for i, d in enumerate(["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"])]},
     })
-    notifier = notify.TelegramNotifier(
+    notifier = telegram.TelegramNotifier(
         FAKE_TOKEN, FAKE_CHAT,
         client=httpx.AsyncClient(transport=httpx.MockTransport(recorder.handler)))
     notify.configure(cache, notifier=notifier, generator=model)
@@ -2143,7 +2145,7 @@ class TestCheckup:
         # (TestCheckupSpendAlert, TestCheckupAuditSalt).
         monkeypatch.setattr(notify, "GEMINI_DAILY_BUDGET_USD", 2.0)
         monkeypatch.setattr(auditlog, "_SALT", secrets.token_urlsafe(32).encode())
-        notifier = notify.TelegramNotifier(
+        notifier = telegram.TelegramNotifier(
             FAKE_TOKEN, FAKE_CHAT,
             client=httpx.AsyncClient(transport=httpx.MockTransport(recorder.handler)))
 
@@ -2180,7 +2182,7 @@ class TestCheckup:
         def unreachable(host, timeout=5.0):
             raise OSError("no route")
         monkeypatch.setattr(checkup, "_tls_days_left", unreachable)
-        notifier = notify.TelegramNotifier(
+        notifier = telegram.TelegramNotifier(
             FAKE_TOKEN, FAKE_CHAT,
             client=httpx.AsyncClient(transport=httpx.MockTransport(recorder.handler)))
 
@@ -2399,7 +2401,7 @@ class TestRedisCheckupLine:
                 return dict(safe) | {"rdb_last_save_time": int(time.time())}
 
         cache = ResilientCache(Primary(), InMemoryCache())
-        notifier = notify.TelegramNotifier(
+        notifier = telegram.TelegramNotifier(
             FAKE_TOKEN, FAKE_CHAT,
             client=httpx.AsyncClient(transport=httpx.MockTransport(recorder.handler)))
         notify.configure(cache, notifier=notifier)
@@ -2571,7 +2573,7 @@ class TestAskButtons:
             self.callback(700, "ask price"),
             self.reply(701, question, "Le Creuset dutch oven 5.5 qt flame"),
         ])
-        notifier = notify.TelegramNotifier(
+        notifier = telegram.TelegramNotifier(
             FAKE_TOKEN, FAKE_CHAT,
             client=httpx.AsyncClient(transport=httpx.MockTransport(bot.handler)))
         notify.configure(cache, notifier=notifier, generator=model)
@@ -2593,7 +2595,7 @@ class TestAskButtons:
     @pytest.mark.asyncio
     async def test_a_reply_to_something_else_is_not_a_command(self, cache):
         bot = TestPolling.Bot([self.reply(710, "📡 <b>SnapWorth status</b>", "nice")])
-        notifier = notify.TelegramNotifier(
+        notifier = telegram.TelegramNotifier(
             FAKE_TOKEN, FAKE_CHAT,
             client=httpx.AsyncClient(transport=httpx.MockTransport(bot.handler)))
         notify.configure(cache, notifier=notifier)
@@ -2620,13 +2622,13 @@ class TestClearChat:
         ])
         for i, u in enumerate(bot.updates):
             u["message"]["message_id"] = 500 + i
-        notifier = notify.TelegramNotifier(
+        notifier = telegram.TelegramNotifier(
             FAKE_TOKEN, FAKE_CHAT,
             client=httpx.AsyncClient(transport=httpx.MockTransport(bot.handler)))
         notify.configure(cache, notifier=notifier)
         try:
             await notify.poll_once(None)
-            entries = json.loads(await cache.get(notify.MESSAGES_KEY))
+            entries = json.loads(await cache.get(chatlog.MESSAGES_KEY))
             remembered = {e[0] for e in entries}
             # The operator's two commands and the bot's two replies.
             assert remembered == {500, 501, 1001, 1002}
@@ -2650,7 +2652,7 @@ class TestClearChat:
             assert "📡 <b>SnapWorth status</b>" in bot.replies[-1]
             assert bot.markups[-1] is not None, "the keyboard comes back"
             # Only the fresh status remains remembered, for the next clear.
-            assert [e[0] for e in json.loads(await cache.get(notify.MESSAGES_KEY))] == [1003]
+            assert [e[0] for e in json.loads(await cache.get(chatlog.MESSAGES_KEY))] == [1003]
         finally:
             await notify.aclose()
 
@@ -2660,7 +2662,7 @@ class TestClearChat:
         it, and "kept in /history" promised more than it kept."""
         bot = TestPolling.Bot([TestPolling.update(870, FAKE_CHAT, "/status")])
         bot.updates[0]["message"]["message_id"] = 700
-        notifier = notify.TelegramNotifier(
+        notifier = telegram.TelegramNotifier(
             FAKE_TOKEN, FAKE_CHAT,
             client=httpx.AsyncClient(transport=httpx.MockTransport(bot.handler)))
         notify.configure(cache, notifier=notifier)
@@ -2693,14 +2695,14 @@ class TestClearChat:
         await notify._remember_message(700)
         text, _ = await notify._clear_prompt()
         assert "Deletes the 1 message " in text and "not kept" in text
-        monkeypatch.setenv(notify.ARCHIVE_CHAT_ENV, "-1001234567890")
+        monkeypatch.setenv(chatlog.ARCHIVE_CHAT_ENV, "-1001234567890")
         text, _ = await notify._clear_prompt()
         assert "forwarded to the archive chat first" in text and "not kept" not in text
 
     @pytest.mark.asyncio
     async def test_clear_with_nothing_remembered(self, cache):
         bot = TestPolling.Bot([TestPolling.update(810, FAKE_CHAT, "/clear")])
-        notifier = notify.TelegramNotifier(
+        notifier = telegram.TelegramNotifier(
             FAKE_TOKEN, FAKE_CHAT,
             client=httpx.AsyncClient(transport=httpx.MockTransport(bot.handler)))
         notify.configure(cache, notifier=notifier)
@@ -2709,7 +2711,7 @@ class TestClearChat:
             # The /clear message itself carried no id in this fixture, so
             # nothing is known and nothing is swept.
             assert bot.deleted == []
-            assert notify.CLEAR_NOTHING_TRACKED in bot.replies[-1]
+            assert chatlog.CLEAR_NOTHING_TRACKED in bot.replies[-1]
         finally:
             await notify.aclose()
 
@@ -2719,15 +2721,15 @@ class TestClearChat:
         """The list lives in the cache and survives a restart, so "since this
         process started" was not what an empty list meant."""
         text, _ = await notify._clear_prompt()
-        assert text == notify.CLEAR_NOTHING_TRACKED
+        assert text == chatlog.CLEAR_NOTHING_TRACKED
         assert "48 hours" in text and "process" not in text
 
     @pytest.mark.asyncio
     async def test_old_ids_are_forgotten(self, cache, enabled_notify):
-        stale = int(time.time()) - notify.MESSAGES_TTL - 60
-        await cache.set(notify.MESSAGES_KEY, json.dumps([[1, stale]]), 600)
+        stale = int(time.time()) - chatlog.MESSAGES_TTL - 60
+        await cache.set(chatlog.MESSAGES_KEY, json.dumps([[1, stale]]), 600)
         await notify._remember_message(2)
-        assert [e[0] for e in json.loads(await cache.get(notify.MESSAGES_KEY))] == [2]
+        assert [e[0] for e in json.loads(await cache.get(chatlog.MESSAGES_KEY))] == [2]
 
 
 class TestPhotoScan:
@@ -2756,7 +2758,7 @@ class TestPhotoScan:
                     "prompt_version": "v2", "valuation_source": "model"}
 
         bot = TestPolling.Bot([self.photo(900)])
-        notifier = notify.TelegramNotifier(
+        notifier = telegram.TelegramNotifier(
             FAKE_TOKEN, FAKE_CHAT,
             client=httpx.AsyncClient(transport=httpx.MockTransport(bot.handler)))
         notify.configure(cache, notifier=notifier, scanner=scanner)
@@ -2787,7 +2789,7 @@ class TestPhotoScan:
             raise HTTPException(status_code=502, detail="The AI couldn't price this item. Please try again.")
 
         bot = TestPolling.Bot([self.photo(901)])
-        notifier = notify.TelegramNotifier(
+        notifier = telegram.TelegramNotifier(
             FAKE_TOKEN, FAKE_CHAT,
             client=httpx.AsyncClient(transport=httpx.MockTransport(bot.handler)))
         notify.configure(cache, notifier=notifier, scanner=scanner)
@@ -2801,7 +2803,7 @@ class TestPhotoScan:
     @pytest.mark.asyncio
     async def test_photo_without_a_scanner(self, cache):
         bot = TestPolling.Bot([self.photo(902)])
-        notifier = notify.TelegramNotifier(
+        notifier = telegram.TelegramNotifier(
             FAKE_TOKEN, FAKE_CHAT,
             client=httpx.AsyncClient(transport=httpx.MockTransport(bot.handler)))
         notify.configure(cache, notifier=notifier)
@@ -2816,7 +2818,7 @@ class TestPhotoScan:
         update = self.photo(903)
         update["message"]["chat"]["id"] = 999999
         bot = TestPolling.Bot([update])
-        notifier = notify.TelegramNotifier(
+        notifier = telegram.TelegramNotifier(
             FAKE_TOKEN, FAKE_CHAT,
             client=httpx.AsyncClient(transport=httpx.MockTransport(bot.handler)))
 
@@ -2833,7 +2835,7 @@ class TestPhotoScan:
 class TestHistoryAndArchive:
     async def bot_with(self, cache, updates):
         bot = TestPolling.Bot(updates)
-        notifier = notify.TelegramNotifier(
+        notifier = telegram.TelegramNotifier(
             FAKE_TOKEN, FAKE_CHAT,
             client=httpx.AsyncClient(transport=httpx.MockTransport(bot.handler)))
         notify.configure(cache, notifier=notifier)
@@ -2857,13 +2859,13 @@ class TestHistoryAndArchive:
             assert "<b>SnapWorth status</b>" not in text
             assert "/history 25 for more" in text
             # The clear's own reply is remembered for the *next* clear, not archived yet.
-            assert len(json.loads(await cache.get(notify.ARCHIVE_KEY))) == 2
+            assert len(json.loads(await cache.get(chatlog.ARCHIVE_KEY))) == 2
         finally:
             await notify.aclose()
 
     @pytest.mark.asyncio
     async def test_history_count_argument_and_cap(self, cache, enabled_notify):
-        await cache.set(notify.ARCHIVE_KEY, json.dumps(
+        await cache.set(chatlog.ARCHIVE_KEY, json.dumps(
             [[1_756_900_000 + i, f"<b>message {i}</b>"] for i in range(40)]), 600)
         assert "last 3 of 40" in await notify.handle_command("/history 3")
         assert "last 25 of 40" in await notify.handle_command("/history 999")
@@ -2872,15 +2874,15 @@ class TestHistoryAndArchive:
 
     @pytest.mark.asyncio
     async def test_archive_is_capped_and_old_entries_roll_off(self, cache, enabled_notify):
-        await cache.set(notify.ARCHIVE_KEY, json.dumps(
-            [[1, "old"]] * notify.ARCHIVE_CAP), 600)
-        await notify._archive([[9, 2, "new"]])
-        kept = json.loads(await cache.get(notify.ARCHIVE_KEY))
-        assert len(kept) == notify.ARCHIVE_CAP and kept[-1] == [2, "new"]
+        await cache.set(chatlog.ARCHIVE_KEY, json.dumps(
+            [[1, "old"]] * chatlog.ARCHIVE_CAP), 600)
+        await chatlog.archive(notify._cache, [[9, 2, "new"]])
+        kept = json.loads(await cache.get(chatlog.ARCHIVE_KEY))
+        assert len(kept) == chatlog.ARCHIVE_CAP and kept[-1] == [2, "new"]
 
     @pytest.mark.asyncio
     async def test_clear_forwards_to_an_archive_chat_when_configured(self, cache, monkeypatch):
-        monkeypatch.setenv(notify.ARCHIVE_CHAT_ENV, "-1001234567890")
+        monkeypatch.setenv(chatlog.ARCHIVE_CHAT_ENV, "-1001234567890")
         bot = await self.bot_with(cache, [TestPolling.update(830, FAKE_CHAT, "/status")])
         bot.updates[0]["message"]["message_id"] = 600
         try:
@@ -2899,7 +2901,7 @@ class TestHistoryAndArchive:
         delete batch. A tracked list mixes the bot's messages with service
         messages and ones already gone, so a single refusal used to archive
         nothing at all and report a mute '0 forwarded'."""
-        monkeypatch.setenv(notify.ARCHIVE_CHAT_ENV, "-5401463470")
+        monkeypatch.setenv(chatlog.ARCHIVE_CHAT_ENV, "-5401463470")
 
         class PickyForwarder(TestPolling.Bot):
             """Refuses any batch containing 1001, like the real API."""
@@ -2918,7 +2920,7 @@ class TestHistoryAndArchive:
                 return super().handler(request)
 
         bot = PickyForwarder([TestPolling.update(840, FAKE_CHAT, "/status")])
-        notifier = notify.TelegramNotifier(
+        notifier = telegram.TelegramNotifier(
             FAKE_TOKEN, FAKE_CHAT,
             client=httpx.AsyncClient(transport=httpx.MockTransport(bot.handler)))
         notify.configure(cache, notifier=notifier)
@@ -2941,7 +2943,7 @@ class TestHistoryAndArchive:
         a different id, and the archive silently stops working. Telegram names
         the new id in parameters.migrate_to_chat_id; the run should follow it
         and tell the operator what to put in the environment."""
-        monkeypatch.setenv(notify.ARCHIVE_CHAT_ENV, "-5401463470")
+        monkeypatch.setenv(chatlog.ARCHIVE_CHAT_ENV, "-5401463470")
 
         class Migrated(TestPolling.Bot):
             def handler(self, request):
@@ -2958,7 +2960,7 @@ class TestHistoryAndArchive:
                 return super().handler(request)
 
         bot = Migrated([TestPolling.update(860, FAKE_CHAT, "/status")])
-        notifier = notify.TelegramNotifier(
+        notifier = telegram.TelegramNotifier(
             FAKE_TOKEN, FAKE_CHAT,
             client=httpx.AsyncClient(transport=httpx.MockTransport(bot.handler)))
         notify.configure(cache, notifier=notifier)
@@ -2979,7 +2981,7 @@ class TestHistoryAndArchive:
     async def test_zero_forwarded_says_why(self, cache, monkeypatch):
         """'0 forwarded' with no reason is the failure mode that hides a
         misconfigured archive; Telegram's own words go in the reply."""
-        monkeypatch.setenv(notify.ARCHIVE_CHAT_ENV, "-5401463470")
+        monkeypatch.setenv(chatlog.ARCHIVE_CHAT_ENV, "-5401463470")
 
         class RefusesEverything(TestPolling.Bot):
             def handler(self, request):
@@ -2989,7 +2991,7 @@ class TestHistoryAndArchive:
                 return super().handler(request)
 
         bot = RefusesEverything([TestPolling.update(850, FAKE_CHAT, "/status")])
-        notifier = notify.TelegramNotifier(
+        notifier = telegram.TelegramNotifier(
             FAKE_TOKEN, FAKE_CHAT,
             client=httpx.AsyncClient(transport=httpx.MockTransport(bot.handler)))
         notify.configure(cache, notifier=notifier)
@@ -3007,9 +3009,9 @@ class TestHistoryAndArchive:
     @pytest.mark.asyncio
     async def test_snippet_strips_tags_and_bounds(self):
         long = "<b>Title</b>\n\n" + "x" * 1000 + " &amp; <i>done</i>"
-        out = notify._snippet(long, limit=50)
+        out = chatlog.snippet(long, limit=50)
         assert out.startswith("Title\nxxxx") and out.endswith("…") and "<" not in out
-        assert notify._snippet("a &lt; b") == "a &lt; b"
+        assert chatlog.snippet("a &lt; b") == "a &lt; b"
 
 
 class TestSafetyBlocks:
@@ -3041,7 +3043,7 @@ class TestDeviceCheckLine:
     async def line(self, cache, monkeypatch, configured, probe):
         monkeypatch.setattr(checkup, "_tls_days_left", lambda host, timeout=5.0: 60)
         bot = TestPolling.Bot([])
-        notifier = notify.TelegramNotifier(
+        notifier = telegram.TelegramNotifier(
             FAKE_TOKEN, FAKE_CHAT,
             client=httpx.AsyncClient(transport=httpx.MockTransport(bot.handler)))
         notify.configure(cache, notifier=notifier,
@@ -3208,13 +3210,13 @@ class TestScanFailureBreakdown:
 class TestArchiveChatCheck:
     async def line(self, cache, value):
         bot = TestPolling.Bot([])
-        notifier = notify.TelegramNotifier(
+        notifier = telegram.TelegramNotifier(
             FAKE_TOKEN, FAKE_CHAT,
             client=httpx.AsyncClient(transport=httpx.MockTransport(bot.handler)))
         notify.configure(cache, notifier=notifier)
         try:
             return await checkup._archive_chat_line(value, notifier.get_chat,
-                                                    notify.ARCHIVE_CHAT_ENV)
+                                                    chatlog.ARCHIVE_CHAT_ENV)
         finally:
             await notify.aclose()
 
@@ -3260,15 +3262,15 @@ class TestArchiveChatCheck:
     @pytest.mark.asyncio
     async def test_checkup_shows_it_only_when_configured(self, cache, monkeypatch, recorder):
         monkeypatch.setattr(checkup, "_tls_days_left", lambda host, timeout=5.0: 60)
-        monkeypatch.setenv(notify.ARCHIVE_CHAT_ENV, "5401463470")
+        monkeypatch.setenv(chatlog.ARCHIVE_CHAT_ENV, "5401463470")
         bot = TestPolling.Bot([])
-        notifier = notify.TelegramNotifier(
+        notifier = telegram.TelegramNotifier(
             FAKE_TOKEN, FAKE_CHAT,
             client=httpx.AsyncClient(transport=httpx.MockTransport(bot.handler)))
         notify.configure(cache, notifier=notifier)
         try:
             assert "Archive chat: <code>5401463470</code> is positive" in await notify.handle_command("/checkup")
-            monkeypatch.delenv(notify.ARCHIVE_CHAT_ENV)
+            monkeypatch.delenv(chatlog.ARCHIVE_CHAT_ENV)
             assert "Archive chat" not in await notify.handle_command("/checkup")
         finally:
             await notify.aclose()
@@ -3298,7 +3300,7 @@ class TestDeleteBatchesSplitOnRefusal:
     @pytest.mark.asyncio
     async def test_undeletable_ids_are_isolated_not_fatal(self):
         bot = self.PickyBot(undeletable={7, 150, 151})
-        notifier = notify.TelegramNotifier(
+        notifier = telegram.TelegramNotifier(
             FAKE_TOKEN, FAKE_CHAT,
             client=httpx.AsyncClient(transport=httpx.MockTransport(bot.handler)))
         ids = list(range(1, 301))
@@ -3311,9 +3313,9 @@ class TestDeleteBatchesSplitOnRefusal:
 
     @pytest.mark.asyncio
     async def test_call_budget_is_bounded(self, monkeypatch):
-        monkeypatch.setattr(notify, "DELETE_MAX_CALLS", 5)
+        monkeypatch.setattr(telegram, "DELETE_MAX_CALLS", 5)
         bot = self.PickyBot(undeletable=set(range(1, 301)))
-        notifier = notify.TelegramNotifier(
+        notifier = telegram.TelegramNotifier(
             FAKE_TOKEN, FAKE_CHAT,
             client=httpx.AsyncClient(transport=httpx.MockTransport(bot.handler)))
         assert await notifier.delete_messages(list(range(1, 301))) == 0
@@ -3324,7 +3326,7 @@ class TestDeleteBatchesSplitOnRefusal:
 class TestDeployRecord:
     @pytest.mark.asyncio
     async def test_status_says_whether_this_builds_ping_went_out(self, cache, recorder):
-        notifier = notify.TelegramNotifier(
+        notifier = telegram.TelegramNotifier(
             FAKE_TOKEN, FAKE_CHAT,
             client=httpx.AsyncClient(transport=httpx.MockTransport(recorder.handler)))
         notify.configure(cache, notifier=notifier,
@@ -3349,7 +3351,7 @@ class TestDeployRecord:
             if request.url.path.endswith("/getUpdates"):
                 return httpx.Response(200, json={"ok": True, "result": []})
             raise httpx.ConnectError("boom", request=request)
-        notifier = notify.TelegramNotifier(
+        notifier = telegram.TelegramNotifier(
             FAKE_TOKEN, FAKE_CHAT,
             client=httpx.AsyncClient(transport=httpx.MockTransport(down)))
         notify.configure(cache, notifier=notifier,
@@ -3368,11 +3370,11 @@ class TestDeployRecord:
 class TestHistorySnippet:
     def test_first_lines_only_then_an_ellipsis(self):
         text = "<b>📡 SnapWorth status</b>\nActive users: 1\nScans today: 3\nSubs: 0\nGemini ≈ $0.01\nBuild abc"
-        out = notify._snippet(text)
+        out = chatlog.snippet(text)
         assert out.startswith("📡 SnapWorth status\nActive users: 1")
-        assert out.count("\n") == notify.HISTORY_SNIPPET_LINES - 1
+        assert out.count("\n") == chatlog.HISTORY_SNIPPET_LINES - 1
         assert out.endswith("…") and "Build abc" not in out
-        assert notify._snippet("<i>one line</i>") == "one line"
+        assert chatlog.snippet("<i>one line</i>") == "one line"
 
 
 class TestExperimentCommand:
@@ -4634,7 +4636,7 @@ class TestSaleCountingAndResubscribe:
         normal case, not an edge one.
         """
         failing = Recorder(status_code=500)
-        notifier = notify.TelegramNotifier(
+        notifier = telegram.TelegramNotifier(
             FAKE_TOKEN, FAKE_CHAT,
             client=httpx.AsyncClient(
                 transport=httpx.MockTransport(failing.handler)))
@@ -4655,7 +4657,7 @@ class TestSaleCountingAndResubscribe:
         """The alert guard must still be released — that is the behaviour the
         counter fix has to leave intact."""
         failing = Recorder(status_code=500)
-        notifier = notify.TelegramNotifier(
+        notifier = telegram.TelegramNotifier(
             FAKE_TOKEN, FAKE_CHAT,
             client=httpx.AsyncClient(
                 transport=httpx.MockTransport(failing.handler)))
@@ -5365,7 +5367,7 @@ class _SlowGetRedis(InMemoryCache):
 async def flaky_notify(recorder):
     redis = _SlowGetRedis()
     cache = ResilientCache(redis, InMemoryCache(), configured=True)
-    notifier = notify.TelegramNotifier(
+    notifier = telegram.TelegramNotifier(
         FAKE_TOKEN, FAKE_CHAT,
         client=httpx.AsyncClient(transport=httpx.MockTransport(recorder.handler)))
     notify.configure(cache, notifier=notifier)
@@ -5422,16 +5424,16 @@ class TestAFailedReadDoesNotWipeTheDocument:
         redis = flaky_notify
         await notify._remember_message(1, "first")
         await notify._remember_message(2, "second")
-        await notify._archive([[1, 1, "kept one"], [2, 2, "kept two"]])
+        await chatlog.archive(notify._cache, [[1, 1, "kept one"], [2, 2, "kept two"]])
 
         redis.failing = True
         await notify._remember_message(3, "third")
-        assert await notify._archive([[3, 3, "kept three"]]) is None
+        assert await chatlog.archive(notify._cache, [[3, 3, "kept three"]]) is None
         redis.failing = False
 
-        messages = json.loads(await redis.get(notify.MESSAGES_KEY))
+        messages = json.loads(await redis.get(chatlog.MESSAGES_KEY))
         assert [e[0] for e in messages] == [1, 2]
-        archive = json.loads(await redis.get(notify.ARCHIVE_KEY))
+        archive = json.loads(await redis.get(chatlog.ARCHIVE_KEY))
         assert [a[1] for a in archive] == ["kept one", "kept two"]
 
     @pytest.mark.asyncio
@@ -5443,10 +5445,10 @@ class TestAFailedReadDoesNotWipeTheDocument:
         whose texts the archive had just failed to keep."""
         redis = flaky_notify
         entries = [[11, int(time.time()), "said one"], [12, int(time.time()), "said two"]]
-        await redis.set(notify.MESSAGES_KEY, json.dumps(entries))
-        await redis.set(notify.ARCHIVE_KEY, json.dumps([[1, "older"]]))
+        await redis.set(chatlog.MESSAGES_KEY, json.dumps(entries))
+        await redis.set(chatlog.ARCHIVE_KEY, json.dumps([[1, "older"]]))
 
-        key = notify.MESSAGES_KEY if unreadable == "list" else notify.ARCHIVE_KEY
+        key = chatlog.MESSAGES_KEY if unreadable == "list" else chatlog.ARCHIVE_KEY
         real_get = redis.get
 
         async def get(k):
@@ -5459,8 +5461,8 @@ class TestAFailedReadDoesNotWipeTheDocument:
 
         assert not any(r["path"].endswith("/deleteMessages") for r in recorder.requests)
         assert "Nothing was cleared" in recorder.texts[-1]
-        assert json.loads(await redis.get(notify.MESSAGES_KEY)) == entries
-        assert json.loads(await redis.get(notify.ARCHIVE_KEY)) == [[1, "older"]]
+        assert json.loads(await redis.get(chatlog.MESSAGES_KEY)) == entries
+        assert json.loads(await redis.get(chatlog.ARCHIVE_KEY)) == [[1, "older"]]
 
     @pytest.mark.asyncio
     async def test_the_lever_keeps_its_change_history(self, flaky_notify, monkeypatch):
