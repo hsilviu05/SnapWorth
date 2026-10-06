@@ -207,9 +207,26 @@ system toward confident guessing.
 ## Phase 3 — experiments
 
 ```bash
+# Both arms on the dev items, 3 repeats each; one file holds both arms
+python -m eval.runner --dataset eval/data/gold.jsonl --compare v2 v2.1 \
+  --repeats 3 --json-out runs/v2-v2.1.json
+python -m eval.cli experiment --name v2-v2.1 --compare runs/v2-v2.1.json
+# or two single-arm runs
 python -m eval.cli experiment --name prompt-v3 \
   --baseline runs/v2.json --candidate runs/v3.json
 ```
+
+The runner writes each arm per item, keyed by gold id (#216): the price,
+latency and confidence are the median of an item's repeats. An item with
+no priced repeat counts as a failure and is left unpaired. Each arm also
+carries its config (prompt version, thinking budget, model). Two arms that
+differ in anything but the prompt or the budget are refused, because they
+are a different experiment. The approved `negative_control` records run as
+a separate pass, giving each arm a `decline_rate`: the share returned as
+`not_resalable`. The guardrails are latency p95, hallucination, calibration
+ECE and bias, and, when both arms carry them, `scored_fraction` (may not
+fall more than 5%), `decline_rate` (may not fall more than 20%) and median
+billed output tokens (may not rise more than 25%).
 
 Declare **one primary metric** before running. Everything else is a guardrail.
 With twenty secondary metrics at α=0.05 you expect one false positive per run,

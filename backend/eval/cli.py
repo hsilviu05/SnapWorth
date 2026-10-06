@@ -132,25 +132,46 @@ def cmd_gate(args) -> int:
     return report.exit_code
 
 
+def _arm_from(payload: dict, label: str) -> ArmResult:
+    """An arm from either shape: a runner `--json-out` for one arm (its `arm`
+    key, #216) or a bare ArmResult dict, as written before the runner did."""
+    return ArmResult.from_dict(payload.get("arm", payload), label)
+
+
 def cmd_experiment(args) -> int:
-    def arm(path: str, label: str) -> ArmResult:
-        payload = _load_json(path)
-        return ArmResult(
-            label=payload.get("label", label),
-            absolute_percentage_error=payload.get("absolute_percentage_error", {}),
-            latency_ms=payload.get("latency_ms", {}),
-            confidence=payload.get("confidence", {}),
-            predicted=payload.get("predicted", {}),
-            actual=payload.get("actual", {}),
-            hallucinated=payload.get("hallucinated", {}),
-            failures=payload.get("failures", 0),
-            config=payload.get("config", {}),
-        )
+    if args.compare:
+        # A runner `--compare A B` file: A is the baseline, B the candidate,
+        # in the order they were run.
+        payload = _load_json(args.compare)
+        order = payload.get("compare") or list(payload.get("arms", {}))
+        if len(order) != 2:
+            print(f"{args.compare}: not a two-arm runner --compare file", file=sys.stderr)
+            return 2
+        baseline = _arm_from(payload["arms"][order[0]], order[0])
+        candidate = _arm_from(payload["arms"][order[1]], order[1])
+    elif args.baseline and args.candidate:
+        baseline = _arm_from(_load_json(args.baseline), "baseline")
+        candidate = _arm_from(_load_json(args.candidate), "candidate")
+    else:
+        print("experiment needs --compare FILE, or --baseline and --candidate",
+              file=sys.stderr)
+        return 2
+
+    if baseline.config and candidate.config:
+        differs = sorted(k for k in set(baseline.config) | set(candidate.config)
+                         if k != "prompt_version" and k != "thinking_budget"
+                         and baseline.config.get(k) != candidate.config.get(k))
+        if differs:
+            # Only the arm's own lever may differ; a different model is a
+            # different experiment.
+            print(f"the arms ran under different settings ({', '.join(differs)}); "
+                  "re-run both under one", file=sys.stderr)
+            return 2
 
     result = run_experiment(
         args.name,
-        arm(args.baseline, "baseline"),
-        arm(args.candidate, "candidate"),
+        baseline,
+        candidate,
         primary_metric=args.primary_metric,
         require_significance=not args.allow_insignificant,
     )
@@ -285,8 +306,9 @@ def main(argv=None) -> int:
 
     p = sub.add_parser("experiment", help="compare two arms")
     p.add_argument("--name", default="unnamed")
-    p.add_argument("--baseline", required=True)
-    p.add_argument("--candidate", required=True)
+    p.add_argument("--compare", help="a runner --compare file; its first arm is the baseline")
+    p.add_argument("--baseline", help="one arm: a runner --json-out or an ArmResult dict")
+    p.add_argument("--candidate")
     p.add_argument("--primary-metric", default="mdape")
     p.add_argument("--allow-insignificant", action="store_true")
     p.add_argument("--json-out")
