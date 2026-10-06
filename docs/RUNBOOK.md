@@ -1068,6 +1068,7 @@ Scan history still lives on-device, and nothing here can lose it.
 | `opssocial:tiktok:tokens` | TikTok OAuth tokens | 400 d | **None** | `/social` loses TikTok until re-authorised |
 | `refpool:*`, `refpool:seen:*` | offer-code pools, cursor, and the loader's ledger of every code ever loaded | none | **None** | Every batch is burned: which of its codes were handed out is known only here. Reloading an old CSV — or a restore that rewinds the cursor — hands out codes friends were already given, which Apple refuses |
 | `ref:*` | referral links, device bindings, claims, reward and redemption markers, earned and parked reward codes | 400 d | **None** (the app log has each issued slot, `referral code issued`, never the code) | Referrers lose rewards they earned and have not redeemed; a reward can be issued twice for one purchase |
+| `outcome:*`, `outcome-slot:*`, `outcome-by:*`, `outcome-seq` | opt-in shared sale outcomes (#224): one record per sold flip, keyed by its contribution id, with the counters behind the export and per-install deletion | 400 d | **None** | The field-outcomes measurement starts again from zero. Users who shared can no longer delete records that no longer exist, so nothing is owed to them |
 | `dct:{keyId}` | DeviceCheck token from attestation | 400 d | Next attest | Reinstall marking waits for the device's next attestation |
 | `opsstats:*`, `opsstate:*` (other), `chal:*`, rate limits, `comps:*`, `safety:*` | counters, digests, challenges, limits, caches | ≤ 400 d | — | Digest history and today's limits; disposable |
 
