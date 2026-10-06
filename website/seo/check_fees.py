@@ -14,7 +14,10 @@ Checked, per marketplace:
 - percentage, fixed fee, and the low-price flat charge, compared exactly;
 - the note the calculator prints under the arithmetic names those figures, or
   says "no seller fee" when there are none;
-- the prose footnote under the calculator names the same figures.
+- the prose footnote under the calculator names the same figures;
+- each generated /fees page (#228): its calculator's data attributes are the
+  app's rate, its text names the app's figures, and its worked examples are
+  the app's rule applied to their prices.
 
 FEES is evaluated with node rather than parsed with a regex, so what is
 compared is the object the page actually runs.
@@ -124,6 +127,46 @@ def figures(fee: Fee) -> list[str]:
     return out
 
 
+def fee_page_problems(app: dict[str, Fee]) -> list[str]:
+    """The /fees pages against the app's table (#228)."""
+    from build_fees import PUBLISHED, fee_on
+    problems: list[str] = []
+    folder = WEBSITE / "fees"
+    found = {p.stem for p in folder.glob("*.html")} if folder.is_dir() else set()
+    if missing := sorted(set(PUBLISHED) - found):
+        problems.append(f"fee pages not built: {', '.join(missing)} (run build_seo.py)")
+    if extra := sorted(found - set(PUBLISHED)):
+        problems.append(f"fee pages not in build_fees.PUBLISHED: {', '.join(extra)}")
+    for key in sorted(found & set(PUBLISHED)):
+        page = (folder / f"{key}.html").read_text(encoding="utf-8")
+        where = f"fees/{key}.html"
+        if key not in app:
+            problems.append(f"{where}: {key} is not in MarketplaceFees.defaults")
+            continue
+        fee = app[key]
+        calc = re.search(r'id="fee-calc"([^>]*)>', page)
+        attrs = dict(re.findall(r'data-([\w-]+)="([^"]*)"', calc.group(1))) if calc else {}
+        flat = ((Decimal(attrs["flat-below"]), Decimal(attrs["flat-fee"]))
+                if "flat-below" in attrs else None)
+        try:
+            web = Fee(Decimal(attrs["pct"]), Decimal(attrs["fixed"]), flat)
+        except (KeyError, ArithmeticError):
+            problems.append(f"{where}: the calculator carries no readable rate")
+            continue
+        if web != fee:
+            problems.append(f"{where}: the app charges {fee!r}, the page's calculator {web!r}")
+        text = html.unescape(re.sub(r"<[^>]+>", " ", page))
+        if missing := [f for f in figures(fee) if f not in text]:
+            problems.append(f"{where}: does not say {', '.join(missing)}")
+        for price, shown_fee in re.findall(
+                r"<tr><td>\$([\d,.]+)</td><td class='val'>\$([\d,.]+)</td>", page):
+            want = fee_on(fee, Decimal(price.replace(",", "")))
+            if Decimal(shown_fee.replace(",", "")) != want:
+                problems.append(f"{where}: the example at ${price} shows a ${shown_fee} "
+                                f"fee; the app's rule gives ${want}")
+    return problems
+
+
 def main() -> int:
     if not shutil.which("node"):
         print("node is not on PATH")
@@ -168,6 +211,8 @@ def main() -> int:
             if entry["name"] not in footnote:
                 problems.append(f"{key}: charges nothing, and the footnote under "
                                 f"the calculator does not name {entry['name']!r}")
+
+    problems += fee_page_problems(app)
 
     for problem in problems:
         print(problem)

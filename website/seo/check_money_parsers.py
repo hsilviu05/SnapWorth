@@ -3,7 +3,7 @@
 
 There are three copies of one rule for turning "12,50" or "$1,250" into a
 number: the app's `MoneyInput.normalized` (MarketplaceFees.swift), the Thrift
-Flip calculator's `num()` on index.html, and the /guess game's `parse()`
+Flip calculator's `num()` (website/flip.js, shared with /fees), and the /guess game's `parse()`
 (written by build_guess.py). Each web copy says in a comment that it must match
 the app, and nothing checked it.
 
@@ -46,7 +46,7 @@ SWIFT_TESTS = REPO / "ios/SnapWorthTests/ProductionHardeningTests.swift"
 
 # (file, function name) for each web copy of the rule.
 WEB_COPIES = [
-    (WEBSITE / "index.html", "num"),
+    (WEBSITE / "flip.js", "num"),     # shared by the homepage and /fees (#228)
     (WEBSITE / "guess.html", "parse"),
 ]
 
