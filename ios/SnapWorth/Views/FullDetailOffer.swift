@@ -58,3 +58,26 @@ enum FullDetailOffer: Equatable {
         }
     }
 }
+
+// The words the sheet says around these answers, here so a test can read them
+// without opening a view's source (#229). `String(localized:)`, so the
+// catalog keys are the same English text the view used before.
+extension FullDetailOffer {
+    /// For a subscriber on a fresh, thin result (`.reread`). It names
+    /// everything a re-read replaces (`ScanResult.applySharpened`): it said
+    /// only that "the estimate may change", and a tap also renames the item
+    /// and rewrites its details and listing draft.
+    static var rereadPrompt: String {
+        String(localized: "This find was saved without its full breakdown. Re-read its photo to see the price points and what drives the value. The estimate, the item's name and details, and the listing draft may change.")
+    }
+
+    /// Under the free teaser's button. On `.teaserNewScansOnly` buying does
+    /// not bring this find's breakdown, so it says the breakdown comes with
+    /// new scans, in the words the "Scanned before Pro" label uses once they
+    /// have bought.
+    static func teaserCaption(newScansOnly: Bool) -> String {
+        newScansOnly
+            ? String(localized: "On new scans, Pro shows four price points, what drives the value, and how to sharpen the estimate. This find keeps the summary it was saved with.")
+            : String(localized: "Four price points, what drives the value, and how to sharpen the estimate.")
+    }
+}

@@ -19,6 +19,23 @@ final class ResultViewModel {
     /// was re-sent — see `PurchaseService.confirmingSubscription`.
     var showSubscriptionUnconfirmed = false
 
+    // ── Re-reads: the tag (#88) and the full breakdown (#87) ───────────────
+    // Moved out of `ResultView` (#229) so the rules they keep are tested by
+    // running them, not by reading the view's source.
+    /// One paid re-read at a time; the buttons and every caller check it.
+    var isRescanning = false
+    var tagError: String?
+    /// Success counterpart to `tagError` — see `rescanWithTag`.
+    var tagSuccess: String?
+    /// Why the full-breakdown re-read failed — see `rereadForFullDetail`.
+    var fullDetailError: String?
+    /// The paid scan both re-reads make: the stored item photo, and a tag
+    /// photo for the tag re-read. `ScanAPIClient.shared` in the app; a test
+    /// replaces it.
+    @ObservationIgnored var scanner: (UIImage, UIImage?) async throws -> ScanAPIResponse = {
+        try await ScanAPIClient.shared.scan(image: $0, tagImage: $1)
+    }
+
     // ── Listing photo cleanup (#91) ──────────────────────────────────────────
     // The cut-out is kept, not just the export: changing marketplace or
     // backdrop re-composes in a few milliseconds instead of re-running Vision.
@@ -43,6 +60,150 @@ final class ResultViewModel {
         shareCardDebounce?.cancel()
         copyGeneratedResetTask?.cancel()
         copyPhotoResetTask?.cancel()
+    }
+
+    // MARK: Re-reads
+
+    /// Whether closing the paywall should re-read the find: bought from "Unlock
+    /// why this price" on a fresh result, which is what they paid to see. A
+    /// find reopened from My Finds or My Flips is never re-read after a
+    /// purchase; its teaser said so, and its panel says why (`FullDetailOffer`).
+    nonisolated static func rereadsAfterPaywall(trigger: PaywallTrigger, offer: FullDetailOffer) -> Bool {
+        trigger == .valuationDetail && offer == .reread
+    }
+
+    /// Re-scan with both photos and replace the estimate in place.
+    ///
+    /// The item photo is the one already stored on the result, so the user
+    /// photographs the label only. A failure leaves the original estimate
+    /// exactly as it was and says so — the first answer was paid for and must
+    /// not be lost to a second attempt. `onApplied` runs after the new answer
+    /// is on `result`, for what only the sheet holds (`valuationDidChange`,
+    /// the reveal).
+    func rescanWithTag(_ tagImage: UIImage, photo: UIImage?, result: ScanResult,
+                       purchaseService: any PurchaseService,
+                       onApplied: () -> Void) async {
+        // The button checks this too, but the button is not the only caller:
+        // the tag sheet is. Two re-scans in flight would each spend a scan,
+        // the later answer would win, and the first to finish would clear
+        // "Re-reading…" while the other was still running.
+        guard !isRescanning else { return }
+        guard let photo else {
+            tagError = String(localized: "The original photo is no longer available for this find.")
+            return
+        }
+        isRescanning = true
+        defer { isRescanning = false }
+        tagError = nil
+        tagSuccess = nil
+        // A paid model call, like any scan — see `BackgroundScanActivity`.
+        let background = BackgroundScanActivity.begin("Tag re-read")
+        defer { background.end() }
+        do {
+            let response = try await purchaseService.confirmingSubscription {
+                try await scanner(photo, tagImage)
+            }
+            result.applySharpened(response)
+            onApplied()
+            Haptics.success()
+            // A haptic is the whole of the feedback a sighted user gets, and
+            // the estimate may not visibly move at all — so on success this
+            // said nothing, and said nothing at all to VoiceOver. Both are
+            // fixed here: a line that persists, and an announcement.
+            tagSuccess = String(localized: "Re-read with the tag. Estimate updated.")
+            UIAccessibility.post(notification: .announcement, argument: tagSuccess ?? "")
+            Analytics.shared.track(.tagPhotoAdded(succeeded: true))
+        } catch {
+            Haptics.failure()
+            Analytics.shared.track(.tagPhotoAdded(succeeded: false))
+            // A subscriber the server would not recognise: the alert, with
+            // Restore and support, rather than a line under a Pro card.
+            if AppError.from(error) == .subscriptionUnconfirmed {
+                showSubscriptionUnconfirmed = true
+                return
+            }
+            tagError = AppError.from(error).errorDescription
+                ?? String(localized: "That didn't work. Your estimate is unchanged.")
+        }
+    }
+
+    /// Re-reads the stored photo so a subscriber gets the panel a free scan
+    /// was never sent — see `ValuationDetail.lacksProDetail`.
+    ///
+    /// A fresh result only, like the tag re-read. `FullDetailOffer` decides,
+    /// and it is checked here as well as at the button and the paywall's
+    /// dismissal, so no path re-prices a find reopened from My Finds or My
+    /// Flips.
+    ///
+    /// The same machinery as the tag re-read, and like it this replaces the
+    /// estimate: the ladder has to explain the number beside it, so taking the
+    /// new detail and keeping the old range would show a breakdown of a price
+    /// the app no longer states.
+    func rereadForFullDetail(offer: FullDetailOffer, photo: UIImage?, result: ScanResult,
+                             purchaseService: any PurchaseService,
+                             onApplied: () -> Void) async {
+        guard !isRescanning, offer == .reread else { return }
+        guard let photo else {
+            fullDetailError = String(localized: "The original photo is no longer available for this find.")
+            return
+        }
+        isRescanning = true
+        defer { isRescanning = false }
+        fullDetailError = nil
+        let background = BackgroundScanActivity.begin("Full breakdown")
+        defer { background.end() }
+        // A server that still reads this device as free does not refuse the
+        // scan — it answers it, off the free allowance, stripped of exactly
+        // what this is for. Right after a purchase it usually does: the
+        // purchase tells the server in a detached task. So wait for the server
+        // to agree first, and do not scan if it will not.
+        if !Config.mockScans {
+            switch await purchaseService.resyncEntitlement() {
+            case .confirmed:
+                break
+            case .notSubscribed:
+                return                  // the panel is back to the teaser
+            case .unreachable(let reason, let error):
+                // Offline, timed out, rate-limited or down. Unlike a 402's
+                // resync, nothing here has shown the network works, and
+                // telling someone on a train that Apple and SnapWorth disagree
+                // about their subscription is not what happened.
+                Analytics.shared.track(.entitlementSyncFailed(reason: reason))
+                Haptics.failure()
+                fullDetailError = error.errorDescription
+                    ?? String(localized: "We couldn't load the full breakdown. Your estimate is unchanged.")
+                return
+            case .failed(let reason):
+                Analytics.shared.track(.entitlementSyncFailed(reason: reason))
+                showSubscriptionUnconfirmed = true
+                return
+            }
+        }
+        do {
+            let response = try await purchaseService.confirmingSubscription {
+                try await scanner(photo, nil)
+            }
+            // Still stripped: applying it would move the estimate and leave
+            // the panel as thin as before.
+            guard let detail = ValuationDetail(response: response), !detail.lacksProDetail else {
+                Haptics.failure()
+                fullDetailError = String(localized: "We couldn't load the full breakdown. Your estimate is unchanged.")
+                return
+            }
+            result.applySharpened(response)
+            onApplied()
+            Haptics.success()
+            UIAccessibility.post(notification: .announcement,
+                                 argument: String(localized: "Full breakdown loaded."))
+        } catch {
+            Haptics.failure()
+            if AppError.from(error) == .subscriptionUnconfirmed {
+                showSubscriptionUnconfirmed = true
+                return
+            }
+            fullDetailError = AppError.from(error).errorDescription
+                ?? String(localized: "We couldn't load the full breakdown. Your estimate is unchanged.")
+        }
     }
 
     // MARK: Listing photo cleanup
