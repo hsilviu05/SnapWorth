@@ -369,18 +369,44 @@ unavailable one reads as "we track it and have not measured it yet".
 | Job | Runs | Fails on |
 |---|---|---|
 | `platform-tests` | Always | Platform bugs |
-| `data-integrity` | Always | Scoreable records in template/sample files; gold label drift |
-| `gold-check` | Always | Nothing — decides whether `accuracy-gate` runs |
-| `accuracy-gate` | Only when `gold.jsonl` has a headline-eligible record **and** the run has `GEMINI_API_KEY`; otherwise shown as *skipped* | Accuracy, bias, calibration, hallucination, latency regression; fewer scans producing a price; or no baseline to compare with |
+| `data-integrity` | Always | Scoreable records in template/sample files; a photo or evidence link committed; a changed label. Composition drift is a `::warning::`, not a failure |
+| `gold-check` | Always | A same-repo change to a pricing file, with a gold set, whose run lacks `GEMINI_API_KEY` or `GOLD_READ_TOKEN`. Otherwise it only decides whether `accuracy-gate` runs |
+| `accuracy-gate` | When a pricing file changed (`prompts`, `valuation`, `confidence`, `aiconfig`, `promptsafety`, `imagequality`, `categories`, `eval/**`), on the Monday schedule, or by hand with `run_live_eval`; and only with a headline-eligible gold set and both secrets. Otherwise *skipped*, with no model calls | A gold photo missing or altered; a baseline recorded under another config; accuracy, bias, calibration, hallucination or latency regression; fewer scans producing a price; or no baseline to compare with |
 | `schema-contract` | Always | v1 client contract break |
 
+**What CI runs, and under what (#215).** The gate checks out the private photo
+store into `eval/data/images/` (repository `vars.GOLD_REPO`, default
+`hsilviu05/snapworth-gold`, read with `GOLD_READ_TOKEN`). It runs
+`eval.cli images`, so every photo must be present, a JPEG within 1568 px, and
+match its `sha256`. It then runs under `eval/data/production.json`, which
+holds the prompt version, model and thinking budget that Railway serves.
+`run.json` records that config, and the gate refuses to compare runs recorded
+under different configs. Each run also reports MdAPE and bias for the
+midpoint of the range beside the expected price. Those are reported, never
+gated. The Monday run keeps its `run.json` for 90 days, and the job summary
+prints the headline row. It is the only alarm for drift on the model's side.
+
 **Recording the baseline.** The runner's `--json-out` file is in the shape the
-gate reads, so a run is its own baseline:
+gate reads, so a run is its own baseline. Record it under the production
+config:
 
 ```bash
 python -m eval.runner --dataset eval/data/gold.jsonl \
-  --json-out eval/data/baseline.json
+  --config eval/data/production.json --json-out eval/data/baseline.json
 ```
+
+**Tolerances come from noise, not taste.** Before the first baseline, run
+that command three times at one commit with `--json-out` to three files.
+Each threshold in `gates.DEFAULT_THRESHOLDS` for `mdape`, `within_25pct`,
+`bias`, `calibration_ece` and `scored_fraction` must be at least the spread
+the three runs show. Cite the date and n in a comment beside it. A tolerance
+below the noise fails good PRs and gets switched off. `--repeats 3
+--aggregate median` scores each item's median repeat, for a calmer figure at
+three times the cost.
+
+**When production changes** (`SCAN_PROMPT_VERSION`, `GEMINI_MODEL`,
+`GEMINI_THINKING_BUDGET` on Railway): update `production.json` and
+re-record the baseline in the same PR. Otherwise the gate refuses every run.
 
 Commit it with the gold set. Until one exists the gate runs, measures, and
 **fails** with a message saying to record one: a run compared against nothing

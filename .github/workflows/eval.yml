@@ -27,6 +27,10 @@ on:
     branches: [main]
     paths:
       - 'backend/**'
+  # Weekly, on main: the only alarm for drift on the model's side, where
+  # nothing in this repository changed (#215). Each run's run.json is kept.
+  schedule:
+    - cron: '0 6 * * 1'
   workflow_dispatch:
     inputs:
       run_live_eval:
@@ -53,7 +57,7 @@ jobs:
       - name: Test the evaluation platform
         env:
           GEMINI_API_KEY: ci-placeholder-not-real
-        run: pytest tests/test_eval_platform.py tests/test_eval.py tests/test_eval_intake.py tests/test_eval_paired_experiment.py -v --tb=short
+        run: pytest tests/test_eval_platform.py tests/test_eval.py tests/test_eval_intake.py tests/test_eval_paired_experiment.py tests/test_eval_gate_wiring.py -v --tb=short
 
   # ── Guards against fabricated benchmark data ──────────────────────────────
   data-integrity:
@@ -161,31 +165,75 @@ jobs:
         working-directory: backend
     steps:
       - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0     # to see which files the change touches
       - uses: actions/setup-python@v7
         with:
           python-version: '3.13'
-      # `eval.cli status` is stdlib-only, so this needs no install. It counts
-      # headline-eligible records, not the file: a gold.jsonl of drafts is not
-      # something to measure against either.
-      - name: Gold set and model key
+      # Three questions, in order (#215). Does this run touch pricing? A PR
+      # that changes no pricing file makes no model call and skips the gate.
+      # Is there a gold set to measure against? Then: are the model key and
+      # the photo token there? A same-repo pricing change without them FAILS
+      # here: it would otherwise merge unmeasured with a grey tick. A fork or
+      # Dependabot run gets no secrets, which its author cannot fix, so it is
+      # skipped with a warning. Skipped is never shown as passed.
+      #
+      # `eval.cli status` is stdlib-only and reads only the public labels, so
+      # it needs no install and no photos.
+      - name: Scope, gold set and secrets
         id: check
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GOLD_READ_TOKEN: ${{ secrets.GOLD_READ_TOKEN }}
+          EVENT: ${{ github.event_name }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+          HEAD_SHA: ${{ github.sha }}
+          SAME_REPO: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
+          ACTOR: ${{ github.actor }}
+          LIVE: ${{ github.event.inputs.run_live_eval || 'false' }}
         run: |
+          set -euo pipefail
+          PRICING='^backend/(prompts|valuation|confidence|aiconfig|promptsafety|imagequality|categories)\.py$|^backend/eval/'
+          case "$EVENT" in
+            schedule) scope=yes; why="the weekly run" ;;
+            workflow_dispatch)
+              if [ "$LIVE" = "true" ]; then scope=yes; why="a manual run"
+              else scope=no; why="a manual run without run_live_eval"; fi ;;
+            *)
+              if [ -z "$BASE_SHA" ] || [ "$BASE_SHA" = "0000000000000000000000000000000000000000" ]; then
+                changed=$(git diff --name-only HEAD~1 HEAD)
+              else
+                changed=$(git diff --name-only "$BASE_SHA" "$HEAD_SHA")
+              fi
+              hits=$(printf '%s\n' "$changed" | grep -E "$PRICING" | tr '\n' ' ' || true)
+              if [ -n "$hits" ]; then scope=yes; why="pricing files changed ($hits)"
+              else scope=no; why="no pricing file changed"; fi ;;
+          esac
+          if [ "$scope" != yes ]; then
+            echo "::notice::Accuracy gate not needed: $why. Skipped, with no model calls."
+            echo "measure=false" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+
           can=$(python -m eval.cli status \
                 | python -c 'import json,sys; print(json.load(sys.stdin)["can_measure_accuracy"])')
           if [ "$can" != "True" ]; then
             echo "::notice::No headline-eligible gold records — the accuracy gate is skipped. This is NOT a pass."
-            echo "measure=false" >> "$GITHUB_OUTPUT"
-          elif [ -z "$GEMINI_API_KEY" ]; then
-            # A fork PR or a Dependabot run gets no Actions secrets. The gate
-            # cannot measure without the model, so it is skipped, not failed
-            # for something the PR author cannot fix — and not passed.
-            echo "::warning::A gold set exists but GEMINI_API_KEY is not available to this run — the accuracy gate is skipped. This is NOT a pass."
-            echo "measure=false" >> "$GITHUB_OUTPUT"
-          else
-            echo "measure=true" >> "$GITHUB_OUTPUT"
+            echo "measure=false" >> "$GITHUB_OUTPUT"; exit 0
           fi
+
+          missing=""
+          if [ -z "$GEMINI_API_KEY" ]; then missing=" GEMINI_API_KEY"; fi
+          if [ -z "$GOLD_READ_TOKEN" ]; then missing="$missing GOLD_READ_TOKEN"; fi
+          if [ -n "$missing" ]; then
+            if [ "$SAME_REPO" = "true" ] && [ "$ACTOR" != "dependabot[bot]" ]; then
+              echo "::error::$why and a gold set exists, but this run has no$missing. Add it under Settings → Secrets and variables → Actions: a pricing change is not merged unmeasured."
+              exit 1
+            fi
+            echo "::warning::$why, but this run gets no$missing (a fork or Dependabot) — the accuracy gate is skipped. This is NOT a pass."
+            echo "measure=false" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          echo "Measuring: $why."
+          echo "measure=true" >> "$GITHUB_OUTPUT"
 
   # ── Accuracy gate: only meaningful once a gold set exists ─────────────────
   accuracy-gate:
@@ -207,17 +255,55 @@ jobs:
           cache-dependency-path: backend/requirements-dev.txt
       - run: pip install -r requirements-dev.txt
 
+      # The photos live in a private repository (#213): the repo is public
+      # and a listing photo is the seller's. Its root holds the files the
+      # intake wrote (G-0001-front.jpg, …), mounted where gold.jsonl's
+      # `images/…` paths point. GOLD_REPO (a repository variable) names it.
+      - name: Gold photos from the private store
+        uses: actions/checkout@v7
+        with:
+          repository: ${{ vars.GOLD_REPO || 'hsilviu05/snapworth-gold' }}
+          token: ${{ secrets.GOLD_READ_TOKEN }}
+          path: backend/eval/data/images
+
+      # A missing or edited photo would score a different image than the
+      # label describes, so it fails here, before any model call.
+      - name: Every gold photo is the one its record names
+        run: python -m eval.cli images --path eval/data/gold.jsonl --annotate
+
       - name: Report what can be measured
         env:
           GEMINI_API_KEY: ci-placeholder-not-real
         run: python -m eval.cli status
 
+      # Under the pinned production config, which run.json records; the gate
+      # refuses a baseline recorded under any other (#215).
       - name: Run evaluation
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: |
           python -m eval.runner --dataset eval/data/gold.jsonl \
+                                --config eval/data/production.json \
                                 --json-out /tmp/run.json
+
+      - name: Summary
+        if: always()
+        run: |
+          [ -f /tmp/run.json ] || exit 0
+          python - <<'PY' >> "$GITHUB_STEP_SUMMARY"
+          import json
+          run = json.load(open("/tmp/run.json"))
+          m = run.get("metrics", {})
+          def v(name):
+              x = m.get(name, {}).get("value")
+              return "—" if x is None else f"{x:.1f}"
+          print("### Accuracy (gold set, production config)\n")
+          print(f"Config: `{run.get('config')}`\n")
+          print("| MdAPE | bias | MdAPE, midpoint | bias, midpoint | within 25% | scored |")
+          print("|---|---|---|---|---|---|")
+          print(f"| {v('mdape')}% | {v('bias')}% | {v('mdape_midpoint')}% | "
+                f"{v('bias_midpoint')}% | {v('within_25pct')}% | {v('scored_fraction')}% |")
+          PY
 
       # --require-measurement: a run whose every gate skipped fails rather
       # than passing. That includes the first run on a new gold set, which has
@@ -233,16 +319,18 @@ jobs:
 
       # always(): a failed gate is exactly when the numbers are wanted, and the
       # first run's run.json is the baseline to commit.
+      # The weekly run's artefacts are its history: one per Monday, kept
+      # for the 90 days a public repository allows. Compare them to see drift.
       - name: Upload evaluation artefacts
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: evaluation-${{ github.sha }}
+          name: ${{ github.event_name == 'schedule' && format('evaluation-weekly-{0}', github.run_id) || format('evaluation-{0}', github.sha) }}
           path: |
             /tmp/run.json
             /tmp/gates.json
           if-no-files-found: ignore
-          retention-days: 30
+          retention-days: ${{ github.event_name == 'schedule' && 90 || 30 }}
 
   # ── Schema compliance: cheap, unambiguous, hard failure ───────────────────
   schema-contract:
