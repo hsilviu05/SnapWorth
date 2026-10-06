@@ -751,6 +751,80 @@ class TestCalibration:
         assert model is not None
         assert model.predict_proba(0.55) > 0.55
 
+    def test_platt_recovers_a_known_slope_and_offset(self):
+        rng = random.Random(7)
+        points = []
+        for _ in range(4000):
+            p = rng.uniform(0.05, 0.95)
+            truth = 1 / (1 + math.exp(-(0.6 * math.log(p / (1 - p)) - 0.8)))
+            points.append((p, rng.random() < truth))
+        model = calib.fit_platt(points)
+        assert model is not None
+        assert model.a == pytest.approx(0.6, abs=0.12)
+        assert model.b == pytest.approx(-0.8, abs=0.15)
+
+    def test_platt_leaves_a_calibrated_score_alone(self):
+        rng = random.Random(11)
+        points = [(p, rng.random() < p) for p in (rng.uniform(0.05, 0.95) for _ in range(4000))]
+        model = calib.fit_platt(points)
+        assert model is not None
+        assert model.a == pytest.approx(1.0, abs=0.12)
+        assert model.b == pytest.approx(0.0, abs=0.12)
+
+    def test_platt_refuses_tiny_samples(self):
+        assert calib.fit_platt([(0.5, True)] * 19) is None
+
+    def test_platt_beats_temperature_on_a_score_thirty_points_too_high(self):
+        """#226's acceptance case. Temperature has no offset, so it can only
+        pull scores toward 50; a uniform overclaim needs a shift."""
+        rng = random.Random(20261006)
+        examples = []
+        for i in range(3000):
+            claimed = rng.uniform(0.40, 0.99)
+            truth = max(0.01, claimed - 0.30)
+            examples.append(calib.TrainingExample(
+                signals={}, correct=rng.random() < truth, item_id=f"over-{i}",
+                raw_confidence=claimed * 100))
+        train, holdout = calib.split_examples(examples)
+        platt = calib.fit(train, method="platt", provenance=Provenance.PROJECTED)
+        temperature = calib.fit(train, method="temperature", provenance=Provenance.PROJECTED)
+        assert platt is not None and temperature is not None
+        platt_ece = calib.evaluate_calibration(platt, holdout)["ece"]
+        temperature_ece = calib.evaluate_calibration(temperature, holdout)["ece"]
+        raw_ece = calib.evaluate_calibration(
+            calib.CalibrationModel(method="none", provenance=Provenance.PROJECTED,
+                                   fitted_at=datetime.now(timezone.utc), n_examples=0),
+            holdout)["ece"]
+        assert platt_ece < temperature_ece < raw_ece
+        assert platt_ece < 0.05
+
+    def test_a_platt_model_round_trips_through_its_file(self, tmp_path):
+        model = calib.fit([calib.TrainingExample({}, i % 3 == 0, f"r{i}", 80.0)
+                           for i in range(60)],
+                          method="platt", provenance=Provenance.PROJECTED)
+        assert model is not None and model.platt is not None
+        path = tmp_path / "platt.json"
+        model.save(str(path))
+        saved = json.loads(path.read_text())
+        assert saved["method"] == "platt"
+        assert set(saved["platt"]) == {"a", "b"}
+
+    def test_reliability_table_says_whether_high_is_earned(self):
+        points = ([(80.0, i < 60) for i in range(100)]
+                  + [(55.0, i < 25) for i in range(50)])
+        rows = {row["band"]: row for row in calib.reliability_table(points)}
+        assert rows["High"]["n"] == 100
+        assert rows["High"]["claimed"] == pytest.approx(0.80)
+        assert rows["High"]["actual"] == pytest.approx(0.60)
+        # The interval holds what happened and rules out what was claimed.
+        assert rows["High"]["ci_low"] <= 0.60 <= rows["High"]["ci_high"] < 0.80
+        assert rows["Medium"]["n"] == 50
+        assert rows["Medium"]["actual"] == pytest.approx(0.50)
+        assert rows["Low"] == {"band": "Low", "n": 0, "claimed": None, "actual": None,
+                               "ci_low": None, "ci_high": None}
+        # Seeded: the same file prints the same table.
+        assert calib.reliability_table(points) == calib.reliability_table(points)
+
     def test_gradient_boosting_raises_rather_than_degrading_silently(self):
         with pytest.raises(NotImplementedError, match="scikit-learn"):
             calib.GradientBoostingPlaceholder().fit([])

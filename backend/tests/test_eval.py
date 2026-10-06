@@ -20,6 +20,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from eval import dataset as dataset_module  # noqa: E402
 from eval import metrics  # noqa: E402
+from eval import schema  # noqa: E402
 from eval.runner import Prediction, evaluate, evaluate_consistency  # noqa: E402
 
 
@@ -414,7 +415,9 @@ class TestRunnerLoading:
         path = _write_jsonl(tmp_path / "gold.jsonl", [_gold()])
         items, excluded = runner.load_items(path)
         assert excluded == {}
-        assert items == [runner.EvalItem("g1", "clothing", "images/g1.jpg", 42.0, "Patagonia")]
+        split = not_none(schema.item_from_dict(_gold())).assigned_split().value
+        assert items == [runner.EvalItem("g1", "clothing", "images/g1.jpg", 42.0, "Patagonia",
+                                         split)]
 
     def test_only_headline_usd_records_are_scored_and_every_exclusion_is_named(self, tmp_path):
         path = _write_jsonl(tmp_path / "gold.jsonl", [
@@ -621,3 +624,83 @@ class TestLiveArm:
     def test_an_arm_without_a_budget_uses_the_production_config(self, tmp_path, monkeypatch):
         _, seen = self._run(tmp_path, monkeypatch, None)
         assert seen == [None]
+
+
+# ── Calibration examples (#226) ──────────────────────────────────────────────
+
+def _fake_run_with_signals():
+    """Priced items with signals and splits, as `_predict_one` fills them.
+    Every third item lands within 25% and inside its range; the rest miss."""
+    async def fake(items, version, root, concurrency=4, thinking_budget=None):
+        out = []
+        for n, i in enumerate(items):
+            hit = n % 3 == 0
+            price = i.expected_price * (1.1 if hit else 2.0)
+            out.append(runner.Prediction(
+                item_id=i.id, category=i.category, expected_price=i.expected_price,
+                predicted_expected=price, predicted_low=price * 0.8,
+                predicted_high=price * 1.2, confidence_score=60 + n % 30,
+                split=i.split, signals={"brand": 1.0, "range": 0.5}))
+        return out
+    return fake
+
+
+class TestCalibrationExamples:
+    def _dataset(self, tmp_path: Path, n: int = 90) -> Path:
+        return _write_jsonl(tmp_path / "gold.jsonl",
+                            [_gold(id=f"g{i}", images=[{"path": f"images/g{i}.jpg",
+                                                        "is_primary": True}])
+                             for i in range(n)])
+
+    def test_examples_out_feeds_eval_cli_calibrate(self, tmp_path, monkeypatch, capsys):
+        from eval import cli
+        monkeypatch.setattr(runner, "run_live", _fake_run_with_signals())
+        examples = tmp_path / "examples.json"
+
+        assert runner.main(["--dataset", str(self._dataset(tmp_path)),
+                            "--examples-out", str(examples)]) == 0
+
+        written = json.loads(examples.read_text())
+        assert written["event"] == "within_25pct"
+        assert len(written["examples"]) == 90
+        first = written["examples"][0]
+        assert set(first) == {"item_id", "split", "signals", "raw_confidence",
+                              "within_25pct", "in_range", "correct"}
+        assert first["signals"] == {"brand": 1.0, "range": 0.5}
+        assert {e["split"] for e in written["examples"]} == {"dev", "test"}
+
+        capsys.readouterr()
+        assert cli.main(["calibrate", "--examples", str(examples), "--method", "platt"]) == 0
+        report = json.loads(capsys.readouterr().out.split("\n\n⚠️")[0])
+        # Fitted on the gold set's dev split and judged on its test split.
+        dev = sum(1 for e in written["examples"] if e["split"] == "dev")
+        assert report["n_train"] == dev
+        assert report["n_holdout"] == 90 - dev
+        assert report["method"] == "platt"
+
+    def test_the_event_picks_which_outcome_counts(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(runner, "run_live", _fake_run_with_signals())
+        examples = tmp_path / "examples.json"
+        assert runner.main(["--dataset", str(self._dataset(tmp_path, 30)),
+                            "--examples-out", str(examples), "--event", "in_range"]) == 0
+        written = json.loads(examples.read_text())
+        assert written["event"] == "in_range"
+        assert all(e["correct"] == e["in_range"] for e in written["examples"])
+
+    def test_reliability_reads_the_same_file(self, tmp_path, monkeypatch, capsys):
+        from eval import cli
+        monkeypatch.setattr(runner, "run_live", _fake_run_with_signals())
+        examples = tmp_path / "examples.json"
+        runner.main(["--dataset", str(self._dataset(tmp_path)), "--examples-out", str(examples)])
+        capsys.readouterr()
+
+        assert cli.main(["reliability", "--examples", str(examples)]) == 0
+        table = json.loads(capsys.readouterr().out)
+        assert table["n"] == 90
+        assert [row["band"] for row in table["bands"]] == ["Low", "Medium", "High"]
+        assert sum(row["n"] for row in table["bands"]) == 90
+
+    def test_examples_out_is_one_arm(self, tmp_path):
+        with pytest.raises(SystemExit):
+            runner.main(["--dataset", "x.jsonl", "--compare", "v2", "v2.1",
+                         "--examples-out", str(tmp_path / "e.json")])
