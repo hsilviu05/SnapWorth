@@ -469,6 +469,95 @@ def _compute(**overrides):
     return confidence_module.compute(**args)
 
 
+# ── Calibration flag (#226) ─────────────────────────────────────────────────
+
+def _calibration_file(tmp_path, *, a: float = 1.0, b: float = -2.0,
+                      provenance: str = "measured") -> str:
+    """A Platt model file as `eval.cli calibrate --out` writes one. The default
+    shifts every score sharply down, so its effect cannot be mistaken."""
+    from datetime import datetime, timezone
+    from eval import calibration
+    from eval.provenance import Provenance
+    model = calibration.CalibrationModel(
+        method="platt", provenance=Provenance(provenance),
+        fitted_at=datetime.now(timezone.utc), n_examples=240,
+        platt=calibration.PlattModel(a=a, b=b),
+        dataset_version="gold-test" if provenance == "measured" else "")
+    path = tmp_path / "calibration.json"
+    model.save(str(path))
+    return str(path)
+
+
+@pytest.fixture
+def calibration_env(monkeypatch):
+    """Sets the calibration variables and makes the next score re-read them."""
+    def configure(path: str | None, mode: str | None = None) -> None:
+        for name, value in ((confidence_module.CALIBRATION_ENV, path),
+                            (confidence_module.CALIBRATION_MODE_ENV, mode)):
+            if value is None:
+                monkeypatch.delenv(name, raising=False)
+            else:
+                monkeypatch.setenv(name, value)
+        confidence_module.reset_calibrator()
+    yield configure
+    confidence_module.reset_calibrator()
+
+
+class TestCalibrationFlag:
+    def test_off_by_default(self, calibration_env):
+        calibration_env(None)
+        result = _compute()
+        assert confidence_module.calibrator() is None
+        assert result.calibrated_score is None
+        assert result.score == result.weighted_score
+
+    def test_shadow_computes_but_serves_the_weighted_score(self, calibration_env, tmp_path):
+        calibration_env(_calibration_file(tmp_path))
+        result = _compute()
+        assert result.calibrated_score is not None
+        assert result.calibrated_score < result.weighted_score
+        assert result.score == result.weighted_score
+
+    def test_on_serves_the_calibrated_score(self, calibration_env, tmp_path):
+        calibration_env(_calibration_file(tmp_path), "on")
+        result = _compute()
+        assert result.score == result.calibrated_score < result.weighted_score
+        assert result.band == confidence_module._band(result.score)
+
+    def test_the_caps_still_bind_when_it_is_on(self, calibration_env, tmp_path):
+        """A calibrator that pushes every score up must not lift a likely
+        replica or a clamped estimate past 30."""
+        calibration_env(_calibration_file(tmp_path, a=1.0, b=4.0), "on")
+        assert _compute(authenticity="likely_replica").score <= 30
+        assert _compute(was_clamped=True).score <= 30
+        assert _compute().score > confidence_module.HIGH_THRESHOLD
+
+    def test_an_unmeasured_model_is_refused(self, calibration_env, tmp_path, caplog):
+        calibration_env(_calibration_file(tmp_path, provenance="projected"), "on")
+        with caplog.at_level("ERROR", logger="snapworth.confidence"):
+            result = _compute()
+        assert result.calibrated_score is None
+        assert result.score == result.weighted_score
+        assert "not measured" in caplog.text
+
+    def test_a_missing_file_falls_back_to_the_weighted_score(self, calibration_env, tmp_path):
+        calibration_env(str(tmp_path / "nope.json"), "on")
+        result = _compute()
+        assert confidence_module.calibrator() is None
+        assert result.score == result.weighted_score
+
+    def test_an_unknown_mode_is_treated_as_shadow(self, calibration_env, tmp_path):
+        calibration_env(_calibration_file(tmp_path), "yes")
+        configured = not_none(confidence_module.calibrator())
+        assert configured.mode == "shadow"
+        assert _compute().score == _compute().weighted_score
+
+    def test_the_score_stays_a_0_to_100_int(self, calibration_env, tmp_path):
+        calibration_env(_calibration_file(tmp_path, a=1.0, b=40.0), "on")
+        result = _compute()
+        assert isinstance(result.score, int) and 0 <= result.score <= 100
+
+
 class TestConfidence:
     def test_ideal_case_scores_high(self):
         result = _compute()

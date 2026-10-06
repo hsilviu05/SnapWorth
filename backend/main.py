@@ -2467,6 +2467,11 @@ async def _analyse(image_bytes: bytes, content_type: str, *, subject: str,
     log.info("scan ok", extra={
         "device": device_short,
         "confidence": conf.band, "confidence_score": conf.score,
+        # Calibration in shadow or on (#226): the weighted and calibrated
+        # scores before the caps, numbers only, so the two can be compared.
+        **({"confidence_weighted": conf.weighted_score,
+            "confidence_calibrated": conf.calibrated_score}
+           if conf.calibrated_score is not None else {}),
         "clamped": was_clamped, "prompt_version": prompt_version,
         "image_quality": quality.overall, "elapsed_s": round(elapsed, 2),
         **usage,

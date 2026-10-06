@@ -571,7 +571,7 @@ after tests pass (`.github/workflows/backend.yml`).
 | Canary | `[NOT IMPLEMENTED]` |
 | Instant rollback | Railway redeploy of a previous build |
 | Migrations | **None exist.** No relational database; Redis holds durable state (§9) but has no schema to migrate |
-| Feature flags | Env-var based: `SCAN_PROMPT_VERSION`, `COMPS_ENABLED`, `COMPS_SHADOW_MODE`, `ALLOWED_STOREKIT_ENVIRONMENTS`, `SANDBOX_ENTITLEMENTS` |
+| Feature flags | Env-var based: `SCAN_PROMPT_VERSION`, `COMPS_ENABLED`, `COMPS_SHADOW_MODE`, `ALLOWED_STOREKIT_ENVIRONMENTS`, `SANDBOX_ENTITLEMENTS`, `CONFIDENCE_CALIBRATION` (+ `_MODE`, shadow by default; off unless set, #226) |
 
 ### Merging
 

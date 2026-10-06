@@ -459,6 +459,35 @@ class CalibrationModel:
         with open(path, "w", encoding="utf-8") as handle:
             json.dump(self.to_dict(), handle, indent=2)
 
+    @classmethod
+    def from_dict(cls, payload: dict) -> CalibrationModel:
+        """The inverse of `to_dict`, for a model file `save` wrote. Raises on a
+        file that is not one, including a MEASURED model with no dataset
+        version — `__post_init__` refuses it here as it does at fit time."""
+        logistic = payload.get("logistic")
+        isotonic = payload.get("isotonic")
+        temperature = payload.get("temperature")
+        platt = payload.get("platt")
+        return cls(
+            method=str(payload["method"]),
+            provenance=Provenance(payload["provenance"]),
+            fitted_at=datetime.fromisoformat(payload["fitted_at"]),
+            n_examples=int(payload["n_examples"]),
+            tolerance_pct=float(payload.get("tolerance_pct", DEFAULT_TOLERANCE_PCT)),
+            logistic=LogisticModel(**logistic) if logistic else None,
+            isotonic=IsotonicModel(**isotonic) if isotonic else None,
+            temperature=TemperatureModel(**temperature) if temperature else None,
+            platt=PlattModel(**platt) if platt else None,
+            dataset_version=str(payload.get("dataset_version", "")),
+            notes=str(payload.get("notes", "")),
+        )
+
+
+def load(path: str) -> CalibrationModel:
+    """A model file written by `CalibrationModel.save`."""
+    with open(path, encoding="utf-8") as handle:
+        return CalibrationModel.from_dict(json.load(handle))
+
 
 def fit(
     examples: list[TrainingExample],
