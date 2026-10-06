@@ -621,6 +621,15 @@ final class PrivacyPolicyDisclosureTests: XCTestCase {
         XCTAssertTrue(policy.contains("not an advertising identifier"))
     }
 
+    func test_sharedSalesAreDisclosed() {
+        // Opt-in sale sharing (#224) sends a record per sold flip. The web copy
+        // pins the same sentences in backend/tests/test_main.py.
+        XCTAssertTrue(policy.contains("If you turn on Share sale prices to improve estimates"))
+        XCTAssertTrue(policy.contains("Records are kept for up to 400 days."))
+        XCTAssertTrue(policy.contains(
+            "It never sends the photo, the item's name, your notes, the price you paid, or your device identifier."))
+    }
+
     func test_analyticsAndDeviceCheckCollectionAreDisclosed() {
         // Both are collected by the shipped app; neither was mentioned.
         XCTAssertTrue(policy.contains("TelemetryDeck"))

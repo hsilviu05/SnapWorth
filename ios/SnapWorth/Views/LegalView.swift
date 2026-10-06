@@ -24,7 +24,7 @@ struct PrivacyPolicyView: View {
 /// Change this and `backend/main.py`'s `/privacy` together.
 /// `PrivacyPolicyDisclosureTests` fails if a processor goes missing.
 enum PrivacyPolicy {
-    static let updated = "September 27, 2026"
+    static let updated = "October 6, 2026"
 
     /// Every third party that receives user data, by the name a reader would
     /// recognise. The test asserts each appears in `sections`.
@@ -46,10 +46,12 @@ enum PrivacyPolicy {
 
             If you use Invite a friend, our server keeps the invite code made for your device and, when someone claims an invite, a record linking the two devices: their identifiers, the code, when it was claimed, and the Apple offer codes handed out. It is kept for up to 400 days, so that each invite is rewarded once and rewards stay within the yearly limit.
 
+            If you turn on Share sale prices to improve estimates (Settings → Privacy; it is off by default), the app sends our server a record for each flip you mark as sold: the estimate SnapWorth gave when you scanned it, with its confidence, the item's category and condition, and whether a brand was identified; the price it sold for, its currency and the marketplace; the scan and sale dates; the App Store country; and the app version. It never sends the photo, the item's name, your notes, the price you paid, or your device identifier. Each record carries a random identifier made for that sale and a random token made for your install, used only to delete your records; we keep a keyed hash of the token, not the token. Records are kept for up to 400 days. Un-marking a sale deletes its record, and Delete my shared sales in Settings deletes every record your install sent.
+
             We collect anonymous usage analytics to understand how the app is used and improve it. Using TelemetryDeck, we record in-app events — such as opening the app, starting a scan, viewing the paywall, and completing a purchase — along with your device model, operating system version, app version, locale, time zone, screen size, and device orientation. The analytics SDK also reports how your accessibility settings are configured — such as Reduce Motion, Bold Text, Increase Contrast and your preferred text size — and counts of how often and on how many separate days you have opened the app. A one-way salted hash is used as an anonymous identifier. This data contains no photos, item names, prices, or advertising identifiers (IDFA), is not linked to your identity, and is never used to track you across other apps or websites. You can turn analytics off at any time in Settings.
             """),
         (heading: "How We Use Your Information", text: """
-            Photos are used only to generate the valuation response you requested. Analytics data is used only in aggregate to understand usage and improve the app. We do not sell, rent, or share your photos, device identifier, or analytics data with third parties, except for the service providers below and as required by law.
+            Photos are used only to generate the valuation response you requested. Analytics data is used only in aggregate to understand usage and improve the app. Shared sale records are used only to measure how far our estimates are from real sale prices, and to improve them. We do not sell, rent, or share your photos, device identifier, or analytics data with third parties, except for the service providers below and as required by law.
             """),
         (heading: "Service Providers", text: """
             Google (Gemini API). Photos you submit are transmitted to Google's Gemini API, which identifies the item and estimates its resale value. Google processes them under its API terms of service and does not use them to train its models. Photos are not retained by us after the response is returned.
