@@ -6,6 +6,7 @@
     python -m eval.cli experiment --baseline a.json --candidate b.json
     python -m eval.cli dashboard --run run.json --out dashboard.json
     python -m eval.cli calibrate --examples outcomes.json --method logistic
+    python -m eval.cli reliability --examples outcomes.json
     python -m eval.cli status
 
 Every subcommand works without a model or an API key. `status` is the one to
@@ -248,7 +249,15 @@ def cmd_calibrate(args) -> int:
         print("no examples provided", file=sys.stderr)
         return 1
 
-    train, holdout = calibration_module.split_examples(examples)
+    # The gold set's own dev/test split when the file carries it, as
+    # `runner --examples-out` writes it: fit on dev, judge on test. Otherwise
+    # the deterministic hash split.
+    splits = [e.get("split") for e in raw.get("examples", [])]
+    if splits and all(s in ("dev", "test") for s in splits):
+        train = [ex for ex, s in zip(examples, splits) if s == "dev"]
+        holdout = [ex for ex, s in zip(examples, splits) if s == "test"]
+    else:
+        train, holdout = calibration_module.split_examples(examples)
     model = calibration_module.fit(
         train, method=args.method, dataset_version=args.dataset_version,
         provenance=Provenance.MEASURED if args.dataset_version else Provenance.PROJECTED,
@@ -276,6 +285,22 @@ def cmd_calibrate(args) -> int:
         print("\n⚠️  No --dataset-version given, so this model is tagged "
               "PROJECTED and must not be deployed as a measured calibration.",
               file=sys.stderr)
+    return 0
+
+
+def cmd_reliability(args) -> int:
+    """Per confidence band: n, claimed and actual hit rate, bootstrap CI."""
+    raw = _load_json(args.examples)
+    points = [(float(e["raw_confidence"]), bool(e["correct"]))
+              for e in raw.get("examples", [])
+              if e.get("raw_confidence") is not None
+              and (not args.split or e.get("split") == args.split)]
+    if not points:
+        print("no examples with a raw confidence score", file=sys.stderr)
+        return 1
+    print(json.dumps({"event": raw.get("event"), "split": args.split or "all",
+                      "n": len(points),
+                      "bands": calibration_module.reliability_table(points)}, indent=2))
     return 0
 
 
@@ -399,10 +424,17 @@ def main(argv=None) -> int:
     p = sub.add_parser("calibrate", help="fit confidence calibration")
     p.add_argument("--examples", required=True)
     p.add_argument("--method", default="logistic",
-                   choices=["logistic", "isotonic", "temperature"])
+                   choices=["logistic", "isotonic", "temperature", "platt"])
     p.add_argument("--dataset-version", default="")
     p.add_argument("--out")
     p.set_defaults(func=cmd_calibrate)
+
+    p = sub.add_parser("reliability",
+                       help="per confidence band: n, claimed vs actual hit rate, CI")
+    p.add_argument("--examples", required=True, help="runner --examples-out output")
+    p.add_argument("--split", choices=["dev", "test"],
+                   help="only this split; default all")
+    p.set_defaults(func=cmd_reliability)
 
     p = sub.add_parser("field", help="user-reported sale outcomes (never a gate input)")
     p.add_argument("--outcomes", required=True, help="the /outcomes export, JSONL")

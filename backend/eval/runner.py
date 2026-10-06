@@ -67,6 +67,7 @@ import valuation as valuation_module  # noqa: E402
 from eval import dataset as dataset_module  # noqa: E402
 from eval import metrics  # noqa: E402
 from eval import schema  # noqa: E402
+from eval.calibration import DEFAULT_TOLERANCE_PCT  # noqa: E402
 from eval.experiment import ArmResult  # noqa: E402
 from eval.provenance import Metric, MetricSet  # noqa: E402
 
@@ -90,6 +91,7 @@ class EvalItem:
     image_path: str                       # relative to the dataset's folder
     expected_price: float | None = None   # USD; None when unlabelled
     expected_brand: str | None = None
+    split: str | None = None              # gold-v2's dev/test, for --examples-out
 
 
 def _is_gold(path: Path) -> bool:
@@ -151,7 +153,8 @@ def load_items(path: Path) -> tuple[list[EvalItem], dict[str, int]]:
             skip("no image")
         else:
             items.append(EvalItem(gold.id, gold.category, image.path,
-                                  gold.actual_sale_price, gold.brand))
+                                  gold.actual_sale_price, gold.brand,
+                                  gold.assigned_split().value))
     return items, excluded
 
 
@@ -212,6 +215,10 @@ class Prediction:
     thoughts_tokens: int | None = None
     prompt_version: str = ""
     error: str | None = None
+    # The confidence signals behind `confidence_score`, by name, and the
+    # item's dev/test split: what `--examples-out` hands `eval.cli calibrate`.
+    signals: dict[str, float] = field(default_factory=dict)
+    split: str | None = None
 
     @property
     def ok(self) -> bool:
@@ -509,6 +516,39 @@ def metric_set(report: dict, label: str) -> MetricSet:
     return result
 
 
+#: What a confidence score can be calibrated to mean. Which one the badge
+#: promises users is the owner's decision (#226, step 1); both are written so
+#: either can be fitted from one run.
+CALIBRATION_EVENTS = ("within_25pct", "in_range")
+
+
+def calibration_examples(predictions: list[Prediction], event: str) -> list[dict]:
+    """One record per priced, labelled item, in the shape `eval.cli calibrate`
+    reads: its signals, the raw score, whether it came true under `event`,
+    the gold id and its dev/test split.
+
+    `within_25pct` is the event `eval.calibration` defaults to; `in_range` is
+    how a user reads "$20–$40 · High". Both flags are kept on every record;
+    `correct` is the chosen one.
+    """
+    if event not in CALIBRATION_EVENTS:
+        raise ValueError(f"unknown calibration event {event!r}")
+    out: list[dict] = []
+    for p in predictions:
+        if not p.ok or p.expected_price is None or p.expected_price <= 0:
+            continue
+        error = metrics.ape(p.predicted_expected, p.expected_price)
+        within = error is not None and error <= DEFAULT_TOLERANCE_PCT
+        in_range = p.predicted_low <= p.expected_price <= p.predicted_high
+        out.append({
+            "item_id": p.item_id, "split": p.split, "signals": p.signals,
+            "raw_confidence": p.confidence_score,
+            "within_25pct": within, "in_range": in_range,
+            "correct": within if event == "within_25pct" else in_range,
+        })
+    return out
+
+
 def evaluate_consistency(runs: dict[str, list[float]]) -> dict:
     """Consistency across repeats, keyed by item id."""
     return metrics.consistency(list(runs.values()))
@@ -524,7 +564,7 @@ async def _predict_one(model, item: EvalItem, prompt_text: str, version: str, ro
     prediction = Prediction(
         item_id=item.id, category=item.category,
         expected_price=item.expected_price, expected_brand=item.expected_brand,
-        prompt_version=version,
+        prompt_version=version, split=item.split,
     )
 
     image_path = (root / item.image_path).resolve()
@@ -593,6 +633,7 @@ async def _predict_one(model, item: EvalItem, prompt_text: str, version: str, ro
     prediction.predicted_low = low
     prediction.predicted_high = high
     prediction.confidence_score = conf.score
+    prediction.signals = {signal.name: signal.value for signal in conf.signals}
     prediction.brand = val.brand
     prediction.model_name = val.model
     prediction.identification_certainty = val.identification_certainty
@@ -742,10 +783,18 @@ def main(argv=None) -> int:
     parser.add_argument("--json-out",
                         help="write the metrics `eval.cli gate` reads, with the raw "
                              "report alongside, to this path")
+    parser.add_argument("--examples-out",
+                        help="write one calibration example per priced item (signals, "
+                             "raw score, outcome, split) for `eval.cli calibrate`; from "
+                             "the first repeat, one arm only")
+    parser.add_argument("--event", choices=CALIBRATION_EVENTS, default="within_25pct",
+                        help="with --examples-out: what counts as correct (#226)")
     parser.add_argument("--coverage-only", action="store_true",
                         help="report dataset composition and exit — no model calls")
     args = parser.parse_args(argv)
 
+    if args.examples_out and args.compare:
+        parser.error("--examples-out writes one arm; run it without --compare")
     if args.config:
         if args.compare:
             parser.error("--config pins one arm; it cannot be combined with --compare")
@@ -827,6 +876,12 @@ def main(argv=None) -> int:
             report["repeatability"] = metrics.repeatability(list(all_runs.values()))
         reports[arm] = report
         runs_by_arm[arm] = all_runs
+        if args.examples_out and labelled:
+            examples = calibration_examples(batches[0], args.event)
+            Path(args.examples_out).write_text(json.dumps(
+                {"event": args.event, "arm": arm, "source": args.dataset,
+                 "examples": examples}, indent=2))
+            print(f"wrote {len(examples)} calibration examples to {args.examples_out}")
 
         print(f"\n### {arm}")
         print(_format(report))

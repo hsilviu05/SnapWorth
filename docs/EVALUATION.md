@@ -322,11 +322,19 @@ being assumed.
 Target: **P(estimate within 25% of the true sale price)** — the same event as
 the `within_25pct` headline metric.
 
+**The event is not chosen yet** (#226, step 1, the owner's). Within 25% is
+what the code has defaulted to; "the sale lands in the range" is how a user
+reads "$20–$40 · High". Every surface that shows the band changes meaning when
+it is chosen, so it is written down here, with what each band then promises
+(e.g. "High means a ≥ 70% measured hit rate"), before any fit is deployed.
+Until then both are recorded on every example, and `--event` picks one.
+
 | Method | When |
 |---|---|
 | **Logistic regression** | Default. Coefficients are directly comparable to the hand-chosen weights, so the fit can be *argued with* rather than merely deployed. |
 | **Isotonic** | Corrects arbitrarily shaped miscalibration. Needs more data; can overfit. |
-| **Temperature scaling** | One parameter, cannot overfit. The honest choice at ~200 labelled outcomes. |
+| **Temperature scaling** | One parameter, cannot overfit. The honest choice at ~200 labelled outcomes — unless the score is uniformly too high or too low: with no offset it can only pull scores toward 50. |
+| **Platt scaling** | sigmoid(a·logit + b): temperature plus an offset, two parameters. Fixes a uniform overclaim, which temperature cannot; on a synthetic set 30 points overconfident it beats temperature on holdout ECE (`tests/test_eval_platform.py`). |
 | **Gradient boosting** | **Not implemented** — see below. |
 
 Gradient boosting would likely win, because signal interactions are real (image
@@ -339,6 +347,27 @@ caller cannot believe they got a boosted model when they did not.
 A `MEASURED` calibration model **must** name the dataset version it was fitted
 on — otherwise the weights cannot be reproduced or audited. Fitting on synthetic
 data must pass `PROJECTED`.
+
+### From a run to a fit
+
+```bash
+# One example per priced item: signals, raw score, outcome under the event,
+# gold id and its dev/test split. First repeat, one arm.
+python -m eval.runner --dataset eval/data/gold.jsonl \
+    --examples-out examples.json --event within_25pct
+
+# Per band, no fitting: n, claimed vs actual hit rate, 95% bootstrap CI.
+# Says whether High is earned even at 50 outcomes.
+python -m eval.cli reliability --examples examples.json
+
+# Fit on dev, judged on test (the file's own split), when there are ~200.
+python -m eval.cli calibrate --examples examples.json --method platt \
+    --dataset-version gold-v1 --out calibration.json
+```
+
+The reliability table belongs in this file, tagged MEASURED with its dataset
+version, once the gold set (#213) is headline-eligible. It is not here yet
+because no such run exists.
 
 ---
 

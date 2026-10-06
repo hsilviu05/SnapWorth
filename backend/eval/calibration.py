@@ -300,6 +300,70 @@ def fit_temperature(
     return TemperatureModel(temperature=(a + b) / 2)
 
 
+# ── Platt scaling ────────────────────────────────────────────────────────────
+
+@dataclass
+class PlattModel:
+    """Two-parameter rescaling: sigmoid(a · logit(p) + b).
+
+    Temperature scaling is this with `b` fixed at 0, so it can only stretch or
+    squeeze scores around 50. A score that is uniformly too high — every band
+    claiming thirty points more than it delivers — needs a shift as well, and
+    `b` is that shift. Still two parameters, so it cannot overfit the way
+    isotonic regression can on a few hundred outcomes (#226).
+    """
+
+    a: float = 1.0
+    b: float = 0.0
+
+    def predict_proba(self, probability: float) -> float:
+        p = min(max(probability, 1e-6), 1 - 1e-6)
+        return _sigmoid(self.a * math.log(p / (1 - p)) + self.b)
+
+
+def fit_platt(points: list[tuple[float, bool]], *, iterations: int = 100,
+              l2: float = 1e-4) -> PlattModel | None:
+    """Fit `a` and `b` by Newton's method on the negative log-likelihood.
+
+    Two parameters, so each step solves a 2×2 system exactly; the small L2
+    term keeps it solvable when every outcome is the same. Starts at the
+    identity (a=1, b=0), so a perfectly calibrated input stays as it is.
+    """
+    if len(points) < 20:
+        return None
+    xs = []
+    for probability, _ in points:
+        p = min(max(probability, 1e-6), 1 - 1e-6)
+        xs.append(math.log(p / (1 - p)))
+    ys = [1.0 if correct else 0.0 for _, correct in points]
+
+    a, b = 1.0, 0.0
+    for _ in range(iterations):
+        ga = gb = 0.0
+        haa = hab = hbb = 0.0
+        for x, y in zip(xs, ys):
+            q = _sigmoid(a * x + b)
+            error = q - y
+            weight = q * (1 - q)
+            ga += error * x
+            gb += error
+            haa += weight * x * x
+            hab += weight * x
+            hbb += weight
+        ga += l2 * (a - 1.0)
+        haa += l2
+        hbb += l2
+        determinant = haa * hbb - hab * hab
+        if determinant <= 1e-12:
+            break
+        step_a = (hbb * ga - hab * gb) / determinant
+        step_b = (haa * gb - hab * ga) / determinant
+        a, b = a - step_a, b - step_b
+        if abs(step_a) < 1e-9 and abs(step_b) < 1e-9:
+            break
+    return PlattModel(a=a, b=b)
+
+
 class GradientBoostingPlaceholder:
     """Interface for a GBM calibrator, deliberately not implemented.
 
@@ -341,6 +405,7 @@ class CalibrationModel:
     logistic: LogisticModel | None = None
     isotonic: IsotonicModel | None = None
     temperature: TemperatureModel | None = None
+    platt: PlattModel | None = None
     dataset_version: str = ""
     notes: str = ""
 
@@ -361,6 +426,8 @@ class CalibrationModel:
             return self.isotonic.predict_proba(raw_score)
         if self.method == "temperature" and self.temperature and raw_score is not None:
             return self.temperature.predict_proba(raw_score)
+        if self.method == "platt" and self.platt and raw_score is not None:
+            return self.platt.predict_proba(raw_score)
         return raw_score if raw_score is not None else 0.5
 
     def to_confidence_score(self, signals: dict[str, float],
@@ -384,6 +451,8 @@ class CalibrationModel:
             payload["isotonic"] = asdict(self.isotonic)
         if self.temperature:
             payload["temperature"] = asdict(self.temperature)
+        if self.platt:
+            payload["platt"] = asdict(self.platt)
         return payload
 
     def save(self, path: str) -> None:
@@ -435,6 +504,9 @@ def fit(
         temperature = fit_temperature(points)
         return CalibrationModel(
             method="temperature", temperature=temperature, **common) if temperature else None
+    if method == "platt":
+        platt = fit_platt(points)
+        return CalibrationModel(method="platt", platt=platt, **common) if platt else None
     if method == "gradient_boosting":
         GradientBoostingPlaceholder().fit(examples)
 
@@ -500,3 +572,46 @@ def split_examples(
         bucket = int(digest[:8], 16) / 0xFFFFFFFF
         (holdout if bucket < holdout_fraction else train).append(example)
     return train, holdout
+
+
+# ── Reliability by band ──────────────────────────────────────────────────────
+
+#: The bands users see, as `confidence.py` draws them: High ≥ 70, Medium ≥ 45.
+CONFIDENCE_BANDS: tuple[tuple[str, float, float], ...] = (
+    ("Low", 0.0, 45.0), ("Medium", 45.0, 70.0), ("High", 70.0, 101.0))
+
+
+def reliability_table(points: list[tuple[float, bool]], *,
+                      bands: tuple[tuple[str, float, float], ...] = CONFIDENCE_BANDS,
+                      resamples: int = 2000, seed: int = 20261006) -> list[dict]:
+    """Per band: how many, what it claims, what it delivers, and how sure.
+
+    `points` is (raw score 0–100, whether the outcome counted as correct).
+    "Claimed" is the band's mean score read as a probability; "actual" is the
+    hit rate. The interval is a 95% percentile bootstrap of the hit rate,
+    seeded so the same file prints the same table. Needs no fitting, so it
+    says whether High is earned at fifty outcomes, before any calibrator
+    could be trusted (#226).
+    """
+    import random
+
+    rng = random.Random(seed)
+    rows: list[dict] = []
+    for name, low, high in bands:
+        members = [(score, correct) for score, correct in points if low <= score < high]
+        if not members:
+            rows.append({"band": name, "n": 0, "claimed": None, "actual": None,
+                         "ci_low": None, "ci_high": None})
+            continue
+        hits = [1 if correct else 0 for _, correct in members]
+        n = len(hits)
+        rates = sorted(sum(rng.choice(hits) for _ in range(n)) / n
+                       for _ in range(resamples))
+        rows.append({
+            "band": name, "n": n,
+            "claimed": round(sum(score for score, _ in members) / n / 100, 4),
+            "actual": round(sum(hits) / n, 4),
+            "ci_low": round(rates[int(0.025 * (resamples - 1))], 4),
+            "ci_high": round(rates[int(0.975 * (resamples - 1))], 4),
+        })
+    return rows
