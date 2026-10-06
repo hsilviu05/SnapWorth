@@ -44,6 +44,7 @@ import imagequality
 import imagevalidation
 import metrics
 import notify
+import opsstats
 import promptsafety
 import prompts
 import ratelimit
@@ -52,6 +53,7 @@ import referral
 import outcomes
 import social
 import tokens
+import trends as trends_module
 import valuation as valuation_module
 from apierrors import APIError
 from auditlog import AuditEvent
@@ -2199,7 +2201,7 @@ async def scan(
         # the count and nothing else, where `scan_completed` would also post
         # the find to the operator feed and tally it into the day's top
         # categories — a find nobody ever saw.
-        notify.count_scan(principal.tier)
+        opsstats.count_scan(principal.tier)
         log.info("client gone before the result — allowance returned",
                  extra={"device": device_short})
         return response
@@ -2460,7 +2462,7 @@ async def _analyse(image_bytes: bytes, content_type: str, *, subject: str,
     # of the request shares. An item name or an estimate on any of them is a
     # per-device record of what someone scanned, which /privacy does not
     # describe: it says scan content is kept in the day's tallies, without the
-    # device (notify._note_scan). The plain log format dropping `extra` is no
+    # device (trends.record_scan). The plain log format dropping `extra` is no
     # cover: LOG_FORMAT=json, which prints it, is the recommended setting.
     log.info("scan ok", extra={
         "device": device_short,
@@ -3046,10 +3048,10 @@ async def trends(
     afternoon — or one label read five times — cannot become a "trend"; an
     average is withheld until three distinct finds support it. A find is
     still one item, so it is sent as brand, category and range, never the
-    item name (see `notify.trends`). Days tallied before devices were
+    item name (see `trends.trends`). Days tallied before devices were
     recorded count by scans alone while they are in the window; a day an
     older build wrote back after that, as a rollback does, is withheld. See
-    `notify.TRENDS_MIN_CATEGORY_DEVICES` and `notify._floored`.
+    `trends.TRENDS_MIN_CATEGORY_DEVICES` and `trends._floored`.
 
     The free/Pro split is decided **here**, from the verified principal, never
     by the client asking nicely: free gets the top three categories and brands
@@ -3058,7 +3060,7 @@ async def trends(
     """
     await _enforce_limits(principal.subject, _client_ip(request),
                           bucket=TRENDS_BUCKET, limit=TRENDS_RATE_MAX_REQUESTS)
-    return TrendsResponse(**await notify.trends(is_pro=principal.is_pro))
+    return TrendsResponse(**await trends_module.trends(is_pro=principal.is_pro))
 
 
 @app.post("/listing", response_model=ListingResponse,

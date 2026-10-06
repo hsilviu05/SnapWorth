@@ -31,6 +31,7 @@ import auth  # noqa: E402
 import entitlements  # noqa: E402
 import main  # noqa: E402
 import notify  # noqa: E402
+import opsstats  # noqa: E402
 from appstorenotify import Notification  # noqa: E402
 from cache import InMemoryCache, ResilientCache  # noqa: E402
 from tests.conftest import not_none  # noqa: E402
@@ -510,7 +511,7 @@ def operator(monkeypatch):
 
 
 def _new_subs() -> str | None:
-    return run(auth.deps.cache.get(notify._stat_key(notify._day(), "new_subs")))
+    return run(auth.deps.cache.get(opsstats.stat_key(opsstats.day(), "new_subs")))
 
 
 def _index() -> dict:

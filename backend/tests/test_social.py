@@ -17,6 +17,7 @@ from fastapi.testclient import TestClient
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import notify  # noqa: E402
+import opsstats  # noqa: E402
 import social  # noqa: E402
 from cache import InMemoryCache, ResilientCache  # noqa: E402
 from tests.test_notify import FAKE_CHAT, FAKE_TOKEN, Recorder  # noqa: E402
@@ -170,12 +171,12 @@ class TestSocialInBot:
         from datetime import datetime, timedelta, timezone
         await cache.set(social.TIKTOK_TOKENS_KEY, json.dumps({
             "access_token": "fresh", "expires_at": int(time.time()) + 3600, "refresh_token": "r"}), 600)
-        yesterday = notify._day(datetime.now(timezone.utc) - timedelta(days=1))
+        yesterday = opsstats.day(datetime.now(timezone.utc) - timedelta(days=1))
         await cache.set(notify._social_snapshot_key(yesterday),
                         json.dumps({"tiktok": 848}), 600)
         line = await notify._social_line()
         assert line == "Social: TikTok 860 (▲ 12)"
-        assert json.loads(await cache.get(notify._social_snapshot_key(notify._day())))["tiktok"] == 860
+        assert json.loads(await cache.get(notify._social_snapshot_key(opsstats.day())))["tiktok"] == 860
 
     @pytest.mark.asyncio
     async def test_unlinked_tiktok_is_omitted_from_the_digest(self, bot):

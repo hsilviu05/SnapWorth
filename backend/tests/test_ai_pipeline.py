@@ -605,14 +605,15 @@ class TestConfidence:
         """notify tallied "Generic" as no brand and the eval's hallucination
         check counted it as an asserted brand; both now read this list."""
         import notify
+        import trends
         from eval import metrics as eval_metrics
 
         for spelling in confidence_module.UNKNOWN_BRANDS:
-            assert notify._clean_brand(spelling) is None
+            assert trends.clean_brand(spelling) is None
             assert eval_metrics.hallucination_rate([
                 {"brand": spelling, "expected_brand": "Patagonia",
                  "visual_evidence": ["tag"]}])["rate"] == 0.0
-        assert notify._clean_brand("Patagonia") == "Patagonia"
+        assert trends.clean_brand("Patagonia") == "Patagonia"
 
 
 # ── Image quality ────────────────────────────────────────────────────────────

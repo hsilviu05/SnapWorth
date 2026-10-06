@@ -84,10 +84,13 @@ from datetime import datetime, timedelta, timezone
 from typing import TYPE_CHECKING, Literal
 
 import auditlog
+import background
 import categories
 import ideas
-from confidence import brand_is_known
+import opsstats
+import trends
 from devicecheck import PROBE_NOT_SENT
+from opsstats import STATS_TTL
 
 if TYPE_CHECKING:
     # For the annotation only. The value arrives through `configure`, from the
@@ -100,10 +103,6 @@ log = logging.getLogger("snapworth.notify")
 TELEGRAM_API = "https://api.telegram.org"
 
 SEND_TIMEOUT_SECONDS = 10.0
-
-# Counters live long enough for a 30-day spend view and the weekly report's
-# two full weeks, plus slack; they are operational tallies, not records.
-STATS_TTL = 60 * 60 * 24 * 35
 
 # What the model costs, per million tokens, so spend can be derived from the
 # token counts every call already reports. Defaults are Gemini 2.5 Flash's
@@ -123,10 +122,6 @@ APPLE_COMMISSION = float(os.environ.get("APPLE_COMMISSION", "0.15"))
 # Persisted in the cache so the toggle survives deploys. On by default — the
 # operator asked for it — and one command away from quiet.
 FEED_KEY = "opsfeed:enabled"
-
-# Brand tallies are keyed by whatever the model wrote, so the day's table is
-# capped; categories are a closed set and need no cap.
-TOP_BRANDS_CAP = 200
 
 CATEGORY_EMOJI = {c.name: c.emoji for c in categories.CATEGORIES}
 
@@ -210,10 +205,6 @@ POLL_OFFSET_KEY = "opsstate:tgoffset"
 # is read as "the bot is broken", so it retries, with these pauses between
 # attempts, before giving up.
 DEPLOY_RETRY_DELAYS: tuple[float, ...] = (2.0, 5.0, 10.0)
-
-# The week's most valuable scans, kept alongside the day's category and brand
-# tallies for /finds and as grounding for /post. Item and price only.
-TOP_FINDS_CAP = 8
 
 # Quiet-hours watch. /health cannot see the outage where nobody can scan — the
 # process is up, Redis answers, and the App Store build is broken — but a US
@@ -718,7 +709,8 @@ _cache = None                                   # ResilientCache once configured
 _digest_task: asyncio.Task | None = None
 _command_task: asyncio.Task | None = None
 _watch_task: asyncio.Task | None = None
-_tasks: set[asyncio.Task] = set()
+_tasks = background.tasks          # every module's fire-and-forget work
+_spawn = background.spawn
 
 # Supplies the live process facts /status reports (commit, cache backend,
 # auth enforcement, model health). Injected by main so this module never
@@ -773,13 +765,15 @@ def configure(cache, notifier: TelegramNotifier | None = None,
 
     With the env vars unset this leaves everything disabled and every public
     function a no-op — the feature costs nothing until it is turned on — apart
-    from `count_scan` and `scan_completed`'s tallies, which `/trends` reads,
-    and the subscription row and counters `entitlement_recorded` and
+    from `opsstats.count_scan` and `scan_completed`'s tallies, which `/trends`
+    reads, and the subscription row and counters `entitlement_recorded` and
     `subscription_event` write.
     """
     global _notifier, _cache, _status_provider, _social, _generator, _scanner
     global _device_check_probe, _describe_welcome
     _cache = cache
+    opsstats.bind(cache)
+    trends.bind(cache)
     _status_provider = status_provider
     _social = social
     _generator = generator
@@ -833,24 +827,6 @@ async def aclose() -> None:
     if _notifier is not None:
         notifier, _notifier = _notifier, None
         await notifier.aclose()
-
-
-def _spawn(coro) -> asyncio.Task | None:
-    """Run `coro` in the background, holding a reference until it finishes.
-
-    Without the reference set, an un-awaited task is garbage-collectable
-    mid-flight. Outside a running loop (sync tests, tooling) the coroutine is
-    closed unrun rather than raising, and None is returned.
-    """
-    try:
-        loop = asyncio.get_running_loop()
-    except RuntimeError:
-        coro.close()
-        return None
-    task = loop.create_task(coro)
-    _tasks.add(task)
-    task.add_done_callback(_tasks.discard)
-    return task
 
 
 # ── Daily counters ───────────────────────────────────────────────────────────
@@ -909,34 +885,6 @@ def _sub_is_alive(entry: dict, now: float) -> bool:
     return expires is None or float(expires) > now
 
 
-def _day(at: datetime | None = None) -> str:
-    return (at or datetime.now(timezone.utc)).strftime("%Y%m%d")
-
-
-def _stat_key(day: str, name: str) -> str:
-    return f"opsstats:{day}:{name}"
-
-
-async def _bump(name: str) -> None:
-    if _cache is None:
-        return
-    try:
-        await _cache.incr(_stat_key(_day(), name), STATS_TTL)
-    except Exception as exc:
-        log.debug("ops counter %s failed: %s", name, type(exc).__name__)
-
-
-def count_scan(tier: str) -> None:
-    """Tally one successful scan. Fire-and-forget.
-
-    Runs whenever there is a cache, Telegram or not: `/trends` reports this
-    count to users ("N scans this week"), and a feature in the app must not
-    depend on whether the operator's bot is configured."""
-    if _cache is None:
-        return
-    _spawn(_bump("scans_pro" if tier == "pro" else "scans_free"))
-
-
 def count_limit_hit() -> None:
     """Tally one free user refused because the day's allowance was spent.
 
@@ -952,7 +900,7 @@ def count_limit_hit() -> None:
     """
     if _notifier is None:
         return
-    _spawn(_bump("limit_hits"))
+    _spawn(opsstats.bump("limit_hits"))
 
 
 # The ways a scan that reached the model can still fail the user. They are
@@ -983,8 +931,8 @@ def count_scan_failure(kind: str = "other") -> None:
     detail beside it."""
     if _notifier is None:
         return
-    _spawn(_bump("scans_failed"))
-    _spawn(_bump(f"scans_failed_{kind if kind in SCAN_FAILURE_LABELS else 'other'}"))
+    _spawn(opsstats.bump("scans_failed"))
+    _spawn(opsstats.bump(f"scans_failed_{kind if kind in SCAN_FAILURE_LABELS else 'other'}"))
 
 
 async def _failure_breakdown(day: str) -> str:
@@ -994,7 +942,7 @@ async def _failure_breakdown(day: str) -> str:
     parts, and read correctly as a plain "3 failed" rather than a wrong zero."""
     counts = []
     for kind, label in SCAN_FAILURE_LABELS.items():
-        found = await _read_stat(day, f"scans_failed_{kind}")
+        found = await opsstats.read_stat(day, f"scans_failed_{kind}")
         if found:
             counts.append((found, label))
     counts.sort(key=lambda c: (-c[0], c[1]))
@@ -1024,7 +972,7 @@ def safety_blocked(subject: str, count: int, *, paused: bool) -> None:
     operator hears about it only when a device crosses the pause threshold."""
     if _notifier is None or _cache is None:
         return
-    _spawn(_bump("scans_blocked"))
+    _spawn(opsstats.bump("scans_blocked"))
     if paused:
         _spawn(_announce_safety_pause(auditlog.pseudonymise(subject), count))
 
@@ -1048,12 +996,12 @@ def count_referral(step: str) -> None:
     """Tally one step of the referral funnel for the digest. Fire-and-forget."""
     if _notifier is None or step not in dict(REFERRAL_STEPS):
         return
-    _spawn(_bump(f"referral_{step}"))
+    _spawn(opsstats.bump(f"referral_{step}"))
 
 
 async def _referral_digest_line(day: str) -> str:
     """"Referrals: 3 claimed · 2 redeemed at Apple · …", or "" on a quiet day."""
-    counts = [(await _read_stat(day, f"referral_{step}"), label)
+    counts = [(await opsstats.read_stat(day, f"referral_{step}"), label)
               for step, label in REFERRAL_STEPS]
     if not any(n for n, _ in counts):
         return ""
@@ -1077,7 +1025,8 @@ def referral_pool_low(pool: str, remaining: int) -> None:
 async def _announce_referral_pool(pool: str, remaining: int) -> None:
     state = "empty" if remaining <= 0 else "low"
     try:
-        if not await _cache.add(f"opsseen:refpool:{pool}:{state}:{_day()}", "1", STATS_TTL):
+        if not await _cache.add(f"opsseen:refpool:{pool}:{state}:{opsstats.day()}", "1",
+                                STATS_TTL):
             return
     except Exception:
         return
@@ -1371,9 +1320,9 @@ async def _count_new_subscription(otid: str, acq: str) -> None:
     counter = START_COUNTERS.get(acq, OFFER_STARTS)
     try:
         if await _cache.add(f"opsseen:subcount:{otid}", "1", SUB_SEEN_TTL):
-            day = _day()
-            await _cache.incr(_stat_key(day, "new_subs"), STATS_TTL)
-            await _cache.incr(_stat_key(day, counter), STATS_TTL)
+            day = opsstats.day()
+            await _cache.incr(opsstats.stat_key(day, "new_subs"), STATS_TTL)
+            await _cache.incr(opsstats.stat_key(day, counter), STATS_TTL)
     except Exception as exc:                      # pragma: no cover - defensive
         log.warning("%s counter failed for %s: %s", counter, otid, exc)
 
@@ -1402,7 +1351,7 @@ async def _count_paywall_trigger(otid: str, started_as: str | None,
         return
     try:
         if await _cache.add(f"opsseen:subtrigger:{otid}", "1", SUB_SEEN_TTL):
-            await _cache.incr(_stat_key(_day(), f"{counter}:{trigger}"), STATS_TTL)
+            await _cache.incr(opsstats.stat_key(opsstats.day(), f"{counter}:{trigger}"), STATS_TTL)
     except Exception as exc:                      # pragma: no cover - defensive
         log.warning("paywall trigger counter failed for %s: %s", otid, exc)
 
@@ -1417,7 +1366,7 @@ async def _count_trial_conversion(otid: str) -> None:
         return
     try:
         if await _cache.add(f"opsseen:subconv:{otid}", "1", SUB_SEEN_TTL):
-            await _cache.incr(_stat_key(_day(), TRIAL_CONVERSIONS), STATS_TTL)
+            await _cache.incr(opsstats.stat_key(opsstats.day(), TRIAL_CONVERSIONS), STATS_TTL)
     except Exception as exc:                      # pragma: no cover - defensive
         log.warning("trial_conversions counter failed for %s: %s", otid, exc)
 
@@ -1840,21 +1789,13 @@ def _seconds_until_next(hour: int, now: datetime) -> float:
     return (target - now).total_seconds()
 
 
-async def _read_stat(day: str, name: str) -> int:
-    try:
-        raw = await _cache.get(_stat_key(day, name))
-        return int(raw or 0)
-    except Exception:
-        return 0
-
-
 async def _sub_counts(days: list[str]) -> tuple[int, int, int]:
     """(trial starts, trial conversions, direct purchases), summed over `days`."""
     trials = conversions = direct = 0
     for day in days:
-        trials += await _read_stat(day, START_COUNTERS["trial"])
-        conversions += await _read_stat(day, TRIAL_CONVERSIONS)
-        direct += await _read_stat(day, START_COUNTERS["paid"])
+        trials += await opsstats.read_stat(day, START_COUNTERS["trial"])
+        conversions += await opsstats.read_stat(day, TRIAL_CONVERSIONS)
+        direct += await opsstats.read_stat(day, START_COUNTERS["paid"])
     return trials, conversions, direct
 
 
@@ -1883,7 +1824,7 @@ async def send_digest(now: datetime | None = None) -> bool:
         return False
     now = now or datetime.now(timezone.utc)
     yesterday = now - timedelta(days=1)
-    day = _day(yesterday)
+    day = opsstats.day(yesterday)
     try:
         if not await _cache.add(f"opsstats:digestsent:{day}", "1", STATS_TTL):
             return False
@@ -1895,15 +1836,15 @@ async def send_digest(now: datetime | None = None) -> bool:
 
 
 async def _digest_text(when: datetime) -> str:
-    day = _day(when)
-    free = await _read_stat(day, "scans_free")
-    pro = await _read_stat(day, "scans_pro")
-    failed = await _read_stat(day, "scans_failed")
+    day = opsstats.day(when)
+    free = await opsstats.read_stat(day, "scans_free")
+    pro = await opsstats.read_stat(day, "scans_pro")
+    failed = await opsstats.read_stat(day, "scans_failed")
     why = await _failure_breakdown(day) if failed else ""
-    blocked = await _read_stat(day, "scans_blocked")
+    blocked = await opsstats.read_stat(day, "scans_blocked")
     trials, conversions, direct = await _sub_counts([day])
-    users = await _read_stat(day, "active_users")
-    limits = await _read_stat(day, "limit_hits")
+    users = await opsstats.read_stat(day, "active_users")
+    limits = await opsstats.read_stat(day, "limit_hits")
     lines = [
         f"📊 <b>SnapWorth — {when.strftime('%Y-%m-%d')}</b>",
         f"Active users: {users}",
@@ -2027,9 +1968,9 @@ async def _note_activity(subject: str, tier: str = "free") -> None:
             # Once per device per window, not per request, so the index
             # write stays rare on a busy device.
             await _index_user(who, tier=tier)
-        day = _day()
+        day = opsstats.day()
         if await _cache.add(f"opsseen:d:{day}:{who}", "1", STATS_TTL):
-            await _cache.incr(_stat_key(day, "active_users"), STATS_TTL)
+            await _cache.incr(opsstats.stat_key(day, "active_users"), STATS_TTL)
     except Exception as exc:
         log.debug("activity note failed: %s", type(exc).__name__)
 
@@ -2074,17 +2015,17 @@ def _replica_label(info: dict) -> str:
 
 async def _status_text() -> str:
     now = datetime.now(timezone.utc)
-    day = _day(now)
+    day = opsstats.day(now)
     window = _window()
     active_now = await _read_int(f"opsact:w:{window}")
-    active_today = await _read_stat(day, "active_users")
-    free = await _read_stat(day, "scans_free")
-    pro = await _read_stat(day, "scans_pro")
-    failed = await _read_stat(day, "scans_failed")
+    active_today = await opsstats.read_stat(day, "active_users")
+    free = await opsstats.read_stat(day, "scans_free")
+    pro = await opsstats.read_stat(day, "scans_pro")
+    failed = await opsstats.read_stat(day, "scans_failed")
     why = await _failure_breakdown(day) if failed else ""
-    blocked = await _read_stat(day, "scans_blocked")
+    blocked = await opsstats.read_stat(day, "scans_blocked")
     trials, conversions, direct = await _sub_counts([day])
-    limits = await _read_stat(day, "limit_hits")
+    limits = await opsstats.read_stat(day, "limit_hits")
 
     lines = [
         "📡 <b>SnapWorth status</b>",
@@ -2437,41 +2378,6 @@ def _start_command_loop() -> None:
 
 # ── Live scan feed and what people scan ──────────────────────────────────────
 
-def _normalise_category(category: str | None) -> str:
-    # `/scan` already hands over a normalised category. Normalised again here
-    # because the day's tallies key on it and must not grow a row per spelling.
-    return categories.normalise(category)
-
-
-# Web addresses, e-mail addresses and @handles. Brands and item names are text
-# the model read off a user's photo, and `/trends` shows them to every install:
-# a label printed with "shop at x.com" or "follow @x" is an advert, not a brand.
-# The domain branch names its endings rather than matching any "a.b", so
-# "J.Crew", "A.P.C." and "Mr. Coffee" survive.
-_LINKISH = re.compile(
-    r"(?:https?://|www\.)\S*"
-    r"|\S+@\S+"
-    r"|(?<![\w.])@\w+"
-    r"|\b[\w-]+(?:\.[\w-]+)*\.(?:com|net|org|info|biz|io|co|me|ly|gg|tv|xyz|app|"
-    r"shop|store|link|site|online|club|live|top|tk|ru|cn|us|uk|de|eu|ro)\b(?:/\S*)?",
-    re.IGNORECASE)
-
-
-def _without_links(text: str | None) -> str:
-    """`text` with anything shaped like a URL or a handle removed, and its
-    whitespace collapsed."""
-    return " ".join(_LINKISH.sub(" ", text or "").split())
-
-
-def _clean_brand(brand: str | None) -> str | None:
-    """A brand worth tallying, or None. Model output: trimmed, bounded, and
-    stripped of links and handles."""
-    value = _without_links(brand)[:40]
-    if not brand_is_known(value):
-        return None
-    return value
-
-
 # ── The free-scan lever ─────────────────────────────────────────────────────
 #
 # `/experiment` could report that the lever was not armed and do nothing about
@@ -2607,7 +2513,7 @@ async def _set_free_scan_lever(value: int | None) -> dict | None:
     else:
         doc["free_scans_first_day"] = int(value)
     changes = [c for c in (doc.get("changes") or []) if isinstance(c, list) and len(c) == 3]
-    changes.append([_day(), before, value])
+    changes.append([opsstats.day(), before, value])
     doc["changes"] = changes[-LEVER_CHANGES_CAP:]
     await _cache.set(LEVERS_KEY, json.dumps(doc))
     return doc
@@ -2772,7 +2678,7 @@ async def _set_paywall_default_plan(value: PaywallPlan | None) -> dict | None:
         doc["paywall_default_plan"] = value
     changes = [c for c in (doc.get("plan_changes") or [])
                if isinstance(c, list) and len(c) == 3]
-    changes.append([_day(), before, value])
+    changes.append([opsstats.day(), before, value])
     doc["plan_changes"] = changes[-LEVER_CHANGES_CAP:]
     await _cache.set(LEVERS_KEY, json.dumps(doc))
     return doc
@@ -2970,152 +2876,18 @@ async def _feed_command(argument: str) -> str:
 
 def _feed_text(*, item_name: str, category: str, low: float, high: float,
                confidence: str, tier: str) -> str:
-    emoji = CATEGORY_EMOJI[_normalise_category(category)]
+    emoji = CATEGORY_EMOJI[trends.normalise_category(category)]
     name = html.escape(" ".join((item_name or "").split())[:80] or "Unidentified item")
     band = html.escape((confidence or "").strip().lower() or "unknown")
     who = "Pro" if tier == "pro" else "free"
     return (f"{emoji} <b>{name}</b>\n"
-            f"{_normalise_category(category)} · ${low:,.0f}–{high:,.0f} · "
+            f"{trends.normalise_category(category)} · ${low:,.0f}–{high:,.0f} · "
             f"{band} confidence · {who}")
-
-
-async def _tally_top(day: str, category: str, brand: str | None,
-                     find: dict | None = None, device: str | None = None) -> None:
-    """Read-modify-write of the day's category and brand counts, and its
-    handful of most valuable finds.
-
-    One small JSON document rather than a key per brand, because the cache
-    interface cannot enumerate keys and the report needs the whole table.
-    A lost update between two replicas costs one count, which is fine for a
-    tally that exists to say "clothing 5 · Nike ×3". A lost *read* is not:
-    see `_read_index_for_update`, which this shares a document shape with.
-    Losing this scan's count is the price of not resetting the day's.
-
-    `device` is `_trend_device`'s keyed tag for whoever scanned it, recorded
-    beside each category, brand and find (at most TRENDS_DEVICES_KEPT per
-    entry) so `/trends` can count devices rather than scans — see
-    `TRENDS_MIN_CATEGORY_DEVICES`. It stays as long as the document, STATS_TTL.
-
-    The write that gives a day its device maps also offers that day to
-    TRENDS_TAGGED_SINCE_KEY, which keeps the first: see `_tagged_since`.
-    """
-    key = _stat_key(day, "top")
-    doc = await _read_index_for_update(key)
-    if doc is None:
-        return
-    first_tagged_write = not isinstance(doc.get("cat_devices"), dict)
-    cats = c if isinstance(c := doc.get("cats"), dict) else {}
-    brands = b if isinstance(b := doc.get("brands"), dict) else {}
-    finds = f if isinstance(f := doc.get("finds"), list) else []
-    cat_devices = cd if isinstance(cd := doc.get("cat_devices"), dict) else {}
-    brand_devices = bd if isinstance(bd := doc.get("brand_devices"), dict) else {}
-    cats[category] = int(cats.get(category, 0)) + 1
-    cat_devices[category] = _add_device(cat_devices.get(category), device)
-    if brand is not None and (brand in brands or len(brands) < TOP_BRANDS_CAP):
-        brands[brand] = int(brands.get(brand, 0)) + 1
-        brand_devices[brand] = _add_device(brand_devices.get(brand), device)
-    if find is not None:
-        find = {**find, "d": _add_device(None, device)}
-        finds = _merge_finds([*finds, find])[:TOP_FINDS_CAP]
-    await _cache.set(key, json.dumps({"cats": cats, "brands": brands, "finds": finds,
-                                      "cat_devices": cat_devices,
-                                      "brand_devices": brand_devices}),
-                     STATS_TTL)
-    if first_tagged_write:
-        # A day's first write, or the first since an older build wrote the
-        # day back without its maps. `add`, so only the first ever stands.
-        try:
-            await _cache.add(TRENDS_TAGGED_SINCE_KEY, day)
-        except Exception as exc:
-            log.debug("trends tagged-since note failed: %s", type(exc).__name__)
-
-
-def _trend_device(subject: str | None) -> str | None:
-    """A short tag meaning "a different device", for the `/trends` floor.
-
-    Kept beside the categories, brands and finds a device scanned, for as
-    long as the day document (STATS_TTL, 35 days), and used for nothing but
-    counting distinct devices. So it must not be a join key. It was a plain
-    hash of the audit pseudonym, and the same cache holds every pseudonym in
-    full — `/users`'s index, each `/subs` row — so anyone who could read the
-    cache could recompute every tag and tie a device, and through its
-    subscription or a support mail a customer, to the items it scanned.
-
-    Now `auditlog.keyed_tag`: an HMAC under AUDIT_SALT, which lives in the
-    environment and never in the cache. Someone holding the salt and a
-    device's key id can still recompute its tag; nothing stored beside it
-    can. None when the scan has no subject, which counts toward nothing."""
-    if not subject:
-        return None
-    return auditlog.keyed_tag("trends", subject)
-
-
-def _add_device(devices, device: str | None) -> list[str]:
-    """`devices` with `device` added, holding at most TRENDS_DEVICES_KEPT.
-
-    The cap is exact for the only question ever asked of the list — "did at
-    least N different devices do this, this week?" — for every floor N, since
-    it is the largest of them. If any one day's list is full, the week's union
-    is at least the cap, so at least N; if none is, every list is complete and
-    the union is the true count."""
-    kept = [d for d in (devices or []) if isinstance(d, str)][:TRENDS_DEVICES_KEPT]
-    if device and device not in kept and len(kept) < TRENDS_DEVICES_KEPT:
-        kept.append(device)
-    return kept
-
-
-def _find_key(find: dict) -> tuple[str, str]:
-    """What makes two finds the same item: the name, case and spacing
-    ignored, within one category."""
-    return (" ".join(str(find.get("n") or "").lower().split()),
-            str(find.get("c") or "other"))
-
-
-def _merge_finds(finds: list) -> list[dict]:
-    """One entry per item, the most valuable reading kept, best first.
-
-    A find is recorded per scan, so one jacket scanned four times was four of
-    the day's eight slots, and the week's list — seven days appended — could
-    carry it once per day as well. `/trends` then cut to five *before* anything
-    removed the repeats, and the client's dedupe could only work on what was
-    left: two or three notable finds instead of five, or the same item twice at
-    two prices. Deduped here, on write and again across days, so the cut is
-    taken over distinct items."""
-    best: dict[tuple[str, str], dict] = {}
-    for find in finds:
-        if not isinstance(find, dict):
-            continue
-        key = _find_key(find)
-        kept = best.get(key)
-        if kept is None:
-            best[key] = find
-            continue
-        # Whichever reading wins, the devices behind the item are all of them.
-        devices = list(kept.get("d") or [])
-        for device in find.get("d") or []:
-            devices = _add_device(devices, device)
-        winner = find if float(find.get("hi") or 0) > float(kept.get("hi") or 0) else kept
-        best[key] = {**winner, "d": devices}
-    return sorted(best.values(), key=lambda f: -float(f.get("hi") or 0))
-
-
-def _find_record(*, item_name: str, brand: str | None, category: str,
-                 low: float, high: float, tier: str) -> dict:
-    """A scan as /finds and /trends keep it: the item and its price. The name
-    is stripped of links and handles, as `_clean_brand` does.
-
-    Not quite all that is stored: `_tally_top` adds `d`, the keyed tags of the
-    devices behind the item (see `_trend_device`), so a find can be held back
-    until TRENDS_MIN_FIND_DEVICES have scanned it."""
-    return {"n": _without_links(item_name)[:60] or "Unidentified item",
-            "b": _clean_brand(brand), "c": _normalise_category(category),
-            "lo": round(float(low)), "hi": round(float(high)),
-            "t": "pro" if tier == "pro" else "free"}
 
 
 async def _top_text(day: str, limit: int = 3) -> str:
     try:
-        doc = json.loads(await _cache.get(_stat_key(day, "top")) or "{}")
+        doc = json.loads(await _cache.get(opsstats.stat_key(day, "top")) or "{}")
     except Exception:
         return ""
     cats = sorted((doc.get("cats") or {}).items(), key=lambda kv: -kv[1])[:limit]
@@ -3136,24 +2908,15 @@ async def _note_scan(*, tier: str, item_name: str, brand: str | None,
         # The count and the tallies feed `/trends` as well as the bot, so they
         # run with or without Telegram. Everything after them is the
         # operator's alone.
-        await _bump("scans_pro" if tier == "pro" else "scans_free")
-        if tier != "pro" and subject:
-            # Distinct free devices that scanned today: the denominator of
-            # `/costs`' cost per active free device-day. Beside the spend
-            # tally it divides, so it is written whenever that is.
-            who = auditlog.pseudonymise(subject)
-            if await _cache.add(f"opsseen:fd:{_day()}:{who}", "1", STATS_TTL):
-                await _bump("free_device_days")
-        if not reread:
-            await _tally_top(_day(), _normalise_category(category), _clean_brand(brand),
-                             _find_record(item_name=item_name, brand=brand, category=category,
-                                          low=low, high=high, tier=tier),
-                             _trend_device(subject))
+        await trends.record_scan(tier=tier, item_name=item_name, brand=brand,
+                                 category=category, low=low, high=high,
+                                 subject=subject, reread=reread)
         if _notifier is None:
             return
         await _cache.set(LAST_SCAN_KEY, str(int(time.time())), STATS_TTL)
         if elapsed_ms:
-            await _cache.incr(_stat_key(_day(), "scan_ms"), STATS_TTL, int(elapsed_ms))
+            await _cache.incr(opsstats.stat_key(opsstats.day(), "scan_ms"), STATS_TTL,
+                              int(elapsed_ms))
         if subject:
             await _index_user(auditlog.pseudonymise(subject), tier=tier, scanned=True)
         if await _feed_enabled():
@@ -3171,9 +2934,9 @@ def scan_completed(*, tier: str, item_name: str, brand: str | None, category: st
     """A scan produced a valuation. Counts it, tallies what it was, and — when
     the feed is on — tells the operator. Fire-and-forget; never the photo.
 
-    What the tallies keep is the item, its price, and `_trend_device`'s keyed
-    tag for the device, for STATS_TTL, only so `/trends` can count distinct
-    devices. The tag joins to nothing else the cache holds without AUDIT_SALT.
+    What the tallies keep is the item, its price, and `trends._trend_device`'s
+    keyed tag for the device, for STATS_TTL, only so `/trends` can count
+    distinct devices. The tag joins to nothing else the cache holds without AUDIT_SALT.
     The feed message is item and price alone.
 
     Gated on the cache alone. The tallies are what `/trends` serves to the
@@ -3197,7 +2960,7 @@ def scan_completed(*, tier: str, item_name: str, brand: str | None, category: st
 async def _sum_stat(days: list[str], name: str) -> int:
     total = 0
     for day in days:
-        total += await _read_stat(day, name)
+        total += await opsstats.read_stat(day, name)
     return total
 
 
@@ -3215,9 +2978,9 @@ def _trend(current: int, previous: int) -> str:
 async def _weekly_text(now: datetime) -> str:
     """The seven days ending yesterday, against the seven before."""
     end = (now - timedelta(days=1)).date()
-    this_week = [_day(datetime.combine(end - timedelta(days=i), datetime.min.time(),
+    this_week = [opsstats.day(datetime.combine(end - timedelta(days=i), datetime.min.time(),
                                        tzinfo=timezone.utc)) for i in range(7)]
-    last_week = [_day(datetime.combine(end - timedelta(days=i), datetime.min.time(),
+    last_week = [opsstats.day(datetime.combine(end - timedelta(days=i), datetime.min.time(),
                                        tzinfo=timezone.utc)) for i in range(7, 14)]
 
     async def pair(name: str) -> tuple[int, int]:
@@ -3256,7 +3019,7 @@ async def send_weekly(now: datetime | None = None) -> bool:
         return False
     now = now or datetime.now(timezone.utc)
     try:
-        if not await _cache.add(f"opsstats:weeklysent:{_day(now)}", "1", STATS_TTL):
+        if not await _cache.add(f"opsstats:weeklysent:{opsstats.day(now)}", "1", STATS_TTL):
             return False
     except Exception as exc:
         log.warning("weekly guard failed, skipping: %s", type(exc).__name__)
@@ -3269,31 +3032,6 @@ async def send_weekly(now: datetime | None = None) -> bool:
 async def _read_index(key: str) -> dict:
     try:
         doc = json.loads(await _cache.get(key) or "{}")
-    except Exception:
-        return {}
-    return doc if isinstance(doc, dict) else {}
-
-
-async def _read_index_for_update(key: str) -> dict | None:
-    """`_read_index` for a caller about to write the whole document back.
-
-    None means the store could not be read, and the caller must not write.
-    `_read_index` answers {} for that, which is right for a report and wrong
-    here: a plain `get` on a failing Redis falls back to memory and returns
-    None rather than raising, so the writer took the document as empty and,
-    once Redis answered again, overwrote it with the one row it had just
-    added. A 300-row subscription index became 1, and the auto-renew state
-    and history in those rows came back from nowhere. `required=True` makes
-    that read raise instead. A document that is present but unreadable is
-    still replaced, as before.
-    """
-    try:
-        raw = await _cache.get(key, required=True)
-    except Exception as exc:
-        log.warning("index %s unreadable, not rewriting it: %s", key, type(exc).__name__)
-        return None
-    try:
-        doc = json.loads(raw or "{}")
     except Exception:
         return {}
     return doc if isinstance(doc, dict) else {}
@@ -3437,7 +3175,7 @@ async def _index_subscription(subject: str | None, ent,
     """
     if _is_bounded(ent):
         return {}
-    doc = await _read_index_for_update(SUBS_INDEX_KEY)
+    doc = await opsstats.read_doc_for_update(SUBS_INDEX_KEY)
     if doc is None:
         # Nothing written, and nothing known about the row. `/sub` can repair
         # it once Redis is back.
@@ -3535,7 +3273,7 @@ async def _index_user(who: str, *, tier: str, scanned: bool = False) -> None:
     Rows from before these fields existed start their span at the first
     sighting after the deploy, since what came earlier cannot be split.
     """
-    doc = await _read_index_for_update(USERS_INDEX_KEY)
+    doc = await opsstats.read_doc_for_update(USERS_INDEX_KEY)
     if doc is None:
         return
     now = int(time.time())
@@ -3552,8 +3290,8 @@ async def _index_user(who: str, *, tier: str, scanned: bool = False) -> None:
         entry["scans"] = int(entry.get("scans", 0)) + 1
         if pro:
             entry["pro_scans"] = int(entry.get("pro_scans", 0)) + 1
-            today = _day()
-            oldest = _day(datetime.now(timezone.utc) - timedelta(days=PRO_DAYS_KEPT - 1))
+            today = opsstats.day()
+            oldest = opsstats.day(datetime.now(timezone.utc) - timedelta(days=PRO_DAYS_KEPT - 1))
             days = entry.get("pro_days") if isinstance(entry.get("pro_days"), dict) else {}
             days = {d: n for d, n in days.items() if d >= oldest}
             days[today] = int(days.get(today, 0)) + 1
@@ -3708,8 +3446,8 @@ async def _users_text() -> str:
     now = time.time()
     week = sum(1 for e in doc.values() if now - float(e.get("last", 0)) < 7 * 86400)
     month = sum(1 for e in doc.values() if now - float(e.get("last", 0)) < 30 * 86400)
-    today = sum(1 for e in doc.values() if _day(datetime.fromtimestamp(
-        float(e.get("last", 0)), timezone.utc)) == _day())
+    today = sum(1 for e in doc.values() if opsstats.day(datetime.fromtimestamp(
+        float(e.get("last", 0)), timezone.utc)) == opsstats.day())
     pro = sum(1 for e in doc.values() if e.get("tier") == "pro")
     lines = [f"👥 <b>Devices</b> — {len(doc)} seen · {month} last 30d · {week} last 7d · "
              f"{today} today · {pro} Pro"]
@@ -3809,36 +3547,38 @@ def _usage_tier(label: str, tier: str | None) -> str | None:
 
 async def _note_usage(label: str, usage: dict, tier: str | None = None) -> None:
     try:
-        day = _day()
+        day = opsstats.day()
         tok_in = int(usage.get("prompt_tokens") or 0)
         tok_out = int(usage.get("output_tokens") or 0) + int(usage.get("thoughts_tokens") or 0)
         if tok_in:
-            await _cache.incr(_stat_key(day, "tok_in"), STATS_TTL, tok_in)
+            await _cache.incr(opsstats.stat_key(day, "tok_in"), STATS_TTL, tok_in)
         if tok_out:
-            await _cache.incr(_stat_key(day, "tok_out"), STATS_TTL, tok_out)
-        await _cache.incr(_stat_key(day, "model_calls"), STATS_TTL)
-        await _cache.incr(_stat_key(day, f"calls_{label}"), STATS_TTL)
+            await _cache.incr(opsstats.stat_key(day, "tok_out"), STATS_TTL, tok_out)
+        await _cache.incr(opsstats.stat_key(day, "model_calls"), STATS_TTL)
+        await _cache.incr(opsstats.stat_key(day, f"calls_{label}"), STATS_TTL)
         # Per-label tokens, so /costs can separate what users cost from what
         # the operator's own bot usage costs. `calls_{label}` alone could not:
         # it counts calls, and an ideas generation is not the size of a scan.
         if tok_in:
-            await _cache.incr(_stat_key(day, f"tok_in_{label}"), STATS_TTL, tok_in)
+            await _cache.incr(opsstats.stat_key(day, f"tok_in_{label}"), STATS_TTL, tok_in)
         if tok_out:
-            await _cache.incr(_stat_key(day, f"tok_out_{label}"), STATS_TTL, tok_out)
+            await _cache.incr(opsstats.stat_key(day, f"tok_out_{label}"), STATS_TTL, tok_out)
         # Thinking on scans, apart from the answer (#217). `tok_out` bills the
         # two together, which is right for spend and hides the one number a
         # thinking budget moves.
         thoughts = int(usage.get("thoughts_tokens") or 0)
         if label in _SCAN_LABELS and thoughts:
-            await _cache.incr(_stat_key(day, "scan_thoughts"), STATS_TTL, thoughts)
+            await _cache.incr(opsstats.stat_key(day, "scan_thoughts"), STATS_TTL, thoughts)
         # Per-tier tokens, so /costs can say what a subscriber costs. Labels
         # name the operation, and a `scan` is the same operation for both.
         charged = _usage_tier(label, tier)
         if charged is not None:
             if tok_in:
-                await _cache.incr(_stat_key(day, f"tok_in_tier_{charged}"), STATS_TTL, tok_in)
+                await _cache.incr(opsstats.stat_key(day, f"tok_in_tier_{charged}"),
+                                  STATS_TTL, tok_in)
             if tok_out:
-                await _cache.incr(_stat_key(day, f"tok_out_tier_{charged}"), STATS_TTL, tok_out)
+                await _cache.incr(opsstats.stat_key(day, f"tok_out_tier_{charged}"),
+                                  STATS_TTL, tok_out)
 
         budget = GEMINI_DAILY_BUDGET_USD
         if budget > 0 and _notifier is not None:
@@ -3856,7 +3596,7 @@ async def _note_usage(label: str, usage: dict, tier: str | None = None) -> None:
 def model_usage(label: str, usage: dict | None, *, tier: str | None = None) -> None:
     """Tally one model call's tokens. Fire-and-forget.
 
-    Runs whenever there is a cache, as `count_scan` does. It used to return
+    Runs whenever there is a cache, as `opsstats.count_scan` does. It used to return
     without the Telegram notifier too, so a deploy with the bot unset tallied
     scans and no spend, and the first `/costs` after turning the bot on
     divided a month of scans by the days since.
@@ -3870,7 +3610,7 @@ def model_usage(label: str, usage: dict | None, *, tier: str | None = None) -> N
 
 def _days_ending_today(n: int, now: datetime | None = None) -> list[str]:
     now = now or datetime.now(timezone.utc)
-    return [_day(now - timedelta(days=i)) for i in range(n)]
+    return [opsstats.day(now - timedelta(days=i)) for i in range(n)]
 
 
 # Model calls the operator makes through the bot: /post ideas, the /checkup
@@ -4076,7 +3816,7 @@ async def _costs_text() -> str:
 # ── Social reach ─────────────────────────────────────────────────────────────
 
 def _social_snapshot_key(day: str) -> str:
-    return _stat_key(day, "social")
+    return opsstats.stat_key(day, "social")
 
 
 async def _remember_followers(accounts) -> None:
@@ -4084,14 +3824,14 @@ async def _remember_followers(accounts) -> None:
     snapshot = {a.platform: a.followers for a in accounts if a.ok and a.followers is not None}
     if snapshot:
         try:
-            await _cache.set(_social_snapshot_key(_day()), json.dumps(snapshot), STATS_TTL)
+            await _cache.set(_social_snapshot_key(opsstats.day()), json.dumps(snapshot), STATS_TTL)
         except Exception as exc:
             log.debug("social snapshot failed: %s", type(exc).__name__)
 
 
 async def _followers_delta(platform: str, now_count: int) -> str:
     try:
-        yesterday = _day(datetime.now(timezone.utc) - timedelta(days=1))
+        yesterday = opsstats.day(datetime.now(timezone.utc) - timedelta(days=1))
         previous = json.loads(await _cache.get(_social_snapshot_key(yesterday)) or "{}")
     except Exception:
         return ""
@@ -4196,7 +3936,7 @@ async def _week_top(now: datetime | None = None) -> dict:
     scans = 0
     for day in days:
         try:
-            doc = json.loads(await _cache.get(_stat_key(day, "top")) or "{}")
+            doc = json.loads(await _cache.get(opsstats.stat_key(day, "top")) or "{}")
         except Exception:
             doc = {}
         for c, n in (doc.get("cats") or {}).items():
@@ -4206,288 +3946,15 @@ async def _week_top(now: datetime | None = None) -> dict:
         for f in doc.get("finds") or []:
             if isinstance(f, dict):
                 finds.append({**f, "day": day})
-        scans += await _read_stat(day, "scans_free") + await _read_stat(day, "scans_pro")
+        scans += (await opsstats.read_stat(day, "scans_free")
+                  + await opsstats.read_stat(day, "scans_pro"))
     finds.sort(key=lambda f: -float(f.get("hi") or 0))
     return {
         "days": len(days), "scans": scans,
         "cats": sorted(cats.items(), key=lambda kv: -kv[1])[:5],
         "brands": sorted(brands.items(), key=lambda kv: -kv[1])[:8],
-        "finds": finds[:TOP_FINDS_CAP],
+        "finds": finds[:trends.TOP_FINDS_CAP],
     }
-
-
-# ── Trends, for the app (#96) ────────────────────────────────────────────────
-#
-# The same tallies the bot reads, shaped for users. Aggregates only, with a
-# floor: a category or brand appears only once enough scans *and* enough
-# different devices back it, and a notable find only once enough different
-# devices have scanned that item. A find is still one item rather than a total,
-# so it leaves the server as a brand, a category and a range: never the item
-# name, no device, no photo, no time of day. Pro sees the averages and the
-# finds; free sees the counts.
-#
-# The floor used to count scans alone, and at one to four real scans a day,
-# five scans of one label — a spam URL, a slur — was that week's "Trending at
-# the thrift" row on every install, and notable finds had no floor at all: one
-# scan was enough. The text is read off a user's photo; nothing upstream of
-# here promises it is fit to show anyone else.
-#
-# Days tallied before devices were recorded still count, by scans alone, for
-# the fortnight they stay in the window. A day an older build wrote back after
-# tags began has lost its devices rather than never had them, and is withheld
-# — see `_floored`.
-
-TRENDS_MIN_COUNT = 5          # below this a row says more about one user than a trend
-# Different devices behind a row or a find across the week, whatever the scan
-# count. Brands and finds are free text off a photo, so they need three.
-# Categories are a closed set and cannot carry a URL or a slur; their floor
-# serves only "one user's afternoon is not a trend", and two devices say that.
-# The difference is felt at one to four scans a day, where three devices behind
-# one category may take much longer than a week, and the app hides "Trending at
-# the thrift" — which the paywall sells to Pro — while both lists are empty.
-TRENDS_MIN_CATEGORY_DEVICES = 2
-TRENDS_MIN_BRAND_DEVICES = 3
-TRENDS_MIN_FIND_DEVICES = 3
-# How many tags each list in a day document keeps: the largest floor, which
-# `_add_device` shows is all any floor needs.
-TRENDS_DEVICES_KEPT = max(TRENDS_MIN_CATEGORY_DEVICES, TRENDS_MIN_BRAND_DEVICES,
-                          TRENDS_MIN_FIND_DEVICES)
-TRENDS_FREE_ROWS = 3
-TRENDS_PRO_ROWS = 6
-TRENDS_FINDS = 5
-TRENDS_CACHE_KEY = "opsstate:trends"
-TRENDS_CACHE_TTL = 15 * 60
-# The first day `_tally_top` gave a day document its device maps. Kept with no
-# expiry: it is one date, and the code before tags never writes it, so no
-# rollback can move or remove it. See `_tagged_since`.
-TRENDS_TAGGED_SINCE_KEY = "opsstate:trends_tagged_since"
-
-
-def _trend_rows(counts: list[tuple[str, int]], previous: dict[str, int],
-                limit: int) -> list[dict]:
-    """Rows above the floor, with last week's direction where it exists."""
-    rows = []
-    for name, count in counts:
-        if count < TRENDS_MIN_COUNT:
-            continue
-        row: dict = {"name": name, "count": count}
-        before = previous.get(name)
-        if isinstance(before, int) and before >= TRENDS_MIN_COUNT:
-            row["change_pct"] = round((count - before) / before * 100)
-        rows.append(row)
-        if len(rows) >= limit:
-            break
-    return rows
-
-
-def _floored(docs: list[tuple[str, dict]], counts_field: str, devices_field: str,
-             min_devices: int, clean: Callable[[str], str | None],
-             tagged_since: str | None) -> dict[str, int]:
-    """One table of `docs` — `(day, document)` for the days of one window —
-    summed per name, from the scans the device floor lets count.
-
-    A day tallied with device tags has `devices_field`, and its scans of a name
-    count only once `min_devices` different devices stand behind that name
-    across the window's tagged days. A day written before device tags existed
-    has no such field. Withholding it emptied the card from deploy until the
-    devices built up, so its scans count as they did then, by the scan floor
-    alone; its names go through `clean` first, because the code that wrote
-    them did not strip links.
-
-    But a missing field means "before tags" only for a day earlier than
-    `tagged_since`, the first day tagged code wrote. The code before tags
-    writes the whole document back without the maps, and a rollback is a
-    deploy — the runbook's first move — so a day it wrote on or after that
-    day has lost its devices, not never had them. Counted by scans, one
-    device's five scans of a brand were on every install for as long as that
-    day stayed in the window after the redeploy. It is withheld instead; a
-    tagged write landing on it again is judged by the devices that write
-    recorded, which is cautious, since the earlier ones are gone.
-
-    In a window holding both, then, old scans always count and new scans only
-    with their devices. One device on its own, however often it scans, can
-    neither lift old scans that fell short of TRENDS_MIN_COUNT over it nor add
-    to a row they made by themselves: from new data, a brand needs three.
-    Days before `tagged_since` leave the fortnight `trends()` reads two weeks
-    after it, and from then on nothing counts by scans alone. The deploy day
-    itself, written by both, is judged by the devices it recorded, which
-    leaves its earlier scans with none: cautious, for one day.
-    """
-    legacy: dict[str, int] = {}
-    tagged: dict[str, int] = {}
-    devices: dict[str, list[str]] = {}
-    for day, doc in docs:
-        counts = doc.get(counts_field)
-        counts = counts if isinstance(counts, dict) else {}
-        table = doc.get(devices_field)
-        if not isinstance(table, dict):
-            if tagged_since is not None and day >= tagged_since:
-                continue
-            for name, n in counts.items():
-                name = clean(name)
-                if name is not None:
-                    legacy[name] = legacy.get(name, 0) + int(n)
-            continue
-        for name, n in counts.items():
-            tagged[name] = tagged.get(name, 0) + int(n)
-        for name, tags in table.items():
-            for tag in tags if isinstance(tags, list) else []:
-                devices[name] = _add_device(devices.get(name), tag)
-    counted = dict(legacy)
-    for name, n in tagged.items():
-        if len(devices.get(name) or []) >= min_devices:
-            counted[name] = counted.get(name, 0) + n
-    return counted
-
-
-async def _top_docs(days: list[str]) -> list[tuple[str, dict]]:
-    """Each day's top document beside its day; {} when absent or unreadable."""
-    docs: list[tuple[str, dict]] = []
-    for day in days:
-        try:
-            doc = json.loads(await _cache.get(_stat_key(day, "top")) or "{}")
-        except Exception:
-            doc = {}
-        docs.append((day, doc if isinstance(doc, dict) else {}))
-    return docs
-
-
-async def _tagged_since(docs: list[tuple[str, dict]]) -> str | None:
-    """The first day tagged code wrote, or None if it never has — the line
-    `_floored` draws between a day from before tags and a day an older build
-    wrote back after them.
-
-    TRENDS_TAGGED_SINCE_KEY holds it, because the days themselves cannot:
-    after a rollback longer than the window, no tagged day is left in it to
-    say when tags began. The earliest tagged day in `docs` stands in when the
-    key cannot be read or was lost, and a lost key costs no more than that."""
-    try:
-        recorded = await _cache.get(TRENDS_TAGGED_SINCE_KEY)
-    except Exception:
-        recorded = None
-    days = [day for day, doc in docs if isinstance(doc.get("cat_devices"), dict)]
-    if recorded:
-        days.append(str(recorded))
-    return min(days) if days else None
-
-
-async def _tallies(docs: list[tuple[str, dict]], tagged_since: str | None
-                   ) -> tuple[dict[str, int], dict[str, int], list[dict], int]:
-    """The days' category and brand counts, finds and scan total.
-
-    The counts are only what `_floored` lets count; everything else is left
-    out here, so no caller can forget the floor. Finds come back whole, and
-    `trends()` holds each back until TRENDS_MIN_FIND_DEVICES have scanned it."""
-    scans = 0
-    for day, _ in docs:
-        scans += await _read_stat(day, "scans_free") + await _read_stat(day, "scans_pro")
-    finds = [f for _, doc in docs for f in doc.get("finds") or [] if isinstance(f, dict)]
-    return (_floored(docs, "cats", "cat_devices", TRENDS_MIN_CATEGORY_DEVICES,
-                     _normalise_category, tagged_since),
-            _floored(docs, "brands", "brand_devices", TRENDS_MIN_BRAND_DEVICES,
-                     _clean_brand, tagged_since),
-            finds, scans)
-
-
-async def trends(*, is_pro: bool, now: datetime | None = None) -> dict:
-    """This week's categories and brands, against the week before.
-
-    Cached for everyone (the numbers are identical per tier), so a burst of
-    app launches costs one pass over fourteen day-documents rather than one
-    per request.
-    """
-    if _cache is None:
-        return {"days": 7, "scans": 0, "categories": [], "brands": []}
-    tier = "pro" if is_pro else "free"
-    try:
-        cached = await _cache.get(f"{TRENDS_CACHE_KEY}:{tier}")
-        if cached:
-            return json.loads(cached)
-    except Exception:
-        pass
-
-    now = now or datetime.now(timezone.utc)
-    # Both windows end yesterday. `_days_ending_today` starts at i=0, so the
-    # current week used to be six whole days plus however much of today had
-    # happened, compared against seven whole days — every category was measured
-    # short against a full-length baseline and the arrow leaned ▼ all day,
-    # recovering only around midnight UTC. `_weekly_text` already anchors this
-    # way; trends did not. Today is excluded from both the ratio and the scan
-    # count so the percentage and the number printed beside it cannot disagree.
-    end = now - timedelta(days=1)
-    this_week = [_day(end - timedelta(days=i)) for i in range(7)]
-    last_week = [_day(end - timedelta(days=i)) for i in range(7, 14)]
-    current, previous = await _top_docs(this_week), await _top_docs(last_week)
-    since = await _tagged_since(current + previous)
-    cats, brands, finds, scans = await _tallies(current, since)
-    prev_cats, prev_brands, _, _ = await _tallies(previous, since)
-
-    limit = TRENDS_PRO_ROWS if is_pro else TRENDS_FREE_ROWS
-    payload: dict = {
-        "days": 7,
-        "scans": scans,
-        "categories": _trend_rows(sorted(cats.items(), key=lambda kv: -kv[1]), prev_cats, limit),
-        "brands": _trend_rows(sorted(brands.items(), key=lambda kv: -kv[1]), prev_brands, limit),
-    }
-    if is_pro:
-        # One entry per item across the week, before anything is averaged or
-        # cut to five — see `_merge_finds`, which also pools the devices
-        # behind each item.
-        finds = _merge_finds(finds)
-        # Average estimate per category, from the day's best finds only —
-        # which is what the tallies keep. Labelled as such by the client.
-        by_category: dict[str, list[float]] = {}
-        for f in finds:
-            category = str(f.get("c") or "other")
-            try:
-                low, high = float(f.get("lo") or 0), float(f.get("hi") or 0)
-            except (TypeError, ValueError):
-                continue
-            if high > 0:
-                by_category.setdefault(category, []).append((low + high) / 2)
-        for row in payload["categories"]:
-            values = by_category.get(row["name"]) or []
-            if len(values) >= 3:      # an average of one or two is not an average
-                row["average_estimate"] = round(sum(values) / len(values))
-        # The brand stands in for the item name. A find is one item, shown to
-        # strangers, and the name is whatever the model wrote about someone's
-        # photo — free text that can carry anything it read off a label.
-        # `name` stays the field so shipped clients decode it unchanged. A
-        # find with no brand has nothing left worth showing and is skipped.
-        #
-        # So is a repeat. Clients key a find on `name-low-high` and drop
-        # duplicates (`Trends.distinctNotableFinds`), and with the brand as the
-        # name, two scans of one brand at the same rounded range are one row to
-        # them — sent twice, it would take a slot and show nothing.
-        #
-        # And so is a find fewer than TRENDS_MIN_FIND_DEVICES scanned, counted
-        # per item by `_merge_finds` above. A find from a day tallied before
-        # devices were recorded has no `d`, and stays withheld where its day's
-        # rows now count by scans: a find never had a scan floor to fall back
-        # on — one scan was enough.
-        notable: list[dict] = []
-        shown: set[tuple[str, int, int]] = set()
-        for f in finds:
-            if len(f.get("d") or []) < TRENDS_MIN_FIND_DEVICES:
-                continue
-            brand = _clean_brand(str(f.get("b") or ""))
-            if brand is None or float(f.get("hi") or 0) <= 0:
-                continue
-            lo, hi = round(float(f.get("lo") or 0)), round(float(f.get("hi") or 0))
-            if (brand, lo, hi) in shown:
-                continue
-            shown.add((brand, lo, hi))
-            notable.append({"name": brand, "category": str(f.get("c") or "other"),
-                            "low": lo, "high": hi})
-            if len(notable) >= TRENDS_FINDS:
-                break
-        payload["notable_finds"] = notable
-
-    try:
-        await _cache.set(f"{TRENDS_CACHE_KEY}:{tier}", json.dumps(payload), TRENDS_CACHE_TTL)
-    except Exception as exc:
-        log.debug("trends cache write failed: %s", type(exc).__name__)
-    return payload
 
 
 def _find_line(rank: int, f: dict) -> str:
@@ -4612,7 +4079,7 @@ async def _trend_text(term: str) -> str:
     label = term
     for day in days:
         try:
-            doc = json.loads(await _cache.get(_stat_key(day, "top")) or "{}")
+            doc = json.loads(await _cache.get(opsstats.stat_key(day, "top")) or "{}")
         except Exception:
             doc = {}
         n = 0
@@ -4656,7 +4123,7 @@ def _day_span(start: datetime, end: datetime) -> list[str]:
     """Every day from start to end inclusive, oldest first."""
     out, cur = [], start
     while cur <= end:
-        out.append(_day(cur))
+        out.append(opsstats.day(cur))
         cur += timedelta(days=1)
     return out
 
@@ -4724,7 +4191,7 @@ async def _experiment_text(now: datetime | None = None) -> str:
                 "Window misconfigured — EXPERIMENT_START_DAY and "
                 "EXPERIMENT_END_DAY must both be YYYYMMDD, end on or after start.")
 
-    today = _day(now)
+    today = opsstats.day(now)
     if today < EXPERIMENT_START_DAY:
         off = (start.date() - now.date()).days
         return (f"\U0001F9EA <b>Free-scan experiment</b>\nWindow opens "
@@ -4751,15 +4218,15 @@ async def _experiment_text(now: datetime | None = None) -> str:
             rows.append(
                 f"<code>{label:<6}{'—':>6} {'—':>5} {'—':>5} {'—':>5} {'—':>5}</code>")
             continue
-        act = await _read_stat(d, "active_users")
-        fr = await _read_stat(d, "scans_free")
-        hi = await _read_stat(d, "limit_hits")
+        act = await opsstats.read_stat(d, "active_users")
+        fr = await opsstats.read_stat(d, "scans_free")
+        hi = await opsstats.read_stat(d, "limit_hits")
         tr, cv, dr = await _sub_counts([d])
         # A day from before #218 has `new_subs` and nothing splitting it, so
         # its subscriptions are in neither column. `new_subs` is every first
         # sighting since, so any excess over its parts is that day's.
-        rest = max(0, await _read_stat(d, "new_subs") - tr - dr
-                   - await _read_stat(d, OFFER_STARTS))
+        rest = max(0, await opsstats.read_stat(d, "new_subs") - tr - dr
+                   - await opsstats.read_stat(d, OFFER_STARTS))
         hits += hi
         trials += tr
         paid += cv + dr
@@ -4881,7 +4348,7 @@ async def _experiment_export(now: datetime | None = None) -> str:
         return ("💾 Nothing exported — the window is misconfigured: "
                 "EXPERIMENT_START_DAY and EXPERIMENT_END_DAY must both be "
                 "YYYYMMDD, end on or after start.")
-    today = _day(now)
+    today = opsstats.day(now)
     shown = [d for d in _day_span(start, end) if d <= today]
     if not shown:
         return f"💾 Nothing to export — the window opens {start:%d %b}."
@@ -4902,7 +4369,7 @@ async def _experiment_export(now: datetime | None = None) -> str:
                 continue
             values = []
             for name in EXPERIMENT_COUNTERS:
-                raw = await _cache.get(_stat_key(d, name), required=True)
+                raw = await _cache.get(opsstats.stat_key(d, name), required=True)
                 values.append(str(int(raw or 0)))
             note = EXPERIMENT_PARTIAL_NOTE if d == EXPERIMENT_PARTIAL_DAY else ""
             rows.append(",".join([iso, *values, note]))
@@ -4959,7 +4426,7 @@ async def _paywall_text(now: datetime | None = None) -> str:
     instrument, and it has the views this cannot see.
     """
     now = now or datetime.now(timezone.utc)
-    days = [_day(now - timedelta(days=i)) for i in range(PAYWALL_WINDOW_DAYS)]
+    days = [opsstats.day(now - timedelta(days=i)) for i in range(PAYWALL_WINDOW_DAYS)]
     trials, conversions, direct = await _sub_counts(days)
 
     per: list[tuple[str, int, int]] = []
@@ -5860,7 +5327,7 @@ async def _budget_line() -> str:
         return ("Spend alert: OFF ⚠️ — GEMINI_DAILY_BUDGET_USD is not set, so no "
                 "day's Gemini spend reaches you. Set it on Railway (RUNBOOK §12)")
     try:
-        today = await _spend([_day()])
+        today = await _spend([opsstats.day()])
     except Exception as exc:
         return (f"Spend alert: above {_usd(budget)}/day · today's spend unreadable "
                 f"({html.escape(type(exc).__name__)})")
@@ -5998,13 +5465,13 @@ def _quiet_window(now: datetime) -> str:
     """Identify the quiet window `now` falls in, not the calendar day.
 
     QUIET_HOURS_UTC runs 13:00 through 03:59, so one window straddles UTC
-    midnight. Keying the once-per-window guard on `_day(now)` therefore let a
+    midnight. Keying the once-per-window guard on `opsstats.day(now)` therefore let a
     single silence fire the note twice — reproduced at 22:15 (note), 23:45
     (correctly suppressed), 00:15 next day (second note for the same silence).
     Hours after midnight belong to the window that opened the day before.
     """
     start = now - timedelta(days=1) if now.hour < 12 else now
-    return _day(start)
+    return opsstats.day(start)
 
 
 async def _quiet_check(now: datetime | None = None) -> bool:
@@ -6056,7 +5523,7 @@ async def _spike_line(when: datetime, scans: int) -> str:
     """A 🔥 line when the day ran hot against the trailing week."""
     if scans < SPIKE_MIN_SCANS:
         return ""
-    prior = [_day(when - timedelta(days=i)) for i in range(1, 8)]
+    prior = [opsstats.day(when - timedelta(days=i)) for i in range(1, 8)]
     baseline = (await _sum_stat(prior, "scans_free") + await _sum_stat(prior, "scans_pro")) / 7
     if baseline <= 0 or scans < baseline * SPIKE_FACTOR:
         return ""

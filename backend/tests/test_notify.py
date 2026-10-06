@@ -25,6 +25,8 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import auditlog  # noqa: E402
 import notify  # noqa: E402
+import opsstats  # noqa: E402
+import trends  # noqa: E402
 import observability  # noqa: E402
 from cache import InMemoryCache, ResilientCache  # noqa: E402
 from datetime import datetime, timedelta, timezone  # noqa: E402
@@ -145,9 +147,9 @@ class TestDisabled:
             assert notify._tasks == set()
             # Except the scan count, which `/trends` shows to users and so
             # must not depend on the bot being configured.
-            notify.count_scan("pro")
+            opsstats.count_scan("pro")
             await drain()
-            assert await cache.get(notify._stat_key(notify._day(), "scans_pro")) == "1"
+            assert await cache.get(opsstats.stat_key(opsstats.day(), "scans_pro")) == "1"
         finally:
             await notify.aclose()
 
@@ -252,8 +254,8 @@ class TestSubscriptionEvents:
     @pytest.mark.asyncio
     async def test_counts_toward_the_digest(self, enabled_notify, cache):
         await notify.entitlement_recorded(SUBJECT, pro_entitlement())
-        day = notify._day()
-        assert await cache.get(notify._stat_key(day, "new_subs")) == "1"
+        day = opsstats.day()
+        assert await cache.get(opsstats.stat_key(day, "new_subs")) == "1"
 
 
 # ── Operational alerts ───────────────────────────────────────────────────────
@@ -415,9 +417,9 @@ class TestDigest:
     @pytest.mark.asyncio
     async def test_reports_yesterdays_counters(self, enabled_notify, cache):
         now = datetime.now(timezone.utc)
-        notify.count_scan("free")
-        notify.count_scan("pro")
-        notify.count_scan("pro")
+        opsstats.count_scan("free")
+        opsstats.count_scan("pro")
+        opsstats.count_scan("pro")
         notify.count_scan_failure()
         await drain()
 
@@ -440,7 +442,7 @@ class TestDigest:
         before — the experiment was measured by the client alone."""
         from datetime import timedelta
         now = datetime.now(timezone.utc)
-        notify.count_scan("free")
+        opsstats.count_scan("free")
         for _ in range(3):
             notify.count_limit_hit()
         await drain()
@@ -468,7 +470,7 @@ class TestDigest:
         """A quiet day stays quiet — the line is omitted, not zeroed."""
         from datetime import timedelta
         now = datetime.now(timezone.utc)
-        notify.count_scan("free")
+        opsstats.count_scan("free")
         await drain()
 
         await notify.send_digest(now=now + timedelta(days=1))
@@ -560,7 +562,7 @@ class TestNewVersusExisting:
         assert "New Pro subscription" in text
         assert "first purchased" in text
         assert "renews or expires" in text
-        assert await cache.get(notify._stat_key(notify._day(), "new_subs")) == "1"
+        assert await cache.get(opsstats.stat_key(opsstats.day(), "new_subs")) == "1"
 
     @pytest.mark.asyncio
     async def test_bought_weeks_ago_is_an_existing_subscriber(self, enabled_notify, cache):
@@ -573,7 +575,7 @@ class TestNewVersusExisting:
         assert "New Pro subscription" not in text
         assert "first purchased" in text
         # Not a sale: must not inflate the digest.
-        assert await cache.get(notify._stat_key(notify._day(), "new_subs")) is None
+        assert await cache.get(opsstats.stat_key(opsstats.day(), "new_subs")) is None
 
     @pytest.mark.asyncio
     async def test_existing_subscriber_is_still_announced_only_once(self, enabled_notify):
@@ -600,7 +602,7 @@ class TestActivity:
         notify.saw_user("b" * 64)
         await drain()
         assert await cache.get(f"opsact:w:{notify._window()}") == "2"
-        assert await cache.get(notify._stat_key(notify._day(), "active_users")) == "2"
+        assert await cache.get(opsstats.stat_key(opsstats.day(), "active_users")) == "2"
 
     @pytest.mark.asyncio
     async def test_stores_pseudonyms_not_subjects(self, enabled_notify, cache):
@@ -632,7 +634,7 @@ class TestCommands:
             "model_healthy": False, "model_failure_kind": "quota_exhausted"})
         try:
             notify.saw_user("a" * 64)
-            notify.count_scan("pro")
+            opsstats.count_scan("pro")
             await drain()
             text = await notify.handle_command("/status")
             assert "Active users: 1 since" in text
@@ -873,7 +875,7 @@ class TestScanFeed:
         scan()
         await drain()
         assert [t for t in enabled_notify.texts if t.startswith("🧥")] == []
-        assert await cache.get(notify._stat_key(notify._day(), "scans_pro")) == "1"
+        assert await cache.get(opsstats.stat_key(opsstats.day(), "scans_pro")) == "1"
         assert "on" in await notify.handle_command("/feed on")
         scan()
         await drain()
@@ -913,7 +915,7 @@ class TestTopCategoriesAndBrands:
             scan(item_name="Patagonia  Better Sweater", high=float(high))
         scan(item_name="Barbour Bedale", high=50.0)
         await drain()
-        doc = json.loads(await cache.get(notify._stat_key(notify._day(), "top")))
+        doc = json.loads(await cache.get(opsstats.stat_key(opsstats.day(), "top")))
         assert [(f["n"], f["hi"]) for f in doc["finds"]] == [
             ("Patagonia Better Sweater", 90), ("Barbour Bedale", 50)]
         # Every scan is still a scan in the counts.
@@ -922,20 +924,20 @@ class TestTopCategoriesAndBrands:
     def test_links_and_handles_are_not_brands_or_item_names(self):
         """Brands and item names are text read off a user's photo, and
         `/trends` shows them to every install."""
-        assert notify._clean_brand("https://spam.example/x") is None
-        assert notify._clean_brand("@somehandle") is None
-        assert notify._clean_brand("Nike www.cheap-nikes.example") == "Nike"
-        assert notify._clean_brand("Shop at deals.shop now") == "Shop at now"
-        assert notify._clean_brand("mail me: a@b.example") == "mail me:"
+        assert trends.clean_brand("https://spam.example/x") is None
+        assert trends.clean_brand("@somehandle") is None
+        assert trends.clean_brand("Nike www.cheap-nikes.example") == "Nike"
+        assert trends.clean_brand("Shop at deals.shop now") == "Shop at now"
+        assert trends.clean_brand("mail me: a@b.example") == "mail me:"
         # Dotted brand names are brands.
         for brand in ("J.Crew", "A.P.C.", "Mr. Coffee", "Dr. Martens", "Levi's", "H&M"):
-            assert notify._clean_brand(brand) == brand
-        record = notify._find_record(item_name="Vintage tee — follow @seller, x.com/deals",
+            assert trends.clean_brand(brand) == brand
+        record = trends._find_record(item_name="Vintage tee — follow @seller, x.com/deals",
                                      brand="x.com", category="clothing", low=5, high=10,
                                      tier="free")
         assert record["n"] == "Vintage tee — follow ,"
         assert record["b"] is None
-        assert notify._find_record(item_name="https://x.example", brand=None,
+        assert trends._find_record(item_name="https://x.example", brand=None,
                                    category="clothing", low=5, high=10,
                                    tier="free")["n"] == "Unidentified item"
 
@@ -945,8 +947,8 @@ class TestTopCategoriesAndBrands:
         tag that is not the audit pseudonym /users and the logs show."""
         scan(subject=SUBJECT)
         await drain()
-        doc = json.loads(await cache.get(notify._stat_key(notify._day(), "top")))
-        tag = notify._trend_device(SUBJECT)
+        doc = json.loads(await cache.get(opsstats.stat_key(opsstats.day(), "top")))
+        tag = trends._trend_device(SUBJECT)
         assert tag and doc["cat_devices"] == {"clothing": [tag]}
         assert doc["brand_devices"] == {"Patagonia": [tag]}
         assert doc["finds"][0]["d"] == [tag]
@@ -960,32 +962,32 @@ class TestTopCategoriesAndBrands:
         its subscription — to what it scanned. It has to need the salt."""
         import hashlib
         pseudonym = notify.auditlog.pseudonymise(SUBJECT)
-        tag = notify._trend_device(SUBJECT)
+        tag = trends._trend_device(SUBJECT)
         unsalted = {hashlib.sha256(text.encode()).hexdigest()[:8]
                     for text in (SUBJECT, pseudonym, f"trends:{SUBJECT}", f"trends:{pseudonym}")}
         assert tag not in unsalted
-        assert notify._trend_device(SUBJECT) == tag      # stable, so it can count
+        assert trends._trend_device(SUBJECT) == tag      # stable, so it can count
         monkeypatch.setattr(notify.auditlog, "_SALT", b"a-different-secret")
-        assert notify._trend_device(SUBJECT) != tag
+        assert trends._trend_device(SUBJECT) != tag
 
     @pytest.mark.asyncio
     async def test_a_tag_reread_is_counted_but_not_tallied(self, enabled_notify, cache):
         scan()
         scan(reread=True)
         await drain()
-        assert await cache.get(notify._stat_key(notify._day(), "scans_pro")) == "2"
-        doc = json.loads(await cache.get(notify._stat_key(notify._day(), "top")))
+        assert await cache.get(opsstats.stat_key(opsstats.day(), "scans_pro")) == "2"
+        doc = json.loads(await cache.get(opsstats.stat_key(opsstats.day(), "top")))
         assert doc["cats"] == {"clothing": 1}
         assert doc["brands"] == {"Patagonia": 1}
 
     @pytest.mark.asyncio
     async def test_brand_table_is_capped(self, enabled_notify, cache):
-        for i in range(notify.TOP_BRANDS_CAP + 5):
+        for i in range(trends.TOP_BRANDS_CAP + 5):
             scan(brand=f"Brand{i}")
         await drain()
-        doc = json.loads(await cache.get(notify._stat_key(notify._day(), "top")))
-        assert len(doc["brands"]) == notify.TOP_BRANDS_CAP
-        assert doc["cats"]["clothing"] == notify.TOP_BRANDS_CAP + 5
+        doc = json.loads(await cache.get(opsstats.stat_key(opsstats.day(), "top")))
+        assert len(doc["brands"]) == trends.TOP_BRANDS_CAP
+        assert doc["cats"]["clothing"] == trends.TOP_BRANDS_CAP + 5
 
 
 class TestWeeklyReport:
@@ -993,13 +995,13 @@ class TestWeeklyReport:
         from datetime import timedelta
         end = (now - timedelta(days=1)).date()
         for i in range(7):
-            day = notify._day(datetime.combine(end - timedelta(days=i),
+            day = opsstats.day(datetime.combine(end - timedelta(days=i),
                                                datetime.min.time(), tzinfo=timezone.utc))
-            await cache.set(notify._stat_key(day, name), str(this_week[i]))
+            await cache.set(opsstats.stat_key(day, name), str(this_week[i]))
         for i in range(7):
-            day = notify._day(datetime.combine(end - timedelta(days=7 + i),
+            day = opsstats.day(datetime.combine(end - timedelta(days=7 + i),
                                                datetime.min.time(), tzinfo=timezone.utc))
-            await cache.set(notify._stat_key(day, name), str(last_week[i]))
+            await cache.set(opsstats.stat_key(day, name), str(last_week[i]))
 
     @pytest.mark.asyncio
     async def test_compares_the_last_seven_days_to_the_seven_before(self, enabled_notify, cache):
@@ -1301,11 +1303,11 @@ class TestSpend:
         notify.model_usage("listing", {"prompt_tokens": 2_000, "output_tokens": 500})
         scan(elapsed_ms=5_800)
         await drain()
-        day = notify._day()
-        assert await cache.get(notify._stat_key(day, "tok_in")) == "12000"
-        assert await cache.get(notify._stat_key(day, "tok_out")) == "6500"
-        assert await cache.get(notify._stat_key(day, "model_calls")) == "2"
-        assert await cache.get(notify._stat_key(day, "calls_listing")) == "1"
+        day = opsstats.day()
+        assert await cache.get(opsstats.stat_key(day, "tok_in")) == "12000"
+        assert await cache.get(opsstats.stat_key(day, "tok_out")) == "6500"
+        assert await cache.get(opsstats.stat_key(day, "model_calls")) == "2"
+        assert await cache.get(opsstats.stat_key(day, "calls_listing")) == "1"
 
         text = await notify.handle_command("/costs")
         # 12K × 0.30 + 6.5K × 2.50 per million = 0.0036 + 0.01625 = $0.01985
@@ -1327,7 +1329,7 @@ class TestSpend:
         notify.model_usage("listing", {"output_tokens": 300, "thoughts_tokens": 9_000})
         notify.model_usage("bot_scan", {"output_tokens": 300, "thoughts_tokens": 9_000})
         await drain()
-        assert await cache.get(notify._stat_key(notify._day(), "scan_thoughts")) == "2000"
+        assert await cache.get(opsstats.stat_key(opsstats.day(), "scan_thoughts")) == "2000"
         text = await notify.handle_command("/costs")
         assert ("🧠 Thinking per scan call: today 1,000 · 7d 1,000 · 30d 1,000 · "
                 "budget unset (GEMINI_THINKING_BUDGET)") in text
@@ -1434,11 +1436,11 @@ class TestSpend:
             notify.model_usage("scan", {"prompt_tokens": 5_000, "output_tokens": 200}, tier="pro")
             notify.model_usage("scan", {"prompt_tokens": 3_000}, tier="free")
             await drain()
-            day = notify._day()
-            assert await cache.get(notify._stat_key(day, "tok_in")) == "8000"
-            assert await cache.get(notify._stat_key(day, "tok_in_tier_pro")) == "5000"
-            assert await cache.get(notify._stat_key(day, "tok_out_tier_pro")) == "200"
-            assert await cache.get(notify._stat_key(day, "tok_in_tier_free")) == "3000"
+            day = opsstats.day()
+            assert await cache.get(opsstats.stat_key(day, "tok_in")) == "8000"
+            assert await cache.get(opsstats.stat_key(day, "tok_in_tier_pro")) == "5000"
+            assert await cache.get(opsstats.stat_key(day, "tok_out_tier_pro")) == "200"
+            assert await cache.get(opsstats.stat_key(day, "tok_in_tier_free")) == "3000"
         finally:
             await notify.aclose()
 
@@ -1470,7 +1472,7 @@ class TestCostPerPro:
         monkeypatch.setattr(notify, "APPLE_COMMISSION", 0.15)
 
     async def _tier_tokens(self, cache, tier: str) -> int:
-        return int(await cache.get(notify._stat_key(notify._day(), f"tok_in_tier_{tier}")) or 0)
+        return int(await cache.get(opsstats.stat_key(opsstats.day(), f"tok_in_tier_{tier}")) or 0)
 
     @pytest.mark.asyncio
     async def test_pro_tokens_go_to_pro_and_free_tokens_to_free(self, enabled_notify, cache):
@@ -1502,7 +1504,7 @@ class TestCostPerPro:
         assert await self._tier_tokens(cache, "pro") == 0
         assert await self._tier_tokens(cache, "free") == 0
         # Still on the bill.
-        assert await cache.get(notify._stat_key(notify._day(), "tok_in")) == "600"
+        assert await cache.get(opsstats.stat_key(opsstats.day(), "tok_in")) == "600"
 
     @pytest.mark.asyncio
     async def test_free_then_pro_counts_only_pro_era_scans(self, enabled_notify, cache):
@@ -1522,7 +1524,7 @@ class TestCostPerPro:
         row = json.loads(await cache.get(notify.USERS_INDEX_KEY))[who]
         assert row["scans"] == 5
         assert row["pro_scans"] == 2
-        assert row["pro_days"] == {notify._day(): 2}
+        assert row["pro_days"] == {opsstats.day(): 2}
         since = row["pro_since"]
         assert "pro_until" not in row
 
@@ -1539,14 +1541,14 @@ class TestCostPerPro:
 
     @pytest.mark.asyncio
     async def test_pro_days_keep_only_the_window(self, enabled_notify, cache):
-        old = notify._day(datetime.now(timezone.utc) - timedelta(days=notify.PRO_DAYS_KEPT))
+        old = opsstats.day(datetime.now(timezone.utc) - timedelta(days=notify.PRO_DAYS_KEPT))
         now = int(time.time())
         await cache.set(notify.USERS_INDEX_KEY, json.dumps({"dev": {
             "first": now, "last": now, "scans": 9, "tier": "pro", "pro_since": now - 90 * 86400,
             "pro_scans": 9, "pro_days": {old: 9}}}), 600)
         await notify._index_user("dev", tier="pro", scanned=True)
         row = json.loads(await cache.get(notify.USERS_INDEX_KEY))["dev"]
-        assert row["pro_days"] == {notify._day(): 1} and row["pro_scans"] == 10
+        assert row["pro_days"] == {opsstats.day(): 1} and row["pro_scans"] == 10
 
     async def _seed(self, cache) -> None:
         """Three Pro devices and two paid subscriptions.
@@ -1555,8 +1557,8 @@ class TestCostPerPro:
         and 6 three days ago. C: Pro from 20 to 5 days ago, no scans. $0.30 of
         Pro tokens over 30 Pro scans is $0.010 a scan."""
         now = int(time.time())
-        today = notify._day()
-        three_ago = notify._day(datetime.now(timezone.utc) - timedelta(days=3))
+        today = opsstats.day()
+        three_ago = opsstats.day(datetime.now(timezone.utc) - timedelta(days=3))
         await cache.set(notify.USERS_INDEX_KEY, json.dumps({
             "devA00000000abcd": {"first": now - 40 * 86400, "last": now, "scans": 60,
                                  "tier": "pro", "pro_since": now - 15 * 86400, "pro_scans": 20,
@@ -1580,7 +1582,7 @@ class TestCostPerPro:
                        "currency": "EUR", "expires": now + 5 * 86400, "seen": now,
                        "devices": ["devC00000000abcd"], "who": "devC00000000abcd"},
         }), 600)
-        await cache.incr(notify._stat_key(today, "scans_pro"), notify.STATS_TTL, 30)
+        await cache.incr(opsstats.stat_key(today, "scans_pro"), opsstats.STATS_TTL, 30)
         notify.model_usage("scan", {"prompt_tokens": 1_000_000}, tier="pro")  # $0.30
         await drain()
 
@@ -1856,12 +1858,12 @@ class TestFindsAndPostIdeas:
 
     @pytest.mark.asyncio
     async def test_finds_keeps_only_the_best_few_per_day(self, enabled_notify):
-        for i in range(notify.TOP_FINDS_CAP + 5):
+        for i in range(trends.TOP_FINDS_CAP + 5):
             scan(item_name=f"Item {i}", low=i, high=i + 1)
         await drain()
-        doc = json.loads(await notify._cache.get(notify._stat_key(notify._day(), "top")))
-        assert len(doc["finds"]) == notify.TOP_FINDS_CAP
-        assert doc["finds"][0]["n"] == f"Item {notify.TOP_FINDS_CAP + 4}"
+        doc = json.loads(await notify._cache.get(opsstats.stat_key(opsstats.day(), "top")))
+        assert len(doc["finds"]) == trends.TOP_FINDS_CAP
+        assert doc["finds"][0]["n"] == f"Item {trends.TOP_FINDS_CAP + 4}"
         # Item and price only — plus `d`, the trends tags of the devices that
         # scanned it, which is how /trends tells three people from one.
         assert set(doc["finds"][0]) == {"n", "b", "c", "lo", "hi", "t", "d"}, "item and price only"
@@ -2045,8 +2047,8 @@ class TestBriefs:
 
 class TestTrend:
     async def seed(self, cache, day_offset: int, cats: dict, brands: dict, finds=()):
-        day = notify._day(datetime.now(timezone.utc) - __import__("datetime").timedelta(days=day_offset))
-        await cache.set(notify._stat_key(day, "top"),
+        day = opsstats.day(datetime.now(timezone.utc) - __import__("datetime").timedelta(days=day_offset))
+        await cache.set(opsstats.stat_key(day, "top"),
                         json.dumps({"cats": cats, "brands": brands, "finds": list(finds)}), 600)
 
     @pytest.mark.asyncio
@@ -2533,7 +2535,7 @@ class TestQuietAndSpike:
         from datetime import timedelta
         when = datetime(2026, 9, 2, tzinfo=timezone.utc)
         for i in range(1, 8):
-            await cache.set(notify._stat_key(notify._day(when - timedelta(days=i)), "scans_free"), "4", 600)
+            await cache.set(opsstats.stat_key(opsstats.day(when - timedelta(days=i)), "scans_free"), "4", 600)
         assert await notify._spike_line(when, 40) == "🔥 10.0× the trailing week's daily average (4.0/day)"
         assert await notify._spike_line(when, 11) == ""                # below 3×
         assert await notify._spike_line(when, 9) == ""                 # below the floor
@@ -2768,7 +2770,7 @@ class TestPhotoScan:
             assert " • Logo visible" in text
             assert "Prompt v2 · source model · not counted as a scan" in text
             # Not a user's scan: no counters moved, nothing on the feed.
-            assert await notify._read_stat(notify._day(), "scans_free") == 0
+            assert await opsstats.read_stat(opsstats.day(), "scans_free") == 0
         finally:
             await notify.aclose()
 
@@ -3021,7 +3023,7 @@ class TestSafetyBlocks:
         assert text.startswith("🚫 <b>Device paused after repeated blocked photos</b>")
         assert who[:8] in text and "sent 5 photos today" in text
         assert SUBJECT not in text, "pseudonym, never the raw subject"
-        assert await notify._read_stat(notify._day(), "scans_blocked") == 4
+        assert await opsstats.read_stat(opsstats.day(), "scans_blocked") == 4
         status = await notify.handle_command("/status")
         assert "· 4 blocked" in status
 
@@ -3160,13 +3162,13 @@ class TestScanFailureBreakdown:
 
     @pytest.mark.asyncio
     async def test_status_and_digest_name_the_kinds_commonest_first(self, cache, enabled_notify):
-        notify.count_scan("free")
+        opsstats.count_scan("free")
         notify.count_scan_failure("no_price")
         notify.count_scan_failure("no_price")
         notify.count_scan_failure("provider")
         await drain()
 
-        assert await notify._read_stat(notify._day(), "scans_failed") == 3, \
+        assert await opsstats.read_stat(opsstats.day(), "scans_failed") == 3, \
             "the running total must stay whole for the weekly trend"
 
         status = await notify.handle_command("/status")
@@ -3193,7 +3195,7 @@ class TestScanFailureBreakdown:
             self, cache, enabled_notify):
         """Old days have a total and no parts. They must not gain a bogus
         breakdown or a zero."""
-        await cache.set(notify._stat_key(notify._day(), "scans_failed"), "4", 600)
+        await cache.set(opsstats.stat_key(opsstats.day(), "scans_failed"), "4", 600)
         status = await notify.handle_command("/status")
         assert "· 4 failed" in status and "failed (" not in status
 
@@ -3397,7 +3399,7 @@ class TestExperimentCommand:
                             ("trial_starts", trials), ("trial_conversions", conversions),
                             ("paid_direct", direct)):
             if value:
-                await cache.set(notify._stat_key(day, name), str(value))
+                await cache.set(opsstats.stat_key(day, name), str(value))
 
     @pytest.mark.asyncio
     async def test_totals_the_whole_window_not_just_one_day(
@@ -3593,22 +3595,22 @@ class TestTrendsWindow:
     async def _seed(self, cache, day: str, cat: str, n: int) -> None:
         # Three devices behind the row, so the device floor is not what these
         # tests are measuring (test_trends.py covers it).
-        await cache.set(notify._stat_key(day, "top"),
+        await cache.set(opsstats.stat_key(day, "top"),
                         json.dumps({"cats": {cat: n}, "brands": {}, "finds": [],
                                     "cat_devices": {cat: ["d1", "d2", "d3"]}}))
-        await cache.set(notify._stat_key(day, "scans_free"), str(n))
+        await cache.set(opsstats.stat_key(day, "scans_free"), str(n))
 
     @pytest.mark.asyncio
     async def test_both_windows_end_yesterday(self, enabled_notify, cache):
         now = datetime(2026, 9, 11, 9, 0, tzinfo=timezone.utc)
         # Seven whole days each side, identical volume: the honest answer is flat.
         for i in range(1, 15):
-            day = notify._day(now - timedelta(days=i))
+            day = opsstats.day(now - timedelta(days=i))
             await self._seed(cache, day, "clothing", 4)
         # Today is deliberately busy. If it were counted it would still be
         # partial, and including it is what produced the bias.
-        await self._seed(cache, notify._day(now), "clothing", 99)
-        payload = await notify.trends(is_pro=True, now=now)
+        await self._seed(cache, opsstats.day(now), "clothing", 99)
+        payload = await trends.trends(is_pro=True, now=now)
         assert payload["scans"] == 28, "today leaked into the window"
         row = next(r for r in payload["categories"] if r["name"] == "clothing")
         assert row["count"] == 28
@@ -3618,10 +3620,10 @@ class TestTrendsWindow:
     async def test_a_real_rise_still_reads_as_a_rise(self, enabled_notify, cache):
         now = datetime(2026, 9, 11, 9, 0, tzinfo=timezone.utc)
         for i in range(1, 8):
-            await self._seed(cache, notify._day(now - timedelta(days=i)), "shoes", 6)
+            await self._seed(cache, opsstats.day(now - timedelta(days=i)), "shoes", 6)
         for i in range(8, 15):
-            await self._seed(cache, notify._day(now - timedelta(days=i)), "shoes", 2)
-        payload = await notify.trends(is_pro=True, now=now)
+            await self._seed(cache, opsstats.day(now - timedelta(days=i)), "shoes", 2)
+        payload = await trends.trends(is_pro=True, now=now)
         row = next(r for r in payload["categories"] if r["name"] == "shoes")
         assert row["count"] == 42
 
@@ -3847,8 +3849,8 @@ class TestFreeScanLever:
             self, enabled_notify, monkeypatch):
         """A window whose lever moved mid-flight and does not say so is worse
         than no window: the numbers look continuous and are not."""
-        monkeypatch.setattr(notify, "EXPERIMENT_START_DAY", notify._day())
-        monkeypatch.setattr(notify, "EXPERIMENT_END_DAY", notify._day())
+        monkeypatch.setattr(notify, "EXPERIMENT_START_DAY", opsstats.day())
+        monkeypatch.setattr(notify, "EXPERIMENT_END_DAY", opsstats.day())
         await self._run("/lever arm 3 yes")
         text = await notify._experiment_text()
         assert "lever changed" in text
@@ -4061,7 +4063,7 @@ class TestSubscriptionNotifications:
 
     @staticmethod
     async def _new_subs() -> int:
-        raw = await notify._cache.get(notify._stat_key(notify._day(), "new_subs"))
+        raw = await notify._cache.get(opsstats.stat_key(opsstats.day(), "new_subs"))
         return int(raw or 0)
 
     @pytest.mark.asyncio
@@ -4088,7 +4090,7 @@ class TestSubscriptionNotifications:
         await notify.subscription_event(
             FakeNotification(_paid(), paid_period=True))
         assert await self._new_subs() == 0
-        raw = await notify._cache.get(notify._stat_key(notify._day(), "trial_conversions"))
+        raw = await notify._cache.get(opsstats.stat_key(opsstats.day(), "trial_conversions"))
         assert raw == "1"
 
     @pytest.mark.asyncio
@@ -4411,7 +4413,7 @@ class TestExperimentExport:
 
     async def _seed(self, cache, day: str, **counts) -> None:
         for name, value in counts.items():
-            await cache.set(notify._stat_key(day, name), str(value))
+            await cache.set(opsstats.stat_key(day, name), str(value))
 
     @staticmethod
     def _csv(text: str) -> list[str]:
@@ -4522,8 +4524,8 @@ class TestExperimentExport:
         move in it, and nothing refused it."""
         from cache import CacheUnavailable
 
-        monkeypatch.setattr(notify, "EXPERIMENT_START_DAY", notify._day())
-        monkeypatch.setattr(notify, "EXPERIMENT_END_DAY", notify._day())
+        monkeypatch.setattr(notify, "EXPERIMENT_START_DAY", opsstats.day())
+        monkeypatch.setattr(notify, "EXPERIMENT_END_DAY", opsstats.day())
         await notify.handle_command("/lever arm 4 yes")
         real_get = cache.get
 
@@ -4544,8 +4546,8 @@ class TestExperimentExport:
         reads the lever that way too) came out as though it had never
         moved. Here only that best-effort read misses; the export must still
         carry what the stored record says."""
-        monkeypatch.setattr(notify, "EXPERIMENT_START_DAY", notify._day())
-        monkeypatch.setattr(notify, "EXPERIMENT_END_DAY", notify._day())
+        monkeypatch.setattr(notify, "EXPERIMENT_START_DAY", opsstats.day())
+        monkeypatch.setattr(notify, "EXPERIMENT_END_DAY", opsstats.day())
         await notify.handle_command("/lever arm 4 yes")
         real_get = cache.get
 
@@ -4555,7 +4557,7 @@ class TestExperimentExport:
             return await real_get(key, required=required)
         monkeypatch.setattr(notify._cache, "get", best_effort_misses)
         lines = self._csv(await notify._experiment_export())
-        day = notify._day()
+        day = opsstats.day()
         assert (f"# lever changed {day[:4]}-{day[4:6]}-{day[6:]}: "
                 "environment default -> 4 first-day scans") in lines, lines
         welcome = next(ln for ln in lines if ln.startswith("# welcome at export"))
@@ -4565,11 +4567,11 @@ class TestExperimentExport:
     @pytest.mark.asyncio
     async def test_a_lever_move_inside_the_window_travels_with_the_rows(
             self, monkeypatch):
-        monkeypatch.setattr(notify, "EXPERIMENT_START_DAY", notify._day())
-        monkeypatch.setattr(notify, "EXPERIMENT_END_DAY", notify._day())
+        monkeypatch.setattr(notify, "EXPERIMENT_START_DAY", opsstats.day())
+        monkeypatch.setattr(notify, "EXPERIMENT_END_DAY", opsstats.day())
         await notify.handle_command("/lever arm 4 yes")
         lines = self._csv(await notify._experiment_export())
-        day = notify._day()
+        day = opsstats.day()
         assert (f"# lever changed {day[:4]}-{day[4:6]}-{day[6:]}: "
                 "environment default -> 4 first-day scans") in lines, lines
 
@@ -4635,7 +4637,7 @@ class TestSaleCountingAndResubscribe:
             ent = sub("otid-retry", first_days_ago=0)
             for _ in range(3):
                 await notify.entitlement_recorded(SUBJECT, ent)
-            counted = await cache.get(notify._stat_key(notify._day(), "new_subs"))
+            counted = await cache.get(opsstats.stat_key(opsstats.day(), "new_subs"))
             assert counted == "1", (
                 f"one sale counted {counted} times because the guard was "
                 f"handed back after the increment")
@@ -5397,15 +5399,15 @@ class TestAFailedReadDoesNotWipeTheDocument:
     @pytest.mark.asyncio
     async def test_the_days_tally_is_not_reset(self, flaky_notify):
         redis = flaky_notify
-        day = notify._day()
+        day = opsstats.day()
         for _ in range(4):
-            await notify._tally_top(day, "clothing", "Nike")
+            await trends._tally_top(day, "clothing", "Nike")
 
         redis.failing = True
-        await notify._tally_top(day, "shoes", "Adidas")
+        await trends._tally_top(day, "shoes", "Adidas")
         redis.failing = False
 
-        doc = json.loads(await redis.get(notify._stat_key(day, "top")))
+        doc = json.loads(await redis.get(opsstats.stat_key(day, "top")))
         assert doc["cats"] == {"clothing": 4}
         assert doc["brands"] == {"Nike": 4}
 
@@ -5495,7 +5497,7 @@ class TestAFailedReadDoesNotWipeTheDocument:
         redis.failing = False
 
         assert not any("New paying subscriber" in t for t in recorder.texts)
-        assert await redis.get(notify._stat_key(notify._day(), "new_subs")) is None
+        assert await redis.get(opsstats.stat_key(opsstats.day(), "new_subs")) is None
 
     @pytest.mark.asyncio
     async def test_a_conversion_it_could_not_look_up_still_alerts(
@@ -5518,7 +5520,7 @@ class TestAFailedReadDoesNotWipeTheDocument:
         assert len(alerts) == 1, alerts
         assert "Paid period" in alerts[0] and "index unreadable" in alerts[0]
         assert "New paying subscriber" not in alerts[0]
-        assert await redis.get(notify._stat_key(notify._day(), "new_subs")) is None
+        assert await redis.get(opsstats.stat_key(opsstats.day(), "new_subs")) is None
 
 
 # ── A refund Apple reverses ──────────────────────────────────────────────────
