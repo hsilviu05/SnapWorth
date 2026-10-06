@@ -87,6 +87,7 @@ import auditlog
 import background
 import categories
 import ideas
+import opsindex
 import opsstats
 import trends
 from devicecheck import PROBE_NOT_SENT
@@ -337,27 +338,8 @@ COMMANDS: tuple[tuple[str, str], ...] = (
     ("help", "List commands"),
 )
 
-# The two operator tables. Each is one JSON document the cache can hand back
-# whole — it cannot enumerate keys — bounded so a write never grows past a
-# few hundred kilobytes. There are no accounts: "users" are pseudonymous
-# devices, exactly as the audit log identifies them.
-SUBS_INDEX_KEY = "opsidx:subs"
-USERS_INDEX_KEY = "opsidx:users"
-SUBS_INDEX_CAP = 500
-USERS_INDEX_CAP = 500
-INDEX_TTL = 60 * 60 * 24 * 400
+# Rows a /subs or /users table shows.
 TABLE_ROWS = 20
-# How long /user can say what the last purchase sync from a device came to.
-# A subscriber's app re-syncs at every cold launch, so this is the horizon
-# for a device that stopped opening the app.
-SYNC_TTL = 60 * 60 * 24 * 90
-# Devices remembered per subscription row, most recent last. Above the
-# entitlement device cap (MAX_DEVICES_PER_SUBSCRIPTION, 6 by default) so a
-# household's phones and the ones they replaced all still resolve.
-SUB_DEVICES_CAP = 10
-
-# Apple's offerType values.
-OFFER_INTRODUCTORY, OFFER_PROMOTIONAL, OFFER_CODE = 1, 2, 3
 
 # Inline-keyboard rows: (label, callback data). The data is fed straight back
 # through `handle_command` as "/<data>", so buttons and commands share one path.
@@ -773,6 +755,7 @@ def configure(cache, notifier: TelegramNotifier | None = None,
     global _device_check_probe, _describe_welcome
     _cache = cache
     opsstats.bind(cache)
+    opsindex.bind(cache)
     trends.bind(cache)
     _status_provider = status_provider
     _social = social
@@ -1110,7 +1093,7 @@ async def _note_appstore_notification(environment: str, notification_type: str |
         await _cache.set(LAST_APPSTORE_NOTIFICATION_KEY,
                          json.dumps([int(time.time()), str(environment)[:20],
                                      str(notification_type or "?")[:40]]),
-                         INDEX_TTL)
+                         opsindex.INDEX_TTL)
     except Exception as exc:
         log.debug("notification arrival note failed: %s", type(exc).__name__)
 
@@ -1161,7 +1144,7 @@ async def subscription_event(note, *, reinstated=None) -> None:
         otid = ent.original_transaction_id
         if not otid or not note.is_indexed:
             return
-        if _is_bounded(ent):
+        if opsindex.is_bounded(ent):
             # `/apple/notifications` refuses Sandbox and the Sandbox route
             # never calls this, so nothing should reach here. If something
             # does, it is a tester's renewal and not money.
@@ -1176,7 +1159,7 @@ async def subscription_event(note, *, reinstated=None) -> None:
             import referral    # not at the top: referral imports auth, which imports this
             await referral.note_paid_period(ent)
 
-        before = await _index_subscription(None, ent, note.auto_renew,
+        before = await opsindex.index_subscription(None, ent, note.auto_renew,
                                            current=note.is_refund_reversal)
         # None: the index could not be read, so there is no previous row to
         # judge a paid period against. It is then neither a conversion nor a
@@ -1185,7 +1168,7 @@ async def subscription_event(note, *, reinstated=None) -> None:
         known = before is not None
         before = before or {}
         was = str(before.get("acq") or "") if before else ""
-        now_acq = _acquisition(ent)
+        now_acq = opsindex.acquisition(ent)
 
         product = html.escape(ent.product_id or "unknown product")
         environment = html.escape(ent.environment)
@@ -1276,7 +1259,7 @@ async def subscription_event(note, *, reinstated=None) -> None:
 
 
 def _started_as(row: dict | None) -> str | None:
-    """How the subscription in `row` began: `_acquisition`'s word for its
+    """How the subscription in `row` began: `opsindex.acquisition`'s word for its
     first sighting.
 
     A row written before `started_as` existed has only `acq`, the latest
@@ -1299,7 +1282,7 @@ async def _count_new_subscription(otid: str, acq: str) -> None:
     `subscription_event` alerts on by name, "New paying subscriber (Apple
     reported it first)" — never appeared in it.
 
-    `acq` is `_acquisition`'s word for the first transaction, and picks the
+    `acq` is `opsindex.acquisition`'s word for the first transaction, and picks the
     counter: a free trial is `trial_starts`, a purchase with no offer
     `paid_direct`, and an intro, promo or offer-code start `offer_starts`.
     `new_subs` is still written, as their sum: one per customer, the meaning
@@ -1394,8 +1377,8 @@ async def entitlement_recorded(subject: str, ent, *,
     if _cache is None:
         return
     if _notifier is not None:
-        _spawn(_note_sync(subject, "pro" if ent.tier == "pro" else "free"))
-    if _is_bounded(ent):
+        _spawn(opsindex.note_sync(subject, "pro" if ent.tier == "pro" else "free"))
+    if opsindex.is_bounded(ent):
         # App Review or a TestFlight tester, honoured on bounded terms. Pro
         # for that device and nothing more: no row, no count, no "New Pro",
         # and no "Subscription ended" when their transaction lapses.
@@ -1409,14 +1392,14 @@ async def entitlement_recorded(subject: str, ent, *,
             # client presents a signed transaction, which has no such field.
             # None when the index could not be read: then there is no row to
             # say this was a trial, and no conversion is counted.
-            previous = await _index_subscription(subject, ent)
+            previous = await opsindex.index_subscription(subject, ent)
             before = previous or {}
             purchased = getattr(ent, "original_purchase_at", None)
             # Unknown purchase date reads as new: Apple always supplies it, so
             # its absence is a test fixture, not a customer.
             is_new = (purchased is None
                       or time.time() - purchased < NEW_SUBSCRIPTION_WINDOW_SECONDS)
-            acq = _acquisition(ent)
+            acq = opsindex.acquisition(ent)
             if is_new:
                 # Counted before, and apart from, the alert's guard below.
                 #
@@ -1457,7 +1440,7 @@ async def entitlement_recorded(subject: str, ent, *,
             # and the alert for that sale was never seen. `_announce_deploy`
             # already hands its guard back on failure; this now does too.
             #
-            # The sale itself was never lost — `_index_subscription` has
+            # The sale itself was never lost — `opsindex.index_subscription` has
             # already run and `/subs` lists them — but the one push that says
             # "someone just paid you" was, silently.
             if not await _notifier.send("\n".join(lines), _SUBS_BUTTONS):
@@ -1491,7 +1474,7 @@ def entitlement_rejected(subject: str, reason: str) -> None:
     it was turned away."""
     if _notifier is None or _cache is None or not subject:
         return
-    _spawn(_note_sync(subject, "rejected", reason))
+    _spawn(opsindex.note_sync(subject, "rejected", reason))
 
 
 # ── Subscription sharing signal ──────────────────────────────────────────────
@@ -1967,7 +1950,7 @@ async def _note_activity(subject: str, tier: str = "free") -> None:
             await _cache.incr(f"opsact:w:{window}", 2 * ACTIVE_WINDOW_SECONDS)
             # Once per device per window, not per request, so the index
             # write stays rare on a busy device.
-            await _index_user(who, tier=tier)
+            await opsindex.index_user(who, tier=tier)
         day = opsstats.day()
         if await _cache.add(f"opsseen:d:{day}:{who}", "1", STATS_TTL):
             await _cache.incr(opsstats.stat_key(day, "active_users"), STATS_TTL)
@@ -2225,7 +2208,7 @@ async def _remember_offset(offset: int | None) -> None:
     if offset is None:
         return
     try:
-        await _cache.set(POLL_OFFSET_KEY, str(offset), INDEX_TTL)
+        await _cache.set(POLL_OFFSET_KEY, str(offset), opsindex.INDEX_TTL)
     except Exception as exc:
         log.debug("poll offset save failed: %s", type(exc).__name__)
 
@@ -2918,7 +2901,7 @@ async def _note_scan(*, tier: str, item_name: str, brand: str | None,
             await _cache.incr(opsstats.stat_key(opsstats.day(), "scan_ms"), STATS_TTL,
                               int(elapsed_ms))
         if subject:
-            await _index_user(auditlog.pseudonymise(subject), tier=tier, scanned=True)
+            await opsindex.index_user(auditlog.pseudonymise(subject), tier=tier, scanned=True)
         if await _feed_enabled():
             await _notifier.send(_feed_text(
                 item_name=item_name, category=category, low=low, high=high,
@@ -3029,63 +3012,6 @@ async def send_weekly(now: datetime | None = None) -> bool:
 
 # ── Operator tables: subscriptions and devices ───────────────────────────────
 
-async def _read_index(key: str) -> dict:
-    try:
-        doc = json.loads(await _cache.get(key) or "{}")
-    except Exception:
-        return {}
-    return doc if isinstance(doc, dict) else {}
-
-
-async def _write_index(key: str, doc: dict, cap: int, recency: str) -> None:
-    # A row goes once it has been untouched for INDEX_TTL, which is the "up to
-    # 400 days" the privacy policy states. The document's own TTL cannot do
-    # that: every write renews it, so on a service that is used daily a row
-    # written once would otherwise stay until the cap pushed it out.
-    cutoff = time.time() - INDEX_TTL
-    for stale in [k for k, v in doc.items()
-                  if not isinstance(v, dict)
-                  or not isinstance(v.get(recency), (int, float))
-                  or v[recency] < cutoff]:
-        doc.pop(stale, None)
-    if len(doc) > cap:
-        # Drop the least recently seen until it fits.
-        for stale in sorted(doc, key=lambda k: doc[k].get(recency, 0))[:len(doc) - cap]:
-            doc.pop(stale, None)
-    await _cache.set(key, json.dumps(doc, separators=(",", ":")), INDEX_TTL)
-
-
-def _same_device(recorded: str, wanted: str) -> bool:
-    """Whether an id someone typed names this recorded device.
-
-    Both are prefixes of one sixteen-character pseudonym, so either may be
-    the longer: the operator types six characters from /subs, or pastes all
-    sixteen from a support mail — and rows written before the full pseudonym
-    was stored hold only six."""
-    recorded, wanted = recorded.lower(), wanted.lower()
-    return bool(recorded and wanted) and (recorded.startswith(wanted)
-                                          or wanted.startswith(recorded))
-
-
-def _with_device(devices: list, who: str) -> list[str]:
-    """`devices` with `who` moved to the end (most recent), capped.
-
-    A six-character id kept from an older row is the same device as the full
-    pseudonym it begins, and is dropped in its favour."""
-    kept = [d for d in devices
-            if isinstance(d, str) and d and d != who and not who.startswith(d)]
-    return [*kept, who][-SUB_DEVICES_CAP:]
-
-
-def _row_devices(row: dict) -> list[str]:
-    """Every device id a subscription row knows, legacy `who` included."""
-    found = [d for d in (row.get("devices") or []) if isinstance(d, str) and d]
-    who = row.get("who")
-    if isinstance(who, str) and who and who not in found:
-        found.append(who)
-    return found
-
-
 def _device_argument(argument: str | None) -> str:
     """What the operator typed, as an id: trimmed, lower-cased, and without
     the "Device" the in-app support form writes in front of it."""
@@ -3095,30 +3021,7 @@ def _device_argument(argument: str | None) -> str:
     return " ".join(parts)
 
 
-def _is_bounded(ent) -> bool:
-    """A Sandbox entitlement production honours on bounded terms: not a customer.
-
-    See `entitlements.SANDBOX_ENTITLEMENTS`. Imported here rather than at the
-    top for the same cycle `_sub_text` describes.
-    """
-    import entitlements
-    return entitlements.is_bounded(ent)
-
-
-def _acquisition(ent) -> str:
-    """How a subscription was obtained, in the operator's words."""
-    offer = getattr(ent, "offer_type", None)
-    discount = getattr(ent, "offer_discount_type", None)
-    if offer == OFFER_CODE:
-        return "offer code"
-    if offer == OFFER_PROMOTIONAL:
-        return "promo offer"
-    if offer == OFFER_INTRODUCTORY:
-        return "trial" if discount == "FREE_TRIAL" else "intro offer"
-    return "paid"
-
-
-#: `_acquisition`'s words, shortened to fit a table column.
+#: `opsindex.acquisition`'s words, shortened to fit a table column.
 #:
 #: The `/subs` `via` field is eleven wide and two of the five labels are
 #: exactly eleven characters — "promo offer" and "intro offer" — so
@@ -3138,190 +3041,6 @@ def _via(acq: str | None) -> str:
     if not acq:
         return "?"
     return _VIA_SHORT.get(acq, acq[:5])
-
-
-async def _index_subscription(subject: str | None, ent,
-                              auto_renew: bool | None = None, *,
-                              current: bool = False) -> dict | None:
-    """Record what we now know about one subscription. Returns the previous row,
-    or None when the index could not be read and nothing was written.
-
-    `subject` is None when App Store Server Notifications told us rather than a
-    device checking in. There is no pseudonymised device to attribute it to,
-    and — this is the point — the existing `who` must survive: the row may
-    already name the device that first synced it, and overwriting that with
-    nothing would lose the only link between a payment and a person.
-
-    `auto_renew` is the same shape of argument and for the same reason. It
-    lives in Apple's `signedRenewalInfo`, which only two of the three writers
-    ever see: a notification carries one, a live status lookup fetches one, and
-    `/auth/entitlement` — the highest-volume writer by far — does not, because
-    the client presents a signed *transaction* and nothing else. None means
-    "this writer cannot see it", so the stored value survives. Without that,
-    every app launch would erase a cancellation the moment Apple reported it.
-
-    The previous row is returned because a notification alone cannot say
-    whether a paid period is a *conversion*. Only the row it replaces can.
-
-    `current` says `ent` is Apple's word on this term as of now — a live
-    status lookup, or a REFUND_REVERSED — rather than a transaction that may
-    have been signed before a refund and delivered after it. See the refund
-    mark below.
-
-    A bounded Sandbox entitlement is never written, whoever calls. This is the
-    one writer every path shares, so the rule lives here as well as at each
-    caller: `/subs`, MRR and the digest's subscriber line all read this index,
-    and a tester in it is revenue that does not exist.
-    """
-    if _is_bounded(ent):
-        return {}
-    doc = await opsstats.read_doc_for_update(SUBS_INDEX_KEY)
-    if doc is None:
-        # Nothing written, and nothing known about the row. `/sub` can repair
-        # it once Redis is back.
-        return None
-    otid = str(ent.original_transaction_id)
-    before: dict = row if isinstance(row := doc.get(otid), dict) else {}
-    entry: dict = dict(before)
-    entry.update({
-        "product": ent.product_id, "env": ent.environment,
-        "first": getattr(ent, "original_purchase_at", None),
-        "expires": ent.expires_at,
-        "acq": _acquisition(ent),
-        "price": getattr(ent, "price", None), "currency": getattr(ent, "currency", None),
-        "seen": int(time.time()),
-    })
-    # Write-once, because `acq` above is not: it is the current transaction's,
-    # so a converted trial reads "paid" exactly like a direct purchase and the
-    # row alone could not say a trial had converted (#218). A row from before
-    # this field takes its last `acq`, which is how it started unless a later
-    # kind has already overwritten it.
-    if not before.get("started_as"):
-        entry["started_as"] = before.get("acq") or entry["acq"]
-        if entry["started_as"] == "trial" and "trial_ends" not in before:
-            # When the free period runs out, so `/paywall` can ask of the
-            # trials that ended in its window how many paid. Only knowable
-            # from the trial's own transaction: the next one is the paid
-            # period's. None for an older row that has already converted.
-            entry["trial_ends"] = (ent.expires_at if entry["acq"] == "trial"
-                                   else None)
-    if subject is not None:
-        # The full pseudonym, and every device that has synced this
-        # subscription, not just the last. `who` used to be the first six
-        # characters of whichever device synced most recently: a support mail
-        # carries all sixteen ("Device 3f2a…" from the in-app form, the
-        # `support_id` /auth/token hands the app), and a family's second phone
-        # was overwritten by the first on every launch — so /sub refused the
-        # id the customer sent and /user told every other device that nothing
-        # had ever synced from it.
-        who = auditlog.pseudonymise(subject)
-        entry["devices"] = _with_device(_row_devices(entry), who)
-        entry["who"] = who
-    if auto_renew is not None:
-        entry["auto_renew"] = auto_renew
-    # The revocation is a tombstone on a *term*, not on the row.
-    #
-    # This only ever set `revoked` and never cleared it, and the row is keyed
-    # on `originalTransactionId` — which Apple keeps stable across renewals
-    # *and* re-subscriptions. So one refund tombstoned the row permanently: a
-    # customer who refunded in March and paid again in June stayed out of the
-    # active count, out of the paid count and out of MRR for the 400-day life
-    # of the index, while `/subs` showed their live subscription as `refund`.
-    #
-    # `entitlements._is_revoked` had to solve exactly this on the access path
-    # and stores the revoked term's own expiry so a later, longer-dated term
-    # survives the tombstone. The operator's index gets the same rule, rather
-    # than clearing on any non-revoked transaction — Apple can redeliver a
-    # pre-refund renewal after the REFUND, and that must not resurrect the row.
-    #
-    # That rule alone left no way to clear the mark on the *same* term, which
-    # is exactly what a reversed refund needs: the row said `refund` for a
-    # customer paying for that term again, and `/sub` asking Apple could not
-    # fix it. A `current` transaction is not a redelivery, so it may.
-    revoked = getattr(ent, "revoked_at", None)
-    if revoked is not None:
-        entry["revoked"] = revoked
-        entry["revoked_expires"] = ent.expires_at
-    else:
-        tombstoned = entry.get("revoked_expires")
-        if (entry.get("revoked") is not None
-                and ent.expires_at is not None
-                and tombstoned is not None
-                and (float(ent.expires_at) >= float(tombstoned) if current
-                     else float(ent.expires_at) > float(tombstoned))):
-            entry.pop("revoked", None)
-            entry.pop("revoked_expires", None)
-    doc[otid] = entry
-    await _write_index(SUBS_INDEX_KEY, doc, SUBS_INDEX_CAP, "seen")
-    return before
-
-
-#: Days of per-device Pro scan counts a users-index row keeps: `/costs`' window.
-PRO_DAYS_KEPT = 30
-
-
-async def _index_user(who: str, *, tier: str, scanned: bool = False) -> None:
-    """Upsert one device's row in the users index.
-
-    `scans` is lifetime and `tier` is only the current one, so neither can say
-    what a subscriber costs: a device that scanned 200 times free and then
-    subscribed would read as 200 Pro scans. `pro_since` opens a Pro span when
-    the device is first seen Pro, `pro_until` closes it when it is next seen
-    free, and only scans inside a span count toward `pro_scans` and
-    `pro_days` (Pro scans per UTC day, the last PRO_DAYS_KEPT days). A new
-    span replaces a closed one: `/costs` looks back 30 days, not further.
-    Rows from before these fields existed start their span at the first
-    sighting after the deploy, since what came earlier cannot be split.
-    """
-    doc = await opsstats.read_doc_for_update(USERS_INDEX_KEY)
-    if doc is None:
-        return
-    now = int(time.time())
-    entry: dict = row if isinstance(row := doc.get(who), dict) else {"first": now, "scans": 0}
-    entry["last"] = now
-    pro = tier == "pro"
-    entry["tier"] = "pro" if pro else "free"
-    if pro and (not entry.get("pro_since") or entry.get("pro_until")):
-        entry["pro_since"] = now
-        entry.pop("pro_until", None)
-    elif not pro and entry.get("pro_since") and not entry.get("pro_until"):
-        entry["pro_until"] = now
-    if scanned:
-        entry["scans"] = int(entry.get("scans", 0)) + 1
-        if pro:
-            entry["pro_scans"] = int(entry.get("pro_scans", 0)) + 1
-            today = opsstats.day()
-            oldest = opsstats.day(datetime.now(timezone.utc) - timedelta(days=PRO_DAYS_KEPT - 1))
-            days = entry.get("pro_days") if isinstance(entry.get("pro_days"), dict) else {}
-            days = {d: n for d, n in days.items() if d >= oldest}
-            days[today] = int(days.get(today, 0)) + 1
-            entry["pro_days"] = days
-    doc[who] = entry
-    await _write_index(USERS_INDEX_KEY, doc, USERS_INDEX_CAP, "last")
-
-
-def _sync_key(who: str) -> str:
-    return f"opsstate:sync:{who}"
-
-
-async def _note_sync(subject: str, outcome: str, detail: str | None = None) -> None:
-    """Record what `/auth/entitlement` made of this device's last signed
-    transaction: "pro", "free" (verified, not entitled) or "rejected" with
-    the reason. Never raises.
-
-    The subscription index only ever hears about a transaction that
-    verified, so a refused one left no trace the operator could find: the
-    customer who paid and was told free had, as far as the bot knew, never
-    tried. `/user` shows this line. A key per device rather than a field in
-    the devices index, so it is one plain write that cannot lose, or be
-    lost to, the index's read-modify-write."""
-    if _cache is None:
-        return
-    try:
-        record = [int(time.time()), outcome] + ([detail[:160]] if detail else [])
-        await _cache.set(_sync_key(auditlog.pseudonymise(subject)), json.dumps(record), SYNC_TTL)
-    except Exception as exc:
-        log.debug("entitlement sync note failed: %s", type(exc).__name__)
 
 
 #: The `/subs` auto-renew column, one character wide.
@@ -3379,12 +3098,12 @@ def _subs_summary(doc: dict) -> tuple[int, int, int, int, dict[str, float]]:
 
 
 async def _subscribers_line() -> str:
-    active, paid, comped, _, _ = _subs_summary(await _read_index(SUBS_INDEX_KEY))
+    active, paid, comped, _, _ = _subs_summary(await opsindex.read_index(opsindex.SUBS_INDEX_KEY))
     return f"Subscribers: {active} active · {paid} paid · {comped} comped/trial"
 
 
 async def _subs_text() -> str:
-    doc = await _read_index(SUBS_INDEX_KEY)
+    doc = await opsindex.read_index(opsindex.SUBS_INDEX_KEY)
     active, paid, comped, expired, mrr = _subs_summary(doc)
     lines = [f"💳 <b>Subscriptions</b> — {active} active · {paid} paid · "
              f"{comped} comped/trial · {expired} expired"]
@@ -3442,7 +3161,7 @@ async def _subs_text() -> str:
 
 
 async def _users_text() -> str:
-    doc = await _read_index(USERS_INDEX_KEY)
+    doc = await opsindex.read_index(opsindex.USERS_INDEX_KEY)
     now = time.time()
     week = sum(1 for e in doc.values() if now - float(e.get("last", 0)) < 7 * 86400)
     month = sum(1 for e in doc.values() if now - float(e.get("last", 0)) < 30 * 86400)
@@ -3681,13 +3400,13 @@ async def _pro_block(month: list[str]) -> list[str]:
     per Pro scan (listings and reformats included)."""
     now = time.time()
     start = now - len(month) * 86400
-    users = await _read_index(USERS_INDEX_KEY)
-    subs = await _read_index(SUBS_INDEX_KEY)
+    users = await opsindex.read_index(opsindex.USERS_INDEX_KEY)
+    subs = await opsindex.read_index(opsindex.SUBS_INDEX_KEY)
     lines = [f"<b>Pro, last {len(month)} days</b>"]
 
     paid_rows = [e for e in subs.values() if isinstance(e, dict)
                  and e.get("acq") == "paid" and _sub_is_alive(e, now)]
-    paying = {d for e in paid_rows for d in _row_devices(e)}
+    paying = {d for e in paid_rows for d in opsindex.row_devices(e)}
     lines.append(f"Paying Pro devices: {len(paying)} "
                  f"(n={len(paid_rows)} paid subscriptions)")
 
@@ -3804,7 +3523,7 @@ async def _costs_text() -> str:
         lines.append(f"My own bot usage, 30 days: ≈ {_usd(mine_month)} "
                      f"(/post, /checkup — excluded from $/scan and both tiers)")
 
-    _, _, _, _, mrr = _subs_summary(await _read_index(SUBS_INDEX_KEY))
+    _, _, _, _, mrr = _subs_summary(await opsindex.read_index(opsindex.SUBS_INDEX_KEY))
     lines.append("vs MRR ≈ " + (" + ".join(_money(v, c) for c, v in sorted(mrr.items()))
                                  if mrr else "n/a") + " (paid plans)")
     budget = f" · budget {_usd(GEMINI_DAILY_BUDGET_USD)}/day" if GEMINI_DAILY_BUDGET_USD > 0 else ""
@@ -4458,7 +4177,7 @@ async def _paywall_text(now: datetime | None = None) -> str:
     # its row says when its free period ran out and whether it paid.
     start = (now - timedelta(days=PAYWALL_WINDOW_DAYS)).timestamp()
     ended = converted = 0
-    for row in (await _read_index(SUBS_INDEX_KEY)).values():
+    for row in (await opsindex.read_index(opsindex.SUBS_INDEX_KEY)).values():
         if not isinstance(row, dict) or row.get("started_as") != "trial":
             continue
         ends = row.get("trial_ends")
@@ -4533,7 +4252,7 @@ async def _resolve_transaction_id(wanted: str) -> tuple[str | None, str | None]:
     if looks_like_transaction and len(wanted) != 16:
         return wanted, None
 
-    doc = await _read_index(SUBS_INDEX_KEY)
+    doc = await opsindex.read_index(opsindex.SUBS_INDEX_KEY)
     if looks_like_transaction and wanted in doc:
         return wanted, None
     matches: dict[str, dict] = {}
@@ -4541,8 +4260,8 @@ async def _resolve_transaction_id(wanted: str) -> tuple[str | None, str | None]:
     for otid, row in doc.items():
         if not isinstance(row, dict):
             continue
-        hits = [d for d in _row_devices(row)
-                if (d.lower() == wanted if looks_like_transaction else _same_device(d, wanted))]
+        hits = [d for d in opsindex.row_devices(row)
+                if (d.lower() == wanted if looks_like_transaction else opsindex.same_device(d, wanted))]
         if hits:
             matches[otid] = row
             devices.update(d.lower() for d in hits)
@@ -4597,14 +4316,14 @@ def _status_lines(status) -> list[str]:
     lines = [f"<b>{html.escape(_plan(ent.product_id))}</b> — "
              f"{html.escape(status.state)}"]
 
-    detail = [html.escape(ent.environment), _acquisition(ent)]
+    detail = [html.escape(ent.environment), opsindex.acquisition(ent)]
     if isinstance(ent.price, (int, float)) and ent.price > 0:
         detail.append(_money(ent.price, ent.currency))
     lines.append(" · ".join(detail))
 
     if status.offer_identifier:
         # Apple's offerIdentifier is the code the customer typed or the promo
-        # offer's id. `_acquisition` above already says which kind it was.
+        # offer's id. `opsindex.acquisition` above already says which kind it was.
         lines.append(f"Offer: <code>{html.escape(status.offer_identifier)}</code>")
 
     if ent.expires_at:
@@ -4909,7 +4628,7 @@ async def _sub_text(argument: str) -> tuple[str, Buttons]:
             # None: the index could not be read, so nothing was written, and
             # the line below must not say otherwise. `current`: this is
             # Apple's word now, so a refund it no longer shows is cleared.
-            if await _index_subscription(
+            if await opsindex.index_subscription(
                     None, status.entitlement, status.auto_renew,
                     current=True) is not None:
                 indexed += 1
@@ -4939,7 +4658,7 @@ async def _user_text(argument: str) -> str:
     if not wanted:
         return ("Usage: /user &lt;id&gt; — the id column from /users or /subs, or "
                 "the 16 characters after \"Device\" in a support mail.")
-    users = await _read_index(USERS_INDEX_KEY)
+    users = await opsindex.read_index(opsindex.USERS_INDEX_KEY)
     matches = [(who, e) for who, e in users.items() if who.lower().startswith(wanted)]
     if not matches:
         return f"👤 No device seen with an id starting <code>{html.escape(wanted)}</code>."
@@ -4957,7 +4676,7 @@ async def _user_text(argument: str) -> str:
         lines.append(f"Last seen {_date(int(e['last']))} ({when})")
     lines.append(f"Scans since the bot started watching: {int(e.get('scans', 0))}")
     try:
-        sync = (json.loads(await _cache.get(_sync_key(who)) or "null")
+        sync = (json.loads(await _cache.get(opsindex.sync_key(who)) or "null")
                 if _cache is not None else None)
     except Exception:
         sync = None
@@ -4971,8 +4690,8 @@ async def _user_text(argument: str) -> str:
         if len(sync) > 2 and sync[2]:
             what += f" — {html.escape(str(sync[2]))}"
         lines.append(f"Last purchase sync: {_date(int(sync[0]))} ({when}) — {what}")
-    subs = [(otid, s) for otid, s in (await _read_index(SUBS_INDEX_KEY)).items()
-            if isinstance(s, dict) and any(_same_device(d, who) for d in _row_devices(s))]
+    subs = [(otid, s) for otid, s in (await opsindex.read_index(opsindex.SUBS_INDEX_KEY)).items()
+            if isinstance(s, dict) and any(opsindex.same_device(d, who) for d in opsindex.row_devices(s))]
     for otid, s in subs:
         # `_sub_is_alive`, like the two readers of this same index in `/subs`.
         # This one tested expiry alone, so a refunded subscription — which

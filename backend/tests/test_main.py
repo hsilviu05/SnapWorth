@@ -24,6 +24,7 @@ import appstorenotify
 import auth
 from entitlements import Entitlement
 import main
+import opsindex
 import opsstats
 import trends
 from main import app, _extract_json, _check_rate_limit, _rate_store, _ip_rate_store
@@ -263,7 +264,7 @@ class TestLegalEndpoints:
         """A number in a policy that nothing checks is a number that drifts."""
         import notify
         body = _prose(client.get("/privacy").text)
-        days = notify.INDEX_TTL // 86_400
+        days = opsindex.INDEX_TTL // 86_400
         assert f"{days} days" in body, (
             f"the operator index keeps rows for {days} days; the policy says "
             f"something else")
@@ -315,13 +316,13 @@ class TestLegalEndpoints:
 
     def test_the_operator_record_retention_counts_from_apples_last_word(self):
         """App Store notifications and status lookups rewrite the /subs row with
-        a fresh `seen` and keep its device pseudonym (notify._index_subscription),
+        a fresh `seen` and keep its device pseudonym (opsindex.index_subscription),
         and `_write_index` prunes on `seen`. So a subscriber who deleted the app
         but keeps renewing keeps that row: 400 days from the app's last visit is
         not what the code does."""
         import notify
         body = _prose(client.get("/privacy").text)
-        assert (f"for up to {notify.INDEX_TTL // 86_400} days after the device "
+        assert (f"for up to {opsindex.INDEX_TTL // 86_400} days after the device "
                 "last uses the service or, for a subscription, after the app or "
                 "Apple last tells us about it") in body
 

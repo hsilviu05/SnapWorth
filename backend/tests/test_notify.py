@@ -25,6 +25,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import auditlog  # noqa: E402
 import notify  # noqa: E402
+import opsindex  # noqa: E402
 import opsstats  # noqa: E402
 import trends  # noqa: E402
 import observability  # noqa: E402
@@ -1211,7 +1212,7 @@ class TestSubscriptionsTable:
         await notify.entitlement_recorded("a" * 64, sub("m-1", expires_in_days=30))
         await notify.entitlement_recorded("a" * 64, sub("m-1", expires_in_days=60))
         assert len([t for t in enabled_notify.texts if "New Pro subscription" in t]) == 1
-        doc = json.loads(await cache.get(notify.SUBS_INDEX_KEY))
+        doc = json.loads(await cache.get(opsindex.SUBS_INDEX_KEY))
         assert doc["m-1"]["expires"] > int(time.time()) + 59 * 86_400
 
     @pytest.mark.asyncio
@@ -1225,11 +1226,11 @@ class TestSubscriptionsTable:
         assert "0 active" in text and "No subscription has synced" in text
 
     def test_acquisition_wording(self):
-        assert notify._acquisition(sub("x")) == "paid"
-        assert notify._acquisition(sub("x", offer_type=3)) == "offer code"
-        assert notify._acquisition(sub("x", offer_type=2)) == "promo offer"
-        assert notify._acquisition(sub("x", offer_type=1, discount="FREE_TRIAL")) == "trial"
-        assert notify._acquisition(sub("x", offer_type=1, discount="PAY_AS_YOU_GO")) == "intro offer"
+        assert opsindex.acquisition(sub("x")) == "paid"
+        assert opsindex.acquisition(sub("x", offer_type=3)) == "offer code"
+        assert opsindex.acquisition(sub("x", offer_type=2)) == "promo offer"
+        assert opsindex.acquisition(sub("x", offer_type=1, discount="FREE_TRIAL")) == "trial"
+        assert opsindex.acquisition(sub("x", offer_type=1, discount="PAY_AS_YOU_GO")) == "intro offer"
 
 
 class TestUsersTable:
@@ -1253,30 +1254,30 @@ class TestUsersTable:
         notify.scan_completed(tier="free", item_name="y", brand=None, category="toys",
                               low=1, high=2, confidence="Low", subject="q" * 64)
         await drain()
-        doc = json.loads(await cache.get(notify.USERS_INDEX_KEY))
+        doc = json.loads(await cache.get(opsindex.USERS_INDEX_KEY))
         (entry,) = doc.values()
         assert entry["scans"] == 2 and entry["tier"] == "free"
 
     @pytest.mark.asyncio
     async def test_index_is_capped_by_recency(self, enabled_notify, cache):
-        for i in range(notify.USERS_INDEX_CAP + 3):
-            await notify._index_user(f"dev{i:05d}", tier="free")
-        doc = json.loads(await cache.get(notify.USERS_INDEX_KEY))
-        assert len(doc) == notify.USERS_INDEX_CAP
+        for i in range(opsindex.USERS_INDEX_CAP + 3):
+            await opsindex.index_user(f"dev{i:05d}", tier="free")
+        doc = json.loads(await cache.get(opsindex.USERS_INDEX_KEY))
+        assert len(doc) == opsindex.USERS_INDEX_CAP
 
     @pytest.mark.asyncio
     async def test_a_row_goes_after_the_retention_the_policy_states(self, enabled_notify, cache):
         # The document's TTL is renewed by every write, so it never expires on
         # a service in daily use; without pruning, a device seen once stayed
         # until the cap pushed it out, while /privacy says 400 days.
-        long_ago = int(time.time()) - notify.INDEX_TTL - 60
-        recent = int(time.time()) - notify.INDEX_TTL + 3600
-        await cache.set(notify.USERS_INDEX_KEY, json.dumps({
+        long_ago = int(time.time()) - opsindex.INDEX_TTL - 60
+        recent = int(time.time()) - opsindex.INDEX_TTL + 3600
+        await cache.set(opsindex.USERS_INDEX_KEY, json.dumps({
             "gone": {"first": long_ago, "last": long_ago, "scans": 1, "tier": "free"},
             "kept": {"first": long_ago, "last": recent, "scans": 9, "tier": "free"},
         }), 600)
-        await notify._index_user("new", tier="free")
-        assert set(json.loads(await cache.get(notify.USERS_INDEX_KEY))) == {"kept", "new"}
+        await opsindex.index_user("new", tier="free")
+        assert set(json.loads(await cache.get(opsindex.USERS_INDEX_KEY))) == {"kept", "new"}
 
     @pytest.mark.asyncio
     async def test_empty_table_says_so(self, enabled_notify):
@@ -1515,13 +1516,13 @@ class TestCostPerPro:
         for _ in range(3):
             scan(tier="free", subject=subject)
         await drain()
-        row = json.loads(await cache.get(notify.USERS_INDEX_KEY))[who]
+        row = json.loads(await cache.get(opsindex.USERS_INDEX_KEY))[who]
         assert row["scans"] == 3 and "pro_scans" not in row and "pro_since" not in row
 
         for _ in range(2):
             scan(tier="pro", subject=subject)
         await drain()
-        row = json.loads(await cache.get(notify.USERS_INDEX_KEY))[who]
+        row = json.loads(await cache.get(opsindex.USERS_INDEX_KEY))[who]
         assert row["scans"] == 5
         assert row["pro_scans"] == 2
         assert row["pro_days"] == {opsstats.day(): 2}
@@ -1531,23 +1532,23 @@ class TestCostPerPro:
         # Lapsed: the span closes and free scans stop counting as Pro.
         scan(tier="free", subject=subject)
         await drain()
-        row = json.loads(await cache.get(notify.USERS_INDEX_KEY))[who]
+        row = json.loads(await cache.get(opsindex.USERS_INDEX_KEY))[who]
         assert row["pro_scans"] == 2 and row["pro_until"] >= since
 
         # Back: a new span opens.
-        await notify._index_user(who, tier="pro", scanned=True)
-        row = json.loads(await cache.get(notify.USERS_INDEX_KEY))[who]
+        await opsindex.index_user(who, tier="pro", scanned=True)
+        row = json.loads(await cache.get(opsindex.USERS_INDEX_KEY))[who]
         assert row["pro_scans"] == 3 and "pro_until" not in row
 
     @pytest.mark.asyncio
     async def test_pro_days_keep_only_the_window(self, enabled_notify, cache):
-        old = opsstats.day(datetime.now(timezone.utc) - timedelta(days=notify.PRO_DAYS_KEPT))
+        old = opsstats.day(datetime.now(timezone.utc) - timedelta(days=opsindex.PRO_DAYS_KEPT))
         now = int(time.time())
-        await cache.set(notify.USERS_INDEX_KEY, json.dumps({"dev": {
+        await cache.set(opsindex.USERS_INDEX_KEY, json.dumps({"dev": {
             "first": now, "last": now, "scans": 9, "tier": "pro", "pro_since": now - 90 * 86400,
             "pro_scans": 9, "pro_days": {old: 9}}}), 600)
-        await notify._index_user("dev", tier="pro", scanned=True)
-        row = json.loads(await cache.get(notify.USERS_INDEX_KEY))["dev"]
+        await opsindex.index_user("dev", tier="pro", scanned=True)
+        row = json.loads(await cache.get(opsindex.USERS_INDEX_KEY))["dev"]
         assert row["pro_days"] == {opsstats.day(): 1} and row["pro_scans"] == 10
 
     async def _seed(self, cache) -> None:
@@ -1559,7 +1560,7 @@ class TestCostPerPro:
         now = int(time.time())
         today = opsstats.day()
         three_ago = opsstats.day(datetime.now(timezone.utc) - timedelta(days=3))
-        await cache.set(notify.USERS_INDEX_KEY, json.dumps({
+        await cache.set(opsindex.USERS_INDEX_KEY, json.dumps({
             "devA00000000abcd": {"first": now - 40 * 86400, "last": now, "scans": 60,
                                  "tier": "pro", "pro_since": now - 15 * 86400, "pro_scans": 20,
                                  "pro_days": {today: 20}},
@@ -1571,7 +1572,7 @@ class TestCostPerPro:
                                  "pro_until": now - 5 * 86400, "pro_scans": 0},
             "devF00000000abcd": {"first": now, "last": now, "scans": 3, "tier": "free"},
         }), 600)
-        await cache.set(notify.SUBS_INDEX_KEY, json.dumps({
+        await cache.set(opsindex.SUBS_INDEX_KEY, json.dumps({
             "otid-a": {"product": "com.snapworth.yearly", "acq": "paid", "price": 39.99,
                        "currency": "EUR", "expires": now + 300 * 86400, "seen": now,
                        "devices": ["devA00000000abcd"], "who": "devA00000000abcd"},
@@ -2124,7 +2125,7 @@ class TestOneDevice:
     @pytest.mark.asyncio
     async def test_unknown_and_ambiguous_ids(self, enabled_notify, cache):
         assert "No device seen" in await notify.handle_command("/user zzzz")
-        await cache.set(notify.USERS_INDEX_KEY, json.dumps({
+        await cache.set(opsindex.USERS_INDEX_KEY, json.dumps({
             "abc111": {"first": 1, "last": 1, "tier": "free", "scans": 0},
             "abc222": {"first": 1, "last": 1, "tier": "free", "scans": 0}}), 600)
         assert "2 devices start with <code>abc</code>" in await notify.handle_command("/user abc")
@@ -4016,15 +4017,15 @@ class TestSubscriptionNotifications:
     @pytest.mark.asyncio
     async def test_a_converted_trial_stops_reading_as_churn(self, enabled_notify):
         # The state the bot was actually in: a trial whose expiry has passed.
-        await notify._index_subscription("device-a", _trial())
-        before = await notify._read_index(notify.SUBS_INDEX_KEY)
+        await opsindex.index_subscription("device-a", _trial())
+        before = await opsindex.read_index(opsindex.SUBS_INDEX_KEY)
         assert before["otid-trial"]["acq"] == "trial"
         assert before["otid-trial"]["expires"] < time.time(), "must start expired"
 
         await notify.subscription_event(
             FakeNotification(_paid(), paid_period=True))
 
-        after = await notify._read_index(notify.SUBS_INDEX_KEY)
+        after = await opsindex.read_index(opsindex.SUBS_INDEX_KEY)
         row = after["otid-trial"]
         assert row["acq"] == "paid", "Apple charged for it; the row must say so"
         assert row["expires"] > time.time(), "no longer reads as ended"
@@ -4032,7 +4033,7 @@ class TestSubscriptionNotifications:
 
     @pytest.mark.asyncio
     async def test_the_conversion_is_pushed_to_the_operator(self, enabled_notify):
-        await notify._index_subscription("device-a", _trial())
+        await opsindex.index_subscription("device-a", _trial())
         await notify.subscription_event(
             FakeNotification(_paid(), paid_period=True))
         await drain()
@@ -4041,10 +4042,10 @@ class TestSubscriptionNotifications:
 
     @pytest.mark.asyncio
     async def test_the_conversion_counts_as_paid_in_the_summary(self, enabled_notify):
-        await notify._index_subscription("device-a", _trial())
+        await opsindex.index_subscription("device-a", _trial())
         await notify.subscription_event(
             FakeNotification(_paid(), paid_period=True))
-        doc = await notify._read_index(notify.SUBS_INDEX_KEY)
+        doc = await opsindex.read_index(opsindex.SUBS_INDEX_KEY)
         active, paid, comped, expired, mrr = notify._subs_summary(doc)
         assert (active, paid, comped, expired) == (1, 1, 0, 0)
         assert mrr["USD"] == pytest.approx(39.99 / 12)
@@ -4054,7 +4055,7 @@ class TestSubscriptionNotifications:
         """The monthly subscriber who was absent from the index entirely."""
         await notify.subscription_event(
             FakeNotification(_paid("otid-monthly"), paid_period=True))
-        doc = await notify._read_index(notify.SUBS_INDEX_KEY)
+        doc = await opsindex.read_index(opsindex.SUBS_INDEX_KEY)
         assert doc["otid-monthly"]["acq"] == "paid"
         await drain()
         assert any("new paying subscriber" in t.lower() for t in enabled_notify.texts)
@@ -4086,7 +4087,7 @@ class TestSubscriptionNotifications:
         # The figure the whole trial experiment is judged on. Counted as a
         # conversion, not as a new subscription (#218): the trial is the
         # subscription, and whoever saw it start counted it then.
-        await notify._index_subscription("device-a", _trial())
+        await opsindex.index_subscription("device-a", _trial())
         await notify.subscription_event(
             FakeNotification(_paid(), paid_period=True))
         assert await self._new_subs() == 0
@@ -4123,22 +4124,22 @@ class TestSubscriptionNotifications:
     async def test_apple_never_erases_the_device_we_already_knew(self, enabled_notify):
         """A notification has no subject. Overwriting `who` with nothing would
         drop the only link between a payment and a person."""
-        await notify._index_subscription("device-a", _trial())
-        who = (await notify._read_index(notify.SUBS_INDEX_KEY))["otid-trial"]["who"]
+        await opsindex.index_subscription("device-a", _trial())
+        who = (await opsindex.read_index(opsindex.SUBS_INDEX_KEY))["otid-trial"]["who"]
         assert who
 
         await notify.subscription_event(
             FakeNotification(_paid(), paid_period=True))
 
-        assert (await notify._read_index(
-            notify.SUBS_INDEX_KEY))["otid-trial"]["who"] == who
+        assert (await opsindex.read_index(
+            opsindex.SUBS_INDEX_KEY))["otid-trial"]["who"] == who
 
     @pytest.mark.asyncio
     async def test_an_ordinary_renewal_is_not_announced_as_a_conversion(
             self, enabled_notify):
         """The tenth yearly renewal looks identical to the first paid period.
         Only the row it replaces separates them."""
-        await notify._index_subscription("device-a", _paid())
+        await opsindex.index_subscription("device-a", _paid())
         await notify.subscription_event(
             FakeNotification(_paid(), paid_period=True))
         await drain()
@@ -4146,7 +4147,7 @@ class TestSubscriptionNotifications:
 
     @pytest.mark.asyncio
     async def test_a_refund_stops_counting_as_active_revenue(self, enabled_notify):
-        await notify._index_subscription("device-a", _paid())
+        await opsindex.index_subscription("device-a", _paid())
         refunded = Entitlement("pro", "com.snapworth.yearly",
                                int(time.time()) + 365 * 86_400, "otid-trial",
                                "Production", price=39.99, currency="USD",
@@ -4154,7 +4155,7 @@ class TestSubscriptionNotifications:
         await notify.subscription_event(
             FakeNotification(refunded, notification_type="REFUND", refund=True))
 
-        doc = await notify._read_index(notify.SUBS_INDEX_KEY)
+        doc = await opsindex.read_index(opsindex.SUBS_INDEX_KEY)
         active, paid, comped, expired, mrr = notify._subs_summary(doc)
         assert (active, paid, expired) == (0, 0, 1), \
             "a refund keeps its expiry date, so expiry alone would miss it"
@@ -4164,13 +4165,13 @@ class TestSubscriptionNotifications:
 
     @pytest.mark.asyncio
     async def test_auto_renew_off_warns_without_declaring_a_loss(self, enabled_notify):
-        await notify._index_subscription("device-a", _paid())
+        await opsindex.index_subscription("device-a", _paid())
         await notify.subscription_event(FakeNotification(
             _paid(), notification_type="DID_CHANGE_RENEWAL_STATUS",
             subtype="AUTO_RENEW_DISABLED", cancellation=True))
         await drain()
         assert any("auto-renew" in t.lower() for t in enabled_notify.texts)
-        doc = await notify._read_index(notify.SUBS_INDEX_KEY)
+        doc = await opsindex.read_index(opsindex.SUBS_INDEX_KEY)
         active, paid, _, expired, _ = notify._subs_summary(doc)
         assert (active, paid, expired) == (1, 1, 0), "still paid until it lapses"
 
@@ -4179,7 +4180,7 @@ class TestSubscriptionNotifications:
         await notify.subscription_event(
             FakeNotification(_paid("otid-x"), notification_type="CONSUMPTION_REQUEST",
                              indexed=False))
-        assert await notify._read_index(notify.SUBS_INDEX_KEY) == {}
+        assert await opsindex.read_index(opsindex.SUBS_INDEX_KEY) == {}
 
     @pytest.mark.asyncio
     async def test_a_failure_never_propagates_to_apple(self, enabled_notify):
@@ -4793,7 +4794,7 @@ class TestAutoRenewInTheDigest:
         # every cold launch.
         await notify.entitlement_recorded(SUBJECT, sub("keep-1", expires_in_days=200))
 
-        doc = json.loads(await cache.get(notify.SUBS_INDEX_KEY))
+        doc = json.loads(await cache.get(opsindex.SUBS_INDEX_KEY))
         assert doc["keep-1"]["auto_renew"] is False
 
     @pytest.mark.asyncio
@@ -4806,7 +4807,7 @@ class TestAutoRenewInTheDigest:
             ent, notification_type="DID_CHANGE_RENEWAL_STATUS",
             subtype="AUTO_RENEW_ENABLED", uuid="uuid-2", auto_renew=True))
 
-        doc = json.loads(await cache.get(notify.SUBS_INDEX_KEY))
+        doc = json.loads(await cache.get(opsindex.SUBS_INDEX_KEY))
         assert doc["back-1"]["auto_renew"] is True
 
 
@@ -4955,7 +4956,7 @@ class TestSubCommandIdResolution:
             self, enabled_notify, cache, monkeypatch):
         """Six characters of a sixteen-character hash can collide, and two
         devices must never be silently resolved to one."""
-        await cache.set(notify.SUBS_INDEX_KEY, json.dumps({
+        await cache.set(opsindex.SUBS_INDEX_KEY, json.dumps({
             "otid-a": {"who": "abc111", "product": "com.snapworth.monthly",
                        "env": "Production", "seen": int(time.time())},
             "otid-b": {"who": "abc222", "product": "com.snapworth.monthly",
@@ -4973,7 +4974,7 @@ class TestSubCommandIdResolution:
         """A resubscribe leaves two rows under one pseudonym. Apple returns
         every subscription for the customer behind whichever id we send, so
         either one answers the question."""
-        await cache.set(notify.SUBS_INDEX_KEY, json.dumps({
+        await cache.set(opsindex.SUBS_INDEX_KEY, json.dumps({
             "otid-old": {"who": "abc111", "product": "com.snapworth.monthly",
                          "env": "Production", "seen": int(time.time())},
             "otid-new": {"who": "abc111", "product": "com.snapworth.yearly",
@@ -5006,7 +5007,7 @@ class TestSubCommandIdResolution:
     async def test_a_row_written_with_six_characters_answers_all_sixteen(
             self, enabled_notify, cache, monkeypatch):
         """Rows indexed before the full pseudonym was stored hold six."""
-        await cache.set(notify.SUBS_INDEX_KEY, json.dumps({
+        await cache.set(opsindex.SUBS_INDEX_KEY, json.dumps({
             "otid-legacy": {"who": "3f2a9b", "product": "com.snapworth.monthly",
                             "env": "Production", "seen": int(time.time())}}), 600)
         spy = _patch_lookup(monkeypatch, [_FakeStatus(sub("otid-legacy"))])
@@ -5022,7 +5023,7 @@ class TestSubCommandIdResolution:
         of a transaction id. It went to Apple as one, came back "a typo", and
         the index that holds it was never asked."""
         digits = "4815162342108000"
-        await cache.set(notify.SUBS_INDEX_KEY, json.dumps({
+        await cache.set(opsindex.SUBS_INDEX_KEY, json.dumps({
             "otid-digits": {"who": digits, "devices": [digits],
                             "product": "com.snapworth.monthly",
                             "env": "Production", "seen": int(time.time())}}), 600)
@@ -5039,7 +5040,7 @@ class TestSubCommandIdResolution:
         """Only a whole device id wins. Real transaction ids nearly all begin
         200000, so an older row holding six characters of that shape must not
         catch every unindexed one pasted here."""
-        await cache.set(notify.SUBS_INDEX_KEY, json.dumps({
+        await cache.set(opsindex.SUBS_INDEX_KEY, json.dumps({
             "2000000000000042": {"who": "200000", "product": "com.snapworth.monthly",
                                  "env": "Production", "seen": int(time.time())}}), 600)
         spy = _patch_lookup(monkeypatch, [_FakeStatus(sub("2000000000000099"))])
@@ -5061,7 +5062,7 @@ class TestSubCommandIdResolution:
         first = notify.auditlog.pseudonymise(SUBJECT)
         second = notify.auditlog.pseudonymise(other)
 
-        row = (await notify._read_index(notify.SUBS_INDEX_KEY))["otid-family"]
+        row = (await opsindex.read_index(opsindex.SUBS_INDEX_KEY))["otid-family"]
         assert row["devices"] == [second, first], "most recent last, no repeats"
         spy = _patch_lookup(monkeypatch, [_FakeStatus(sub("otid-family"))])
         await notify.handle_command(f"/sub {second}")
@@ -5070,11 +5071,11 @@ class TestSubCommandIdResolution:
     @pytest.mark.asyncio
     async def test_a_legacy_six_is_folded_into_the_full_id(self, enabled_notify, cache):
         who = notify.auditlog.pseudonymise(SUBJECT)
-        await cache.set(notify.SUBS_INDEX_KEY, json.dumps({
+        await cache.set(opsindex.SUBS_INDEX_KEY, json.dumps({
             "otid-old": {"who": who[:6], "product": "com.snapworth.monthly",
                          "env": "Production", "seen": 1}}), 600)
         await notify.entitlement_recorded(SUBJECT, sub("otid-old"))
-        row = (await notify._read_index(notify.SUBS_INDEX_KEY))["otid-old"]
+        row = (await opsindex.read_index(opsindex.SUBS_INDEX_KEY))["otid-old"]
         assert row["who"] == who and row["devices"] == [who]
 
     @pytest.mark.asyncio
@@ -5190,7 +5191,7 @@ class TestSubCommandOutput:
 
         text = await notify.handle_command("/sub 2000000000000005")
 
-        doc = json.loads(await cache.get(notify.SUBS_INDEX_KEY))
+        doc = json.loads(await cache.get(opsindex.SUBS_INDEX_KEY))
         assert doc["otid-5"]["auto_renew"] is False
         assert "Index updated" in text
 
@@ -5210,7 +5211,7 @@ class TestSubCommandOutput:
 
         assert "Sandbox" in text
         assert "Index updated" not in text
-        assert await cache.get(notify.SUBS_INDEX_KEY) is None
+        assert await cache.get(opsindex.SUBS_INDEX_KEY) is None
         # And it says why, and what the app sees: Apple's "active" beside a
         # server that treats this purchase as free is otherwise a mystery.
         assert "This server refuses Sandbox purchases" in text
@@ -5372,13 +5373,13 @@ class TestAFailedReadDoesNotWipeTheDocument:
     async def test_the_subscription_index_keeps_its_rows(self, flaky_notify):
         redis = flaky_notify
         for n in range(3):
-            await notify._index_subscription(None, pro_entitlement(f"otid-{n}"), True)
+            await opsindex.index_subscription(None, pro_entitlement(f"otid-{n}"), True)
 
         redis.failing = True
-        await notify._index_subscription(None, pro_entitlement("otid-new"))
+        await opsindex.index_subscription(None, pro_entitlement("otid-new"))
         redis.failing = False
 
-        doc = json.loads(await redis.get(notify.SUBS_INDEX_KEY))
+        doc = json.loads(await redis.get(opsindex.SUBS_INDEX_KEY))
         assert set(doc) == {"otid-0", "otid-1", "otid-2"}, (
             "one failed GET replaced the index with a single row")
         assert all(row.get("auto_renew") is True for row in doc.values())
@@ -5387,13 +5388,13 @@ class TestAFailedReadDoesNotWipeTheDocument:
     async def test_the_device_index_keeps_its_rows(self, flaky_notify):
         redis = flaky_notify
         for who in ("dev-a", "dev-b"):
-            await notify._index_user(who, tier="free", scanned=True)
+            await opsindex.index_user(who, tier="free", scanned=True)
 
         redis.failing = True
-        await notify._index_user("dev-c", tier="free")
+        await opsindex.index_user("dev-c", tier="free")
         redis.failing = False
 
-        doc = json.loads(await redis.get(notify.USERS_INDEX_KEY))
+        doc = json.loads(await redis.get(opsindex.USERS_INDEX_KEY))
         assert set(doc) == {"dev-a", "dev-b"}
 
     @pytest.mark.asyncio
@@ -5489,7 +5490,7 @@ class TestAFailedReadDoesNotWipeTheDocument:
         """With no previous row to compare against, a paid period is neither
         a conversion nor a new subscriber — and must not be counted as one."""
         redis = flaky_notify
-        await notify._index_subscription(None, _paid("otid-renewing"), True)
+        await opsindex.index_subscription(None, _paid("otid-renewing"), True)
 
         redis.failing = True
         await notify.subscription_event(FakeNotification(
@@ -5508,7 +5509,7 @@ class TestAFailedReadDoesNotWipeTheDocument:
         already seen as a trial. So a neutral alert goes out, and it is not
         counted, since it may equally be a renewal."""
         redis = flaky_notify
-        await notify._index_subscription("device-a", _trial("otid-converting"))
+        await opsindex.index_subscription("device-a", _trial("otid-converting"))
         sent = len(recorder.texts)
 
         redis.failing = True
@@ -5589,7 +5590,7 @@ class TestAReversedRefund:
             self, enabled_notify, monkeypatch):
         now = int(time.time())
         term = sub("otid-live", expires_in_days=30)
-        await notify._index_subscription(None, Entitlement(
+        await opsindex.index_subscription(None, Entitlement(
             "pro", term.product_id, term.expires_at, "otid-live", "Production",
             revoked_at=now))
         _patch_lookup(monkeypatch, [_FakeStatus(term, state="active")])
