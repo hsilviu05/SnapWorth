@@ -3786,6 +3786,10 @@ async def _spend_line(days: list[str], scans: int) -> str:
 #: `/listing` answers 402 to anyone else, and a tag photo is only read for Pro.
 _PRO_LABELS = ("listing", "scan_with_tag")
 
+# A user's scan, the call a thinking budget is for (#217). Retries and
+# reformats are left out, so "thinking per scan call" means what it says.
+_SCAN_LABELS = ("scan", "scan_with_tag")
+
 
 def _usage_tier(label: str, tier: str | None) -> str | None:
     """Which tier a model call is charged to, or None for neither.
@@ -3821,6 +3825,12 @@ async def _note_usage(label: str, usage: dict, tier: str | None = None) -> None:
             await _cache.incr(_stat_key(day, f"tok_in_{label}"), STATS_TTL, tok_in)
         if tok_out:
             await _cache.incr(_stat_key(day, f"tok_out_{label}"), STATS_TTL, tok_out)
+        # Thinking on scans, apart from the answer (#217). `tok_out` bills the
+        # two together, which is right for spend and hides the one number a
+        # thinking budget moves.
+        thoughts = int(usage.get("thoughts_tokens") or 0)
+        if label in _SCAN_LABELS and thoughts:
+            await _cache.incr(_stat_key(day, "scan_thoughts"), STATS_TTL, thoughts)
         # Per-tier tokens, so /costs can say what a subscriber costs. Labels
         # name the operation, and a `scan` is the same operation for both.
         charged = _usage_tier(label, tier)
@@ -4005,6 +4015,23 @@ async def _free_line(month: list[str]) -> str:
             f"(n={device_days} device-days with a scan)")
 
 
+async def _thinking_line() -> str:
+    """Thinking tokens per scan call, today and over 7 and 30 days, and the
+    budget this process runs with (#217): the before and after a
+    `GEMINI_THINKING_BUDGET` change is read against."""
+    import aiconfig    # the live value, as this process parsed it at start
+    budget = aiconfig.THINKING_BUDGET
+    parts = []
+    for label, n in (("today", 1), ("7d", 7), ("30d", 30)):
+        days = _days_ending_today(n)
+        calls = sum([await _sum_stat(days, f"calls_{name}") for name in _SCAN_LABELS])
+        thoughts = await _sum_stat(days, "scan_thoughts")
+        parts.append(f"{label} {thoughts // calls:,}" if calls else f"{label} —")
+    return ("🧠 Thinking per scan call: " + " · ".join(parts)
+            + f" · budget {'unset' if budget is None else budget}"
+            " (GEMINI_THINKING_BUDGET)")
+
+
 async def _costs_text() -> str:
     lines = ["💸 <b>Gemini spend</b>"]
     for label, n in (("Today", 1), ("Last 7 days", 7), ("Last 30 days", 30)):
@@ -4026,6 +4053,8 @@ async def _costs_text() -> str:
         if mine > 0:
             parts.append(f"{_usd(mine)} mine")
         lines.append(" · ".join(parts))
+
+    lines.append(await _thinking_line())
 
     month = _days_ending_today(30)
     lines.extend(await _pro_block(month))

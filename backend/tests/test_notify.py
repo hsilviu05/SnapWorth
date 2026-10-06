@@ -1314,6 +1314,33 @@ class TestSpend:
         assert "vs MRR ≈ n/a" in text
 
     @pytest.mark.asyncio
+    async def test_costs_shows_thinking_per_scan_call_and_the_budget(
+            self, enabled_notify, cache, monkeypatch):
+        """#217: the number a thinking budget moves, apart from the answer."""
+        import aiconfig
+        monkeypatch.setattr(aiconfig, "THINKING_BUDGET", None)
+        notify.model_usage("scan", {"prompt_tokens": 1_000, "output_tokens": 800,
+                                    "thoughts_tokens": 1_500})
+        notify.model_usage("scan_with_tag", {"prompt_tokens": 1_000, "output_tokens": 800,
+                                             "thoughts_tokens": 500})
+        # Not a user scan: never in the thinking figure.
+        notify.model_usage("listing", {"output_tokens": 300, "thoughts_tokens": 9_000})
+        notify.model_usage("bot_scan", {"output_tokens": 300, "thoughts_tokens": 9_000})
+        await drain()
+        assert await cache.get(notify._stat_key(notify._day(), "scan_thoughts")) == "2000"
+        text = await notify.handle_command("/costs")
+        assert ("🧠 Thinking per scan call: today 1,000 · 7d 1,000 · 30d 1,000 · "
+                "budget unset (GEMINI_THINKING_BUDGET)") in text
+
+        monkeypatch.setattr(aiconfig, "THINKING_BUDGET", 512)
+        assert "budget 512 (GEMINI_THINKING_BUDGET)" in await notify.handle_command("/costs")
+
+    @pytest.mark.asyncio
+    async def test_costs_says_dash_with_no_scans(self, enabled_notify):
+        text = await notify.handle_command("/costs")
+        assert "🧠 Thinking per scan call: today — · 7d — · 30d —" in text
+
+    @pytest.mark.asyncio
     async def test_status_and_digest_carry_spend_and_latency(self, enabled_notify):
         notify.model_usage("scan", {"prompt_tokens": 100_000, "output_tokens": 20_000})
         scan(elapsed_ms=4_000)
