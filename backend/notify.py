@@ -87,8 +87,10 @@ import auditlog
 import background
 import categories
 import ideas
+import opsformat
 import opsindex
 import opsstats
+import opssupport
 import trends
 from devicecheck import PROBE_NOT_SENT
 from opsstats import STATS_TTL
@@ -342,9 +344,6 @@ COMMANDS: tuple[tuple[str, str], ...] = (
 # Rows a /subs or /users table shows.
 TABLE_ROWS = 20
 
-# Inline-keyboard rows: (label, callback data). The data is fed straight back
-# through `handle_command` as "/<data>", so buttons and commands share one path.
-Buttons = list[list[tuple[str, str]]]
 
 
 class TelegramNotifier:
@@ -373,7 +372,7 @@ class TelegramNotifier:
             self._client = httpx.AsyncClient(timeout=SEND_TIMEOUT_SECONDS)
         return self._client
 
-    async def send(self, text: str, buttons: Buttons | None = None, *,
+    async def send(self, text: str, buttons: opsformat.Buttons | None = None, *,
                    ask: str | None = None) -> bool:
         """Deliver one message. Returns success; never raises.
 
@@ -757,6 +756,7 @@ def configure(cache, notifier: TelegramNotifier | None = None,
     _cache = cache
     opsstats.bind(cache)
     opsindex.bind(cache)
+    opssupport.bind(cache)
     trends.bind(cache)
     _status_provider = status_provider
     _social = social
@@ -814,60 +814,6 @@ async def aclose() -> None:
 
 
 # ── Daily counters ───────────────────────────────────────────────────────────
-
-def _date(epoch: int) -> str:
-    return datetime.fromtimestamp(epoch, timezone.utc).strftime("%d %b %Y")
-
-
-def _short_date(epoch: int) -> str:
-    """`12Sep26` — seven characters, and it keeps the year.
-
-    The tables used `_date(...)[:6]`. `%d` is zero-padded and `%b` is three
-    letters, so that slice is always exactly `DD Mon` and always discards the
-    year — there is no input for which it keeps any part of it. `renews`
-    survived by luck, because a live subscription renews within twelve months,
-    but `since` is `original_purchase_at` with no lower bound and `seen` is
-    bounded only by the 400-day index TTL. Both could be more than a year old
-    and printed identically to today, which is how a 2027 renewal read as
-    "23 Jul".
-    """
-    return datetime.fromtimestamp(epoch, timezone.utc).strftime("%d%b%y")
-
-
-def _renewal_phrase(expires_at: int, auto_renew: bool | None) -> str:
-    """The expiry line: `renews or expires 12 Mar 2027`, or just `expires`.
-
-    The hedge is not sloppiness — for most of this bot's life it was the honest
-    answer. A signed transaction carries `expiresDate` and nothing about
-    whether the period after it is coming, so the date genuinely meant one of
-    two things and the line said so.
-
-    Now that `signedRenewalInfo` is read (`appstorenotify._auto_renew_status`),
-    the hedge is only correct where the fact is still unknown. Kept for exactly
-    that case: rows written before this existed, and every `/auth/entitlement`
-    sync, which sees a transaction and no renewal info. Only a definite False
-    narrows the wording — an unknown auto-renew must not be reported as a
-    cancellation, which would turn "we did not ask" into "they are leaving".
-    """
-    if auto_renew is False:
-        return f"expires {_date(expires_at)}"
-    return f"renews or expires {_date(expires_at)}"
-
-
-def _sub_is_alive(entry: dict, now: float) -> bool:
-    """Whether a subscription row is currently entitled.
-
-    One function, because there were three copies and one of them had drifted:
-    `/user` tested expiry alone, so a refunded subscription — which keeps its
-    expiry date, the period having been paid for and then unpaid — read as
-    "renews 12 Mar 2027" there while `/subs` showed the same row as `refund`
-    and `/subs`'s summary excluded it from active revenue.
-    """
-    if entry.get("revoked") is not None:
-        return False
-    expires = entry.get("expires")
-    return expires is None or float(expires) > now
-
 
 def count_limit_hit() -> None:
     """Tally one free user refused because the day's allowance was spent.
@@ -1174,7 +1120,7 @@ async def subscription_event(note, *, reinstated=None) -> None:
         detail = f"{product} ({environment})"
         price = getattr(ent, "price", None)
         if isinstance(price, (int, float)) and price > 0:
-            detail += f" · {_money(price, getattr(ent, 'currency', None))}"
+            detail += f" · {opsformat.money(price, getattr(ent, 'currency', None))}"
 
         lines: list[str] | None = None
 
@@ -1232,7 +1178,7 @@ async def subscription_event(note, *, reinstated=None) -> None:
         elif note.is_cancellation:
             # Not a loss yet — they keep it until the period ends. It is the
             # earliest warning of one that Apple gives.
-            when = f" · runs until {_date(ent.expires_at)}" if ent.expires_at else ""
+            when = f" · runs until {opsformat.date(ent.expires_at)}" if ent.expires_at else ""
             lines = ["⚠️ <b>Auto-renew turned off</b>", f"{detail}{when}"]
         elif note.is_billing_failure:
             lines = ["💳 <b>Renewal payment failed</b>",
@@ -1248,7 +1194,7 @@ async def subscription_event(note, *, reinstated=None) -> None:
             # turned off" must not be followed by a line saying it renews.
             auto_renew = (note.auto_renew if note.auto_renew is not None
                           else before.get("auto_renew"))
-            lines.append(_renewal_phrase(ent.expires_at, auto_renew))
+            lines.append(opsformat.renewal_phrase(ent.expires_at, auto_renew))
         if not await _notifier.send("\n".join(lines), _SUBS_BUTTONS):
             log.warning("subscription notification alert failed to send")
     except Exception:
@@ -1430,9 +1376,9 @@ async def entitlement_recorded(subject: str, ent, *,
             environment = html.escape(ent.environment)
             lines = [headline, f"{product} ({environment}) · {acq}"]
             if purchased is not None:
-                lines.append(f"first purchased {_date(purchased)}")
+                lines.append(f"first purchased {opsformat.date(purchased)}")
             if ent.expires_at:
-                lines.append(_renewal_phrase(
+                lines.append(opsformat.renewal_phrase(
                     ent.expires_at, before.get("auto_renew")))
             # The guard above was consumed *before* this send and its result
             # was discarded, so a Telegram failure burned a 400-day marker
@@ -1664,7 +1610,7 @@ def deployed(commit: str, *, cache_backend: str, auth_enforcing: bool,
 
 # ── Operational alerts ───────────────────────────────────────────────────────
 
-def _alert(key: str, text: str, buttons: Buttons | None = None) -> None:
+def _alert(key: str, text: str, buttons: opsformat.Buttons | None = None) -> None:
     if _notifier is None:
         return
     now = time.monotonic()
@@ -1673,14 +1619,14 @@ def _alert(key: str, text: str, buttons: Buttons | None = None) -> None:
         return
     _alert_last_sent[key] = now
     _alert_awaiting_recovery.add(key)
-    # Buttons are passed in rather than built here: these two are sync and hand
+    # opsformat.Buttons are passed in rather than built here: these two are sync and hand
     # the send to `_spawn`, so anything awaited would have to move inside the
     # coroutine. Every keyboard an alert wants is static, so there is nothing
     # to await.
     _spawn(_notifier.send(text, buttons))
 
 
-def _recovered(key: str, text: str, buttons: Buttons | None = None) -> None:
+def _recovered(key: str, text: str, buttons: opsformat.Buttons | None = None) -> None:
     """Send the all-clear — only if the matching alert actually went out."""
     if _notifier is None or key not in _alert_awaiting_recovery:
         return
@@ -2068,18 +2014,18 @@ def _device_button(pseudonym: str) -> tuple[str, str]:
     return (f"\U0001F464 {short}", f"user {short}")
 
 
-_HEALTH_BUTTONS: Buttons = [[("\U0001FA7A Checkup", "checkup"),
+_HEALTH_BUTTONS: opsformat.Buttons = [[("\U0001FA7A Checkup", "checkup"),
                              ("\U0001F4B8 Costs", "costs")]]
-_SUBS_BUTTONS: Buttons = [[("\U0001F4B3 Subs", "subs"),
+_SUBS_BUTTONS: opsformat.Buttons = [[("\U0001F4B3 Subs", "subs"),
                            ("\U0001F465 Users", "users")]]
-_COSTS_BUTTONS: Buttons = [[("\U0001F4B8 Costs", "costs")]]
-_DEPLOY_BUTTONS: Buttons = [[("\U0001F4E1 Status", "status"),
+_COSTS_BUTTONS: opsformat.Buttons = [[("\U0001F4B8 Costs", "costs")]]
+_DEPLOY_BUTTONS: opsformat.Buttons = [[("\U0001F4E1 Status", "status"),
                              ("\U0001FA7A Checkup", "checkup")]]
-_FEED_BUTTONS: Buttons = [[("\U0001F3C6 Finds", "finds"),
+_FEED_BUTTONS: opsformat.Buttons = [[("\U0001F3C6 Finds", "finds"),
                            ("\U0001F515 Feed off", "feed off")]]
 
 
-async def _buttons() -> Buttons:
+async def _buttons() -> opsformat.Buttons:
     feed = "🔕 Feed off" if await _feed_enabled() else "🔔 Feed on"
     return [[("🔄 Refresh", "status"), ("📊 Digest", "digest"), ("📈 Week", "week")],
             [("💳 Subs", "subs"), ("👥 Users", "users"), ("💸 Costs", "costs")],
@@ -2096,7 +2042,7 @@ async def handle_command(text: str) -> str | None:
     return reply[0] if reply else None
 
 
-async def handle_command_with_buttons(text: str) -> tuple[str, Buttons] | None:
+async def handle_command_with_buttons(text: str) -> tuple[str, opsformat.Buttons] | None:
     text = (text or "").strip()
     if not text.startswith("/"):
         return None
@@ -2117,7 +2063,8 @@ async def handle_command_with_buttons(text: str) -> tuple[str, Buttons] | None:
     if command == "/subs":
         return await _subs_text(), await _buttons()
     if command == "/sub":
-        return await _sub_command(rest)
+        text, offers, menu = await opssupport.sub_command(rest)
+        return text, offers + (await _buttons() if menu else [])
     if command == "/users":
         return await _users_text(), await _buttons()
     if command == "/costs":
@@ -2157,7 +2104,7 @@ async def handle_command_with_buttons(text: str) -> tuple[str, Buttons] | None:
     if command == "/trend":
         return await _trend_text(rest), await _buttons()
     if command == "/user":
-        return await _user_text(rest), await _buttons()
+        return await opssupport.user_text(rest), await _buttons()
     if command == "/checkup":
         return await _checkup_text(), await _buttons()
     if command == "/history":
@@ -2518,7 +2465,7 @@ _LEVER_UNWIRED = ("🎚 Nothing changed: the bot cannot ask the quota in this pr
                   "what an allowance would grant, and will not arm one blind.")
 
 
-async def _lever_command(argument: str, rest: str) -> tuple[str, Buttons]:
+async def _lever_command(argument: str, rest: str) -> tuple[str, opsformat.Buttons]:
     """`/lever`, `/lever arm [n]`, `/lever disarm`, and their confirmations;
     `/lever plan …` is the paywall's default plan (`_plan_command`).
 
@@ -2673,7 +2620,7 @@ def _plan_label(value: str | None) -> str:
     return f"{value}" if value else "yearly (app default)"
 
 
-async def _plan_command(parts: list[str]) -> tuple[str, Buttons]:
+async def _plan_command(parts: list[str]) -> tuple[str, opsformat.Buttons]:
     """`/lever plan`, `/lever plan yearly|monthly|default [yes]`.
 
     Two taps, like the free-scan lever. It reaches each device at its next
@@ -2684,7 +2631,7 @@ async def _plan_command(parts: list[str]) -> tuple[str, Buttons]:
     doc = await _levers()
     current = _plan_value(doc)
     history = [c for c in (doc.get("plan_changes") or []) if isinstance(c, list) and len(c) == 3]
-    buttons: Buttons = [[("📅 Yearly", "lever plan yearly"),
+    buttons: opsformat.Buttons = [[("📅 Yearly", "lever plan yearly"),
                          ("🗓 Monthly", "lever plan monthly"),
                          ("↩️ App default", "lever plan default")]]
 
@@ -2717,7 +2664,7 @@ async def _plan_command(parts: list[str]) -> tuple[str, Buttons]:
             "from each 1.5.2+ device's next token.", buttons)
 
 
-def _lever_buttons(current: int | None) -> Buttons:
+def _lever_buttons(current: int | None) -> opsformat.Buttons:
     row = [("🧪 Arm", "lever arm")]
     if current is not None:
         row.append(("↩️ Use env", "lever default"))
@@ -2766,7 +2713,7 @@ async def minimum_build() -> int | None:
     return value if value is not None and 0 < value <= MIN_BUILD_MAX else None
 
 
-async def _minbuild_command(argument: str, rest: str) -> tuple[str, Buttons]:
+async def _minbuild_command(argument: str, rest: str) -> tuple[str, opsformat.Buttons]:
     """`/minbuild`, `/minbuild <n>`, `/minbuild off`, and their confirmations.
 
     Two taps, like `/lever`. The confirmation quotes what refused users are
@@ -3014,15 +2961,6 @@ async def send_weekly(now: datetime | None = None) -> bool:
 
 # ── Operator tables: subscriptions and devices ───────────────────────────────
 
-def _device_argument(argument: str | None) -> str:
-    """What the operator typed, as an id: trimmed, lower-cased, and without
-    the "Device" the in-app support form writes in front of it."""
-    parts = (argument or "").strip().lower().split()
-    if len(parts) == 2 and parts[0] == "device":
-        parts = parts[1:]
-    return " ".join(parts)
-
-
 #: `opsindex.acquisition`'s words, shortened to fit a table column.
 #:
 #: The `/subs` `via` field is eleven wide and two of the five labels are
@@ -3065,15 +3003,6 @@ def _renew_mark(entry: dict) -> str:
         entry.get("auto_renew"), bool) else None]
 
 
-def _plan(product: str | None) -> str:
-    return (product or "?").replace("com.snapworth.", "")
-
-
-def _money(amount: float, currency: str | None) -> str:
-    symbol = {"USD": "$", "EUR": "€", "GBP": "£"}.get(currency or "")
-    return f"{symbol}{amount:,.2f}" if symbol else f"{amount:,.2f} {currency or ''}".strip()
-
-
 def _subs_summary(doc: dict) -> tuple[int, int, int, int, dict[str, float]]:
     """(active, paid, comped, expired, mrr by currency)."""
     now = time.time()
@@ -3083,7 +3012,7 @@ def _subs_summary(doc: dict) -> tuple[int, int, int, int, dict[str, float]]:
         # A refund keeps its expiry date — the period was paid for and then
         # unpaid — so expiry alone would leave a refunded subscription counted
         # as active revenue until it happened to lapse. See `_sub_is_alive`.
-        alive = _sub_is_alive(e, now)
+        alive = opsformat.sub_is_alive(e, now)
         if not alive:
             expired += 1
             continue
@@ -3092,7 +3021,7 @@ def _subs_summary(doc: dict) -> tuple[int, int, int, int, dict[str, float]]:
             paid += 1
             price, cur = e.get("price"), e.get("currency") or "?"
             if isinstance(price, (int, float)) and price > 0:
-                monthly = price / 12 if "yearly" in _plan(e.get("product")) else price
+                monthly = price / 12 if "yearly" in opsformat.plan(e.get("product")) else price
                 mrr[cur] = mrr.get(cur, 0.0) + monthly
         else:
             comped += 1
@@ -3110,7 +3039,7 @@ async def _subs_text() -> str:
     lines = [f"💳 <b>Subscriptions</b> — {active} active · {paid} paid · "
              f"{comped} comped/trial · {expired} expired"]
     if mrr:
-        lines.append("MRR ≈ " + " + ".join(_money(v, c) for c, v in sorted(mrr.items()))
+        lines.append("MRR ≈ " + " + ".join(opsformat.money(v, c) for c, v in sorted(mrr.items()))
                      + " (paid plans, from transaction prices)")
     else:
         lines.append("MRR ≈ n/a (no priced paid plan seen yet)")
@@ -3120,7 +3049,7 @@ async def _subs_text() -> str:
 
     now = time.time()
     def _alive(e: dict) -> bool:
-        return _sub_is_alive(e, now)
+        return opsformat.sub_is_alive(e, now)
 
     rows = sorted(doc.values(), key=lambda e: (not _alive(e), float(e.get("expires") or 0)))
     # Literal spaces between every column, not field widths alone — the same
@@ -3130,16 +3059,16 @@ async def _subs_text() -> str:
               f"{'renews':<7} {'↻':<2} {'seen':<7} {'id':<6}")
     body = [header]
     for e in rows[:TABLE_ROWS]:
-        renews = _short_date(int(e["expires"])) if e.get("expires") else "never"
+        renews = opsformat.short_date(int(e["expires"])) if e.get("expires") else "never"
         if e.get("revoked") is not None:
             renews = "refund"
         elif not _alive(e):
             renews = "ended"
         body.append(
-            f"{_plan(e.get('product')):<8} {_via(e.get('acq')):<5} "
-            f"{(_short_date(int(e['first'])) if e.get('first') else '?'):<7} "
+            f"{opsformat.plan(e.get('product')):<8} {_via(e.get('acq')):<5} "
+            f"{(opsformat.short_date(int(e['first'])) if e.get('first') else '?'):<7} "
             f"{renews:<7} {_renew_mark(e):<2} "
-            f"{(_short_date(int(e['seen'])) if e.get('seen') else '?'):<7} "
+            f"{(opsformat.short_date(int(e['seen'])) if e.get('seen') else '?'):<7} "
             f"{str(e.get('who') or '')[:6]:<6}")
     if len(rows) > TABLE_ROWS:
         body.append(f"… and {len(rows) - TABLE_ROWS} more")
@@ -3153,7 +3082,7 @@ async def _subs_text() -> str:
         for e in paid_due:
             if isinstance(e.get("price"), (int, float)):
                 value[e.get("currency") or "?"] = value.get(e.get("currency") or "?", 0.0) + e["price"]
-        worth = (" · " + " + ".join(_money(v, c) for c, v in sorted(value.items()))
+        worth = (" · " + " + ".join(opsformat.money(v, c) for c, v in sorted(value.items()))
                  if value else "")
         lines.append(f"Due in 7 days: {len(due)} renew or end ({len(paid_due)} paid{worth})")
     lines.append("↻ renews · ✕ auto-renew off · ? not reported yet")
@@ -3182,8 +3111,8 @@ async def _users_text() -> str:
         body.append(
             f"{who[:6]:<7} {('Pro' if e.get('tier') == 'pro' else 'free'):<5} "
             f"{int(e.get('scans', 0)):<6} "
-            f"{(_short_date(int(e['first'])) if e.get('first') else '?'):<7} "
-            f"{(_short_date(int(e['last'])) if e.get('last') else '?'):<7}")
+            f"{(opsformat.short_date(int(e['first'])) if e.get('first') else '?'):<7} "
+            f"{(opsformat.short_date(int(e['last'])) if e.get('last') else '?'):<7}")
     if len(rows) > TABLE_ROWS:
         body.append(f"… and {len(rows) - TABLE_ROWS} more")
     lines.append("<pre>" + html.escape("\n".join(body)) + "</pre>")
@@ -3367,12 +3296,12 @@ def _paid_by_currency(doc: dict, now: float) -> dict[str, tuple[float, int]]:
     revenue. Both halves come from the same priced rows here."""
     out: dict[str, tuple[float, int]] = {}
     for e in doc.values():
-        if not isinstance(e, dict) or e.get("acq") != "paid" or not _sub_is_alive(e, now):
+        if not isinstance(e, dict) or e.get("acq") != "paid" or not opsformat.sub_is_alive(e, now):
             continue
         price, cur = e.get("price"), e.get("currency") or "?"
         if not isinstance(price, (int, float)) or price <= 0:
             continue
-        monthly = price / 12 if "yearly" in _plan(e.get("product")) else price
+        monthly = price / 12 if "yearly" in opsformat.plan(e.get("product")) else price
         total, n = out.get(cur, (0.0, 0))
         out[cur] = (total + monthly, n + 1)
     return out
@@ -3407,7 +3336,7 @@ async def _pro_block(month: list[str]) -> list[str]:
     lines = [f"<b>Pro, last {len(month)} days</b>"]
 
     paid_rows = [e for e in subs.values() if isinstance(e, dict)
-                 and e.get("acq") == "paid" and _sub_is_alive(e, now)]
+                 and e.get("acq") == "paid" and opsformat.sub_is_alive(e, now)]
     paying = {d for e in paid_rows for d in opsindex.row_devices(e)}
     lines.append(f"Paying Pro devices: {len(paying)} "
                  f"(n={len(paid_rows)} paid subscriptions)")
@@ -3429,7 +3358,7 @@ async def _pro_block(month: list[str]) -> list[str]:
     by_currency = _paid_by_currency(subs, now)
     keep = 1 - APPLE_COMMISSION
     if by_currency:
-        net = " + ".join(f"{_money(total / n * keep, cur)} (n={n})"
+        net = " + ".join(f"{opsformat.money(total / n * keep, cur)} (n={n})"
                          for cur, (total, n) in sorted(by_currency.items()))
     else:
         net = "n/a (n=0 priced paid plans)"
@@ -3526,7 +3455,7 @@ async def _costs_text() -> str:
                      f"(/post, /checkup — excluded from $/scan and both tiers)")
 
     _, _, _, _, mrr = _subs_summary(await opsindex.read_index(opsindex.SUBS_INDEX_KEY))
-    lines.append("vs MRR ≈ " + (" + ".join(_money(v, c) for c, v in sorted(mrr.items()))
+    lines.append("vs MRR ≈ " + (" + ".join(opsformat.money(v, c) for c, v in sorted(mrr.items()))
                                  if mrr else "n/a") + " (paid plans)")
     budget = f" · budget {_usd(GEMINI_DAILY_BUDGET_USD)}/day" if GEMINI_DAILY_BUDGET_USD > 0 else ""
     lines.append(f"Prices: ${GEMINI_PRICE_INPUT_PER_M:.2f}/M in · "
@@ -3574,7 +3503,7 @@ def _post_line(post) -> str:
         bits.append(f"{post.comments} comments")
     if post.shares:
         bits.append(f"{post.shares} shares")
-    when = f" · {_date(post.created_at)[:6]}" if post.created_at else ""
+    when = f" · {opsformat.date(post.created_at)[:6]}" if post.created_at else ""
     label = html.escape(title or "post")
     if post.url:
         label = f'<a href="{html.escape(post.url)}">{label}</a>'
@@ -4198,531 +4127,6 @@ async def _paywall_text(now: datetime | None = None) -> str:
     return "\n".join(lines)
 
 
-# ── One subscription, live from Apple ────────────────────────────────────────
-
-async def _resolve_transaction_id(wanted: str) -> tuple[str | None, str | None]:
-    """Turn what the operator typed into an originalTransactionId.
-
-    Returns `(transaction_id, error_message)` — exactly one is not None.
-
-    Two kinds of input here, because the operator has two kinds of id to hand
-    and only one of them is Apple's (the third, an order id off the customer's
-    receipt, is `_apple_order_id`'s):
-
-      * an originalTransactionId, as `/subs` keys its rows and as Apple's
-        own console shows it — all digits, and long;
-      * a device id: the six-character `id` column from `/subs` and `/users`,
-        the eight `/user` prints, or all sixteen from a support mail's
-        "Device …" line — any prefix of the pseudonym.
-
-    The device id is **not** a truncated transaction id and cannot be turned
-    back into one by itself: it is `sha256(AUDIT_SALT + subject)[:16]`, a
-    deliberately one-way pseudonym (`auditlog.pseudonymise`) so the audit log
-    is not a device registry. What makes the lookup possible is that the subs
-    index is keyed by the *full* transaction id with the devices that synced
-    it stored in the row, so this is a scan, not a decode — the same reverse
-    lookup `_user_text` does.
-
-    Two consequences worth stating, because both look like bugs otherwise:
-    a device whose subscription only ever arrived by notification is not on
-    the row at all and is unreachable this way, and a short prefix of a
-    sixteen-character hash can collide.
-    """
-    wanted = _device_argument(wanted)
-    if not wanted:
-        return None, ("Usage: /sub &lt;id&gt; — an originalTransactionId, the "
-                      "order ID from the customer's Apple receipt, or a device "
-                      "id: the id column from /subs, or the 16 characters after "
-                      "\"Device\" in a support mail.")
-
-    # Apple's transaction ids are long decimal strings. Anything of that shape
-    # is passed through untouched: the index may well not have it, which is
-    # the whole point of asking Apple directly.
-    #
-    # Except at sixteen characters, which is also a full pseudonym. It is hex,
-    # and about one device in 1,845 has one made only of digits; sent to Apple
-    # as a transaction id it came back "a typo", and the index — which does
-    # have it — was never asked. So a sixteen-digit id is looked for among the
-    # devices first, unless it is a transaction id the index already keys, and
-    # is Apple's only when no device matches.
-    #
-    # Matched whole, not by prefix. Nearly every real transaction id begins
-    # 200000 or 100000, so one older row holding a six-character device id of
-    # that shape would otherwise catch every unindexed transaction id pasted
-    # here and answer with that customer's subscription.
-    looks_like_transaction = wanted.isdigit() and len(wanted) >= 10
-    if looks_like_transaction and len(wanted) != 16:
-        return wanted, None
-
-    doc = await opsindex.read_index(opsindex.SUBS_INDEX_KEY)
-    if looks_like_transaction and wanted in doc:
-        return wanted, None
-    matches: dict[str, dict] = {}
-    devices: set[str] = set()
-    for otid, row in doc.items():
-        if not isinstance(row, dict):
-            continue
-        hits = [d for d in opsindex.row_devices(row)
-                if (d.lower() == wanted if looks_like_transaction else opsindex.same_device(d, wanted))]
-        if hits:
-            matches[otid] = row
-            devices.update(d.lower() for d in hits)
-    if not matches and looks_like_transaction:
-        return wanted, None
-    if not matches:
-        return None, (f"💳 Nothing in the index has a device id starting "
-                      f"<code>{html.escape(wanted)}</code>. If you have Apple's "
-                      "originalTransactionId, or the order ID from the "
-                      "customer's receipt, pass that instead — neither needs "
-                      "to be in the index. /user shows whether this device "
-                      "ever tried to sync a purchase, and what happened.")
-
-    # Several rows for one device is normal — a resubscribe, or a plan change —
-    # and harmless, because Apple returns every subscription belonging to the
-    # customer behind whichever id we send. Several *devices* is a genuine
-    # collision and the operator has to disambiguate. A six-character id kept
-    # from an older row is the same device as the full one it begins.
-    distinct = {d for d in devices
-                if not any(o != d and o.startswith(d) for o in devices)}
-    if len(distinct) > 1:
-        return None, (f"💳 {len(distinct)} devices start with "
-                      f"<code>{html.escape(wanted)}</code> — give more "
-                      "characters: " + ", ".join(
-                          html.escape(d[:8]) for d in sorted(distinct)[:6]))
-    return max(matches, key=lambda otid: float(matches[otid].get("seen") or 0)), None
-
-
-# An App Store order ID, as printed on the customer's receipt email ("Order
-# ID: MK5TTTV8JH"): upper-case letters and digits. Checked after the other
-# shapes, so an all-digit transaction id or an all-hex device id never lands
-# here.
-_ORDER_ID = re.compile(r"[A-Z0-9]{8,20}")
-
-
-def _apple_order_id(argument: str | None) -> str | None:
-    """The argument as an Apple order ID, or None if it is not shaped like one.
-
-    The one id a customer can always find: it is on the receipt Apple emails
-    for every purchase, and it is what they paste when they have nothing
-    else. Apple's Look Up Order ID resolves it to their transactions."""
-    value = (argument or "").strip().upper()
-    if (not _ORDER_ID.fullmatch(value) or value.isdigit()
-            or re.fullmatch(r"[0-9A-F]+", value)):
-        return None
-    return value
-
-
-def _status_lines(status) -> list[str]:
-    """One subscription, as the operator reads it."""
-    ent = status.entitlement
-    lines = [f"<b>{html.escape(_plan(ent.product_id))}</b> — "
-             f"{html.escape(status.state)}"]
-
-    detail = [html.escape(ent.environment), opsindex.acquisition(ent)]
-    if isinstance(ent.price, (int, float)) and ent.price > 0:
-        detail.append(_money(ent.price, ent.currency))
-    lines.append(" · ".join(detail))
-
-    if status.offer_identifier:
-        # Apple's offerIdentifier is the code the customer typed or the promo
-        # offer's id. `opsindex.acquisition` above already says which kind it was.
-        lines.append(f"Offer: <code>{html.escape(status.offer_identifier)}</code>")
-
-    if ent.expires_at:
-        # Not `.capitalize()`: it lowercases everything after the first
-        # character, which turns "12 Apr 2027" into "12 apr 2027".
-        phrase = _renewal_phrase(ent.expires_at, status.auto_renew)
-        lines.append(phrase[0].upper() + phrase[1:])
-    if status.auto_renew is False:
-        lines.append("Auto-renew is <b>off</b> — this one is leaving.")
-    elif status.auto_renew is None:
-        lines.append("Auto-renew: Apple sent no renewal info.")
-    if status.auto_renew_product_id:
-        lines.append("Next period switches to "
-                     f"<b>{html.escape(_plan(status.auto_renew_product_id))}</b>.")
-
-    if ent.revoked_at:
-        lines.append(f"Revoked {_date(ent.revoked_at)}.")
-    if ent.original_purchase_at:
-        lines.append(f"First purchased {_date(ent.original_purchase_at)}.")
-    if ent.original_transaction_id:
-        lines.append(f"<code>{html.escape(ent.original_transaction_id)}</code>")
-    return lines
-
-
-async def _sub_command(rest: str) -> tuple[str, Buttons]:
-    """`/sub <id>`, and `/sub <otid> lift [yes]` for a stale refund block."""
-    parts = (rest or "").split()
-    if len(parts) >= 2 and parts[1].lower() == "lift":
-        confirmed = any(token.lower() == "yes" for token in parts[2:])
-        return await _lift_refund_block(parts[0], confirmed)
-    text, offers = await _sub_text(rest)
-    return text, offers + await _buttons()
-
-
-async def _ask_apple(transaction_id: str) -> tuple[list | None, str | None]:
-    """`appstorestatus.lookup`, with each failure in the operator's words.
-
-    Returns `(statuses, error_message)` — exactly one is not None.
-    """
-    import appstorestatus
-
-    try:
-        return await appstorestatus.lookup(transaction_id), None
-    except appstorestatus.StatusError as exc:
-        return None, _apple_problem(exc)
-
-
-async def _ask_apple_order(order_id: str) -> tuple[str | None, str | None]:
-    """The transaction id behind the Order ID on a customer's App Store
-    receipt, through Apple's Look Up Order ID, for `_ask_apple`.
-
-    Returns `(transaction_id, error_message)` — exactly one is not None.
-    """
-    import appstorestatus
-
-    try:
-        return (await appstorestatus.lookup_order(order_id))[0], None
-    except appstorestatus.StatusError as exc:
-        return None, _apple_problem(exc)
-
-
-def _apple_problem(exc: Exception) -> str:
-    """One of `appstorestatus`'s failures, as the operator reads it."""
-    import appstorestatus
-    import entitlements
-
-    if isinstance(exc, appstorestatus.OrderNotFound):
-        return (f"💳 {html.escape(str(exc))}\n\nRead as an Apple order ID — the "
-                "\"Order ID\" on the customer's App Store receipt email. A "
-                "transaction id is all digits; a device id is hex.")
-    if isinstance(exc, appstorestatus.SubscriberNotFound):
-        return (f"💳 {html.escape(str(exc))}\n\nChecked Production and Sandbox. "
-                "An id Apple does not recognise is usually a transactionId from "
-                "a different app, or a typo.")
-    if isinstance(exc, appstorestatus.StatusRetryLater):
-        # Right after a purchase — when the support mail is written — Apple
-        # answers "not found, retry". Reported as that, not as a typo, and
-        # without Sandbox's "never heard of it" standing in for it.
-        text = (f"💳 <b>Not yet — retry in a few minutes</b>\n{html.escape(str(exc))}\n\n"
-                "Not necessarily a typo: Apple marks this not-found as "
-                "retryable, which is what a purchase from the last few minutes "
-                "looks like. ")
-        if exc.environment == "Production":
-            return text + "Sandbox was not asked."
-        # Production's not-found was definite, so the lookup went on to
-        # Sandbox, and it is Sandbox saying "not yet". That Production has
-        # nothing is the useful half: this is a TestFlight or App Review
-        # purchase, which this server may refuse whatever Sandbox says next.
-        text += (f"Production has nothing under this id; it is "
-                 f"{html.escape(exc.environment)} that says not yet.")
-        if exc.environment not in entitlements.ALLOWED_ENVIRONMENTS:
-            text += (f"\n⚠️ <b>This server refuses {html.escape(exc.environment)} "
-                     "purchases</b> (ALLOWED_STOREKIT_ENVIRONMENTS): even once Apple "
-                     "has it, the app is told free for this one. TestFlight and "
-                     "App Review buy in Sandbox.")
-        return text
-    if isinstance(exc, appstorestatus.StatusNotConfigured):
-        return (f"💳 {html.escape(str(exc))}\n\nThe rest of the bot is "
-                "unaffected — /subs still reports what notifications have said.")
-    if isinstance(exc, appstorestatus.StatusRateLimited):
-        return f"💳 {html.escape(str(exc))}"
-    if isinstance(exc, appstorestatus.StatusCredentialsRejected):
-        return f"💳 <b>Credentials refused</b>\n{html.escape(str(exc))}"
-    # StatusUnavailable and anything added later. Still named, still not
-    # silent — this branch exists so a new subclass cannot become a
-    # mystery empty reply.
-    return f"💳 <b>Could not ask Apple</b>\n{html.escape(str(exc))}"
-
-
-def _block_denies(tombstone: dict, ent) -> bool:
-    """Whether a refund block denies `ent`'s term — `_is_revoked`'s rule."""
-    blocked_until = tombstone.get("expires_at")
-    if ent.expires_at is None or not isinstance(blocked_until, (int, float)):
-        return True
-    return ent.expires_at <= blocked_until
-
-
-async def _refund_block_lines(statuses) -> tuple[list[str], Buttons]:
-    """The access path's refund blocks for these subscriptions, if any.
-
-    A REFUND writes `entrevoked:{originalTransactionId}`, and the access path
-    denies the term it names for up to 400 days. Nothing showed it: a customer
-    whose refund Apple had reversed read as free on every sync, this command
-    said they were paying, `/subs` said `refund`, and finding the cause took
-    `redis-cli` against production. The block is shown next to what Apple
-    says now, and when Apple says the term is not refunded, lifting it is
-    offered — as two taps, see `_lift_refund_block`.
-    """
-    import entitlements
-
-    lines: list[str] = []
-    offers: Buttons = []
-    latest: dict[str, object] = {}
-    for status in statuses:
-        otid = status.entitlement.original_transaction_id
-        if otid:
-            latest.setdefault(otid, status.entitlement)
-    for otid, ent in latest.items():
-        code = f"<code>{html.escape(otid)}</code>"
-        try:
-            tombstone = await entitlements.read_revocation(_cache, otid)
-        except Exception as exc:
-            lines.append(f"Refund block for {code}: could not read the store "
-                         f"({html.escape(type(exc).__name__)}).")
-            continue
-        if tombstone is None:
-            continue
-        until = tombstone.get("expires_at")
-        what = (f"denies terms ending by {_date(int(until))}"
-                if isinstance(until, (int, float)) else "denies every term")
-        lines.append(f"🚫 <b>Refund block</b> on {code}: {what}.")
-        if getattr(ent, "revoked_at", None) is not None:
-            lines.append("Apple still shows this term refunded, so the block is right.")
-        elif _block_denies(tombstone, ent):
-            lines.append("Apple shows this term <b>not</b> refunded, so the block "
-                         "is denying Pro to someone paying for it.")
-            offers.append([("🔓 Lift refund block", f"sub {otid} lift")])
-        else:
-            lines.append("It does not cover the current term.")
-    return lines, offers
-
-
-async def _lift_refund_block(otid: str, confirmed: bool) -> tuple[str, Buttons]:
-    """Delete one refund block — only once Apple says the refund is gone.
-
-    Two taps, like `/lever`: the first names the block, the second lifts it.
-    And the second asks Apple again rather than trusting the first. Lifting a
-    block on a term Apple still shows refunded would let the server re-derive
-    Pro from the pre-refund proof it holds, which is the bug the block exists
-    to stop.
-    """
-    import entitlements
-
-    otid = otid.strip()
-    code = f"<code>{html.escape(otid)}</code>"
-    if not (otid.isdigit() and len(otid) >= 10):
-        return ("Usage: /sub &lt;originalTransactionId&gt; lift — the full id "
-                "from /sub, not the short one.", await _buttons())
-    try:
-        tombstone = await entitlements.read_revocation(_cache, otid)
-    except Exception as exc:
-        return (f"🚫 Could not read the refund block for {code} "
-                f"({html.escape(type(exc).__name__)}). Nothing was changed.",
-                await _buttons())
-    if tombstone is None:
-        return f"🚫 No refund block is held for {code}.", await _buttons()
-
-    if not confirmed:
-        until = tombstone.get("expires_at")
-        what = (f"denies terms ending by {_date(int(until))}"
-                if isinstance(until, (int, float)) else "denies every term")
-        return (f"🔓 <b>Lift the refund block on {code}?</b>\n"
-                f"It {what}. Apple is asked again first, and it is lifted only "
-                "if Apple no longer shows the term refunded.",
-                [[("✅ Yes, lift it", f"sub {otid} lift yes"),
-                  ("Cancel", f"sub {otid}")]])
-
-    statuses, problem = await _ask_apple(otid)
-    if problem is not None:
-        return problem + "\n\nThe refund block was left in place.", await _buttons()
-    assert statuses is not None
-    mine = [st for st in statuses if st.entitlement.original_transaction_id == otid]
-    if not mine:
-        return (f"🚫 Apple returned nothing under {code}, so the block was left "
-                "in place.", await _buttons())
-    if any(getattr(st.entitlement, "revoked_at", None) is not None for st in mine):
-        return (f"🚫 Apple still shows {code} refunded. The block was left in "
-                "place: lifting it would let the server re-derive Pro from the "
-                "proof it holds.", await _buttons())
-    try:
-        await entitlements.clear_revocation(_cache, otid)
-    except Exception as exc:
-        return (f"🚫 Could not lift the block on {code} "
-                f"({html.escape(type(exc).__name__)}). Try again.", await _buttons())
-    return (f"🔓 Refund block lifted on {code}. Pro comes back at the app's "
-            "next sync, if not sooner.", await _buttons())
-
-
-async def _sub_text(argument: str) -> tuple[str, Buttons]:
-    """Ask Apple what one subscription is doing, right now.
-
-    Everything else the bot knows about subscriptions is a cache of what it was
-    told — by a device at launch, or by a notification that may have arrived
-    while the endpoint was down. This is the one command that goes and asks,
-    which makes it the one worth trusting when a customer disagrees with the
-    index.
-
-    Every failure is reported in the operator's words rather than swallowed:
-    "no result" and "the key is wrong" are the two answers that must never look
-    alike, because one sends you to App Store Connect and the other to the
-    hosting panel.
-    """
-    # Imported here, not at module scope. `entitlements` imports *this* module
-    # (entitlements.py:38) to report what it verifies, and `appstorestatus`
-    # imports `entitlements` — so either at the top of this file closes an
-    # import cycle. The same reason `appstorenotify`'s header gives for
-    # duck-typing the notification it is handed.
-    import entitlements
-
-    via: list[str] = []
-    order_id = _apple_order_id(argument)
-    if order_id is None:
-        transaction_id, problem = await _resolve_transaction_id(argument or "")
-    else:
-        transaction_id, problem = await _ask_apple_order(order_id)
-        if transaction_id is not None:
-            via = [f"Order <code>{html.escape(order_id)}</code> → "
-                   f"<code>{html.escape(transaction_id)}</code>"]
-    if problem is not None:
-        return problem, []
-    assert transaction_id is not None
-
-    statuses, problem = await _ask_apple(transaction_id)
-    if problem is not None:
-        return problem, []
-    assert statuses is not None
-
-    lines = [f"💳 <b>Live from Apple</b> — {len(statuses)} subscription"
-             f"{'s' if len(statuses) != 1 else ''}", *via]
-    # The lookup asks Production first and moves on to Sandbox only when
-    # Production definitely has nothing, so a Sandbox answer means both were
-    # asked. Said outright: it used to be one word on the detail line.
-    if statuses and all(status.environment == "Sandbox" for status in statuses):
-        lines.append("Production: nothing under this id. The answer below is Sandbox's.")
-    for status in statuses:
-        lines.append("")
-        lines.extend(_status_lines(status))
-        environment = status.entitlement.environment
-        if environment not in entitlements.ALLOWED_ENVIRONMENTS:
-            # Apple says "active"; this server says free. `verify_signed_
-            # transaction` refuses any environment outside the allowed set —
-            # which is what keeps a free Sandbox tester from being production
-            # Pro — so a TestFlight or App Review purchase never unlocks Pro
-            # here, and "active" alone would send the operator looking for a
-            # bug that is a policy.
-            lines.append(
-                f"⚠️ <b>This server refuses {html.escape(environment)} purchases</b> "
-                "(ALLOWED_STOREKIT_ENVIRONMENTS): the app is told free for this "
-                "one, and it is not indexed. TestFlight and App Review buy in Sandbox.")
-
-    block_lines, offers = await _refund_block_lines(statuses)
-    if block_lines:
-        lines.append("")
-        lines.extend(block_lines)
-
-    # Fold what Apple just said back into the index. This is the only writer
-    # that can correct a row which drifted — a notification that never arrived
-    # leaves no trace to repair, and the device path cannot see auto-renew at
-    # all.
-    #
-    # Gated on the environment, exactly as the notification path is: a Sandbox
-    # subscription is signed identically to a production one, and writing a
-    # TestFlight tester into the index puts their free renewals into /subs's
-    # revenue figures.
-    indexed = 0
-    for status in statuses:
-        if status.entitlement.environment not in entitlements.ALLOWED_ENVIRONMENTS:
-            continue
-        if not status.entitlement.original_transaction_id:
-            continue
-        try:
-            # None: the index could not be read, so nothing was written, and
-            # the line below must not say otherwise. `current`: this is
-            # Apple's word now, so a refund it no longer shows is cleared.
-            if await opsindex.index_subscription(
-                    None, status.entitlement, status.auto_renew,
-                    current=True) is not None:
-                indexed += 1
-        except Exception:
-            # The answer above is the point of the command; failing to cache it
-            # must not lose it.
-            log.warning("could not index a live status result", exc_info=True)
-    if indexed:
-        lines.append("")
-        lines.append(f"Index updated from this lookup ({indexed} row"
-                     f"{'s' if indexed != 1 else ''}).")
-    return "\n".join(lines), offers
-
-
-# ── One device, for a support email ──────────────────────────────────────────
-
-#: How /user words the last `/auth/entitlement` result it recorded.
-_SYNC_WORDS = {
-    "pro": "verified as Pro",
-    "free": "verified, but not Pro — refunded, revoked or expired",
-    "rejected": "REJECTED",
-}
-
-
-async def _user_text(argument: str) -> str:
-    wanted = _device_argument(argument)
-    if not wanted:
-        return ("Usage: /user &lt;id&gt; — the id column from /users or /subs, or "
-                "the 16 characters after \"Device\" in a support mail.")
-    users = await opsindex.read_index(opsindex.USERS_INDEX_KEY)
-    matches = [(who, e) for who, e in users.items() if who.lower().startswith(wanted)]
-    if not matches:
-        return f"👤 No device seen with an id starting <code>{html.escape(wanted)}</code>."
-    if len(matches) > 1:
-        return (f"👤 {len(matches)} devices start with <code>{html.escape(wanted)}</code> — "
-                "give more characters: " + ", ".join(html.escape(w[:8]) for w, _ in matches[:6]))
-    (who, e), = matches
-    now = time.time()
-    lines = [f"👤 <b>Device {html.escape(who[:8])}</b> — {'Pro' if e.get('tier') == 'pro' else 'free'}"]
-    if e.get("first"):
-        lines.append(f"First seen {_date(int(e['first']))}")
-    if e.get("last"):
-        ago = int(now - float(e["last"]))
-        when = (f"{ago // 3600}h ago" if ago < 86400 else f"{ago // 86400}d ago")
-        lines.append(f"Last seen {_date(int(e['last']))} ({when})")
-    lines.append(f"Scans since the bot started watching: {int(e.get('scans', 0))}")
-    try:
-        sync = (json.loads(await _cache.get(opsindex.sync_key(who)) or "null")
-                if _cache is not None else None)
-    except Exception:
-        sync = None
-    if isinstance(sync, list) and len(sync) >= 2:
-        # What the server made of the last signed transaction this device
-        # sent. When it was refused, this is the only place that says so —
-        # nothing is indexed for a transaction that did not verify.
-        ago = int(now - float(sync[0]))
-        when = (f"{ago // 3600}h ago" if ago < 86400 else f"{ago // 86400}d ago")
-        what = _SYNC_WORDS.get(str(sync[1]), html.escape(str(sync[1])))
-        if len(sync) > 2 and sync[2]:
-            what += f" — {html.escape(str(sync[2]))}"
-        lines.append(f"Last purchase sync: {_date(int(sync[0]))} ({when}) — {what}")
-    subs = [(otid, s) for otid, s in (await opsindex.read_index(opsindex.SUBS_INDEX_KEY)).items()
-            if isinstance(s, dict) and any(opsindex.same_device(d, who) for d in opsindex.row_devices(s))]
-    for otid, s in subs:
-        # `_sub_is_alive`, like the two readers of this same index in `/subs`.
-        # This one tested expiry alone, so a refunded subscription — which
-        # keeps its expiry — read "renews 12 Mar 2027" here while `/subs`
-        # showed the same row as `refund`.
-        alive = _sub_is_alive(s, now)
-        renews = _date(int(s["expires"])) if s.get("expires") else "never"
-        if s.get("revoked") is not None:
-            state = f"refunded or revoked {_date(int(s['revoked']))}"
-        elif alive and s.get("auto_renew") is False:
-            # Same distinction the digest now draws, for the same reason: this
-            # subscription is paid up and leaving. Saying "renews" here is the
-            # single most misleading thing this command could print during the
-            # support mail it exists for.
-            state = f"ends {renews} (auto-renew off)"
-        elif alive:
-            state = f"renews {renews}"
-        else:
-            state = f"ended {renews}"
-        # The transaction id is what Apple, App Store Connect and /sub all
-        # take, so it is printed where it can be tapped and copied.
-        lines.append(f"Subscription: {_plan(s.get('product'))} · "
-                     f"{s.get('acq') or '?'} · {state} · <code>{html.escape(str(otid))}</code>")
-    if not subs:
-        lines.append("No subscription has synced from this device.")
-    lines.append("Devices, not people — this is the audit log's pseudonym.")
-    return "\n".join(lines)
-
-
 # ── Checkup: every dependency on one screen ──────────────────────────────────
 
 # The SPKI pins the iOS app holds (`Config.pinnedSPKIHashes`), so /checkup can
@@ -5303,7 +4707,7 @@ async def _tracked_messages() -> list[list]:
         return []
 
 
-async def _clear_prompt() -> tuple[str, Buttons]:
+async def _clear_prompt() -> tuple[str, opsformat.Buttons]:
     """What 🧹 Clear is about to delete and what survives it, before it does.
 
     The button runs on one tap no longer. It sits beside 🗂 History on every
