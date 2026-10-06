@@ -75,6 +75,9 @@ has no link on its page. Change a row and the page together.
 | `share_month` | `vercel.json` | QR on the My Flips month card, through `/get/month` |
 | `share_haul` | `vercel.json` | QR on the Haul summary card, through `/get/haul` |
 | `share_guess` | `vercel.json` | QR on the Guess-the-price reveal card, through `/get/guess` |
+| `fees_poshmark` | `fees/poshmark.html` | /fees/poshmark: top bar "Get the app" and the download button |
+| `fees_mercari` | `fees/mercari.html` | /fees/mercari: top bar "Get the app" and the download button |
+| `fees_depop` | `fees/depop.html` | /fees/depop: top bar "Get the app" and the download button |
 <!-- campaign-table:end -->
 
 ### The provider token, and running the generators

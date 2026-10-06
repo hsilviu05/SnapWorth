@@ -11,6 +11,7 @@ Run:  python3 website/seo/build_seo.py
 import html, pathlib, datetime, re, subprocess, sys
 
 from campaigns import APP_ID, MissingProviderToken, app_store
+import build_fees
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]          # website/
 OUT = ROOT / "worth"
@@ -333,7 +334,14 @@ def page_html(item, related):
 
     rows = "".join(f"<tr><td>{e(c)}</td><td class='val'>{e(v)}</td></tr>" for c, v in item["conditions"])
     factors = "".join(f"<li>{e(f)}</li>" for f in item["factors"])
-    plats = "".join(f"<li>{e(p)}</li>" for p in item["platforms"])
+    # A marketplace with a fee page links to it (#228): the guide answers
+    # "what is it worth", the fee page "what do I keep".
+    fee_pages = {v["name"]: k for k, v in build_fees.PUBLISHED.items()}
+    fee_links = " · ".join(f'<a href="/fees/{k}" style="display:inline">{e(v["name"])} fees</a>'
+                           for k, v in build_fees.PUBLISHED.items())
+    plats = "".join(
+        f'<li><a href="/fees/{fee_pages[p]}">{e(p)}</a> — see what {e(p)} takes from a sale</li>'
+        if p in fee_pages else f"<li>{e(p)}</li>" for p in item["platforms"])
     # One list, used by both the visible accordion and the FAQPage schema.
     #
     # The schema was built as `[(question(item), answer(item))] + item["faqs"]`
@@ -433,6 +441,8 @@ def page_html(item, related):
 {faqs_html}
 
 <div class="related"><h2>Check other items</h2>{related_html}
+<a href="/guess">Guess the price: test your eye on ten real items</a>
+<p style="margin:10px 0 0;font-size:15px">What marketplaces take: {fee_links}</p>
 <a href="/worth" style="color:var(--terra-text);font-weight:700;margin-top:8px">See all resale values →</a></div>
 </div></main>
 {footer()}
@@ -581,6 +591,8 @@ def build():
              (f"{SITE}/guess", ROOT / "guess.html"),
              (f"{SITE}/support", ROOT / "support.html")]
     pages += [(f"{SITE}/worth/{it['slug']}", OUT / f"{it['slug']}.html") for it in ITEMS]
+    # The fee pages (#228), written before the sitemap so each has a lastmod.
+    pages += build_fees.build(STYLE, header, footer, ANALYTICS, SMART_BANNER)
     sm = ['<?xml version="1.0" encoding="UTF-8"?>',
           '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">']
     for u, path in pages:
@@ -590,7 +602,8 @@ def build():
     # robots
     (ROOT / "robots.txt").write_text(
         f"User-agent: *\nAllow: /\nSitemap: {SITE}/sitemap.xml\n", encoding="utf-8")
-    print(f"Built {len(ITEMS)} pages + hub + sitemap ({len(pages)} urls) + robots.txt -> {OUT}")
+    print(f"Built {len(ITEMS)} pages + hub + {len(build_fees.PUBLISHED)} fee pages + "
+          f"sitemap ({len(pages)} urls) + robots.txt -> {OUT}")
 
 if __name__ == "__main__":
     try:
