@@ -13,6 +13,8 @@ import pytest
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import notify  # noqa: E402
+import opsstats  # noqa: E402
+import trends  # noqa: E402
 from cache import InMemoryCache, ResilientCache  # noqa: E402
 
 
@@ -38,7 +40,7 @@ DEVICES = ("dev-a", "dev-b", "dev-c")
 # `devices=None` writes a day as the code before device tags did — no
 # `cat_devices`, no `brand_devices`, no `d` on a find.
 def day(days_ago: int) -> str:
-    return notify._day(datetime.now(timezone.utc) - timedelta(days=days_ago))
+    return opsstats.day(datetime.now(timezone.utc) - timedelta(days=days_ago))
 
 
 async def seed(cache, days_ago: int, cats: dict, brands: dict, finds=(), scans: int = 0,
@@ -50,9 +52,9 @@ async def seed(cache, days_ago: int, cats: dict, brands: dict, finds=(), scans: 
     if devices is not None:
         doc["cat_devices"] = {c: list(devices) for c in cats}
         doc["brand_devices"] = {b: list(devices) for b in brands}
-    await cache.set(notify._stat_key(stamp, "top"), json.dumps(doc), 600)
+    await cache.set(opsstats.stat_key(stamp, "top"), json.dumps(doc), 600)
     if scans:
-        await cache.set(notify._stat_key(stamp, "scans_free"), str(scans), 600)
+        await cache.set(opsstats.stat_key(stamp, "scans_free"), str(scans), 600)
 
 
 def find(name, category, lo, hi, brand=None):
@@ -64,7 +66,7 @@ class TestFloor:
     async def test_rows_below_the_floor_are_withheld(self, cache):
         # clothing clears the floor; shoes (4) does not, and a lone brand never does.
         await seed(cache, 1, {"clothing": 9, "shoes": 4}, {"Nike": 6, "Ferrari": 1}, scans=13)
-        payload = await notify.trends(is_pro=False)
+        payload = await trends.trends(is_pro=False)
         assert [r["name"] for r in payload["categories"]] == ["clothing"]
         assert [r["name"] for r in payload["brands"]] == ["Nike"]
         assert payload["scans"] == 13
@@ -75,7 +77,7 @@ class TestFloor:
         await seed(cache, 2, {"home": 8}, {})
         await seed(cache, 8, {"clothing": 6}, {})       # last week, above the floor
         await seed(cache, 9, {"home": 2}, {})           # below it: no direction for home
-        rows = {r["name"]: r for r in (await notify.trends(is_pro=False))["categories"]}
+        rows = {r["name"]: r for r in (await trends.trends(is_pro=False))["categories"]}
         assert rows["clothing"]["change_pct"] == 100
         assert "change_pct" not in rows["home"]
 
@@ -91,7 +93,7 @@ class TestDeviceFloor:
     async def test_many_scans_from_one_device_are_not_a_trend(self, cache):
         await seed(cache, 1, {"clothing": 9}, {"spam.example free money": 9},
                    [find("Visit my shop", "clothing", 900, 1000, "Visit my shop")], devices=["dev-a"])
-        payload = await notify.trends(is_pro=True)
+        payload = await trends.trends(is_pro=True)
         assert payload["categories"] == [] and payload["brands"] == []
         assert payload["notable_finds"] == []
 
@@ -100,13 +102,13 @@ class TestDeviceFloor:
         """Categories are a closed set and cannot carry a spam URL or a slur;
         a brand is free text read off a photo, and can."""
         await seed(cache, 1, {"clothing": 9}, {"Nike": 9}, devices=["dev-a", "dev-b"])
-        payload = await notify.trends(is_pro=False)
+        payload = await trends.trends(is_pro=False)
         assert [(r["name"], r["count"]) for r in payload["categories"]] == [("clothing", 9)]
         assert payload["brands"] == []
 
         await seed(cache, 2, {"clothing": 1}, {"Nike": 1}, devices=["dev-c"])
-        await cache.delete(f"{notify.TRENDS_CACHE_KEY}:free")
-        payload = await notify.trends(is_pro=False)
+        await cache.delete(f"{trends.TRENDS_CACHE_KEY}:free")
+        payload = await trends.trends(is_pro=False)
         assert [(r["name"], r["count"]) for r in payload["brands"]] == [("Nike", 10)]
 
     @pytest.mark.asyncio
@@ -117,7 +119,7 @@ class TestDeviceFloor:
         for days_ago in range(1, 6):
             await seed(cache, days_ago, {"clothing": 10}, {"Carhartt": 10}, devices=["dev-a"])
         await seed(cache, 6, {"clothing": 1}, {}, devices=["dev-b"])
-        payload = await notify.trends(is_pro=False)
+        payload = await trends.trends(is_pro=False)
         assert [(r["name"], r["count"]) for r in payload["categories"]] == [("clothing", 51)]
         assert payload["brands"] == []
 
@@ -129,7 +131,7 @@ class TestDeviceFloor:
             await seed(cache, days_ago, {"clothing": 3}, {"Nike": 2}, devices=[device])
         for days_ago in (4, 5, 6):
             await seed(cache, days_ago, {"shoes": 3}, {}, devices=["dev-z"])
-        payload = await notify.trends(is_pro=False)
+        payload = await trends.trends(is_pro=False)
         assert [(r["name"], r["count"]) for r in payload["categories"]] == [("clothing", 9)]
         assert [r["name"] for r in payload["brands"]] == ["Nike"]
 
@@ -150,14 +152,14 @@ class TestDeviceFloor:
             await seed(cache, days_ago, {"accessories": 1}, {},
                        [find("Rolex Submariner", "accessories", 5000, 9000, "Rolex")],
                        devices=["dev-z"])
-        notable = (await notify.trends(is_pro=True))["notable_finds"]
+        notable = (await trends.trends(is_pro=True))["notable_finds"]
         assert [f["name"] for f in notable] == ["Carhartt"]
 
     @pytest.mark.asyncio
     async def test_last_weeks_direction_needs_last_weeks_devices(self, cache):
         await seed(cache, 1, {"clothing": 12}, {})
         await seed(cache, 8, {"clothing": 6}, {}, devices=["dev-a"])
-        (row,) = (await notify.trends(is_pro=False))["categories"]
+        (row,) = (await trends.trends(is_pro=False))["categories"]
         assert "change_pct" not in row
 
     @pytest.mark.asyncio
@@ -170,7 +172,7 @@ class TestDeviceFloor:
         await seed(cache, 1, {"clothing": 2}, {}, devices=["dev-a"])
         await seed(cache, 2, {"clothing": 3}, {"Carhartt": 6}, devices=["dev-a"])
         await seed(cache, 4, {"clothing": 2}, {"Carhartt": 1}, devices=["dev-b"])
-        payload = await notify.trends(is_pro=False)
+        payload = await trends.trends(is_pro=False)
         assert [(r["name"], r["count"]) for r in payload["categories"]] == [("clothing", 7)]
         assert payload["brands"] == []
 
@@ -189,8 +191,8 @@ class TestDeviceFloor:
                     category="clothing", low=60, high=100, confidence="High",
                     subject=subject)
             await asyncio.gather(*list(notify._tasks), return_exceptions=True)
-            await c.delete(f"{notify.TRENDS_CACHE_KEY}:pro")
-            return await notify.trends(is_pro=True, now=tomorrow)
+            await c.delete(f"{trends.TRENDS_CACHE_KEY}:pro")
+            return await trends.trends(is_pro=True, now=tomorrow)
 
         try:
             one = await scans(["one-device"] * 6)
@@ -219,7 +221,7 @@ class TestDaysRecordedBeforeDevices:
     async def test_an_old_week_is_judged_by_five_scans(self, cache):
         await seed(cache, 1, {"clothing": 40, "shoes": 4}, {"Nike": 30, "Ferrari": 4},
                    [find("Le Creuset 5.5qt", "home", 100, 200, "Le Creuset")], devices=None)
-        payload = await notify.trends(is_pro=True)
+        payload = await trends.trends(is_pro=True)
         assert [(r["name"], r["count"]) for r in payload["categories"]] == [("clothing", 40)]
         assert [(r["name"], r["count"]) for r in payload["brands"]] == [("Nike", 30)]
         # A find never had a scan floor to fall back on — one scan used to be
@@ -231,7 +233,7 @@ class TestDaysRecordedBeforeDevices:
         # The code that wrote these did not strip links and handles.
         await seed(cache, 1, {}, {"https://spam.example/x": 9, "@somehandle": 9,
                                   "Nike www.cheap-nikes.example": 3, "Nike": 3}, devices=None)
-        brands = (await notify.trends(is_pro=False))["brands"]
+        brands = (await trends.trends(is_pro=False))["brands"]
         assert [(r["name"], r["count"]) for r in brands] == [("Nike", 6)]
 
     @pytest.mark.asyncio
@@ -241,7 +243,7 @@ class TestDaysRecordedBeforeDevices:
         await seed(cache, 6, {"clothing": 4}, {"Carhartt": 4}, devices=None)
         for days_ago in range(1, 5):
             await seed(cache, days_ago, {"clothing": 15}, {"Carhartt": 15}, devices=["dev-a"])
-        payload = await notify.trends(is_pro=False)
+        payload = await trends.trends(is_pro=False)
         assert payload["categories"] == [] and payload["brands"] == []
 
     @pytest.mark.asyncio
@@ -250,7 +252,7 @@ class TestDaysRecordedBeforeDevices:
         # neither make it nor move it up the list.
         await seed(cache, 6, {"clothing": 5}, {"Nike": 5}, devices=None)
         await seed(cache, 1, {"clothing": 20}, {"Nike": 20}, devices=["dev-a"])
-        payload = await notify.trends(is_pro=False)
+        payload = await trends.trends(is_pro=False)
         assert [(r["name"], r["count"]) for r in payload["categories"]] == [("clothing", 5)]
         assert [(r["name"], r["count"]) for r in payload["brands"]] == [("Nike", 5)]
 
@@ -260,20 +262,20 @@ class TestDaysRecordedBeforeDevices:
         # category, not for a brand — until a third device scans it.
         await seed(cache, 6, {"clothing": 2}, {"Nike": 2}, devices=None)
         await seed(cache, 1, {"clothing": 3}, {"Nike": 3}, devices=["dev-a", "dev-b"])
-        payload = await notify.trends(is_pro=False)
+        payload = await trends.trends(is_pro=False)
         assert [(r["name"], r["count"]) for r in payload["categories"]] == [("clothing", 5)]
         assert payload["brands"] == []
 
         await seed(cache, 2, {"clothing": 1}, {"Nike": 1}, devices=["dev-c"])
-        await cache.delete(f"{notify.TRENDS_CACHE_KEY}:free")
-        payload = await notify.trends(is_pro=False)
+        await cache.delete(f"{trends.TRENDS_CACHE_KEY}:free")
+        payload = await trends.trends(is_pro=False)
         assert [(r["name"], r["count"]) for r in payload["brands"]] == [("Nike", 6)]
 
     @pytest.mark.asyncio
     async def test_direction_against_an_old_week(self, cache):
         await seed(cache, 1, {"clothing": 12}, {})
         await seed(cache, 8, {"clothing": 6}, {}, devices=None)
-        (row,) = (await notify.trends(is_pro=False))["categories"]
+        (row,) = (await trends.trends(is_pro=False))["categories"]
         assert row["change_pct"] == 100
 
 
@@ -289,24 +291,24 @@ class TestDaysAnOlderBuildWroteBack:
     async def test_an_untagged_day_after_a_tagged_one_is_withheld(self, cache):
         await seed(cache, 3, {"clothing": 1}, {"Nike": 1}, devices=["dev-a"])
         await seed(cache, 1, {"clothing": 5}, {"Slurbrand": 5}, devices=None)
-        payload = await notify.trends(is_pro=False)
+        payload = await trends.trends(is_pro=False)
         assert payload["categories"] == [] and payload["brands"] == []
 
     @pytest.mark.asyncio
     async def test_the_first_tagged_day_is_remembered_past_the_window(self, cache):
         # A rollback longer than the fortnight: no tagged day left to compare
         # against, only the record of when tags began.
-        await cache.add(notify.TRENDS_TAGGED_SINCE_KEY, day(20))
+        await cache.add(trends.TRENDS_TAGGED_SINCE_KEY, day(20))
         await seed(cache, 2, {"clothing": 6}, {"Slurbrand": 6}, devices=None)
-        payload = await notify.trends(is_pro=False)
+        payload = await trends.trends(is_pro=False)
         assert payload["categories"] == [] and payload["brands"] == []
 
     @pytest.mark.asyncio
     async def test_days_before_tags_began_still_count_by_scans(self, cache):
-        await cache.add(notify.TRENDS_TAGGED_SINCE_KEY, day(3))
+        await cache.add(trends.TRENDS_TAGGED_SINCE_KEY, day(3))
         await seed(cache, 5, {"clothing": 6}, {"Nike": 6}, devices=None)
         await seed(cache, 2, {"clothing": 6}, {"Slurbrand": 6}, devices=None)
-        payload = await notify.trends(is_pro=False)
+        payload = await trends.trends(is_pro=False)
         assert [(r["name"], r["count"]) for r in payload["categories"]] == [("clothing", 6)]
         assert [(r["name"], r["count"]) for r in payload["brands"]] == [("Nike", 6)]
 
@@ -315,8 +317,8 @@ class TestDaysAnOlderBuildWroteBack:
         # A tagged day whose table misses a name the counts carry.
         doc = {"cats": {"clothing": 9}, "brands": {"Nike": 9},
                "cat_devices": {}, "brand_devices": {}, "finds": []}
-        await cache.set(notify._stat_key(day(1), "top"), json.dumps(doc), 600)
-        payload = await notify.trends(is_pro=False)
+        await cache.set(opsstats.stat_key(day(1), "top"), json.dumps(doc), 600)
+        payload = await trends.trends(is_pro=False)
         assert payload["categories"] == [] and payload["brands"] == []
 
     @pytest.mark.asyncio
@@ -335,16 +337,16 @@ class TestDaysAnOlderBuildWroteBack:
                     category="clothing", low=10, high=20, confidence="High",
                     subject="one-device")
             await asyncio.gather(*list(notify._tasks), return_exceptions=True)
-            assert await c.get(notify.TRENDS_TAGGED_SINCE_KEY) == day(0)
+            assert await c.get(trends.TRENDS_TAGGED_SINCE_KEY) == day(0)
 
-            key = notify._stat_key(day(0), "top")
+            key = opsstats.stat_key(day(0), "top")
             tagged = json.loads(await c.get(key))
             await c.set(key, json.dumps({"cats": {"clothing": 5},
                                          "brands": {"Slurbrand": 5},
                                          "finds": tagged["finds"]}), 600)
 
             tomorrow = datetime.now(timezone.utc) + timedelta(days=1)
-            payload = await notify.trends(is_pro=False, now=tomorrow)
+            payload = await trends.trends(is_pro=False, now=tomorrow)
             assert payload["categories"] == [] and payload["brands"] == []
         finally:
             await notify.aclose()
@@ -355,7 +357,7 @@ class TestTierSplit:
     async def test_free_gets_counts_only(self, cache):
         await seed(cache, 1, {"clothing": 9}, {"Nike": 6},
                    [find("Carhartt Detroit Jacket", "clothing", 60, 100)] * 3)
-        payload = await notify.trends(is_pro=False)
+        payload = await trends.trends(is_pro=False)
         assert "notable_finds" not in payload
         assert all("average_estimate" not in r for r in payload["categories"])
 
@@ -365,7 +367,7 @@ class TestTierSplit:
                  find("KitchenAid Mixer", "home", 100, 180, "KitchenAid"),
                  find("Pyrex set", "home", 40, 80, "Pyrex")]
         await seed(cache, 1, {"home": 9}, {"Le Creuset": 6}, finds)
-        payload = await notify.trends(is_pro=True)
+        payload = await trends.trends(is_pro=True)
         (home,) = payload["categories"]
         assert home["average_estimate"] == 123        # (170 + 140 + 60) / 3
         assert [f["name"] for f in payload["notable_finds"]] == \
@@ -377,7 +379,7 @@ class TestTierSplit:
     async def test_an_average_needs_three_finds(self, cache):
         await seed(cache, 1, {"home": 9}, {},
                    [find("Le Creuset", "home", 120, 220), find("Pyrex", "home", 40, 80)])
-        (home,) = (await notify.trends(is_pro=True))["categories"]
+        (home,) = (await trends.trends(is_pro=True))["categories"]
         assert "average_estimate" not in home
 
     @pytest.mark.asyncio
@@ -385,9 +387,9 @@ class TestTierSplit:
         cats = {name: 9 for name in
                 ["clothing", "shoes", "home", "books", "toys", "sports", "electronics"]}
         await seed(cache, 1, cats, {})
-        assert len((await notify.trends(is_pro=False))["categories"]) == notify.TRENDS_FREE_ROWS
-        await cache.delete(f"{notify.TRENDS_CACHE_KEY}:pro")
-        assert len((await notify.trends(is_pro=True))["categories"]) == notify.TRENDS_PRO_ROWS
+        assert len((await trends.trends(is_pro=False))["categories"]) == trends.TRENDS_FREE_ROWS
+        await cache.delete(f"{trends.TRENDS_CACHE_KEY}:pro")
+        assert len((await trends.trends(is_pro=True))["categories"]) == trends.TRENDS_PRO_ROWS
 
 
 class TestNotableFindsAreDistinct:
@@ -412,7 +414,7 @@ class TestNotableFindsAreDistinct:
                     find("Pyrex set", "home", 40, 80, "Pyrex"),
                     find("Dansk Kobenstyle pot", "home", 30, 60, "Dansk")])
 
-        notable = (await notify.trends(is_pro=True))["notable_finds"]
+        notable = (await trends.trends(is_pro=True))["notable_finds"]
 
         assert [f["name"] for f in notable] == [
             "Carhartt", "Le Creuset", "KitchenAid", "Pyrex", "Dansk"]
@@ -423,7 +425,7 @@ class TestNotableFindsAreDistinct:
     async def test_an_average_is_over_items_not_rescans(self, cache):
         """Three scans of one pot are one data point, not an average."""
         await seed(cache, 1, {"home": 9}, {}, [find("Le Creuset", "home", 120, 220)] * 3)
-        (home,) = (await notify.trends(is_pro=True))["categories"]
+        (home,) = (await trends.trends(is_pro=True))["categories"]
         assert "average_estimate" not in home
 
 
@@ -451,7 +453,7 @@ class TestWrittenWithoutTelegram:
 
             # Today is outside the window, so read it from tomorrow.
             tomorrow = datetime.now(timezone.utc) + timedelta(days=1)
-            payload = await notify.trends(is_pro=False, now=tomorrow)
+            payload = await trends.trends(is_pro=False, now=tomorrow)
 
             assert payload["scans"] == 6
             assert [(r["name"], r["count"]) for r in payload["categories"]] == [("clothing", 6)]
@@ -472,7 +474,7 @@ class TestNotableFindsAreNotSomeonesScan:
         await seed(cache, 1, {"collectibles": 9}, {},
                    [find("Signed 1998 Jordan card, to Maria from Dad",
                          "collectibles", 900, 1500, "Upper Deck")])
-        payload = await notify.trends(is_pro=True)
+        payload = await trends.trends(is_pro=True)
         assert payload["notable_finds"] == [
             {"name": "Upper Deck", "category": "collectibles", "low": 900, "high": 1500}]
         assert "Maria" not in json.dumps(payload)
@@ -483,7 +485,7 @@ class TestNotableFindsAreNotSomeonesScan:
                    [find("Hand-painted portrait of our house", "home", 300, 600),
                     find("Unbranded lamp", "home", 200, 400, "Unbranded"),
                     find("Pyrex set", "home", 40, 80, "Pyrex")])
-        payload = await notify.trends(is_pro=True)
+        payload = await trends.trends(is_pro=True)
         assert [f["name"] for f in payload["notable_finds"]] == ["Pyrex"]
 
     @pytest.mark.asyncio
@@ -491,8 +493,8 @@ class TestNotableFindsAreNotSomeonesScan:
         finds = [find(f"Mystery {i}", "home", 900 - i, 1000 - i) for i in range(10)]
         finds += [find(f"Branded {i}", "home", 100 - i, 200 - i, f"Brand{i}") for i in range(10)]
         await seed(cache, 1, {"home": 9}, {}, finds)
-        payload = await notify.trends(is_pro=True)
-        assert len(payload["notable_finds"]) == notify.TRENDS_FINDS
+        payload = await trends.trends(is_pro=True)
+        assert len(payload["notable_finds"]) == trends.TRENDS_FINDS
 
     @pytest.mark.asyncio
     async def test_one_brand_at_one_range_is_one_find(self, cache):
@@ -506,7 +508,7 @@ class TestNotableFindsAreNotSomeonesScan:
         await seed(cache, 2, {"home": 9}, {},
                    [find("Dutch oven 5.5qt", "home", 120, 220, "Le Creuset"),
                     find("Pyrex set", "home", 40, 80, "Pyrex")])
-        payload = await notify.trends(is_pro=True)
+        payload = await trends.trends(is_pro=True)
         assert [(f["name"], f["low"], f["high"]) for f in payload["notable_finds"]] == [
             ("Le Creuset", 120, 220), ("Le Creuset", 60, 110), ("Pyrex", 40, 80)]
 
@@ -515,15 +517,15 @@ class TestCaching:
     @pytest.mark.asyncio
     async def test_each_tier_is_cached_separately(self, cache):
         await seed(cache, 1, {"clothing": 9}, {})
-        first = await notify.trends(is_pro=False)
+        first = await trends.trends(is_pro=False)
         # A later scan does not change what the cache already answered.
         await seed(cache, 1, {"clothing": 99}, {})
-        assert (await notify.trends(is_pro=False)) == first
+        assert (await trends.trends(is_pro=False)) == first
         # Pro has its own entry, computed fresh from the new numbers.
-        assert (await notify.trends(is_pro=True))["categories"][0]["count"] == 99
+        assert (await trends.trends(is_pro=True))["categories"][0]["count"] == 99
 
     @pytest.mark.asyncio
     async def test_no_data_is_an_empty_answer_not_an_error(self, cache):
-        payload = await notify.trends(is_pro=True)
+        payload = await trends.trends(is_pro=True)
         assert payload["scans"] == 0
         assert payload["categories"] == [] and payload["brands"] == []

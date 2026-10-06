@@ -122,7 +122,7 @@ REASON_CODES = frozenset({
 })
 
 #: Brand values that mean "no brand was identified". One list, shared with the
-#: operator's brand tallies (`notify._clean_brand`) and the eval's
+#: operator's brand tallies (`trends.clean_brand`) and the eval's
 #: hallucination check (`eval.metrics`). The three copies had drifted: notify
 #: dropped "Generic", this module scored it as an identified brand, so one
 #: wording choice by the model moved the score by about 25 points — "Generic"

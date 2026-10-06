@@ -24,6 +24,8 @@ import appstorenotify
 import auth
 from entitlements import Entitlement
 import main
+import opsstats
+import trends
 from main import app, _extract_json, _check_rate_limit, _rate_store, _ip_rate_store
 from tests.images import VALID_PNG, padded_image_bytes
 
@@ -275,7 +277,7 @@ class TestLegalEndpoints:
         import notify
         body = _prose(client.get("/privacy").text)
         assert "scan results are processed in real time" not in body
-        assert f"{notify.STATS_TTL // 86_400} days after the day of the scan" in body
+        assert f"{opsstats.STATS_TTL // 86_400} days after the day of the scan" in body
         assert "never the item name, the photo, or who scanned it" in body
         # "Keeps only what running the service needs" was not the whole story:
         # /post and /calendar hand the week's top finds, item names included,
@@ -298,7 +300,7 @@ class TestLegalEndpoints:
         assert ("neither the device identifier itself nor the hash described "
                 "under Telegram") in body
         # What the sentence says the tag is, and is not.
-        tag = notify._trend_device("key-id")
+        tag = trends._trend_device("key-id")
         assert tag == auditlog.keyed_tag("trends", "key-id")
         assert tag not in auditlog.pseudonymise("key-id")
 
@@ -964,7 +966,7 @@ class TestScanAccounting:
         import notify
         counted: list[str] = []
         completed: list[dict] = []
-        monkeypatch.setattr(notify, "count_scan", lambda tier: counted.append(tier))
+        monkeypatch.setattr(opsstats, "count_scan", lambda tier: counted.append(tier))
         monkeypatch.setattr(notify, "scan_completed", lambda **kw: completed.append(kw))
 
         mock_response = MagicMock()
@@ -1088,7 +1090,7 @@ class TestTrendsEndpoint:
         # partial today against seven whole days leaned every category down.
         day = (datetime.now(timezone.utc) - timedelta(days=1)).strftime("%Y%m%d")
         asyncio.run(cache.set(
-            notify._stat_key(day, "top"),
+            opsstats.stat_key(day, "top"),
             _json.dumps({"cats": {"clothing": 9}, "brands": {"Nike": 6},
                          "finds": [{"n": "Carhartt Detroit Jacket", "c": "clothing",
                                     "lo": 60, "hi": 100, "d": ["d1", "d2", "d3"]}] * 3,

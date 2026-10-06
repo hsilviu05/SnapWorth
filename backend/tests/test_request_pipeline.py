@@ -34,6 +34,7 @@ import entitlements  # noqa: E402
 import main  # noqa: E402
 import metrics  # noqa: E402
 import notify  # noqa: E402
+import opsstats  # noqa: E402
 import observability  # noqa: E402
 from cache import InMemoryCache, ResilientCache  # noqa: E402
 from tests.conftest import build_deps  # noqa: E402
@@ -344,7 +345,7 @@ class TestAbandonedScansAreNotCharged:
     def _run(self, then: str, monkeypatch) -> tuple[Driven, list, list]:
         counted: list[str] = []
         completed: list[dict] = []
-        monkeypatch.setattr(notify, "count_scan", lambda tier: counted.append(tier))
+        monkeypatch.setattr(opsstats, "count_scan", lambda tier: counted.append(tier))
         monkeypatch.setattr(notify, "scan_completed", lambda **kw: completed.append(kw))
         main._rate_store.clear()
         main._ip_rate_store.clear()
@@ -525,7 +526,7 @@ class TestOutdatedBuildsAreToldToUpdate:
             self, monkeypatch):
         counted: list[str] = []
         completed: list[dict] = []
-        monkeypatch.setattr(notify, "count_scan", lambda tier: counted.append(tier))
+        monkeypatch.setattr(opsstats, "count_scan", lambda tier: counted.append(tier))
         monkeypatch.setattr(notify, "scan_completed", lambda **kw: completed.append(kw))
         self._require(18)
         headers, body = _scan_body()

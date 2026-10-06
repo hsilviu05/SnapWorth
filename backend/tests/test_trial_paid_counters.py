@@ -29,6 +29,7 @@ import pytest_asyncio
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import notify  # noqa: E402
+import opsstats  # noqa: E402
 from cache import InMemoryCache, ResilientCache  # noqa: E402
 from entitlements import Entitlement  # noqa: E402
 
@@ -65,18 +66,18 @@ def monthly(otid: str = "otid-monthly") -> Entitlement:
 
 
 class Clock:
-    """Stands in for `notify._day()` with no argument, so a test can move the
+    """Stands in for `opsstats.day()` with no argument, so a test can move the
     counters from one day to the next; with an argument it is the real one."""
 
     def __init__(self, monkeypatch, day: str) -> None:
         self.day = day
-        real = notify._day
-        monkeypatch.setattr(notify, "_day",
+        real = opsstats.day
+        monkeypatch.setattr(opsstats, "day",
                             lambda at=None: self.day if at is None else real(at))
 
 
 async def stat(day: str, name: str) -> int:
-    return int(await notify._cache.get(notify._stat_key(day, name)) or 0)
+    return int(await notify._cache.get(opsstats.stat_key(day, name)) or 0)
 
 
 async def counts(day: str) -> dict[str, int]:
@@ -199,7 +200,7 @@ class TestTheRealOrder:
             "acq": "trial", "expires": int(time.time()) - 60, "seen": 1}}))
         await notify.subscription_event(
             FakeNotification(first_paid_period(), paid_period=True))
-        assert (await counts(notify._day()))["trial_conversions"] == 1
+        assert (await counts(opsstats.day()))["trial_conversions"] == 1
         assert (await row("otid-trial"))["started_as"] == "trial"
 
 
@@ -208,7 +209,7 @@ class TestWhatCountsAsWhat:
     @pytest.mark.asyncio
     async def test_a_direct_monthly_purchase_is_only_paid_direct(self, with_bot):
         await notify.entitlement_recorded(SUBJECT, monthly())
-        day = notify._day()
+        day = opsstats.day()
         assert await counts(day) == {**ZERO, "paid_direct": 1, "new_subs": 1}
         assert (await row("otid-monthly"))["started_as"] == "paid"
         assert "trial_ends" not in await row("otid-monthly")
@@ -243,8 +244,8 @@ class TestWhatCountsAsWhat:
                              "otid-sandbox", "Sandbox", original_purchase_at=now,
                              offer_type=1, offer_discount_type="FREE_TRIAL")
         await notify.entitlement_recorded(SUBJECT, tester, paywall_trigger="scan_limit")
-        assert await counts(notify._day()) == ZERO
-        assert await stat(notify._day(), "trial_starts:scan_limit") == 0
+        assert await counts(opsstats.day()) == ZERO
+        assert await stat(opsstats.day(), "trial_starts:scan_limit") == 0
         assert await notify._read_index(notify.SUBS_INDEX_KEY) == {}
 
     @pytest.mark.asyncio
@@ -254,16 +255,16 @@ class TestWhatCountsAsWhat:
                            "otid-code", "Production", original_purchase_at=now,
                            offer_type=3, offer_discount_type="FREE_TRIAL")
         await notify.entitlement_recorded(SUBJECT, code, paywall_trigger="settings")
-        assert await counts(notify._day()) == {**ZERO, "offer_starts": 1, "new_subs": 1}
-        assert await stat(notify._day(), "trial_starts:settings") == 0
+        assert await counts(opsstats.day()) == {**ZERO, "offer_starts": 1, "new_subs": 1}
+        assert await stat(opsstats.day(), "trial_starts:settings") == 0
 
     @pytest.mark.asyncio
     async def test_a_payer_apple_reported_first_is_paid_direct(self, with_bot):
         await notify.subscription_event(
             FakeNotification(monthly(), paid_period=True))
-        assert await counts(notify._day()) == {**ZERO, "paid_direct": 1, "new_subs": 1}
+        assert await counts(opsstats.day()) == {**ZERO, "paid_direct": 1, "new_subs": 1}
         await notify.entitlement_recorded(SUBJECT, monthly())
-        assert await counts(notify._day()) == {**ZERO, "paid_direct": 1, "new_subs": 1}
+        assert await counts(opsstats.day()) == {**ZERO, "paid_direct": 1, "new_subs": 1}
 
 
 class TestWithoutTelegram:
@@ -304,7 +305,7 @@ class TestPaywallTrigger:
     async def test_counted_once_however_many_syncs_follow(self, with_bot):
         for _ in range(5):
             await notify.entitlement_recorded(SUBJECT, trial(), paywall_trigger="scan_limit")
-        assert await stat(notify._day(), "trial_starts:scan_limit") == 1
+        assert await stat(opsstats.day(), "trial_starts:scan_limit") == 1
 
     @pytest.mark.asyncio
     async def test_a_sync_without_it_first_does_not_lose_it(self, with_bot):
@@ -312,7 +313,7 @@ class TestPaywallTrigger:
         foreground sync carries no trigger. It can reach the server before
         the sync after the purchase, which does. On the first-sighting guard
         the trigger would always be lost."""
-        day = notify._day()
+        day = opsstats.day()
         await notify.entitlement_recorded(SUBJECT, trial())
         assert await stat(day, "trial_starts:scan_limit") == 0
         await notify.entitlement_recorded(SUBJECT, trial(), paywall_trigger="scan_limit")
@@ -328,8 +329,8 @@ class TestPaywallTrigger:
     async def test_apple_reporting_a_purchase_first_does_not_lose_it(self, with_bot):
         await notify.subscription_event(FakeNotification(monthly(), paid_period=True))
         await notify.entitlement_recorded(SUBJECT, monthly(), paywall_trigger="haul")
-        assert await stat(notify._day(), "paid_direct:haul") == 1
-        assert await stat(notify._day(), "trial_starts:haul") == 0
+        assert await stat(opsstats.day(), "paid_direct:haul") == 1
+        assert await stat(opsstats.day(), "trial_starts:haul") == 0
 
     @pytest.mark.asyncio
     async def test_an_unknown_or_missing_trigger_counts_nothing_and_spends_nothing(
@@ -338,7 +339,7 @@ class TestPaywallTrigger:
         await notify.entitlement_recorded(SUBJECT, trial(), paywall_trigger=None)
         assert await notify._cache.get("opsseen:subtrigger:otid-trial") is None
         await notify.entitlement_recorded(SUBJECT, trial(), paywall_trigger="trends")
-        assert await stat(notify._day(), "trial_starts:trends") == 1
+        assert await stat(opsstats.day(), "trial_starts:trends") == 1
 
     @pytest.mark.asyncio
     async def test_an_old_subscription_restored_from_a_paywall_is_not_counted(
@@ -350,7 +351,7 @@ class TestPaywallTrigger:
                           "otid-old", "Production",
                           original_purchase_at=now - 40 * 86_400)
         await notify.entitlement_recorded(SUBJECT, old, paywall_trigger="settings")
-        assert await stat(notify._day(), "paid_direct:settings") == 0
+        assert await stat(opsstats.day(), "paid_direct:settings") == 0
 
     @pytest.mark.asyncio
     async def test_the_trigger_is_never_written_to_the_row(self, with_bot):
@@ -359,7 +360,7 @@ class TestPaywallTrigger:
         await notify.entitlement_recorded(SUBJECT, trial(), paywall_trigger="valuation_detail")
         raw = await notify._cache.get(notify.SUBS_INDEX_KEY)
         assert "valuation_detail" not in raw
-        assert await stat(notify._day(), "trial_starts:valuation_detail") == 1
+        assert await stat(opsstats.day(), "trial_starts:valuation_detail") == 1
 
     def test_the_set_is_exactly_the_apps_paywall_trigger(self):
         """Copied from `PaywallTrigger`'s raw values. A trigger the app adds
@@ -438,8 +439,8 @@ class TestPaywallReadout:
     NOW = datetime(2026, 10, 29, 12, 0, tzinfo=timezone.utc)
 
     async def _seed(self, days_ago: int, name: str, value: int) -> None:
-        day = notify._day(self.NOW - timedelta(days=days_ago))
-        await notify._cache.set(notify._stat_key(day, name), str(value))
+        day = opsstats.day(self.NOW - timedelta(days=days_ago))
+        await notify._cache.set(opsstats.stat_key(day, name), str(value))
 
     async def _rows(self, rows: dict) -> None:
         await notify._cache.set(notify.SUBS_INDEX_KEY, json.dumps(rows))

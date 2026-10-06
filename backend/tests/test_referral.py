@@ -15,6 +15,7 @@ from fastapi.testclient import TestClient
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import auth  # noqa: E402
+import opsstats  # noqa: E402
 import referral  # noqa: E402
 from entitlements import Entitlement, entitlement_from_payload  # noqa: E402
 from main import app  # noqa: E402
@@ -814,7 +815,7 @@ class TestFunnelCounters:
             await notify.subscription_event(note)
             await notify.subscription_event(note)          # Apple redelivers
             await _drain()
-            return await notify._read_stat(notify._day(), "referral_paid")
+            return await opsstats.read_stat(opsstats.day(), "referral_paid")
         assert asyncio.run(go()) == 1
 
     def test_a_paid_period_on_a_subscription_that_was_not_a_referral_counts_nothing(self):
