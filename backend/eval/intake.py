@@ -290,11 +290,12 @@ def drafts_from_csv(table: Path, photos: Path) -> list[Draft]:
                 continue
             currency = (_text(row.get("currency")) or "").upper()
             region = (_text(row.get("region")) or "").upper() or None
-            if region is None and currency != "USD":
-                # The schema defaults a missing region to US, which would file
-                # a lei or euro sale under the wrong market.
+            if region is None:
+                # Every row says where it sold (#225): the per-region breakdown
+                # is the point, and a guess would file a sale under the wrong
+                # market. A dollar sale is not necessarily a US one.
                 problems.append(f"{source}: a {currency or 'non-USD'} sale needs its region "
-                                "(RO, DE, ES, …)")
+                                "(US, RO, DE, ES, …)")
                 continue
             tags = [t.strip() for t in (row.get("tags") or "").split(";") if t.strip()]
             drafts.append(Draft(

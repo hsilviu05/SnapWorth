@@ -38,6 +38,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 import logging
 from dataclasses import asdict, dataclass, field
 from datetime import date, datetime, timezone
@@ -168,7 +169,10 @@ class GoldItem:
     # Sale context.
     sold_date: date | None = None
     marketplace: str | None = None
-    region: str = "US"
+    # Where it sold, ISO 3166-1 alpha-2 (US, DE, RO, …). "unknown" when the
+    # record does not say: it used to read as "US", which silently put every
+    # unlabelled sale in the US bucket of the per-region breakdown (#225).
+    region: str = "unknown"
     seller_type: SellerType = SellerType.UNKNOWN
     shipping_included: bool | None = None
 
@@ -273,6 +277,14 @@ class GoldItem:
                 "must be traceable to something")
         if self.sold_date and self.sold_date > date.today():
             problems.append("sold_date is in the future")
+        if self.region == "unknown":
+            problems.append("no region: where it sold decides which market's price it is")
+        elif not re.fullmatch(r"[A-Z]{2}", self.region) or self.region in NOT_COUNTRIES:
+            problems.append(f"region {self.region!r} is not an ISO 3166 country code "
+                            "(\"EU\" lumps Romania with Germany; name the country)")
+        if self.currency != "USD" and not self.sold_date:
+            problems.append(f"sold in {self.currency} with no sold_date, so it cannot be "
+                            "converted to USD and is never scored")
         return problems
 
     def to_dict(self) -> dict:
@@ -324,7 +336,8 @@ def item_from_dict(raw: dict) -> GoldItem | None:
             condition=raw.get("condition"),
             sold_date=sold_date,
             marketplace=raw.get("marketplace"),
-            region=raw.get("region", "US"),
+            region=str(raw.get("region") or "unknown").upper()
+            if raw.get("region") else "unknown",
             seller_type=_enum(SellerType, raw.get("seller_type"), SellerType.UNKNOWN),
             shipping_included=raw.get("shipping_included"),
             authenticity=_enum(AuthenticityStatus, raw.get("authenticity"),
@@ -515,6 +528,13 @@ TARGET_DIFFICULTY: dict[str, float] = {
     "adversarial": 0.10, "negative_control": 0.05,
 }
 
+#: Two letters that are not a country: ISO reserves EU and EZ, the UK's code
+#: is GB, and XX/ZZ are "unknown" placeholders. A region must be one market.
+NOT_COUNTRIES = frozenset({"EU", "EZ", "UK", "UN", "XX", "ZZ"})
+
+# Not yet from real traffic (#225): set it from App Store Connect's Sales and
+# Trends by territory and TelemetryDeck's locale split, with ISO codes, and
+# cite the source and date here. "EU" is a placeholder that no record may use.
 TARGET_REGIONS: dict[str, float] = {"US": 0.6, "GB": 0.2, "EU": 0.2}
 
 

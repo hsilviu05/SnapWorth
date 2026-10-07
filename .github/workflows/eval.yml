@@ -57,7 +57,7 @@ jobs:
       - name: Test the evaluation platform
         env:
           GEMINI_API_KEY: ci-placeholder-not-real
-        run: pytest tests/test_eval_platform.py tests/test_eval.py tests/test_eval_intake.py tests/test_eval_paired_experiment.py tests/test_eval_gate_wiring.py tests/test_eval_field.py -v --tb=short
+        run: pytest tests/test_eval_platform.py tests/test_eval.py tests/test_eval_intake.py tests/test_eval_paired_experiment.py tests/test_eval_gate_wiring.py tests/test_eval_field.py tests/test_eval_fx.py -v --tb=short
 
   # ── Guards against fabricated benchmark data ──────────────────────────────
   data-integrity:

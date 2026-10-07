@@ -195,13 +195,14 @@ def write_csv(tmp: Path, rows: list[dict]) -> tuple[Path, Path]:
     photos = tmp / "photos"
     photos.mkdir(exist_ok=True)
     table = tmp / "sales.csv"
-    columns = ["photo", "price", "currency", "category", "region",
+    columns = ["photo", "price", "currency", "category", "region", "sold_date",
                "label_confidence", "evidence", "difficulty", "tags"]
     with table.open("w", newline="") as handle:
         writer = csv.DictWriter(handle, fieldnames=columns)
         writer.writeheader()
         for i, row in enumerate(rows):
             name = row.setdefault("photo", f"p{i}.jpg")
+            row.setdefault("region", "US")      # every row says where it sold (#225)
             (photos / name).write_bytes(fake_jpeg(1200, 900, name.encode()))
             writer.writerow({c: row.get(c, "") for c in columns})
     return table, photos
@@ -222,9 +223,9 @@ def test_evidence_is_kept_private_and_never_a_web_address(tmp_path, paths):
     gold, _ = paths
     gold.parent.mkdir()
     table, photos = write_csv(tmp_path, [
-        {"price": "40", "currency": "USD", "category": "shoes", "label_confidence": "certain",
+        {"price": "40", "currency": "USD", "category": "shoes", "region": "US", "label_confidence": "certain",
          "evidence": "receipts/2026-09-14.png"},
-        {"price": "30", "currency": "USD", "category": "shoes", "label_confidence": "high",
+        {"price": "30", "currency": "USD", "category": "shoes", "region": "US", "label_confidence": "high",
          "evidence": "https://www.ebay.com/itm/123"},
     ])
     code, _, err = run_cli(["--gold", str(gold), "csv", str(table), "--photos", str(photos)],
@@ -232,7 +233,7 @@ def test_evidence_is_kept_private_and_never_a_web_address(tmp_path, paths):
     assert code == 1 and "web address" in err
 
     table, photos = write_csv(tmp_path, [
-        {"price": "40", "currency": "USD", "category": "shoes", "label_confidence": "certain",
+        {"price": "40", "currency": "USD", "category": "shoes", "region": "US", "label_confidence": "certain",
          "evidence": "receipts/2026-09-14.png", "tags": "negative_check;low_light"}])
     code, _, err = run_cli(["--gold", str(gold), "csv", str(table), "--photos", str(photos)],
                            stub_converter([]))
@@ -247,13 +248,21 @@ def test_evidence_is_kept_private_and_never_a_web_address(tmp_path, paths):
 def test_a_non_usd_sale_keeps_its_currency_and_needs_its_region(tmp_path, paths):
     gold, _ = paths
     gold.parent.mkdir()
-    table, photos = write_csv(tmp_path, [{"price": "120", "currency": "ron", "category": "bags"}])
+    table, photos = write_csv(tmp_path, [{"price": "120", "currency": "ron", "category": "bags",
+                                          "region": ""}])
     code, _, err = run_cli(["--gold", str(gold), "csv", str(table), "--photos", str(photos)],
                            stub_converter([]))
     assert code == 1 and "needs its region" in err
 
     table, photos = write_csv(tmp_path, [
         {"price": "120", "currency": "ron", "category": "bags", "region": "ro"}])
+    code, _, err = run_cli(["--gold", str(gold), "csv", str(table), "--photos", str(photos)],
+                           stub_converter([]))
+    assert code == 1 and "no sold_date" in err, "a lei sale with no date can never be scored"
+
+    table, photos = write_csv(tmp_path, [
+        {"price": "120", "currency": "ron", "category": "bags", "region": "ro",
+         "sold_date": "2026-09-14"}])
     code, _, err = run_cli(["--gold", str(gold), "csv", str(table), "--photos", str(photos)],
                            stub_converter([]))
     assert code == 0, err
@@ -265,7 +274,7 @@ def test_a_negative_control_may_be_unpriced(tmp_path, paths):
     gold, _ = paths
     gold.parent.mkdir()
     table, photos = write_csv(tmp_path, [
-        {"price": "0", "currency": "USD", "category": "other",
+        {"price": "0", "currency": "USD", "category": "other", "region": "US",
          "difficulty": "negative_control"}])
     code, _, err = run_cli(["--gold", str(gold), "csv", str(table), "--photos", str(photos)],
                            stub_converter([]))
@@ -302,3 +311,16 @@ def test_a_refused_row_removes_the_photos_already_written(tmp_path, paths):
     assert code == 1 and "label_confidence 'sure'" in err
     assert not gold.exists()
     assert list(images.glob("*")) == []
+
+
+def test_a_row_must_say_where_it_sold(tmp_path, paths):
+    # #225: a record with no region used to read as US.
+    gold, _ = paths
+    gold.parent.mkdir()
+    for region, problem in [("", "needs its region"), ("EU", "not an ISO 3166")]:
+        table, photos = write_csv(tmp_path, [
+            {"price": "40", "currency": "USD", "category": "shoes", "region": region}])
+        code, _, err = run_cli(["--gold", str(gold), "csv", str(table), "--photos", str(photos)],
+                               stub_converter([]))
+        assert code == 1 and problem in err
+

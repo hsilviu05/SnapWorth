@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import io
 import json
+
+import pytest
 import sys
 from contextlib import redirect_stdout
 from pathlib import Path
@@ -14,10 +16,12 @@ from eval import cli, field, gates  # noqa: E402
 
 
 def record(sold: float, *, low=20.0, high=40.0, likely=30.0, currency="USD",
-           band="Medium", prompt="v2", storefront="USA", category="clothing") -> dict:
+           band="Medium", prompt="v2", storefront="USA", category="clothing",
+           sold_day: str | None = "2025-12-31") -> dict:
     return {"estimate_low": low, "estimate_high": high, "likely": likely,
             "sold_price": sold, "currency": currency, "confidence_band": band,
-            "prompt_version": prompt, "storefront": storefront, "category": category}
+            "prompt_version": prompt, "storefront": storefront, "category": category,
+            "sold_day": sold_day}
 
 
 def write(tmp: Path, records: list[dict]) -> Path:
@@ -39,12 +43,19 @@ def test_figures_are_computed_by_group_and_labelled_user_reported(tmp_path):
                for m in rep["metrics"])
 
 
-def test_only_usd_sales_are_scored_and_the_rest_are_counted(tmp_path):
-    records = [record(30) for _ in range(5)] + [record(120, currency="RON") for _ in range(3)]
+def test_a_lei_sale_is_scored_in_dollars_at_its_sale_day(tmp_path):
+    # #225: 120 RON on 2025-12-31 at the ECB's 1.175 USD and 5.0968 RON per
+    # euro is $27.66 — scored against the $30 estimate, not dropped.
+    records = ([record(30) for _ in range(5)]
+               + [record(120, currency="RON", storefront="ROU") for _ in range(5)]
+               + [record(120, currency="RON", sold_day=None)])
     rows, currencies = field.load(write(tmp_path, records))
     rep = field.report(rows, currencies)
-    assert rep["scored_usd"] == 5
-    assert rep["by_currency"] == {"RON": 3, "USD": 5}
+    assert rep["scored_usd"] == 10
+    assert rep["by_currency"] == {"RON": 6, "USD": 5, "unconverted RON": 1}
+    ro = rep["by"]["storefront"]["ROU"]
+    assert ro["n"] == 5 and ro["bias"] == pytest.approx((30 / (120 * 1.175 / 5.0968) - 1) * 100)
+    assert rep["fx_table"].startswith("ecb-")
 
 
 def test_a_small_group_prints_its_n_and_no_figures(tmp_path):
