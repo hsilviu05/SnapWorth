@@ -157,17 +157,20 @@ The intake refuses a web address as evidence, and `eval.yml`'s
   export holds its 1024 px stored copy, so those records are tagged
   `stored_1024`.
 - **Evidence for certainty.** `certain` and `high` need a `private:` reference.
-- **Real currencies.** A My Flips sale is assumed USD, because the app never
-  asks, and tagged `currency_assumed` for the reviewer to confirm. A CSV sale
-  keeps its own currency and must name its region (RO, DE, …). Nothing is
-  converted: the runner scores USD only, and the per-region work adds FX.
+- **Real currencies and real regions.** A My Flips sale is assumed USD,
+  because the app never asks, and tagged `currency_assumed` for the reviewer
+  to confirm. A CSV sale keeps its own currency. Every row names the country
+  it sold in, ISO 3166 (US, RO, DE, …; never "EU" or "UK"), and a non-USD
+  sale needs its `sold_date`. Labels are never converted: the runner converts
+  each sale to USD **in scoring**, at its sale date, from the pinned ECB table
+  in `backend/eval/fx.py` (#225), and records the table in `run.json`.
 - **All or nothing.** If any row is refused, nothing is written and every
   problem is listed.
 - **No duplicates.** A photo already in the set, by hash, is skipped, so
   re-importing a later export adds only the new sales.
 
-CSV columns: `photo`, `price`, `currency`, `category` (required); `brand`,
-`model`, `condition`, `sold_date`, `marketplace`, `region`,
+CSV columns: `photo`, `price`, `currency`, `category`, `region` (required);
+`brand`, `model`, `condition`, `sold_date` (required for non-USD), `marketplace`,
 `label_confidence`, `evidence`, `difficulty`, `tags` (`;`-separated), `notes`.
 
 Fastest honest sources, in order: your own completed sales (evidence in hand),
@@ -203,6 +206,25 @@ separately from a wrong answer. Scoring abstention as failure would train the
 system toward confident guessing.
 
 ---
+
+### Per region: which market the dollar figure prices for (#225)
+
+`run.json`'s `by_region` gives, per country, n, MdAPE, **bias**, within 25%
+and range coverage; a region with fewer than 10 sales is shown and marked too
+small. `eval.cli field` groups shared sales by storefront the same way. Bias
+is the number to read: a steady +X% in one region means its prices were set
+for another market.
+
+**Decision rule, declared before any data:** a market-aware prompt is
+warranted for a region when **|bias| > 15% with n ≥ 30** there, on the default
+prompt, in the gold set or the field data. When a region crosses it, open a
+follow-up (an optional `market` field on `/scan`, a prompt version pricing
+for that market in USD, result copy naming the market); none of that is
+built until then. The app keeps showing USD either way.
+
+| Region | n | Bias (95% CI) | Decision |
+|---|---|---|---|
+| — | — | not measured yet: needs ≥ 30 sales in the region (#213, #224) | — |
 
 ## Phase 3 — experiments
 

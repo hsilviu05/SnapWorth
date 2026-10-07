@@ -400,7 +400,7 @@ def _gold(**overrides) -> dict:
               "actual_sale_price": 42.0, "currency": "USD", "category": "clothing",
               "brand": "Patagonia", "label_confidence": "certain",
               "evidence_note": "own sale, receipt held", "review_state": "approved",
-              "reviewed_by": "operator", "difficulty": "typical"}
+              "reviewed_by": "operator", "difficulty": "typical", "region": "US"}
     record.update(overrides)
     return record
 
@@ -417,7 +417,7 @@ class TestRunnerLoading:
         assert excluded == {}
         split = not_none(schema.item_from_dict(_gold())).assigned_split().value
         assert items == [runner.EvalItem("g1", "clothing", "images/g1.jpg", 42.0, "Patagonia",
-                                         split)]
+                                         split, region="US")]
 
     def test_only_headline_usd_records_are_scored_and_every_exclusion_is_named(self, tmp_path):
         path = _write_jsonl(tmp_path / "gold.jsonl", [

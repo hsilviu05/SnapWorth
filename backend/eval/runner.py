@@ -65,6 +65,7 @@ import imagequality  # noqa: E402
 import prompts  # noqa: E402
 import valuation as valuation_module  # noqa: E402
 from eval import dataset as dataset_module  # noqa: E402
+from eval import fx  # noqa: E402
 from eval import metrics  # noqa: E402
 from eval import schema  # noqa: E402
 from eval.calibration import DEFAULT_TOLERANCE_PCT  # noqa: E402
@@ -77,6 +78,11 @@ log = logging.getLogger("snapworth.eval")
 # The pipeline is sent `image/jpeg` (see `_predict_one`), so an unlabelled
 # folder is read for JPEGs only rather than mislabelling anything else.
 PHOTO_SUFFIXES = (".jpg", ".jpeg")
+
+
+#: A region with fewer labelled sales than this is shown in `by_region` but
+#: marked too small: a median of a handful of sales is an anecdote (#225).
+REGION_MIN = 10
 
 
 @dataclass(frozen=True)
@@ -92,6 +98,7 @@ class EvalItem:
     expected_price: float | None = None   # USD; None when unlabelled
     expected_brand: str | None = None
     split: str | None = None              # gold-v2's dev/test, for --examples-out
+    region: str = "unknown"               # where it sold, ISO 3166 (#225)
 
 
 def _is_gold(path: Path) -> bool:
@@ -136,6 +143,7 @@ def load_items(path: Path) -> tuple[list[EvalItem], dict[str, int]]:
                                   record.actual_sale_price_usd, record.brand))
         return items, excluded
 
+    rates = fx.load()
     for gold in schema.load_gold(path):
         image = gold.primary_image
         if not gold.is_scoreable:
@@ -144,17 +152,22 @@ def load_items(path: Path) -> tuple[list[EvalItem], dict[str, int]]:
             # docs/EVALUATION.md: only certain/high labels count toward the
             # headline, and this run *is* the headline the gate compares.
             skip("label confidence below headline (medium/low)")
-        elif gold.currency != "USD":
-            # The pipeline prices in USD and the harness has no FX rate.
-            # Scoring a £ sale against a $ estimate would be an error metric
-            # measuring the exchange rate.
-            skip(f"sold in {gold.currency}; the harness scores USD only")
         elif image is None:
             skip("no image")
         else:
+            # The estimate is in USD, so a lei or euro sale is converted at
+            # its sale date from the pinned ECB table (`eval/fx.py`, #225) —
+            # in scoring, never in the label. Without a date or a rate it is
+            # excluded with the reason, never converted at today's rate.
+            try:
+                price = rates.to_usd(gold.actual_sale_price, gold.currency, gold.sold_date)
+            except fx.FxUnavailable as exc:
+                skip(f"sold in {gold.currency}: {exc}")
+                continue
             items.append(EvalItem(gold.id, gold.category, image.path,
-                                  gold.actual_sale_price, gold.brand,
-                                  gold.assigned_split().value))
+                                  round(price, 2), gold.brand,
+                                  gold.assigned_split().value,
+                                  region=gold.region or "unknown"))
     return items, excluded
 
 
@@ -219,6 +232,7 @@ class Prediction:
     # item's dev/test split: what `--examples-out` hands `eval.cli calibrate`.
     signals: dict[str, float] = field(default_factory=dict)
     split: str | None = None
+    region: str = "unknown"
 
     @property
     def ok(self) -> bool:
@@ -282,6 +296,23 @@ def evaluate(predictions: list[Prediction]) -> dict:
             "within_25pct": metrics.within_tolerance(subset),
         }
 
+    # Per region (#225): bias is the figure to read — a steady +X% in one
+    # region means its prices were set for another market. A region with
+    # fewer than REGION_MIN sales is shown, marked too small to read.
+    by_region: dict[str, dict] = {}
+    for region in sorted({p.region for p, _ in labelled}):
+        subset = [(p, actual) for p, actual in labelled if p.region == region]
+        pairs = [(p.predicted_expected, actual) for p, actual in subset]
+        by_region[region] = {
+            "n": len(subset),
+            "mdape": metrics.mdape(pairs),
+            "bias": metrics.bias(pairs),
+            "within_25pct": metrics.within_tolerance(pairs, 25.0),
+            "range_coverage": metrics.range_coverage(
+                [(p.predicted_low, p.predicted_high, actual) for p, actual in subset]),
+            "too_small": len(subset) < REGION_MIN,
+        }
+
     return {
         "n_total": len(predictions),
         "n_scored": len(usable),
@@ -310,6 +341,9 @@ def evaluate(predictions: list[Prediction]) -> dict:
         "latency_ms": metrics.latency_summary([p.latency_ms for p in usable]),
         "tokens": _token_summary(usable),
         "by_category": by_category,
+        "by_region": by_region,
+        # Which rate table converted non-USD sales: same table, same dollars.
+        "fx_table": fx.load().version,
     }
 
 
@@ -409,7 +443,7 @@ def median_predictions(repeats: list[list[Prediction]]) -> list[Prediction]:
             visual_evidence=first.visual_evidence,
             latency_ms=statistics.median(p.latency_ms for p in ok),
             output_tokens=first.output_tokens, thoughts_tokens=first.thoughts_tokens,
-            prompt_version=first.prompt_version))
+            prompt_version=first.prompt_version, split=first.split, region=first.region))
     return out
 
 
@@ -564,7 +598,7 @@ async def _predict_one(model, item: EvalItem, prompt_text: str, version: str, ro
     prediction = Prediction(
         item_id=item.id, category=item.category,
         expected_price=item.expected_price, expected_brand=item.expected_brand,
-        prompt_version=version, split=item.split,
+        prompt_version=version, split=item.split, region=item.region,
     )
 
     image_path = (root / item.image_path).resolve()
@@ -735,6 +769,15 @@ def _format(report: dict) -> str:
             f"  {category:<14} n={stats['n']:<4} "
             f"MdAPE={num(stats['mdape'])}%  within25={pct(stats['within_25pct'])}"
         )
+    if report.get("by_region"):
+        lines += ["", f"By region (sales converted to USD with {report.get('fx_table')})"]
+    for region, stats in report.get("by_region", {}).items():
+        lines.append(
+            f"  {region:<14} n={stats['n']:<4} "
+            f"MdAPE={num(stats['mdape'])}%  bias={num(stats['bias'])}%  "
+            f"within25={pct(stats['within_25pct'])}  "
+            f"in range={pct(stats['range_coverage'])}"
+            + (f"  (fewer than {REGION_MIN}: too small to read)" if stats["too_small"] else ""))
     return "\n".join(lines) + "\n"
 
 

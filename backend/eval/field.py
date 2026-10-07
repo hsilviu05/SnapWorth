@@ -12,10 +12,12 @@ gate reads this report. What it adds is volume, by prompt version, storefront,
 category and confidence band, which per-region measurement (#225) and
 calibration (#226) need.
 
-**USD sales only are scored.** The estimates are in US dollars; scoring a lei
-or euro sale against them would measure the exchange rate. Other currencies
-are counted, by currency, so the gap is visible rather than silent; the
-per-region work adds FX.
+**Every sale is scored in US dollars.** The estimates are in dollars, so a
+lei or euro sale is converted at its sale day from the pinned ECB table
+(`eval/fx.py`, #225), as the runner converts gold sales. A sale the table
+cannot convert is counted, with the reason, never scored at today's rate.
+Every record is also counted by currency, and grouped by storefront: bias
+per storefront is the field's view of which market the estimates price for.
 
 The point estimate is `likely` (the model's expected price after the server's
 bounds, what the app shows) and, where a record has none, the middle of the
@@ -29,7 +31,9 @@ from collections import Counter
 from dataclasses import dataclass
 from pathlib import Path
 
-from eval import metrics
+from datetime import date
+
+from eval import fx, metrics
 
 BASIS = "user-reported sales, medium label confidence (not the gold set)"
 GROUPS = ("prompt_version", "storefront", "category", "confidence_band")
@@ -49,22 +53,29 @@ class Row:
 
 
 def load(path: str | Path) -> tuple[list[Row], Counter]:
-    """Scoreable USD rows, and every record counted by currency."""
+    """Scoreable rows in USD, and every record counted by currency; a record
+    the rate table cannot convert is counted under "unconverted <CUR>"."""
     rows: list[Row] = []
     currencies: Counter = Counter()
+    rates = fx.load()
     for line in Path(path).read_text(encoding="utf-8").splitlines():
         line = line.strip()
         if not line:
             continue
         record = json.loads(line)
-        currencies[record.get("currency", "?")] += 1
-        if record.get("currency") != "USD":
+        currency = record.get("currency", "?")
+        currencies[currency] += 1
+        try:
+            day = date.fromisoformat(record["sold_day"]) if record.get("sold_day") else None
+            sold = rates.to_usd(float(record["sold_price"]), currency, day)
+        except (fx.FxUnavailable, ValueError):
+            currencies[f"unconverted {currency}"] += 1
             continue
         low, high = float(record["estimate_low"]), float(record["estimate_high"])
         likely = record.get("likely")
         point, source = ((float(likely), "likely") if likely
                          else ((low + high) / 2, "midpoint"))
-        rows.append(Row(point, source, low, high, float(record["sold_price"]),
+        rows.append(Row(point, source, low, high, sold,
                         {g: str(record.get(g) or "unknown") for g in GROUPS}))
     return rows, currencies
 
@@ -115,6 +126,7 @@ def report(rows: list[Row], currencies: Counter) -> dict:
     return {
         "basis": BASIS,
         "scored_usd": len(rows),
+        "fx_table": fx.load().version,
         "by_currency": dict(sorted(currencies.items())),
         "point_source": dict(Counter(r.point_source for r in rows)),
         "overall": overall,
@@ -128,7 +140,7 @@ def render(rep: dict) -> str:
     def num(v):
         return "—" if v is None else f"{v:.1f}"
     lines = [f"Field outcomes — {rep['basis']}",
-             f"Scored: {rep['scored_usd']} USD sales · all records by currency: "
+             f"Scored: {rep['scored_usd']} sales in USD ({rep['fx_table']}) · by currency: "
              f"{rep['by_currency']} · point estimate: {rep['point_source']}", ""]
     o = rep["overall"]
     lines.append(f"Overall  n={o['n']}  MdAPE {num(o.get('mdape'))}%  bias {num(o.get('bias'))}%  "
