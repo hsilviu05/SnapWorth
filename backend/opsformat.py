@@ -84,3 +84,16 @@ def plan(product: str | None) -> str:
 def money(amount: float, currency: str | None) -> str:
     symbol = {"USD": "$", "EUR": "€", "GBP": "£"}.get(currency or "")
     return f"{symbol}{amount:,.2f}" if symbol else f"{amount:,.2f} {currency or ''}".strip()
+
+
+def usd(amount: float) -> str:
+    return f"${amount:,.2f}"
+
+
+def usd_fine(amount: float) -> str:
+    """Per-scan money: three decimals below ten cents, or the number lies."""
+    return f"${amount:,.3f}" if amount < 0.10 else f"${amount:,.2f}"
+
+
+def kilo(n: int) -> str:
+    return f"{n / 1000:.1f}K" if n >= 1000 else str(n)

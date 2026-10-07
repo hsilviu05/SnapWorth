@@ -74,7 +74,6 @@ import dataclasses
 import html
 import json
 import logging
-import math
 import os
 import re
 import secrets
@@ -91,6 +90,7 @@ import checkup
 import ideas
 import opsformat
 import opsindex
+import opsspend
 import opsstats
 import opssupport
 import telegram
@@ -105,19 +105,6 @@ if TYPE_CHECKING:
 
 log = logging.getLogger("snapworth.notify")
 
-# What the model costs, per million tokens, so spend can be derived from the
-# token counts every call already reports. Defaults are Gemini 2.5 Flash's
-# published rates (thinking tokens bill as output); Google changes prices and
-# GEMINI_MODEL can point elsewhere, so both are env-overridable.
-GEMINI_PRICE_INPUT_PER_M = float(os.environ.get("GEMINI_PRICE_INPUT_PER_M", "0.30"))
-GEMINI_PRICE_OUTPUT_PER_M = float(os.environ.get("GEMINI_PRICE_OUTPUT_PER_M", "2.50"))
-# A daily spend ceiling that pages once when crossed. 0 disables it.
-GEMINI_DAILY_BUDGET_USD = float(os.environ.get("GEMINI_DAILY_BUDGET_USD", "0"))
-# Apple's cut of a subscription, for `/costs`' net revenue per paying month.
-# 0.15 is the Small Business Program rate and the second-year rate; 0.30 is
-# the standard first-year rate. Which one applies is an account fact the repo
-# does not record, so it is the operator's to set.
-APPLE_COMMISSION = float(os.environ.get("APPLE_COMMISSION", "0.15"))
 
 # The live scan feed: one message per successful scan, item and price only.
 # Persisted in the cache so the toggle survives deploys. On by default — the
@@ -365,6 +352,7 @@ def configure(cache, notifier: telegram.TelegramNotifier | None = None,
     opsstats.bind(cache)
     opsindex.bind(cache)
     opssupport.bind(cache)
+    opsspend.bind(cache)
     trends.bind(cache)
     _status_provider = status_provider
     _social = social
@@ -376,6 +364,7 @@ def configure(cache, notifier: telegram.TelegramNotifier | None = None,
     if notifier is not None:
         _notifier = notifier
         _notifier.on_sent = _remember_message
+        opsspend.bind(cache, _announce_over_budget)
     else:
         token = os.environ.get("TELEGRAM_BOT_TOKEN", "").strip()
         chat_id = os.environ.get("TELEGRAM_CHAT_ID", "").strip()
@@ -385,6 +374,7 @@ def configure(cache, notifier: telegram.TelegramNotifier | None = None,
             return
         _notifier = telegram.TelegramNotifier(token, chat_id)
         _notifier.on_sent = _remember_message
+        opsspend.bind(cache, _announce_over_budget)
 
     _start_digest()
     _start_command_loop()
@@ -1399,7 +1389,7 @@ async def _digest_text(when: datetime) -> str:
           if limits else []),
         _subs_label(trials, conversions, direct),
         await _subscribers_line(),
-        await _spend_line([day], free + pro),
+        await opsspend.spend_line([day], free + pro),
     ]
     referrals = await _referral_digest_line(day)
     if referrals:
@@ -1573,7 +1563,7 @@ async def _status_text() -> str:
         *([f"Free limit reached: {limits} today"] if limits else []),
         _subs_label(trials, conversions, direct) + " today",
         await _subscribers_line(),
-        await _spend_line([day], free + pro),
+        await opsspend.spend_line([day], free + pro),
     ]
     top = await _top_text(day)
     if top:
@@ -1676,7 +1666,7 @@ async def handle_command_with_buttons(text: str) -> tuple[str, opsformat.Buttons
     if command == "/users":
         return await _users_text(), await _buttons()
     if command == "/costs":
-        return await _costs_text(), await _buttons()
+        return await opsspend.costs_text(), await _buttons()
     if command == "/experiment":
         if argument == "export":
             return await _experiment_export(), [[("🧪 Experiment", "experiment")]]
@@ -2497,13 +2487,6 @@ def scan_completed(*, tier: str, item_name: str, brand: str | None, category: st
 
 # ── Weekly report ────────────────────────────────────────────────────────────
 
-async def _sum_stat(days: list[str], name: str) -> int:
-    total = 0
-    for day in days:
-        total += await opsstats.read_stat(day, name)
-    return total
-
-
 def _trend(current: int, previous: int) -> str:
     if previous == 0:
         return "new" if current else "—"
@@ -2524,7 +2507,7 @@ async def _weekly_text(now: datetime) -> str:
                                        tzinfo=timezone.utc)) for i in range(7, 14)]
 
     async def pair(name: str) -> tuple[int, int]:
-        return await _sum_stat(this_week, name), await _sum_stat(last_week, name)
+        return await opsstats.sum_stat(this_week, name), await opsstats.sum_stat(last_week, name)
 
     free_now, free_prev = await pair("scans_free")
     pro_now, pro_prev = await pair("scans_pro")
@@ -2534,8 +2517,8 @@ async def _weekly_text(now: datetime) -> str:
         await _sub_counts(this_week), await _sub_counts(last_week))
     paid_now, paid_prev = conv_now + direct_now, conv_prev + direct_prev
     scans_now, scans_prev = free_now + pro_now, free_prev + pro_prev
-    spend_now = await _spend(this_week)
-    spend_prev = await _spend(last_week)
+    spend_now = await opsspend.total_spend(this_week)
+    spend_prev = await opsspend.total_spend(last_week)
 
     start = end - timedelta(days=6)
     return "\n".join([
@@ -2546,10 +2529,10 @@ async def _weekly_text(now: datetime) -> str:
         f"Trial starts: {trials_now} {_trend(trials_now, trials_prev)}",
         f"Paid: {paid_now} ({conv_now} converted trial{'s' if conv_now != 1 else ''} · "
         f"{direct_now} direct) {_trend(paid_now, paid_prev)}",
-        f"Gemini spend: {_usd(spend_now)} {_trend(round(spend_now * 100), round(spend_prev * 100))}",
+        f"Gemini spend: {opsformat.usd(spend_now)} {_trend(round(spend_now * 100), round(spend_prev * 100))}",
         f"vs {scans_prev} scans · {users_prev} user-days · {trials_prev} trial starts · "
         f"{paid_prev} paid · "
-        f"{_usd(spend_prev)} the week before",
+        f"{opsformat.usd(spend_prev)} the week before",
     ])
 
 
@@ -2611,39 +2594,14 @@ def _renew_mark(entry: dict) -> str:
         entry.get("auto_renew"), bool) else None]
 
 
-def _subs_summary(doc: dict) -> tuple[int, int, int, int, dict[str, float]]:
-    """(active, paid, comped, expired, mrr by currency)."""
-    now = time.time()
-    active = paid = comped = expired = 0
-    mrr: dict[str, float] = {}
-    for e in doc.values():
-        # A refund keeps its expiry date — the period was paid for and then
-        # unpaid — so expiry alone would leave a refunded subscription counted
-        # as active revenue until it happened to lapse. See `_sub_is_alive`.
-        alive = opsformat.sub_is_alive(e, now)
-        if not alive:
-            expired += 1
-            continue
-        active += 1
-        if e.get("acq") == "paid":
-            paid += 1
-            price, cur = e.get("price"), e.get("currency") or "?"
-            if isinstance(price, (int, float)) and price > 0:
-                monthly = price / 12 if "yearly" in opsformat.plan(e.get("product")) else price
-                mrr[cur] = mrr.get(cur, 0.0) + monthly
-        else:
-            comped += 1
-    return active, paid, comped, expired, mrr
-
-
 async def _subscribers_line() -> str:
-    active, paid, comped, _, _ = _subs_summary(await opsindex.read_index(opsindex.SUBS_INDEX_KEY))
+    active, paid, comped, _, _ = opsindex.subs_summary(await opsindex.read_index(opsindex.SUBS_INDEX_KEY))
     return f"Subscribers: {active} active · {paid} paid · {comped} comped/trial"
 
 
 async def _subs_text() -> str:
     doc = await opsindex.read_index(opsindex.SUBS_INDEX_KEY)
-    active, paid, comped, expired, mrr = _subs_summary(doc)
+    active, paid, comped, expired, mrr = opsindex.subs_summary(doc)
     lines = [f"💳 <b>Subscriptions</b> — {active} active · {paid} paid · "
              f"{comped} comped/trial · {expired} expired"]
     if mrr:
@@ -2728,369 +2686,18 @@ async def _users_text() -> str:
     return "\n".join(lines)
 
 
-# ── Gemini spend ─────────────────────────────────────────────────────────────
+# ── Gemini spend: opsspend's alert, bound to this module's notifier ────────
 
-def _cost_usd(tok_in: int, tok_out: int) -> float:
-    return (tok_in / 1e6) * GEMINI_PRICE_INPUT_PER_M + (tok_out / 1e6) * GEMINI_PRICE_OUTPUT_PER_M
-
-
-def _usd(amount: float) -> str:
-    return f"${amount:,.2f}"
-
-
-def _usd_fine(amount: float) -> str:
-    """Per-scan money: three decimals below ten cents, or the number lies."""
-    return f"${amount:,.3f}" if amount < 0.10 else f"${amount:,.2f}"
-
-
-def _kilo(n: int) -> str:
-    return f"{n / 1000:.1f}K" if n >= 1000 else str(n)
-
-
-async def _spend(days: list[str]) -> float:
-    return _cost_usd(await _sum_stat(days, "tok_in"), await _sum_stat(days, "tok_out"))
-
-
-async def _budget_line() -> str:
-    """Whether a day's Gemini spend can page the operator at all.
-
-    `GEMINI_DAILY_BUDGET_USD` defaults to 0, which switches the alert off, and
-    it was never set — while RUNBOOK §3 listed "Over budget" among the alerts
-    that reach you. Pro is sold as unlimited scans, capped only per hour
-    (`ratelimit.PRO_SCAN_RATE_MAX_REQUESTS`), so this alert is the one thing
-    that would notice a heavy day. Its absence is said where the rest of the
-    unsafe configuration is.
-    """
-    budget = GEMINI_DAILY_BUDGET_USD
-    if budget <= 0:
-        return ("Spend alert: OFF ⚠️ — GEMINI_DAILY_BUDGET_USD is not set, so no "
-                "day's Gemini spend reaches you. Set it on Railway (RUNBOOK §12)")
-    try:
-        today = await _spend([opsstats.day()])
-    except Exception as exc:
-        return (f"Spend alert: above {_usd(budget)}/day · today's spend unreadable "
-                f"({html.escape(type(exc).__name__)})")
-    return f"Spend alert: above {_usd(budget)}/day · today ≈ {_usd(today)}"
-
-
-async def _spend_line(days: list[str], scans: int) -> str:
-    """The digest and /status spend line.
-
-    `$/scan` is *users'* spend over user scans. It used to divide the whole
-    bill by the user scan count, and the whole bill includes the operator's own
-    usage — /post, /price, /caption, /hooks, the /checkup probe. At a handful of
-    scans a day that made the figure substantially the operator's own token
-    spend, reported as what a user costs. `/costs` already did this correctly,
-    so the two surfaces disagreed and the digest was the one being read daily.
-
-    `Gemini ≈` stays the true bill, because that is the number that has to
-    match the invoice, and `· N mine` is appended whenever operator usage is
-    non-zero so the subtraction is visible rather than silently applied.
-    """
-    spend = await _spend(days)
-    mine = await _operator_spend(days)
-    parts = [f"Gemini ≈ {_usd(spend)}"]
-    if scans:
-        parts.append(f"{_usd_fine(max(spend - mine, 0.0) / scans)}/scan")
-        avg_ms = await _sum_stat(days, "scan_ms")
-        if avg_ms:
-            parts.append(f"avg scan {avg_ms / scans / 1000:.1f}s")
-    if mine > 0:
-        parts.append(f"{_usd(mine)} mine")
-    return " · ".join(parts)
-
-
-#: Labels that are Pro by construction, whatever tier the caller passed:
-#: `/listing` answers 402 to anyone else, and a tag photo is only read for Pro.
-_PRO_LABELS = ("listing", "scan_with_tag")
-
-# A user's scan, the call a thinking budget is for (#217). Retries and
-# reformats are left out, so "thinking per scan call" means what it says.
-_SCAN_LABELS = ("scan", "scan_with_tag")
-
-
-def _usage_tier(label: str, tier: str | None) -> str | None:
-    """Which tier a model call is charged to, or None for neither.
-
-    The operator's own calls belong to no tier. Otherwise the label decides
-    when it can, and the caller's tier when it cannot: a `scan` or its
-    `reformat` retry is Pro or free according to who scanned. A call that
-    names no tier is left out of both, rather than guessed into one."""
-    if label in _OPERATOR_LABELS:
-        return None
-    if label in _PRO_LABELS:
-        return "pro"
-    if tier is None:
-        return None
-    return "pro" if tier == "pro" else "free"
-
-
-async def _note_usage(label: str, usage: dict, tier: str | None = None) -> None:
-    try:
-        day = opsstats.day()
-        tok_in = int(usage.get("prompt_tokens") or 0)
-        tok_out = int(usage.get("output_tokens") or 0) + int(usage.get("thoughts_tokens") or 0)
-        if tok_in:
-            await _cache.incr(opsstats.stat_key(day, "tok_in"), STATS_TTL, tok_in)
-        if tok_out:
-            await _cache.incr(opsstats.stat_key(day, "tok_out"), STATS_TTL, tok_out)
-        await _cache.incr(opsstats.stat_key(day, "model_calls"), STATS_TTL)
-        await _cache.incr(opsstats.stat_key(day, f"calls_{label}"), STATS_TTL)
-        # Per-label tokens, so /costs can separate what users cost from what
-        # the operator's own bot usage costs. `calls_{label}` alone could not:
-        # it counts calls, and an ideas generation is not the size of a scan.
-        if tok_in:
-            await _cache.incr(opsstats.stat_key(day, f"tok_in_{label}"), STATS_TTL, tok_in)
-        if tok_out:
-            await _cache.incr(opsstats.stat_key(day, f"tok_out_{label}"), STATS_TTL, tok_out)
-        # Thinking on scans, apart from the answer (#217). `tok_out` bills the
-        # two together, which is right for spend and hides the one number a
-        # thinking budget moves.
-        thoughts = int(usage.get("thoughts_tokens") or 0)
-        if label in _SCAN_LABELS and thoughts:
-            await _cache.incr(opsstats.stat_key(day, "scan_thoughts"), STATS_TTL, thoughts)
-        # Per-tier tokens, so /costs can say what a subscriber costs. Labels
-        # name the operation, and a `scan` is the same operation for both.
-        charged = _usage_tier(label, tier)
-        if charged is not None:
-            if tok_in:
-                await _cache.incr(opsstats.stat_key(day, f"tok_in_tier_{charged}"),
-                                  STATS_TTL, tok_in)
-            if tok_out:
-                await _cache.incr(opsstats.stat_key(day, f"tok_out_tier_{charged}"),
-                                  STATS_TTL, tok_out)
-
-        budget = GEMINI_DAILY_BUDGET_USD
-        if budget > 0 and _notifier is not None:
-            spend = await _spend([day])
-            if spend > budget and await _cache.add(f"opsseen:budget:{day}", "1", STATS_TTL):
-                await _notifier.send(
-                    "💸 <b>Gemini spend over budget</b>\n"
-                    f"Today ≈ {_usd(spend)} against a {_usd(budget)} daily budget. "
-                    "Scans keep working; this is a heads-up, not a cut-off.",
-                    _COSTS_BUTTONS)
-    except Exception as exc:
-        log.debug("usage note failed: %s", type(exc).__name__)
-
-
-def model_usage(label: str, usage: dict | None, *, tier: str | None = None) -> None:
-    """Tally one model call's tokens. Fire-and-forget.
-
-    Runs whenever there is a cache, as `opsstats.count_scan` does. It used to return
-    without the Telegram notifier too, so a deploy with the bot unset tallied
-    scans and no spend, and the first `/costs` after turning the bot on
-    divided a month of scans by the days since.
-
-    `tier` is the caller's, for the calls whose label does not settle it:
-    see `_usage_tier`."""
-    if _cache is None:
+async def _announce_over_budget(spend: float, budget: float) -> None:
+    """opsspend's over-budget alert, sent once a day while the bot is
+    configured."""
+    if _notifier is None:
         return
-    _spawn(_note_usage(label, dict(usage or {}), tier))
-
-
-def _days_ending_today(n: int, now: datetime | None = None) -> list[str]:
-    now = now or datetime.now(timezone.utc)
-    return [opsstats.day(now - timedelta(days=i)) for i in range(n)]
-
-
-# Model calls the operator makes through the bot: /post ideas, the /checkup
-# one-token probe, and a photo sent to the bot as a test scan (with its
-# reformat retry, which was filed as a user's `reformat` until #219). They are
-# billed like any other call and belong in the total — but not in "$/scan" or
-# in either tier's spend, which are statements about users.
-_OPERATOR_LABELS = ("ideas", "probe", "bot_scan", "bot_scan_with_tag", "bot_reformat")
-
-
-async def _operator_spend(days: list[str]) -> float:
-    tok_in = sum([await _sum_stat(days, f"tok_in_{label}") for label in _OPERATOR_LABELS])
-    tok_out = sum([await _sum_stat(days, f"tok_out_{label}") for label in _OPERATOR_LABELS])
-    return _cost_usd(tok_in, tok_out)
-
-
-async def _tier_spend(days: list[str], tier: str) -> float:
-    """Model spend charged to one tier (see `_usage_tier`)."""
-    return _cost_usd(await _sum_stat(days, f"tok_in_tier_{tier}"),
-                     await _sum_stat(days, f"tok_out_tier_{tier}"))
-
-
-def _percentile(sorted_values: list[int], p: float) -> int:
-    """Nearest-rank percentile of an ascending list; the list is non-empty."""
-    return sorted_values[max(1, math.ceil(len(sorted_values) * p)) - 1]
-
-
-def _paid_by_currency(doc: dict, now: float) -> dict[str, tuple[float, int]]:
-    """{currency: (monthly revenue, paid subscriptions)} over live paid rows.
-
-    MRR alone cannot be divided by the paid count `_subs_summary` returns: that
-    count spans currencies, and a row with no price adds a subscriber and no
-    revenue. Both halves come from the same priced rows here."""
-    out: dict[str, tuple[float, int]] = {}
-    for e in doc.values():
-        if not isinstance(e, dict) or e.get("acq") != "paid" or not opsformat.sub_is_alive(e, now):
-            continue
-        price, cur = e.get("price"), e.get("currency") or "?"
-        if not isinstance(price, (int, float)) or price <= 0:
-            continue
-        monthly = price / 12 if "yearly" in opsformat.plan(e.get("product")) else price
-        total, n = out.get(cur, (0.0, 0))
-        out[cur] = (total + monthly, n + 1)
-    return out
-
-
-def _pro_span_days(row: dict, start: float, now: float) -> float:
-    """Days of `row`'s current or last Pro span inside [start, now]."""
-    since = row.get("pro_since")
-    if not isinstance(since, (int, float)):
-        return 0.0
-    until = row.get("pro_until")
-    end = float(until) if isinstance(until, (int, float)) else now
-    return max(0.0, min(end, now) - max(float(since), start)) / 86400
-
-
-async def _pro_block(month: list[str]) -> list[str]:
-    """What a subscriber costs against what one pays, over `month`.
-
-    Every figure carries its n: at launch there are a handful of subscribers,
-    and a mean over three devices is a claim about three devices. The tail
-    (p90, max, the heaviest three) is shown for the same reason — Pro is sold
-    as unlimited, and the price question is decided by the heaviest users, not
-    the average one.
-
-    Per-device dollars are estimates: tokens are tallied per tier, not per
-    device, so a device's spend is its Pro scans times the tier's all-in cost
-    per Pro scan (listings and reformats included)."""
-    now = time.time()
-    start = now - len(month) * 86400
-    users = await opsindex.read_index(opsindex.USERS_INDEX_KEY)
-    subs = await opsindex.read_index(opsindex.SUBS_INDEX_KEY)
-    lines = [f"<b>Pro, last {len(month)} days</b>"]
-
-    paid_rows = [e for e in subs.values() if isinstance(e, dict)
-                 and e.get("acq") == "paid" and opsformat.sub_is_alive(e, now)]
-    paying = {d for e in paid_rows for d in opsindex.row_devices(e)}
-    lines.append(f"Paying Pro devices: {len(paying)} "
-                 f"(n={len(paid_rows)} paid subscriptions)")
-
-    spend = await _tier_spend(month, "pro")
-    scans = await _sum_stat(month, "scans_pro")
-    pro_rows = {who: e for who, e in users.items()
-                if isinstance(e, dict) and _pro_span_days(e, start, now) > 0}
-    device_months = sum(_pro_span_days(e, start, now) for e in pro_rows.values()) / 30
-    per_month = (f"{_usd_fine(spend / device_months)} per Pro device-month"
-                 if device_months > 0 else "n/a per Pro device-month")
-    per_scan = spend / scans if scans else None
-    lines.append(
-        f"Pro model spend: {_usd(spend)} (n={scans} Pro scans"
-        + (f", {_usd_fine(per_scan)}/scan" if per_scan is not None else "")
-        + f") · {per_month} (n={device_months:.1f} device-months, "
-        f"{len(pro_rows)} devices)")
-
-    by_currency = _paid_by_currency(subs, now)
-    keep = 1 - APPLE_COMMISSION
-    if by_currency:
-        net = " + ".join(f"{opsformat.money(total / n * keep, cur)} (n={n})"
-                         for cur, (total, n) in sorted(by_currency.items()))
-    else:
-        net = "n/a (n=0 priced paid plans)"
-    lines.append(f"Net revenue per paying month: {net} "
-                 f"after {APPLE_COMMISSION:.0%} Apple commission")
-
-    oldest = month[-1]
-    daily = sorted(int(n) for e in pro_rows.values()
-                   for d, n in (e.get("pro_days") or {}).items()
-                   if d >= oldest and isinstance(n, (int, float)) and n > 0)
-    if daily:
-        lines.append(f"Pro scans per device-day: p50 {_percentile(daily, 0.5)} · "
-                     f"p90 {_percentile(daily, 0.9)} · max {daily[-1]} "
-                     f"(n={len(daily)} device-days)")
-    else:
-        lines.append("Pro scans per device-day: n/a (n=0 device-days)")
-
-    heaviest = []
-    if per_scan is not None:
-        for who, e in pro_rows.items():
-            count = sum(int(n) for d, n in (e.get("pro_days") or {}).items()
-                        if d >= oldest and isinstance(n, (int, float)))
-            if count:
-                days = max(1.0, _pro_span_days(e, start, now))
-                heaviest.append((count * per_scan / days, who, count, days))
-        heaviest.sort(reverse=True)
-    if heaviest:
-        lines.append(f"Heaviest by $/day (n={len(heaviest)} devices with Pro scans): " + " · ".join(
-            f"{who[:6]} {_usd_fine(rate)}/day ({count} scans / {days:.1f}d)"
-            for rate, who, count, days in heaviest[:3]))
-    else:
-        lines.append("Heaviest by $/day: n/a (n=0 devices with Pro scans)")
-    return lines
-
-
-async def _free_line(month: list[str]) -> str:
-    """Cost per free device-day that scanned: what the free tier costs per
-    person who used it, rather than a share of the bill split by scan count."""
-    spend = await _tier_spend(month, "free")
-    device_days = await _sum_stat(month, "free_device_days")
-    rate = (f"≈ {_usd_fine(spend / device_days)} per active free device-day"
-            if device_days else "≈ n/a per active free device-day")
-    return (f"Free tier, {len(month)} days: {_usd(spend)} {rate} "
-            f"(n={device_days} device-days with a scan)")
-
-
-async def _thinking_line() -> str:
-    """Thinking tokens per scan call, today and over 7 and 30 days, and the
-    budget this process runs with (#217): the before and after a
-    `GEMINI_THINKING_BUDGET` change is read against."""
-    import aiconfig    # the live value, as this process parsed it at start
-    budget = aiconfig.THINKING_BUDGET
-    parts = []
-    for label, n in (("today", 1), ("7d", 7), ("30d", 30)):
-        days = _days_ending_today(n)
-        calls = sum([await _sum_stat(days, f"calls_{name}") for name in _SCAN_LABELS])
-        thoughts = await _sum_stat(days, "scan_thoughts")
-        parts.append(f"{label} {thoughts // calls:,}" if calls else f"{label} —")
-    return ("🧠 Thinking per scan call: " + " · ".join(parts)
-            + f" · budget {'unset' if budget is None else budget}"
-            " (GEMINI_THINKING_BUDGET)")
-
-
-async def _costs_text() -> str:
-    lines = ["💸 <b>Gemini spend</b>"]
-    for label, n in (("Today", 1), ("Last 7 days", 7), ("Last 30 days", 30)):
-        days = _days_ending_today(n)
-        tok_in = await _sum_stat(days, "tok_in")
-        tok_out = await _sum_stat(days, "tok_out")
-        calls = await _sum_stat(days, "model_calls")
-        scans = await _sum_stat(days, "scans_free") + await _sum_stat(days, "scans_pro")
-        spend = _cost_usd(tok_in, tok_out)
-        mine = await _operator_spend(days)
-        parts = [f"{label}: {_usd(spend)}", f"{calls} calls",
-                 f"{_kilo(tok_in)} in / {_kilo(tok_out)} out"]
-        if scans:
-            # Users' spend, not total spend. This used to divide the whole
-            # figure — operator test scans, /post and /checkup probes included
-            # — by the user scan count, which at 1-4 scans a day made "$/scan"
-            # substantially the operator's own usage.
-            parts.append(f"{_usd_fine(max(spend - mine, 0.0) / scans)}/scan")
-        if mine > 0:
-            parts.append(f"{_usd(mine)} mine")
-        lines.append(" · ".join(parts))
-
-    lines.append(await _thinking_line())
-
-    month = _days_ending_today(30)
-    lines.extend(await _pro_block(month))
-    lines.append(await _free_line(month))
-    mine_month = await _operator_spend(month)
-    if mine_month > 0:
-        lines.append(f"My own bot usage, 30 days: ≈ {_usd(mine_month)} "
-                     f"(/post, /checkup — excluded from $/scan and both tiers)")
-
-    _, _, _, _, mrr = _subs_summary(await opsindex.read_index(opsindex.SUBS_INDEX_KEY))
-    lines.append("vs MRR ≈ " + (" + ".join(opsformat.money(v, c) for c, v in sorted(mrr.items()))
-                                 if mrr else "n/a") + " (paid plans)")
-    budget = f" · budget {_usd(GEMINI_DAILY_BUDGET_USD)}/day" if GEMINI_DAILY_BUDGET_USD > 0 else ""
-    lines.append(f"Prices: ${GEMINI_PRICE_INPUT_PER_M:.2f}/M in · "
-                 f"${GEMINI_PRICE_OUTPUT_PER_M:.2f}/M out{budget}")
-    return "\n".join(lines)
+    await _notifier.send(
+        "💸 <b>Gemini spend over budget</b>\n"
+        f"Today ≈ {opsformat.usd(spend)} against a {opsformat.usd(budget)} daily budget. "
+        "Scans keep working; this is a heads-up, not a cut-off.",
+        _COSTS_BUTTONS)
 
 
 # ── Social reach ─────────────────────────────────────────────────────────────
@@ -3126,9 +2733,9 @@ def _post_line(post) -> str:
     title = " ".join((post.title or "").split())[:60]
     bits = []
     if post.views is not None:
-        bits.append(f"{_kilo(post.views)} views")
+        bits.append(f"{opsformat.kilo(post.views)} views")
     if post.likes is not None:
-        bits.append(f"{_kilo(post.likes)} likes")
+        bits.append(f"{opsformat.kilo(post.likes)} likes")
     if post.comments is not None:
         bits.append(f"{post.comments} comments")
     if post.shares:
@@ -3158,7 +2765,7 @@ def _account_lines(account) -> list[str]:
     if account.posts is not None:
         facts.append(f"{account.posts} {'videos' if account.platform == 'tiktok' else 'posts'}")
     if account.total_likes is not None:
-        facts.append(f"{_kilo(account.total_likes)} likes")
+        facts.append(f"{opsformat.kilo(account.total_likes)} likes")
     lines = [head + (" — " + " · ".join(facts) if facts else "")]
     lines += [_post_line(p) for p in account.recent[:RECENT_SOCIAL_POSTS]]
     return lines
@@ -3209,7 +2816,7 @@ async def _week_top(now: datetime | None = None) -> dict:
     the best finds re-ranked across days, and the scan total. Grounding for
     /post and the whole of /finds.
     """
-    days = _days_ending_today(7, now)
+    days = opsstats.days_ending_today(7, now)
     cats: dict[str, int] = {}
     brands: dict[str, int] = {}
     finds: list[dict] = []
@@ -3353,7 +2960,7 @@ async def _trend_text(term: str) -> str:
         return ("Usage: /trend &lt;brand or category&gt; — e.g. /trend carhartt, /trend shoes. "
                 "Categories: " + ", ".join(sorted(CATEGORY_EMOJI)))
     now = datetime.now(timezone.utc)
-    days = list(reversed(_days_ending_today(TREND_DAYS, now)))       # oldest first
+    days = list(reversed(opsstats.days_ending_today(TREND_DAYS, now)))       # oldest first
     counts: list[int] = []
     estimates: list[float] = []
     label = term
@@ -3711,8 +3318,8 @@ async def _paywall_text(now: datetime | None = None) -> str:
 
     per: list[tuple[str, int, int]] = []
     for trigger in PAYWALL_TRIGGERS:
-        t = await _sum_stat(days, f"{START_COUNTERS['trial']}:{trigger}")
-        p = await _sum_stat(days, f"{START_COUNTERS['paid']}:{trigger}")
+        t = await opsstats.sum_stat(days, f"{START_COUNTERS['trial']}:{trigger}")
+        p = await opsstats.sum_stat(days, f"{START_COUNTERS['paid']}:{trigger}")
         if t or p:
             per.append((trigger, t, p))
     per.sort(key=lambda row: (-(row[1] + row[2]), row[0]))
@@ -3768,7 +3375,7 @@ def _checkup_wiring() -> checkup.Wiring:
         cache=_cache, generator=_generator, status_provider=_status_provider,
         device_check_probe=_device_check_probe,
         get_chat=lambda chat_id: _notifier.get_chat(chat_id),
-        budget_line=_budget_line, referral_line=_referral_line,
+        budget_line=opsspend.budget_line, referral_line=_referral_line,
         replica_label=_replica_label, read_int=_read_int, poll_token=_poll_token,
         poll_lock_key=POLL_LOCK_KEY, last_scan_key=LAST_SCAN_KEY,
         last_appstore_notification_key=LAST_APPSTORE_NOTIFICATION_KEY,
@@ -3840,7 +3447,7 @@ async def _spike_line(when: datetime, scans: int) -> str:
     if scans < SPIKE_MIN_SCANS:
         return ""
     prior = [opsstats.day(when - timedelta(days=i)) for i in range(1, 8)]
-    baseline = (await _sum_stat(prior, "scans_free") + await _sum_stat(prior, "scans_pro")) / 7
+    baseline = (await opsstats.sum_stat(prior, "scans_free") + await opsstats.sum_stat(prior, "scans_pro")) / 7
     if baseline <= 0 or scans < baseline * SPIKE_FACTOR:
         return ""
     return f"🔥 {scans / baseline:.1f}× the trailing week's daily average ({baseline:.1f}/day)"

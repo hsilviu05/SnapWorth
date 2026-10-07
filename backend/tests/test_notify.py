@@ -26,6 +26,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import auditlog  # noqa: E402
 import checkup  # noqa: E402
 import notify  # noqa: E402
+import opsspend
 import telegram  # noqa: E402
 import chatlog  # noqa: E402
 import opsformat  # noqa: E402
@@ -1294,19 +1295,19 @@ class TestUsersTable:
 class TestSpend:
     @pytest.fixture(autouse=True)
     def prices(self, monkeypatch):
-        monkeypatch.setattr(notify, "GEMINI_PRICE_INPUT_PER_M", 0.30)
-        monkeypatch.setattr(notify, "GEMINI_PRICE_OUTPUT_PER_M", 2.50)
-        monkeypatch.setattr(notify, "GEMINI_DAILY_BUDGET_USD", 0.0)
+        monkeypatch.setattr(opsspend, "GEMINI_PRICE_INPUT_PER_M", 0.30)
+        monkeypatch.setattr(opsspend, "GEMINI_PRICE_OUTPUT_PER_M", 2.50)
+        monkeypatch.setattr(opsspend, "GEMINI_DAILY_BUDGET_USD", 0.0)
 
     def test_cost_arithmetic(self):
         # 10K in at $0.30/M = $0.003; 6K out at $2.50/M = $0.015.
-        assert abs(notify._cost_usd(10_000, 6_000) - 0.018) < 1e-9
+        assert abs(opsspend._cost_usd(10_000, 6_000) - 0.018) < 1e-9
 
     @pytest.mark.asyncio
     async def test_tokens_accumulate_and_costs_reports_them(self, enabled_notify, cache):
-        notify.model_usage("scan", {"prompt_tokens": 10_000, "output_tokens": 5_000,
+        opsspend.model_usage("scan", {"prompt_tokens": 10_000, "output_tokens": 5_000,
                                     "thoughts_tokens": 1_000})
-        notify.model_usage("listing", {"prompt_tokens": 2_000, "output_tokens": 500})
+        opsspend.model_usage("listing", {"prompt_tokens": 2_000, "output_tokens": 500})
         scan(elapsed_ms=5_800)
         await drain()
         day = opsstats.day()
@@ -1327,13 +1328,13 @@ class TestSpend:
         """#217: the number a thinking budget moves, apart from the answer."""
         import aiconfig
         monkeypatch.setattr(aiconfig, "THINKING_BUDGET", None)
-        notify.model_usage("scan", {"prompt_tokens": 1_000, "output_tokens": 800,
+        opsspend.model_usage("scan", {"prompt_tokens": 1_000, "output_tokens": 800,
                                     "thoughts_tokens": 1_500})
-        notify.model_usage("scan_with_tag", {"prompt_tokens": 1_000, "output_tokens": 800,
+        opsspend.model_usage("scan_with_tag", {"prompt_tokens": 1_000, "output_tokens": 800,
                                              "thoughts_tokens": 500})
         # Not a user scan: never in the thinking figure.
-        notify.model_usage("listing", {"output_tokens": 300, "thoughts_tokens": 9_000})
-        notify.model_usage("bot_scan", {"output_tokens": 300, "thoughts_tokens": 9_000})
+        opsspend.model_usage("listing", {"output_tokens": 300, "thoughts_tokens": 9_000})
+        opsspend.model_usage("bot_scan", {"output_tokens": 300, "thoughts_tokens": 9_000})
         await drain()
         assert await cache.get(opsstats.stat_key(opsstats.day(), "scan_thoughts")) == "2000"
         text = await notify.handle_command("/costs")
@@ -1350,7 +1351,7 @@ class TestSpend:
 
     @pytest.mark.asyncio
     async def test_status_and_digest_carry_spend_and_latency(self, enabled_notify):
-        notify.model_usage("scan", {"prompt_tokens": 100_000, "output_tokens": 20_000})
+        opsspend.model_usage("scan", {"prompt_tokens": 100_000, "output_tokens": 20_000})
         scan(elapsed_ms=4_000)
         scan(elapsed_ms=8_000)
         await drain()
@@ -1370,8 +1371,8 @@ class TestSpend:
         was most of the figure. The two surfaces disagreed and the digest was
         the one being read every morning.
         """
-        notify.model_usage("scan", {"prompt_tokens": 100_000, "output_tokens": 20_000})
-        notify.model_usage("ideas", {"prompt_tokens": 100_000, "output_tokens": 20_000})
+        opsspend.model_usage("scan", {"prompt_tokens": 100_000, "output_tokens": 20_000})
+        opsspend.model_usage("ideas", {"prompt_tokens": 100_000, "output_tokens": 20_000})
         scan()
         scan()
         await drain()
@@ -1384,7 +1385,7 @@ class TestSpend:
     @pytest.mark.asyncio
     async def test_operator_only_spend_never_makes_the_per_scan_figure_negative(
             self, enabled_notify):
-        notify.model_usage("probe", {"prompt_tokens": 100_000, "output_tokens": 20_000})
+        opsspend.model_usage("probe", {"prompt_tokens": 100_000, "output_tokens": 20_000})
         scan()
         await drain()
         assert "$0.000/scan" in await notify.handle_command("/status")
@@ -1394,8 +1395,8 @@ class TestSpend:
         """It was the users' bill split by share of scans, which charged the
         free tier for Pro's listings and reformats. Now it is the free tier's
         own tokens over the free devices that scanned, per day."""
-        notify.model_usage("scan", {"prompt_tokens": 100_000}, tier="free")   # $0.03
-        notify.model_usage("scan", {"prompt_tokens": 1_000_000}, tier="pro")  # not free
+        opsspend.model_usage("scan", {"prompt_tokens": 100_000}, tier="free")   # $0.03
+        opsspend.model_usage("scan", {"prompt_tokens": 1_000_000}, tier="pro")  # not free
         scan(tier="free", subject="f" * 64)
         scan(tier="free", subject="f" * 64)   # same device, same day: one device-day
         scan(tier="free", subject="g" * 64)
@@ -1408,10 +1409,10 @@ class TestSpend:
 
     @pytest.mark.asyncio
     async def test_budget_alerts_once_per_day(self, enabled_notify, monkeypatch):
-        monkeypatch.setattr(notify, "GEMINI_DAILY_BUDGET_USD", 0.01)
-        notify.model_usage("scan", {"prompt_tokens": 0, "output_tokens": 10_000})  # $0.025
+        monkeypatch.setattr(opsspend, "GEMINI_DAILY_BUDGET_USD", 0.01)
+        opsspend.model_usage("scan", {"prompt_tokens": 0, "output_tokens": 10_000})  # $0.025
         await drain()
-        notify.model_usage("scan", {"prompt_tokens": 0, "output_tokens": 10_000})
+        opsspend.model_usage("scan", {"prompt_tokens": 0, "output_tokens": 10_000})
         await drain()
         alerts = [t for t in enabled_notify.texts if "over budget" in t]
         assert len(alerts) == 1
@@ -1420,7 +1421,7 @@ class TestSpend:
 
     @pytest.mark.asyncio
     async def test_weekly_carries_spend_with_trend(self, enabled_notify):
-        notify.model_usage("scan", {"prompt_tokens": 1_000_000, "output_tokens": 0})
+        opsspend.model_usage("scan", {"prompt_tokens": 1_000_000, "output_tokens": 0})
         await drain()
         from datetime import timedelta
         text = await notify._weekly_text(datetime.now(timezone.utc) + timedelta(days=1))
@@ -1435,12 +1436,12 @@ class TestSpend:
         still needs the bot, and its absence must not break the tally."""
         monkeypatch.delenv("TELEGRAM_BOT_TOKEN", raising=False)
         monkeypatch.delenv("TELEGRAM_CHAT_ID", raising=False)
-        monkeypatch.setattr(notify, "GEMINI_DAILY_BUDGET_USD", 0.0001)
+        monkeypatch.setattr(opsspend, "GEMINI_DAILY_BUDGET_USD", 0.0001)
         notify.configure(cache)
         try:
             assert not notify.enabled()
-            notify.model_usage("scan", {"prompt_tokens": 5_000, "output_tokens": 200}, tier="pro")
-            notify.model_usage("scan", {"prompt_tokens": 3_000}, tier="free")
+            opsspend.model_usage("scan", {"prompt_tokens": 5_000, "output_tokens": 200}, tier="pro")
+            opsspend.model_usage("scan", {"prompt_tokens": 3_000}, tier="free")
             await drain()
             day = opsstats.day()
             assert await cache.get(opsstats.stat_key(day, "tok_in")) == "8000"
@@ -1456,7 +1457,7 @@ class TestSpend:
         monkeypatch.delenv("TELEGRAM_CHAT_ID", raising=False)
         notify.configure(None)
         try:
-            notify.model_usage("scan", {"prompt_tokens": 5}, tier="pro")
+            opsspend.model_usage("scan", {"prompt_tokens": 5}, tier="pro")
             assert notify._tasks == set()
         finally:
             await notify.aclose()
@@ -1472,21 +1473,21 @@ class TestCostPerPro:
 
     @pytest.fixture(autouse=True)
     def prices(self, monkeypatch):
-        monkeypatch.setattr(notify, "GEMINI_PRICE_INPUT_PER_M", 0.30)
-        monkeypatch.setattr(notify, "GEMINI_PRICE_OUTPUT_PER_M", 2.50)
-        monkeypatch.setattr(notify, "GEMINI_DAILY_BUDGET_USD", 0.0)
-        monkeypatch.setattr(notify, "APPLE_COMMISSION", 0.15)
+        monkeypatch.setattr(opsspend, "GEMINI_PRICE_INPUT_PER_M", 0.30)
+        monkeypatch.setattr(opsspend, "GEMINI_PRICE_OUTPUT_PER_M", 2.50)
+        monkeypatch.setattr(opsspend, "GEMINI_DAILY_BUDGET_USD", 0.0)
+        monkeypatch.setattr(opsspend, "APPLE_COMMISSION", 0.15)
 
     async def _tier_tokens(self, cache, tier: str) -> int:
         return int(await cache.get(opsstats.stat_key(opsstats.day(), f"tok_in_tier_{tier}")) or 0)
 
     @pytest.mark.asyncio
     async def test_pro_tokens_go_to_pro_and_free_tokens_to_free(self, enabled_notify, cache):
-        notify.model_usage("scan", {"prompt_tokens": 1_000}, tier="pro")
-        notify.model_usage("scan", {"prompt_tokens": 200}, tier="free")
+        opsspend.model_usage("scan", {"prompt_tokens": 1_000}, tier="pro")
+        opsspend.model_usage("scan", {"prompt_tokens": 200}, tier="free")
         # The reformat is charged to the tier of the scan it served.
-        notify.model_usage("reformat", {"prompt_tokens": 30}, tier="pro")
-        notify.model_usage("reformat", {"prompt_tokens": 4}, tier="free")
+        opsspend.model_usage("reformat", {"prompt_tokens": 30}, tier="pro")
+        opsspend.model_usage("reformat", {"prompt_tokens": 4}, tier="free")
         await drain()
         assert await self._tier_tokens(cache, "pro") == 1_030
         assert await self._tier_tokens(cache, "free") == 204
@@ -1495,8 +1496,8 @@ class TestCostPerPro:
     async def test_listing_and_tag_rereads_count_as_pro(self, enabled_notify, cache):
         # No tier passed, or a wrong one: the label settles it, because the
         # endpoint 402s anyone who is not Pro and a tag is only read for Pro.
-        notify.model_usage("listing", {"prompt_tokens": 500})
-        notify.model_usage("scan_with_tag", {"prompt_tokens": 70}, tier="free")
+        opsspend.model_usage("listing", {"prompt_tokens": 500})
+        opsspend.model_usage("scan_with_tag", {"prompt_tokens": 70}, tier="free")
         await drain()
         assert await self._tier_tokens(cache, "pro") == 570
         assert await self._tier_tokens(cache, "free") == 0
@@ -1504,8 +1505,8 @@ class TestCostPerPro:
     @pytest.mark.asyncio
     async def test_operator_calls_and_untiered_calls_belong_to_no_tier(self, enabled_notify, cache):
         for label in ("ideas", "probe", "bot_scan", "bot_scan_with_tag", "bot_reformat"):
-            notify.model_usage(label, {"prompt_tokens": 100}, tier="pro")
-        notify.model_usage("scan", {"prompt_tokens": 100})  # a caller that named none
+            opsspend.model_usage(label, {"prompt_tokens": 100}, tier="pro")
+        opsspend.model_usage("scan", {"prompt_tokens": 100})  # a caller that named none
         await drain()
         assert await self._tier_tokens(cache, "pro") == 0
         assert await self._tier_tokens(cache, "free") == 0
@@ -1589,7 +1590,7 @@ class TestCostPerPro:
                        "devices": ["devC00000000abcd"], "who": "devC00000000abcd"},
         }), 600)
         await cache.incr(opsstats.stat_key(today, "scans_pro"), opsstats.STATS_TTL, 30)
-        notify.model_usage("scan", {"prompt_tokens": 1_000_000}, tier="pro")  # $0.30
+        opsspend.model_usage("scan", {"prompt_tokens": 1_000_000}, tier="pro")  # $0.30
         await drain()
 
     @pytest.mark.asyncio
@@ -1616,7 +1617,7 @@ class TestCostPerPro:
 
     @pytest.mark.asyncio
     async def test_commission_is_configurable(self, enabled_notify, cache, monkeypatch):
-        monkeypatch.setattr(notify, "APPLE_COMMISSION", 0.30)
+        monkeypatch.setattr(opsspend, "APPLE_COMMISSION", 0.30)
         await self._seed(cache)
         assert ("Net revenue per paying month: €2.91 (n=2) after 30% Apple commission"
                 in await notify.handle_command("/costs"))
@@ -2143,7 +2144,7 @@ class TestCheckup:
         # A healthy production configuration has the spend alert on and a
         # secret audit salt; without either the checkup carries a ⚠️
         # (TestCheckupSpendAlert, TestCheckupAuditSalt).
-        monkeypatch.setattr(notify, "GEMINI_DAILY_BUDGET_USD", 2.0)
+        monkeypatch.setattr(opsspend, "GEMINI_DAILY_BUDGET_USD", 2.0)
         monkeypatch.setattr(auditlog, "_SALT", secrets.token_urlsafe(32).encode())
         notifier = telegram.TelegramNotifier(
             FAKE_TOKEN, FAKE_CHAT,
@@ -2423,14 +2424,14 @@ class TestCheckupSpendAlert:
 
     @pytest.fixture(autouse=True)
     def prices(self, monkeypatch):
-        monkeypatch.setattr(notify, "GEMINI_PRICE_INPUT_PER_M", 0.30)
-        monkeypatch.setattr(notify, "GEMINI_PRICE_OUTPUT_PER_M", 2.50)
+        monkeypatch.setattr(opsspend, "GEMINI_PRICE_INPUT_PER_M", 0.30)
+        monkeypatch.setattr(opsspend, "GEMINI_PRICE_OUTPUT_PER_M", 2.50)
 
     @pytest.mark.asyncio
     async def test_an_unset_budget_is_a_warning_on_the_checkup(
             self, enabled_notify, monkeypatch):
         monkeypatch.setattr(checkup, "_tls_days_left", lambda host, timeout=5.0: 61)
-        monkeypatch.setattr(notify, "GEMINI_DAILY_BUDGET_USD", 0.0)
+        monkeypatch.setattr(opsspend, "GEMINI_DAILY_BUDGET_USD", 0.0)
         text = await notify.handle_command("/checkup")
         line = [ln for ln in text.split("\n") if ln.startswith("Spend alert")]
         assert line == ["Spend alert: OFF ⚠️ — GEMINI_DAILY_BUDGET_USD is not set, so "
@@ -2438,21 +2439,21 @@ class TestCheckupSpendAlert:
 
     @pytest.mark.asyncio
     async def test_a_set_budget_reads_against_todays_spend(self, enabled_notify, monkeypatch):
-        monkeypatch.setattr(notify, "GEMINI_DAILY_BUDGET_USD", 1.5)
+        monkeypatch.setattr(opsspend, "GEMINI_DAILY_BUDGET_USD", 1.5)
         # 100K in × $0.30/M + 20K out × $2.50/M = $0.03 + $0.05.
-        notify.model_usage("scan", {"prompt_tokens": 100_000, "output_tokens": 20_000})
+        opsspend.model_usage("scan", {"prompt_tokens": 100_000, "output_tokens": 20_000})
         await drain()
-        assert await notify._budget_line() == "Spend alert: above $1.50/day · today ≈ $0.08"
+        assert await opsspend.budget_line() == "Spend alert: above $1.50/day · today ≈ $0.08"
 
     @pytest.mark.asyncio
     async def test_a_cache_that_cannot_answer_does_not_hide_the_budget(
             self, enabled_notify, monkeypatch):
-        monkeypatch.setattr(notify, "GEMINI_DAILY_BUDGET_USD", 1.5)
+        monkeypatch.setattr(opsspend, "GEMINI_DAILY_BUDGET_USD", 1.5)
 
         async def broken(days):
             raise ConnectionError("redis gone")
-        monkeypatch.setattr(notify, "_spend", broken)
-        assert await notify._budget_line() == (
+        monkeypatch.setattr(opsspend, "total_spend", broken)
+        assert await opsspend.budget_line() == (
             "Spend alert: above $1.50/day · today's spend unreadable (ConnectionError)")
 
 
@@ -4053,7 +4054,7 @@ class TestSubscriptionNotifications:
         await notify.subscription_event(
             FakeNotification(_paid(), paid_period=True))
         doc = await opsindex.read_index(opsindex.SUBS_INDEX_KEY)
-        active, paid, comped, expired, mrr = notify._subs_summary(doc)
+        active, paid, comped, expired, mrr = opsindex.subs_summary(doc)
         assert (active, paid, comped, expired) == (1, 1, 0, 0)
         assert mrr["USD"] == pytest.approx(39.99 / 12)
 
@@ -4163,7 +4164,7 @@ class TestSubscriptionNotifications:
             FakeNotification(refunded, notification_type="REFUND", refund=True))
 
         doc = await opsindex.read_index(opsindex.SUBS_INDEX_KEY)
-        active, paid, comped, expired, mrr = notify._subs_summary(doc)
+        active, paid, comped, expired, mrr = opsindex.subs_summary(doc)
         assert (active, paid, expired) == (0, 0, 1), \
             "a refund keeps its expiry date, so expiry alone would miss it"
         assert not mrr
@@ -4179,7 +4180,7 @@ class TestSubscriptionNotifications:
         await drain()
         assert any("auto-renew" in t.lower() for t in enabled_notify.texts)
         doc = await opsindex.read_index(opsindex.SUBS_INDEX_KEY)
-        active, paid, _, expired, _ = notify._subs_summary(doc)
+        active, paid, _, expired, _ = opsindex.subs_summary(doc)
         assert (active, paid, expired) == (1, 1, 0), "still paid until it lapses"
 
     @pytest.mark.asyncio

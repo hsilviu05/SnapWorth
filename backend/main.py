@@ -44,6 +44,7 @@ import imagequality
 import imagevalidation
 import metrics
 import notify
+import opsspend
 import opsstats
 import promptsafety
 import prompts
@@ -2830,7 +2831,7 @@ _model_health = _ModelHealth()
 
 def _record_usage(label: str, usage: dict, tier: str | None = None) -> None:
     """Count one reply's tokens toward spend (`notify`) and the token metric."""
-    notify.model_usage(label, usage, tier=tier)
+    opsspend.model_usage(label, usage, tier=tier)
     for kind, key in (("prompt", "prompt_tokens"), ("output", "output_tokens"),
                       ("thoughts", "thoughts_tokens")):
         if key in usage:
