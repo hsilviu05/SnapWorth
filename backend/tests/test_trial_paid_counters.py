@@ -29,9 +29,10 @@ import pytest_asyncio
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import notify  # noqa: E402
-import telegram  # noqa: E402
+import opsexperiment  # noqa: E402
 import opsindex  # noqa: E402
 import opsstats  # noqa: E402
+import telegram  # noqa: E402
 from cache import InMemoryCache, ResilientCache  # noqa: E402
 from entitlements import Entitlement  # noqa: E402
 
@@ -377,7 +378,7 @@ class TestPaywallTrigger:
             m = re.match(r"\s*case (\w+)(?:\s*=\s*\"([^\"]+)\")?\s*$", line)
             if m:
                 raw.append(m.group(2) or m.group(1))
-        assert sorted(raw) == sorted(notify.PAYWALL_TRIGGERS)
+        assert sorted(raw) == sorted(opsstats.PAYWALL_TRIGGERS)
 
 
 class TestEntitlementRoute:
@@ -429,7 +430,7 @@ class TestEntitlementRoute:
         assert response.json()["tier"] == "pro"
         assert seen == [{"paywall_trigger": None}]
 
-    @pytest.mark.parametrize("trigger", notify.PAYWALL_TRIGGERS)
+    @pytest.mark.parametrize("trigger", opsstats.PAYWALL_TRIGGERS)
     def test_every_known_trigger_is_passed_on(self, seen, trigger):
         response = self._post({"signed_transaction": "ok", "paywall_trigger": trigger})
         assert response.status_code == 200, response.text
@@ -457,7 +458,7 @@ class TestPaywallReadout:
         # Day 28 is outside the window.
         await self._seed(28, "trial_starts", 9)
         await self._seed(28, "trial_starts:haul", 9)
-        text = await notify._paywall_text(self.NOW)
+        text = await opsexperiment.paywall_text(self.NOW)
         assert text.startswith("💳 <b>Paywall — last 28 days</b>")
         assert "Trial starts: 3 · direct purchases: 1 · converted trials: 1" in text
         assert "<code>scan_limit            2      0</code>" in text
@@ -480,12 +481,12 @@ class TestPaywallReadout:
             # A row converted before `trial_ends` existed cannot be placed.
             "g": {"started_as": "trial", "acq": "paid", "trial_ends": None},
         })
-        text = await notify._paywall_text(self.NOW)
+        text = await opsexperiment.paywall_text(self.NOW)
         assert "Trial → paid: 2 of 3 trials that ended (67%, n=3)" in text
 
     @pytest.mark.asyncio
     async def test_an_empty_window_says_so(self, with_bot):
-        text = await notify._paywall_text(self.NOW)
+        text = await opsexperiment.paywall_text(self.NOW)
         assert "No trial starts or direct purchases in the window." in text
         assert "Trial → paid: no trial ended in the window (n=0)" in text
 
