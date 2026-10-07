@@ -358,9 +358,11 @@ sale:
 Within 25% of the likely price was the other candidate. It stays the headline
 accuracy metric and is still recorded on every example (`--event within_25pct`
 fits to it), but it is not what the band means. The runner's
-`calibration_ece` gate metric still measures it: that metric guards the raw
-score against regressing, and moving it to the range event would also change
-the A/B arm format, which carries no ranges. That move is a follow-up.
+`calibration_ece` gate metric, its per-bucket table and the A/B experiment's
+guardrail all measure `in_range`. Each arm carries a per-item `in_range` map,
+taken at the median range across repeats. An arm file written before that
+map existed reports no `calibration_ece`, rather than one measured against
+the other event under the same name.
 
 Every fitted model file records its event, and the server refuses to load one
 fitted to anything but `in_range`. Until a model fitted to that event is

@@ -65,6 +65,10 @@ class ArmResult:
     predicted: dict[str, float] = field(default_factory=dict)
     actual: dict[str, float] = field(default_factory=dict)
     hallucinated: dict[str, bool] = field(default_factory=dict)
+    # Whether the sale landed in the range shown, the event a confidence band
+    # promises (#226). Absent from arm files written before it, which then
+    # report no calibration_ece rather than one measured against another event.
+    in_range: dict[str, bool] = field(default_factory=dict)
     failures: int = 0
     config: dict = field(default_factory=dict)
     # Arm-level figures with no per-item form, which guardrails still read
@@ -78,7 +82,7 @@ class ArmResult:
         return set(self.absolute_percentage_error)
 
     _MAPS = ("absolute_percentage_error", "latency_ms", "confidence", "predicted",
-             "actual", "hallucinated")
+             "actual", "hallucinated", "in_range")
 
     def to_dict(self) -> dict:
         """The shape `eval.cli experiment` reads, which the runner writes."""
@@ -128,10 +132,9 @@ class ArmResult:
             rate = sum(self.hallucinated.values()) / len(self.hallucinated)
             result.add(Metric.measured("hallucination_rate", rate * 100,
                                        len(self.hallucinated), unit="%"))
-        if self.confidence and self.predicted and self.actual:
-            scored = [(self.confidence[i], self.predicted[i], self.actual[i])
-                      for i in self.confidence
-                      if i in self.predicted and i in self.actual]
+        if self.confidence and self.in_range:
+            scored = [(self.confidence[i], self.in_range[i])
+                      for i in self.confidence if i in self.in_range]
             if scored:
                 result.add(Metric.measured(
                     "calibration_ece", metrics_module.calibration(scored).ece,

@@ -268,7 +268,9 @@ def evaluate(predictions: list[Prediction]) -> dict:
     midpoint_pairs = [((p.predicted_low + p.predicted_high) / 2, actual)
                       for p, actual in labelled]
     range_triples = [(p.predicted_low, p.predicted_high, actual) for p, actual in labelled]
-    scored = [(p.confidence_score, p.predicted_expected, actual) for p, actual in labelled]
+    # What the band promises (#226): the sale landed in the range shown.
+    scored = [(p.confidence_score, p.predicted_low <= actual <= p.predicted_high)
+              for p, actual in labelled]
 
     hallucination_records = [
         {
@@ -367,6 +369,7 @@ def arm_result(label: str, repeats: list[list[Prediction]], config: dict | None 
     predicted: dict[str, float] = {}
     actual: dict[str, float] = {}
     hallucinated: dict[str, bool] = {}
+    in_range: dict[str, bool] = {}
     failures = 0
     billed: list[int] = []
     for item_id, runs in by_item.items():
@@ -394,6 +397,11 @@ def arm_result(label: str, repeats: list[list[Prediction]], config: dict | None 
                 "visual_evidence": first.visual_evidence,
             }])["rate"]
             hallucinated[item_id] = bool(flagged)
+            # The range at the same median as the price, judged by the event
+            # the band promises (#226).
+            low = statistics.median(p.predicted_low for p in ok)
+            high = statistics.median(p.predicted_high for p in ok)
+            in_range[item_id] = low <= first.expected_price <= high
 
     extra: dict[str, dict] = {}
     if by_item:
@@ -409,7 +417,7 @@ def arm_result(label: str, repeats: list[list[Prediction]], config: dict | None 
 
     return ArmResult(label=label, absolute_percentage_error=ape, latency_ms=latency,
                      confidence=confidence, predicted=predicted, actual=actual,
-                     hallucinated=hallucinated, failures=failures,
+                     hallucinated=hallucinated, in_range=in_range, failures=failures,
                      config=config or {}, extra=extra)
 
 
@@ -731,7 +739,7 @@ def _format(report: dict) -> str:
             f"  coverage              {pct(rng['coverage'])}   (target ~80%)",
             f"  mean width ratio      {num(rng['mean_width_ratio'])}×  (lower is better)",
             "",
-            "Calibration",
+            "Calibration (sold in the range shown)",
             f"  ECE                   {'n/a' if ece is None else f'{ece:.3f}'}   (0 = perfect)",
         ]
         for bucket in report["calibration"]["buckets"]:

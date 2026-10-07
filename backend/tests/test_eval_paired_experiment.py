@@ -17,6 +17,8 @@ from contextlib import redirect_stderr, redirect_stdout
 from dataclasses import replace
 from pathlib import Path
 
+import pytest
+
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from eval import cli, runner  # noqa: E402
@@ -159,3 +161,35 @@ def test_a_drop_is_the_regression_for_higher_is_better_metrics():
                        Metric.measured("scored_fraction", 80, 40))
     assert guard.check(Metric.measured("scored_fraction", 95, 40),
                        Metric.measured("scored_fraction", 99, 40)) is None
+
+
+# ── calibration_ece measures what the band promises (#226) ──────────────────
+
+def _wide_but_held(item: str) -> Prediction:
+    """Sold at 100, estimated at 200: 100% off the point, but inside the
+    $90–$210 range shown. Within 25% says miss; the band's promise says hit."""
+    return replace(prediction(item, 200, confidence=90), predicted_low=90.0,
+                   predicted_high=210.0)
+
+
+def test_calibration_ece_is_judged_by_the_range_shown():
+    batch = [_wide_but_held(f"G-{i:04d}") for i in range(N)]
+    result = runner.arm_result("v2", [batch])
+    assert set(result.in_range.values()) == {True}
+    # Claims ~90%, held 100%: one bucket, a gap of 0.1. Under within 25% it
+    # would be 0.9.
+    assert result.metric_set().get("calibration_ece").value == pytest.approx(0.1)
+
+    report = runner.evaluate(batch)
+    assert report["calibration"]["ece"] == pytest.approx(0.1)
+    assert report["calibration"]["buckets"] == [
+        {"range": "80-100", "n": N, "predicted": 0.9, "actual": 1.0}]
+
+
+def test_an_arm_from_before_in_range_reports_no_calibration_ece():
+    """Not one measured against the other event under the same name."""
+    payload = arm("v2", 10).to_dict()
+    del payload["in_range"]
+    old = ArmResult.from_dict(json.loads(json.dumps(payload)))
+    assert old.metric_set().get("calibration_ece") is None
+    assert old.metric_set().get("mdape") is not None

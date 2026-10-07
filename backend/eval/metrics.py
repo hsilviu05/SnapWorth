@@ -33,6 +33,7 @@ from __future__ import annotations
 
 import math
 import statistics
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 
 from confidence import brand_is_known
@@ -93,7 +94,7 @@ class CalibrationBucket:
     lower: int
     upper: int
     count: int = 0
-    hits: int = 0                      # predictions within tolerance
+    hits: int = 0                      # outcomes where the event came true
 
     @property
     def accuracy(self) -> float:
@@ -117,12 +118,12 @@ class Calibration:
         ]
 
 
-def calibration(
-    scored: list[tuple[int, float, float]], tolerance: float = 25.0, bucket_size: int = 20
-) -> Calibration:
-    """Bucket predictions by confidence and compare claimed vs. actual accuracy.
+def calibration(points: Sequence[tuple[float, bool]], bucket_size: int = 20) -> Calibration:
+    """Bucket outcomes by confidence and compare claimed vs. actual hit rate.
 
-    `scored` is (confidence_score, predicted, actual).
+    `points` is (confidence_score 0–100, whether the event came true). The
+    runner and experiments pass the event a band promises: the sale landed in
+    the range shown (#226).
 
     A well-calibrated system where confidence is 80 should be right ~80% of the
     time. ECE is the count-weighted mean gap between the two, so 0 is perfect
@@ -134,13 +135,10 @@ def calibration(
         for i in range(0, 100, bucket_size)
     ]
     total = 0
-    for score, predicted, actual in scored:
-        err = ape(predicted, actual)
-        if err is None:
-            continue
+    for score, hit in points:
         idx = min(int(score // bucket_size), len(buckets) - 1)
         buckets[idx].count += 1
-        buckets[idx].hits += 1 if err <= tolerance else 0
+        buckets[idx].hits += 1 if hit else 0
         total += 1
 
     if not total:
