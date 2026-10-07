@@ -785,11 +785,11 @@ are reviewed.
 
 | Setting | Now | Needed |
 |---|---|---|
-| Draining (SIGTERM → SIGKILL) | unset, so Railway's default: **0 s** | **TODO(owner):** `RAILWAY_DEPLOYMENT_DRAINING_SECONDS=50`, as a service variable or the service's Teardown setting |
+| Draining (SIGTERM → SIGKILL) | `RAILWAY_DEPLOYMENT_DRAINING_SECONDS=50`, a service variable since 2026-10-07 | ✅ |
 | Overlap | unset, so the default: 0 s | Leave at 0. With no overlap, the old deployment gets SIGTERM when the new one goes Active. Overlap would only delay that SIGTERM, and the draining above already covers the longest request in flight |
-| Health-check path | unset | **TODO(owner):** `/health/ready` (#207) |
+| Health-check path | unset | **TODO(owner), dashboard only:** `/health/ready` (#207), Settings → Deploy. `railway environment edit --service-config snapworth-backend deploy.healthcheckPath /health/ready` answers "No changes to apply" (CLI 5.63.4, 2026-10-07), and config-as-code is ruled out below |
 | Replicas | 1, region `sfo` | 1 (§11) |
-| `DRAIN_TIMEOUT_SECONDS` | not read here | **TODO(owner):** unset, so the default 5 applies. The startup line prints the value in force: `startup complete — accepting traffic (replica …, shutdown drain 5s)` |
+| `DRAIN_TIMEOUT_SECONDS` | unset; the startup line read `shutdown drain 5s` on 2026-10-07 | ✅ Leave unset, so the default 5 applies |
 
 "Now" is from the current deployment's service manifest (`railway deployment
 list --json`, 2026-09-27: `drainingSeconds`, `overlapSeconds` and
@@ -801,7 +801,7 @@ no `railway.toml` or `railway.json`, and none should be added for this:
 Railway has deprecated config-as-code, which works for existing services
 until 2026-12-01.
 
-**Until draining is set, a deploy is no worse than before.** At 0 s SIGKILL
+**Before draining was set (until 2026-10-07), a deploy was no worse than before.** At 0 s SIGKILL
 follows SIGTERM whatever the app's windows are, so a request in flight is cut
 off now exactly as it was under 15/20. In the 7 days above, 28 of 29 replaced
 deployments logged a complete shutdown, each in under half a second, and none
@@ -1105,6 +1105,16 @@ learned the hard way that night:
   redeploy. That is how AOF was turned on, and it is the order to repeat
   after any restore that comes back with `--appendonly no`.
 
+As read with `railway status --json` on 2026-10-07, the command in force has
+a leftover `--appendonly no` before `--save 60 1 --appendonly yes
+--appendfsync everysec`. Redis applies its arguments in order, so the later
+`yes` wins and AOF is on; tidy it only by the safe order above, never by
+editing the command alone. The Redis service also has **App Sleeping on**
+(`deploy.sleepApplication: true`). The bot's poll lock touches Redis every
+poll, so it should never idle the ten minutes sleeping needs, but a sleeping
+system of record would turn the first request after it into a cache failure.
+Turn it off in the Redis service's settings unless the saving is wanted.
+
 Railway takes no scheduled volume backups on this plan (Pro only); it did take
 one automatically before a volume resize, which is what the restore used.
 
@@ -1363,27 +1373,29 @@ them grants anything.
 
 **Blocking**
 
-- [ ] `REDIS_URL` set and reachable
+- [x] `REDIS_URL` set and reachable: `/health` reported `cache.backend:
+      redis`, healthy, distributed limiter, 2026-10-07
 - [x] Redis persists to disk and survives a restart: `appendonly yes`,
       `appendfsync everysec` and RDB every 60 s, on a volume at `/data`,
       2026-10-06 (§9)
 - [x] Redis `maxmemory-policy noeviction` with `maxmemory 768mb` (§11);
       `🩺 Checkup` shows no ⚠️ on its Redis line, 2026-10-06
-- [ ] `TOKEN_KEYS` + `TOKEN_CURRENT_KID` set
-- [ ] `ENVIRONMENT=production` — two effects, both wanted: strict startup
+- [x] `TOKEN_KEYS` + `TOKEN_CURRENT_KID` set (checked 2026-10-07)
+- [x] `ENVIRONMENT=production` (checked 2026-10-07) — two effects, both wanted: strict startup
       checks (refuses to boot without `TOKEN_KEYS`), and **no `/openapi.json`,
       `/docs` or `/redoc`**. Unset, the schema is anonymous and complete: it
       lists `/metrics` with its `authorization` parameter and the docstring
       explaining that it fails closed, which is precisely the existence the
       404-not-401 design below is hiding. Also publishes the
       `/apple/notifications` trust model and every request body's constraints.
-- [ ] `AUDIT_SALT` set to a real value — **unset or a placeholder, pseudonyms
+- [x] `AUDIT_SALT` set to a real value: 43 characters, neither placeholder,
+      checked without printing it on 2026-10-07 — **unset or a placeholder, pseudonyms
       and /trends device tags can be recomputed** by anyone with a key id
       (§8.5). Production still boots, with one ERROR in the startup log, and
       `🩺 Checkup` reads *Audit salt: ⚠️ placeholder — pseudonyms and trends
       tags can be recomputed (RUNBOOK §8)* until it is set, then *Audit salt:
       set ✅*. Read §8.5 before changing it: it has costs
-- [ ] `GEMINI_DAILY_BUDGET_USD` set — **unset, the over-budget alert is off**
+- [x] `GEMINI_DAILY_BUDGET_USD` set: `1` (checked 2026-10-07) — **unset, the over-budget alert is off**
       (0 disables it), and it is the only thing that notices a heavy day: Pro
       is sold as unlimited scans and capped only per hour (§5.8, §10). Size it
       at a few times a normal day's spend on `/costs`; crossing it sends one
@@ -1394,11 +1406,13 @@ them grants anything.
       variable being remembered. The old note here was also wrong about the failure:
       unset did not collapse everyone into one bucket, it gave each caller a bucket of
       their own choosing (uvicorn runs with `--forwarded-allow-ips='*'`, which makes
-      `request.client.host` the client-supplied hop). Safe to delete from Railway.
-- [ ] `ALLOWED_STOREKIT_ENVIRONMENTS=Production` — the environments trusted
+      `request.client.host` the client-supplied hop). Deleted from Railway
+      2026-10-07.
+- [x] `ALLOWED_STOREKIT_ENVIRONMENTS=Production`: unset in production, which
+      defaults to Production (`entitlements.py`), 2026-10-07 — the environments trusted
       *fully*. Still Production only: listing Sandbox here would make every
       TestFlight tester a customer with a 400-day proof and six devices
-- [ ] `SANDBOX_ENTITLEMENTS` unset or `bounded` — **not** Production-only any
+- [x] `SANDBOX_ENTITLEMENTS` unset or `bounded`: unset, 2026-10-07 — **not** Production-only any
       more. App Review buys in Sandbox, and refusing it is the "purchased
       content not delivered" rejection. Bounded Sandbox is attested callers
       only, 24h at most, no proof, one device, never in revenue figures (§17).
@@ -1411,26 +1425,27 @@ them grants anything.
 - [ ] App Store Connect *Sandbox Server URL* set to
       `https://api.snapworth.eu/apple/notifications/sandbox` (§14), so a
       Sandbox refund withdraws the bounded grant
-- [ ] `LOG_FORMAT=json` — still wanted, but **no longer load-bearing for log
+- [x] `LOG_FORMAT=json` (set 2026-10-07) — still wanted, but **no longer load-bearing for log
       injection**. The plain formatter is a bare `%(message)s`, so a newline in
       an interpolated value reads as a second log record; every caller-supplied
       value interpolated into a log line now goes through
       `observability.log_safe` (bounded, printable, one line) regardless of
       format. `notification_type` on the unauthenticated
       `/apple/notifications` path was the one that did not.
-- [ ] Platform health-check path set to `/health/ready`
+- [ ] Platform health-check path set to `/health/ready` — dashboard only (§6)
 - [ ] **App Store screenshots corrected** — see `marketing/SCREENSHOT-COMPLIANCE.md`
 
 **Should-have**
 
-- [ ] `METRICS_TOKEN` set in the production environment — **`/metrics` fails
+- [x] `METRICS_TOKEN` set in the production environment (checked 2026-10-07) — **`/metrics` fails
       closed and returns 404 until it is**, so set it before or with the deploy
       that ships the guard, or observability goes dark
 - [ ] Metrics collector scraping `/metrics` — must send
       `Authorization: Bearer $METRICS_TOKEN`
-- [ ] `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID` added as GitHub repository
+- [x] `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID` added as GitHub repository
       secrets, so the Uptime workflow's alert reaches Telegram and not only
-      email (§3)
+      email (§3). Added 2026-10-07; a dispatched run against a 404 ran its
+      "Tell the operator" step (#209)
 - [ ] An external uptime monitor on `/health/ready` (§3)
 - [ ] On-call rota and escalation path
 - [ ] Load test at 10× expected peak
