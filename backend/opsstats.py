@@ -15,7 +15,7 @@ from __future__ import annotations
 
 import json
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import TYPE_CHECKING
 
 from background import spawn
@@ -101,3 +101,15 @@ async def read_doc_for_update(key: str) -> dict | None:
     except Exception:
         return {}
     return doc if isinstance(doc, dict) else {}
+
+
+async def sum_stat(days: list[str], name: str) -> int:
+    total = 0
+    for day in days:
+        total += await read_stat(day, name)
+    return total
+
+
+def days_ending_today(n: int, now: datetime | None = None) -> list[str]:
+    now = now or datetime.now(timezone.utc)
+    return [day(now - timedelta(days=i)) for i in range(n)]

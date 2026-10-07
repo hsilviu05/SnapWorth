@@ -18,6 +18,7 @@ from datetime import datetime, timedelta, timezone
 from typing import TYPE_CHECKING
 
 import auditlog
+import opsformat
 import opsstats
 
 if TYPE_CHECKING:
@@ -323,3 +324,28 @@ async def note_sync(subject: str, outcome: str, detail: str | None = None) -> No
         await _cache.set(sync_key(auditlog.pseudonymise(subject)), json.dumps(record), SYNC_TTL)
     except Exception as exc:
         log.debug("entitlement sync note failed: %s", type(exc).__name__)
+
+
+def subs_summary(doc: dict) -> tuple[int, int, int, int, dict[str, float]]:
+    """(active, paid, comped, expired, mrr by currency)."""
+    now = time.time()
+    active = paid = comped = expired = 0
+    mrr: dict[str, float] = {}
+    for e in doc.values():
+        # A refund keeps its expiry date — the period was paid for and then
+        # unpaid — so expiry alone would leave a refunded subscription counted
+        # as active revenue until it happened to lapse. See `_sub_is_alive`.
+        alive = opsformat.sub_is_alive(e, now)
+        if not alive:
+            expired += 1
+            continue
+        active += 1
+        if e.get("acq") == "paid":
+            paid += 1
+            price, cur = e.get("price"), e.get("currency") or "?"
+            if isinstance(price, (int, float)) and price > 0:
+                monthly = price / 12 if "yearly" in opsformat.plan(e.get("product")) else price
+                mrr[cur] = mrr.get(cur, 0.0) + monthly
+        else:
+            comped += 1
+    return active, paid, comped, expired, mrr
