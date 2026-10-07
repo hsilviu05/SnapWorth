@@ -23,6 +23,27 @@ on:
       - 'ios/SnapWorth/Config.swift'
       - 'pyrightconfig.json'
 
+# Pushes to main run one at a time, in the order they were pushed: a run waits
+# for the one in progress, and a newer push replaces any older run still
+# waiting. Runs are created in push order, so the newest push is always the
+# last to deploy.
+#
+# The deploy job's own group, below, was the only ordering, and it orders by
+# when each *job* is queued, which is when that run's tests finish. In a burst
+# of merges an older commit's tests can finish last. On 2026-10-07 three merges
+# landed within three seconds: the newest commit's deploy was cancelled while
+# verifying by an older one queued after it, and that one was cancelled too.
+# Production stayed on the commit before all three for an hour and forty
+# minutes, with nothing red to say so, since a cancelled run is grey
+# (AUDIT-2026-10-07). A run replaced while waiting does not test its own
+# commit on main. The pull request already tested it, and the newer run tests
+# a tree that contains it.
+#
+# Pull requests are not serialised: each run is a group of its own.
+concurrency:
+  group: ${{ github.event_name == 'push' && 'backend-main' || format('backend-pr-{0}', github.run_id) }}
+  cancel-in-progress: false
+
 jobs:
   # ── Tests ───────────────────────────────────────────────────────────────────
   test:
@@ -216,17 +237,21 @@ jobs:
     needs: [test, container, audit]
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-    # One deploy at a time, newest wins. Without this, pushes that land close
-    # together deploy concurrently: Railway serves the newest upload, and every
-    # older job's "Verify the deploy is live" waits five minutes for a commit
-    # that has already been replaced, then fails. On 2026-09-26 four merges in
-    # 20 seconds produced two red deploys while production was healthy on a
-    # commit containing all four. Cancelling the older job is correct because
-    # the newer push contains it. Scoped to this job, not the workflow, so a
-    # newer push never cancels the tests of an older one.
+    # One deploy at a time. Without this, pushes that land close together
+    # deploy concurrently: Railway serves the newest upload, and every older
+    # job's "Verify the deploy is live" waits five minutes for a commit that
+    # has already been replaced, then fails. On 2026-09-26 four merges in 20
+    # seconds produced two red deploys while production was healthy on a
+    # commit containing all four.
+    #
+    # Ordering is the workflow-level group's job (top of this file). This is
+    # the backstop, and it does not cancel. With `cancel-in-progress: true` it
+    # let an older deploy, queued after a newer one, cancel the newer one
+    # while it was verifying (2026-10-07). With the workflow serialised, two
+    # deploy jobs on main never overlap.
     concurrency:
       group: deploy-railway-production
-      cancel-in-progress: true
+      cancel-in-progress: false
 
     steps:
       - uses: actions/checkout@v7
