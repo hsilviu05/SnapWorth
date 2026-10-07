@@ -25,6 +25,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import auditlog  # noqa: E402
 import checkup  # noqa: E402
+import levers  # noqa: E402
 import notify  # noqa: E402
 import opsspend
 import telegram  # noqa: E402
@@ -130,8 +131,8 @@ def wire_welcome(monkeypatch, *, daily: int = 1, env_first_day: int = 0) -> Scan
     lever through `free_scan_lever`, exactly as production's does. Needs
     `enabled_notify` first, for the cache."""
     quota = ScanQuota(notify._cache, None, limit=daily, first_day_limit=env_first_day,
-                      welcome_override=notify.free_scan_lever)
-    monkeypatch.setattr(notify, "_describe_welcome", quota.describe_welcome)
+                      welcome_override=levers.free_scan_lever)
+    monkeypatch.setattr(levers, "_describe_welcome", quota.describe_welcome)
     return quota
 
 
@@ -3741,47 +3742,47 @@ class TestPaywallPlanLever:
 
     @pytest.mark.asyncio
     async def test_unset_is_none(self, enabled_notify):
-        assert await notify.paywall_default_plan() is None
+        assert await levers.paywall_default_plan() is None
 
     @pytest.mark.asyncio
     async def test_changing_it_takes_two_taps(self, enabled_notify):
         text, buttons = await self._run("/lever plan monthly")
         assert "Change the paywall's default plan?" in text
-        assert await notify.paywall_default_plan() is None, "the first tap must not act"
+        assert await levers.paywall_default_plan() is None, "the first tap must not act"
         confirm = next(d for row in buttons for _, d in row if d.endswith("yes"))
         text, _ = await self._run("/" + confirm)
         assert "monthly" in text
-        assert await notify.paywall_default_plan() == "monthly"
+        assert await levers.paywall_default_plan() == "monthly"
 
     @pytest.mark.asyncio
     async def test_default_hands_it_back_to_the_app(self, enabled_notify):
         await self._run("/lever plan monthly yes")
         await self._run("/lever plan default yes")
-        assert await notify.paywall_default_plan() is None
+        assert await levers.paywall_default_plan() is None
 
     @pytest.mark.asyncio
     async def test_its_record_stays_out_of_the_free_scan_history(self, enabled_notify, cache):
         await self._run("/lever plan monthly yes")
-        doc = json.loads(await cache.get(notify.LEVERS_KEY))
+        doc = json.loads(await cache.get(levers.LEVERS_KEY))
         assert doc["plan_changes"][-1][1:] == [None, "monthly"]
         assert "changes" not in doc
-        assert await notify.free_scan_lever() is None
+        assert await levers.free_scan_lever() is None
 
     @pytest.mark.asyncio
     async def test_an_unknown_value_shows_the_state_and_changes_nothing(self, enabled_notify):
         text, _ = await self._run("/lever plan weekly yes")
         assert "Paywall default plan" in text and "yearly (app default)" in text
-        assert await notify.paywall_default_plan() is None
+        assert await levers.paywall_default_plan() is None
 
     @pytest.mark.asyncio
     async def test_an_unreadable_document_reads_as_unset(self, enabled_notify, cache):
-        await cache.set(notify.LEVERS_KEY, "{not json")
-        assert await notify.paywall_default_plan() is None
+        await cache.set(levers.LEVERS_KEY, "{not json")
+        assert await levers.paywall_default_plan() is None
 
     @pytest.mark.asyncio
     async def test_a_stored_value_that_is_not_a_plan_reads_as_unset(self, enabled_notify, cache):
-        await cache.set(notify.LEVERS_KEY, json.dumps({"paywall_default_plan": "weekly"}))
-        assert await notify.paywall_default_plan() is None
+        await cache.set(levers.LEVERS_KEY, json.dumps({"paywall_default_plan": "weekly"}))
+        assert await levers.paywall_default_plan() is None
 
 
 class TestFreeScanLever:
@@ -3808,7 +3809,7 @@ class TestFreeScanLever:
     async def test_arming_takes_two_taps(self, enabled_notify):
         text, buttons = await self._run("/lever arm")
         assert "Arm the free-scan lever?" in text
-        assert await notify.free_scan_lever() is None, "the first tap must not act"
+        assert await levers.free_scan_lever() is None, "the first tap must not act"
         assert any(d.endswith("yes") for d in self._datas(buttons))
 
     @pytest.mark.asyncio
@@ -3823,35 +3824,35 @@ class TestFreeScanLever:
         confirm = next(d for d in self._datas(buttons) if d.endswith("yes"))
         text, _ = await self._run("/" + confirm)
         assert "Lever armed" in text
-        assert await notify.free_scan_lever() == 3
+        assert await levers.free_scan_lever() == 3
 
     @pytest.mark.asyncio
     async def test_disarming_also_takes_two(self, enabled_notify):
         await self._run("/lever arm 3 yes")
         text, _ = await self._run("/lever disarm")
         assert "Disarm" in text
-        assert await notify.free_scan_lever() == 3, "the first tap must not act"
+        assert await levers.free_scan_lever() == 3, "the first tap must not act"
         await self._run("/lever disarm yes")
-        assert await notify.free_scan_lever() == 0
+        assert await levers.free_scan_lever() == 0
 
     @pytest.mark.asyncio
     async def test_handing_it_back_to_the_environment_is_not_the_same_as_zero(
             self, enabled_notify):
         """Zero is an override that says "no welcome". None is "not my call"."""
         await self._run("/lever disarm yes")
-        assert await notify.free_scan_lever() == 0
+        assert await levers.free_scan_lever() == 0
         await self._run("/lever default yes")
-        assert await notify.free_scan_lever() is None
+        assert await levers.free_scan_lever() is None
 
     @pytest.mark.asyncio
     async def test_a_fat_fingered_value_is_clamped_here_too(self, enabled_notify):
         await self._run("/lever arm 9999 yes")
-        assert await notify.free_scan_lever() == 10
+        assert await levers.free_scan_lever() == 10
 
     @pytest.mark.asyncio
     async def test_an_unreadable_lever_reads_as_no_override(self, enabled_notify, cache):
-        await cache.set(notify.LEVERS_KEY, "{not json")
-        assert await notify.free_scan_lever() is None
+        await cache.set(levers.LEVERS_KEY, "{not json")
+        assert await levers.free_scan_lever() is None
 
     @pytest.mark.asyncio
     async def test_experiment_says_when_the_lever_moved_inside_the_window(
@@ -3891,7 +3892,7 @@ class TestMinimumBuild:
     async def test_off_until_set(self, enabled_notify):
         text, _ = await self._run("/minbuild")
         assert "every build is served" in text
-        assert await notify.minimum_build() is None
+        assert await levers.minimum_build() is None
 
     @pytest.mark.asyncio
     async def test_it_does_not_claim_trends_users_are_told(self, enabled_notify):
@@ -3908,18 +3909,18 @@ class TestMinimumBuild:
     @pytest.mark.asyncio
     async def test_setting_it_takes_two_taps_and_quotes_the_message(self, enabled_notify):
         text, buttons = await self._run("/minbuild 18")
-        assert await notify.minimum_build() is None, "the first tap must not act"
+        assert await levers.minimum_build() is None, "the first tap must not act"
         # The operator sees what refused users will read before it goes live,
         # what the oldest builds see instead, and that /trends shows nothing:
         # the app fetches it with `try?`, so nobody there is "told" anything.
-        assert html.escape(notify.UPDATE_REQUIRED_DETAIL) in text
+        assert html.escape(levers.UPDATE_REQUIRED_DETAIL) in text
         assert "Something went wrong" in text
         assert "outage" not in text
         assert "disappears" in text
         confirm = next(d for d in self._datas(buttons) if d.endswith("yes"))
         text, _ = await self._run("/" + confirm)
         assert "18" in text
-        assert await notify.minimum_build() == 18
+        assert await levers.minimum_build() == 18
 
     @pytest.mark.asyncio
     async def test_it_promises_the_app_store_button_only_where_there_is_one(
@@ -3936,22 +3937,22 @@ class TestMinimumBuild:
     async def test_clearing_it_takes_two_taps(self, enabled_notify):
         await self._run("/minbuild 18 yes")
         _, buttons = await self._run("/minbuild off")
-        assert await notify.minimum_build() == 18, "the first tap must not act"
+        assert await levers.minimum_build() == 18, "the first tap must not act"
         confirm = next(d for d in self._datas(buttons) if d.endswith("yes"))
         await self._run("/" + confirm)
-        assert await notify.minimum_build() is None
+        assert await levers.minimum_build() is None
 
     @pytest.mark.asyncio
     @pytest.mark.parametrize("value", ["0", "100001"])
     async def test_a_value_that_is_not_a_build_is_refused(self, enabled_notify, value):
         text, _ = await self._run(f"/minbuild {value} yes")
         assert "not a build number" in text
-        assert await notify.minimum_build() is None
+        assert await levers.minimum_build() is None
 
     @pytest.mark.asyncio
     async def test_an_unreadable_value_serves_every_build(self, enabled_notify, cache):
-        await cache.set(notify.MIN_BUILD_KEY, "eighteen")
-        assert await notify.minimum_build() is None
+        await cache.set(levers.MIN_BUILD_KEY, "eighteen")
+        assert await levers.minimum_build() is None
 
     @pytest.mark.asyncio
     async def test_its_buttons_are_commands(self, enabled_notify):
@@ -4229,7 +4230,7 @@ class TestLeverFloorAndSource:
         for value in ("0", "1"):
             reply = await notify.handle_command(f"/lever arm {value} yes")
             assert "not a welcome" in reply, reply
-            assert await notify.free_scan_lever() is None, (
+            assert await levers.free_scan_lever() is None, (
                 f"arming {value} stored an override the quota discards")
 
     @pytest.mark.asyncio
@@ -4238,7 +4239,7 @@ class TestLeverFloorAndSource:
         wire_welcome(monkeypatch, daily=1)
         reply = await notify.handle_command("/lever arm 3 yes")
         assert "not a welcome" not in reply, reply
-        assert await notify.free_scan_lever() == 3
+        assert await levers.free_scan_lever() == 3
 
     @pytest.mark.asyncio
     async def test_the_floor_is_the_quotas_daily_limit_not_the_environments(
@@ -4251,7 +4252,7 @@ class TestLeverFloorAndSource:
         reply = await notify.handle_command("/lever arm 3 yes")
         assert "not a welcome" in reply and "Arm <b>4</b> or more" in reply, reply
         assert "not a welcome" not in await notify.handle_command("/lever arm 4 yes")
-        assert await notify.free_scan_lever() == 4
+        assert await levers.free_scan_lever() == 4
 
     @pytest.mark.asyncio
     async def test_the_cap_is_the_quotas(self, enabled_notify, monkeypatch):
@@ -4262,7 +4263,7 @@ class TestLeverFloorAndSource:
         wire_welcome(monkeypatch, daily=1)
         reply = await notify.handle_command("/lever arm 9999 yes")
         assert "5 first-day scans" in reply, reply
-        assert await notify.free_scan_lever() == 5
+        assert await levers.free_scan_lever() == 5
 
     @pytest.mark.asyncio
     async def test_no_welcome_fits_under_the_cap(self, enabled_notify, monkeypatch):
@@ -4270,7 +4271,7 @@ class TestLeverFloorAndSource:
         reply = await notify.handle_command("/lever arm 9999 yes")
         assert "not a welcome" in reply and "no welcome to arm" in reply, reply
         assert "or more" not in reply, "there is no larger value to suggest"
-        assert await notify.free_scan_lever() is None
+        assert await levers.free_scan_lever() is None
 
     @pytest.mark.asyncio
     async def test_without_the_quota_the_bot_will_not_arm_blind(
@@ -4280,7 +4281,7 @@ class TestLeverFloorAndSource:
         monkeypatch.setenv("FREE_SCANS_PER_DAY", "1")
         reply = await notify.handle_command("/lever arm 3 yes")
         assert "will not arm one blind" in reply, reply
-        assert await notify.free_scan_lever() is None
+        assert await levers.free_scan_lever() is None
         text = await notify.handle_command("/experiment")
         assert "welcome unknown" in text, text
         assert "lever armed" not in text
@@ -4328,7 +4329,7 @@ class TestLeverFloorAndSource:
 
     def test_a_capped_override_from_chat_names_the_cap_too(self):
         from quota import WelcomeSetting
-        armed, head, why = notify._welcome_summary(
+        armed, head, why = levers.welcome_summary(
             WelcomeSetting(daily=10, environment=0, override=12, cap=10))
         assert (armed, head) == (False, "lever not armed")
         assert why.startswith("the lever's 12, set from chat, is capped at 10, "
@@ -4485,8 +4486,8 @@ class TestExperimentExport:
 
         async def capped():
             return WelcomeSetting(daily=10, environment=3, override=12, cap=10)
-        monkeypatch.setattr(notify, "_describe_welcome", capped)
-        await cache.set(notify.LEVERS_KEY, json.dumps({
+        monkeypatch.setattr(levers, "_describe_welcome", capped)
+        await cache.set(levers.LEVERS_KEY, json.dumps({
             "free_scans_first_day": 12,
             "changes": [["20260911", None, 12]]}))
         await self._seed(cache, "20260910", active_users=6, scans_free=4, limit_hits=1)
@@ -4539,7 +4540,7 @@ class TestExperimentExport:
         real_get = cache.get
 
         async def levers_down(key, *, required=False):
-            if key == notify.LEVERS_KEY and required:
+            if key == levers.LEVERS_KEY and required:
                 raise CacheUnavailable("redis down")
             return await real_get(key, required=required)
         monkeypatch.setattr(notify._cache, "get", levers_down)
@@ -4561,7 +4562,7 @@ class TestExperimentExport:
         real_get = cache.get
 
         async def best_effort_misses(key, *, required=False):
-            if key == notify.LEVERS_KEY and not required:
+            if key == levers.LEVERS_KEY and not required:
                 return None
             return await real_get(key, required=required)
         monkeypatch.setattr(notify._cache, "get", best_effort_misses)
@@ -5470,14 +5471,14 @@ class TestAFailedReadDoesNotWipeTheDocument:
         redis = flaky_notify
         wire_welcome(monkeypatch, daily=1)
         await notify.handle_command("/lever arm 3 yes")
-        before = json.loads(await redis.get(notify.LEVERS_KEY))
+        before = json.loads(await redis.get(levers.LEVERS_KEY))
 
         redis.failing = True
         reply = await notify.handle_command("/lever disarm yes")
         redis.failing = False
 
         assert "Nothing changed" in reply
-        assert json.loads(await redis.get(notify.LEVERS_KEY)) == before
+        assert json.loads(await redis.get(levers.LEVERS_KEY)) == before
 
     @pytest.mark.asyncio
     async def test_sub_does_not_claim_an_index_write_it_skipped(

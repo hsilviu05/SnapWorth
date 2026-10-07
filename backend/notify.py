@@ -80,7 +80,7 @@ import secrets
 import time
 from collections.abc import Awaitable, Callable
 from datetime import datetime, timedelta, timezone
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING
 
 import auditlog
 import background
@@ -88,6 +88,7 @@ import categories
 import chatlog
 import checkup
 import ideas
+import levers
 import opsformat
 import opsindex
 import opsspend
@@ -313,11 +314,6 @@ _scanner: Callable[..., Awaitable[dict]] | None = None
 # not wire one.
 _device_check_probe: Callable[[], Awaitable[tuple[bool | None, str]]] | None = None
 
-# What the first-day welcome is, from the `ScanQuota` that grants it: its
-# `describe_welcome`, injected by main. None when the app did not wire one,
-# and then the bot says so rather than guess — see `_welcome_setting`.
-_describe_welcome: Callable[[], Awaitable[WelcomeSetting]] | None = None
-
 # Identifies this replica as the poll-lock holder.
 _poll_token = secrets.token_hex(8)
 
@@ -347,9 +343,10 @@ def configure(cache, notifier: telegram.TelegramNotifier | None = None,
     `subscription_event` write.
     """
     global _notifier, _cache, _status_provider, _social, _generator, _scanner
-    global _device_check_probe, _describe_welcome
+    global _device_check_probe
     _cache = cache
     opsstats.bind(cache)
+    levers.bind(cache, welcome)
     opsindex.bind(cache)
     opssupport.bind(cache)
     opsspend.bind(cache)
@@ -359,7 +356,6 @@ def configure(cache, notifier: telegram.TelegramNotifier | None = None,
     _generator = generator
     _scanner = scanner
     _device_check_probe = device_check_probe
-    _describe_welcome = welcome
 
     if notifier is not None:
         _notifier = notifier
@@ -1670,16 +1666,17 @@ async def handle_command_with_buttons(text: str) -> tuple[str, opsformat.Buttons
     if command == "/experiment":
         if argument == "export":
             return await _experiment_export(), [[("🧪 Experiment", "experiment")]]
-        current = (await _levers()).get("free_scans_first_day")
+        current = (await levers.read()).get("free_scans_first_day")
         return (await _experiment_text(),
-                _lever_buttons(current) + [[("💾 Export CSV", "experiment export")]]
+                levers.lever_buttons(current) + [[("💾 Export CSV", "experiment export")]]
                 + await _buttons())
     if command == "/lever":
-        return await _lever_command(argument, rest)
+        return await levers.lever_command(argument, rest)
     if command == "/paywall":
         return await _paywall_text(), await _buttons()
     if command == "/minbuild":
-        return await _minbuild_command(argument, rest)
+        text, offers, menu = await levers.minbuild_command(argument, rest)
+        return text, offers + (await _buttons() if menu else [])
     if command == "/referrals":
         import referral        # not at the top: referral imports auth, which imports this
         return await referral.bot_command(argument, rest)
@@ -1907,480 +1904,6 @@ def _start_command_loop() -> None:
 
 
 # ── Live scan feed and what people scan ──────────────────────────────────────
-
-# ── The free-scan lever ─────────────────────────────────────────────────────
-#
-# `/experiment` could report that the lever was not armed and do nothing about
-# it. The measurement half of the experiment lives here — `limit_hits`, the
-# window, the partial-day handling — and the control half was a Railway
-# variable and a redeploy, from a phone.
-#
-# `quota.ScanQuota` reads `free_scan_lever` on every free scan and falls back
-# to the environment when it returns None or raises, so an unreadable lever can
-# neither fail a scan nor grant an allowance nobody configured. The value is
-# clamped there too: this is a button that spends money.
-#
-# What a value resolves to — the cap, the daily floor, the environment's say —
-# is the quota's to answer, and `_welcome_setting` asks it. This module used to
-# keep its own copy of each rule. The missing floor is the copy that made
-# screens untrue — the lever's confirmation (fixed in 6cae388) and
-# /experiment's lever line — while the default and the cap still matched,
-# each one quota edit away from not matching.
-
-LEVERS_KEY = "opsstate:levers"
-LEVER_CHANGES_CAP = 40
-DEFAULT_ARMED_FIRST_DAY = 3
-
-
-async def _welcome_setting() -> WelcomeSetting | None:
-    """The welcome as the quota resolves it, or None when it cannot be asked.
-
-    None when main did not wire `describe_welcome` into this process. The bot
-    then says it does not know and will not arm: answering from its own copy
-    of the rules is what printed `FREE_SCANS_FIRST_DAY=1` — no welcome at a
-    daily limit of 1 — as though the lever were armed.
-    """
-    if _describe_welcome is None:
-        return None
-    try:
-        return await _describe_welcome()
-    except Exception as exc:                    # pragma: no cover - defensive
-        log.warning("welcome setting unreadable: %s", type(exc).__name__)
-        return None
-
-
-def _welcome_summary(setting: WelcomeSetting | None) -> tuple[bool, str, str]:
-    """(armed, head, why) — whether a new user gets a first-day welcome now.
-
-    Plain text, so the CSV export can carry it; `_welcome_html` marks it up.
-    It reports what the quota grants and then what was asked for, because the
-    two differ exactly when the operator most needs to know it: a value at or
-    below the daily limit is asked for and grants nothing.
-    """
-    if setting is None:
-        return False, "welcome unknown", "the quota is not wired into the bot in this process"
-    env = f"FREE_SCANS_FIRST_DAY={setting.environment}"
-    chat = setting.override is not None
-    if setting.scans:
-        why = (f"{setting.scans} first-day scan{'s' if setting.scans != 1 else ''}, "
-               + ("set from chat" if chat else f"from {env}"))
-        if setting.configured > setting.cap:
-            why += f" (asked for {setting.configured}, capped at {setting.cap})"
-    elif setting.configured <= 0:
-        why = "disarmed from chat" if chat else f"{env}, or unset"
-    else:
-        asked = f"the lever's {setting.configured}, set from chat," if chat else env
-        if setting.configured > setting.daily:
-            # Above the daily limit as asked, so the cap is what took it away:
-            # clamped to a cap no higher than the daily limit. Saying the
-            # value is "not above the daily limit" would be false.
-            why = (f"{asked} is capped at {setting.cap}, which is not above the "
-                   f"daily limit of {setting.daily}, so no first-day welcome")
-        else:
-            why = (f"{asked} is not above the daily limit of {setting.daily}, "
-                   "so no first-day welcome")
-    if chat and setting.environment != setting.override:
-        # Worth printing: the environment is what ↩️ Use env hands back to.
-        why += f" · env {env}"
-    return bool(setting.scans), "lever armed" if setting.scans else "lever not armed", why
-
-
-def _welcome_html(setting: WelcomeSetting | None) -> str:
-    armed, head, why = _welcome_summary(setting)
-    return f"{head if armed else f'<b>{head}</b>'} — {html.escape(why)}"
-
-
-async def _levers(*, required: bool = False) -> dict:
-    """The levers document. {} when unreadable, unless `required`, which
-    raises instead: see `_set_free_scan_lever`."""
-    try:
-        raw = await _cache.get(LEVERS_KEY, required=required)
-    except Exception:
-        if required:
-            raise
-        return {}
-    try:
-        doc = json.loads(raw) if raw else {}
-    except Exception:
-        return {}
-    return doc if isinstance(doc, dict) else {}
-
-
-def _lever_value(doc: dict) -> int | None:
-    """The welcome allowance a levers document holds, or None for none."""
-    value = doc.get("free_scans_first_day")
-    return int(value) if isinstance(value, (int, float)) else None
-
-
-async def free_scan_lever() -> int | None:
-    """The operator's welcome allowance, or None to use the environment.
-
-    Injected into `ScanQuota` from main.py — quota must not import this module.
-    Raises nothing: `_levers` swallows, and a missing key reads as None.
-    """
-    return _lever_value(await _levers())
-
-
-async def _set_free_scan_lever(value: int | None) -> dict | None:
-    """Set or clear the lever, and record the day it changed.
-
-    The record is the point. A measurement window whose lever moved mid-flight
-    and does not say so is worse than no window at all — the numbers look
-    continuous and are not.
-
-    None, with nothing written, when the document could not be read. Read as
-    {} it was written back as just this change, and the record of every
-    earlier one was gone.
-    """
-    try:
-        doc = await _levers(required=True)
-    except Exception as exc:
-        log.warning("levers unreadable, not changing them: %s", type(exc).__name__)
-        return None
-    before = doc.get("free_scans_first_day")
-    if value is None:
-        doc.pop("free_scans_first_day", None)
-    else:
-        doc["free_scans_first_day"] = int(value)
-    changes = [c for c in (doc.get("changes") or []) if isinstance(c, list) and len(c) == 3]
-    changes.append([opsstats.day(), before, value])
-    doc["changes"] = changes[-LEVER_CHANGES_CAP:]
-    await _cache.set(LEVERS_KEY, json.dumps(doc))
-    return doc
-
-
-def _lever_label(value: int | None) -> str:
-    if value is None:
-        return "environment default"
-    return f"{value} first-day scan{'s' if value != 1 else ''}"
-
-
-_LEVER_UNREADABLE = ("🎚 Nothing changed: the lever's stored state could not be "
-                     "read, and writing over it would lose its change history. "
-                     "Try again in a minute.")
-
-_LEVER_UNWIRED = ("🎚 Nothing changed: the bot cannot ask the quota in this process "
-                  "what an allowance would grant, and will not arm one blind.")
-
-
-async def _lever_command(argument: str, rest: str) -> tuple[str, opsformat.Buttons]:
-    """`/lever`, `/lever arm [n]`, `/lever disarm`, and their confirmations;
-    `/lever plan …` is the paywall's default plan (`_plan_command`).
-
-    Two taps, never one. The first names what is about to change and what it
-    currently is; the second does it. A single-tap lever on a phone, in a chat
-    that also contains the word "Disarm" one row away, is how an experiment
-    gets restarted by accident halfway through.
-    """
-    parts = (rest or "").split()
-    action = parts[0].lower() if parts else ""
-    if action == "plan":
-        return await _plan_command(parts)
-    # Anywhere after the action, not at a fixed index: the arm button carries
-    # the value it is confirming ("lever arm 3 yes"), so checking parts[1]
-    # silently re-showed the confirmation instead of acting on it.
-    confirmed = any(token.lower() == "yes" for token in parts[1:])
-    current = (await _levers()).get("free_scans_first_day")
-
-    setting = await _welcome_setting()
-
-    if action == "arm":
-        if setting is None:
-            return _LEVER_UNWIRED, _lever_buttons(current)
-        wanted = DEFAULT_ARMED_FIRST_DAY
-        for token in parts[1:]:
-            if token.isdigit():
-                wanted = int(token)
-        # The quota clamps to its cap *and then* discards anything at or below
-        # the daily limit. This used to mirror only the clamp, so arming with 0
-        # or 1 replied "Lever armed — 1 first-day scan" and `/lever` went on
-        # rendering that override, from a stored document with no TTL. Asked
-        # rather than restated now, and refused where the operator can see it
-        # rather than clamped silently.
-        wanted = min(wanted, setting.cap)
-        if not setting.allowance(wanted):
-            daily = setting.daily
-            smallest = setting.smallest
-            fix = (f"Arm <b>{smallest}</b> or more, or use 🔕 Disarm for no "
-                   "welcome at all." if smallest is not None else
-                   f"The cap is <b>{setting.cap}</b>, so no first-day allowance "
-                   "can be larger than that — there is no welcome to arm.")
-            return (f"🧪 <b>That is not a welcome.</b>\n"
-                    f"Every user already gets <b>{daily}</b> free scan"
-                    f"{'s' if daily != 1 else ''} a day, and a first-day "
-                    f"allowance is only an allowance above that — the quota "
-                    f"discards <b>{wanted}</b> and grants nothing.\n{fix}",
-                    _lever_buttons(current))
-        if not confirmed:
-            return (f"🧪 <b>Arm the free-scan lever?</b>\n"
-                    f"New users would get <b>{wanted}</b> scan{'s' if wanted != 1 else ''} "
-                    f"on their first day. Currently {_welcome_html(setting)}.\n"
-                    f"This spends money: every extra scan is a model call.",
-                    [[("✅ Yes, arm it", f"lever arm {wanted} yes"),
-                      ("Cancel", "experiment")]])
-        if await _set_free_scan_lever(wanted) is None:
-            return _LEVER_UNREADABLE, _lever_buttons(current)
-        return (f"🧪 Lever armed — <b>{_lever_label(wanted)}</b>.",
-                [[("🧪 Experiment", "experiment")]])
-
-    if action == "disarm":
-        if not confirmed:
-            return ("🔕 <b>Disarm the free-scan lever?</b>\n"
-                    f"New users would fall back to the daily limit. Currently "
-                    f"{_welcome_html(setting)}.\n"
-                    "The window in /experiment keeps running; only the allowance stops.",
-                    [[("✅ Yes, disarm it", "lever disarm yes"),
-                      ("Cancel", "experiment")]])
-        if await _set_free_scan_lever(0) is None:
-            return _LEVER_UNREADABLE, _lever_buttons(current)
-        return ("🔕 Lever disarmed — new users get the daily limit.",
-                [[("🧪 Experiment", "experiment")]])
-
-    if action == "default":
-        if not confirmed:
-            if setting is None:
-                then = "FREE_SCANS_FIRST_DAY would decide again"
-            else:
-                # What handing back would actually grant, since the variable's
-                # value alone does not say: 1 reads like a welcome and is none.
-                after = setting.allowance(setting.environment)
-                then = (f"FREE_SCANS_FIRST_DAY={setting.environment} would decide "
-                        "again — " + (f"<b>{_lever_label(after)}</b>" if after
-                                      else "<b>no first-day welcome</b>"))
-            return ("↩️ <b>Hand the lever back to the environment?</b>\n"
-                    f"{then}. Currently {_welcome_html(setting)}.",
-                    [[("✅ Yes", "lever default yes"), ("Cancel", "experiment")]])
-        if await _set_free_scan_lever(None) is None:
-            return _LEVER_UNREADABLE, _lever_buttons(current)
-        return ("↩️ Lever cleared — the environment decides again.",
-                [[("🧪 Experiment", "experiment")]])
-
-    lines = [f"🎚 <b>Free-scan lever</b>\nNow: {_welcome_html(setting)}",
-             f"Override: <b>{_lever_label(current)}</b>"]
-    if setting is not None:
-        lines.append(f"Environment: <code>FREE_SCANS_FIRST_DAY={setting.environment}</code>"
-                     f" · daily limit {setting.daily}")
-    return "\n".join(lines), _lever_buttons(current)
-
-
-# ── The paywall's default plan (#220) ──────────────────────────────────────
-#
-# Which plan the paywall preselects, sent to 1.5.2+ in the token response as
-# `paywall_default_plan`. Unset means yearly, exactly as every build before
-# the field behaves, so the lever exists to run the monthly-default arm
-# without a release, and to end it the same way. Kept in the levers document
-# beside the free-scan lever, with its own change record: `changes` is the
-# free-scan lever's history, which /experiment's export reads, and a plan
-# move written there would read as a free-scan change.
-
-PaywallPlan = Literal["yearly", "monthly"]
-PAYWALL_PLANS: tuple[PaywallPlan, ...] = ("yearly", "monthly")
-
-
-def _plan_value(doc: dict) -> PaywallPlan | None:
-    value = doc.get("paywall_default_plan")
-    for plan in PAYWALL_PLANS:
-        if value == plan:
-            return plan
-    return None
-
-
-async def paywall_default_plan() -> PaywallPlan | None:
-    """The plan the operator set, or None for the app's own default (yearly).
-
-    Read on every token mint. Raises nothing: an unreadable levers document is
-    None, which is what every user saw before the lever existed."""
-    return _plan_value(await _levers())
-
-
-async def _set_paywall_default_plan(value: PaywallPlan | None) -> dict | None:
-    """Set or clear the plan lever, recording the day. None, with nothing
-    written, when the document could not be read — as `_set_free_scan_lever`."""
-    try:
-        doc = await _levers(required=True)
-    except Exception as exc:
-        log.warning("levers unreadable, not changing the plan: %s", type(exc).__name__)
-        return None
-    before = _plan_value(doc)
-    if value is None:
-        doc.pop("paywall_default_plan", None)
-    else:
-        doc["paywall_default_plan"] = value
-    changes = [c for c in (doc.get("plan_changes") or [])
-               if isinstance(c, list) and len(c) == 3]
-    changes.append([opsstats.day(), before, value])
-    doc["plan_changes"] = changes[-LEVER_CHANGES_CAP:]
-    await _cache.set(LEVERS_KEY, json.dumps(doc))
-    return doc
-
-
-def _plan_label(value: str | None) -> str:
-    return f"{value}" if value else "yearly (app default)"
-
-
-async def _plan_command(parts: list[str]) -> tuple[str, opsformat.Buttons]:
-    """`/lever plan`, `/lever plan yearly|monthly|default [yes]`.
-
-    Two taps, like the free-scan lever. It reaches each device at its next
-    token mint, within the hour, and only builds that read the field: 1.5.2
-    and later."""
-    wanted_raw = parts[1].lower() if len(parts) > 1 else ""
-    confirmed = any(token.lower() == "yes" for token in parts[2:])
-    doc = await _levers()
-    current = _plan_value(doc)
-    history = [c for c in (doc.get("plan_changes") or []) if isinstance(c, list) and len(c) == 3]
-    buttons: opsformat.Buttons = [[("📅 Yearly", "lever plan yearly"),
-                         ("🗓 Monthly", "lever plan monthly"),
-                         ("↩️ App default", "lever plan default")]]
-
-    if wanted_raw not in (*PAYWALL_PLANS, "default"):
-        lines = ["💳 <b>Paywall default plan</b>",
-                 f"Now: <b>{_plan_label(current)}</b>",
-                 "Preselected on the paywall by builds 1.5.2 and later, from "
-                 "their next token (within an hour). Older builds always "
-                 "preselect yearly."]
-        if history:
-            day, before, after = history[-1]
-            lines.append(f"Last change: {day[:4]}-{day[4:6]}-{day[6:]}, "
-                         f"{_plan_label(before)} → {_plan_label(after)}")
-        return "\n".join(lines), buttons
-
-    # None for "default", the plan itself otherwise (checked just above).
-    wanted = _plan_value({"paywall_default_plan": wanted_raw})
-    if wanted == current:
-        return f"💳 Nothing changed: the default is already <b>{_plan_label(current)}</b>.", buttons
-    if not confirmed:
-        return (f"💳 <b>Change the paywall's default plan?</b>\n"
-                f"<b>{_plan_label(current)}</b> → <b>{_plan_label(wanted)}</b>.\n"
-                "This is an experiment arm (#220): change it only at an arm "
-                "boundary, and log the date in the growth log.",
-                [[("✅ Yes, change it", f"lever plan {wanted_raw} yes"),
-                  ("Cancel", "lever plan")]])
-    if await _set_paywall_default_plan(wanted) is None:
-        return _LEVER_UNREADABLE, buttons
-    return (f"💳 Paywall default plan — <b>{_plan_label(wanted)}</b>, "
-            "from each 1.5.2+ device's next token.", buttons)
-
-
-def _lever_buttons(current: int | None) -> opsformat.Buttons:
-    row = [("🧪 Arm", "lever arm")]
-    if current is not None:
-        row.append(("↩️ Use env", "lever default"))
-    row.append(("🔕 Disarm", "lever disarm"))
-    return [row]
-
-
-# ── The oldest build still served ───────────────────────────────────────────
-#
-# A bad client release could not be told to update: the server did not know
-# which build was calling, and had no switch to act on it if it had.
-# `main._refuse_outdated_build` reads this on /scan, /listing and /trends and
-# refuses a build below it with `UPDATE_REQUIRED_DETAIL` and the code
-# `update_required` — a 426 when the build said so in `X-SnapWorth-Build`,
-# a 422 when it was read from the User-Agent. Only /scan and
-# /listing show that text; the app fetches /trends with `try?`, so a refusal
-# there shows nothing. /auth is never gated, so an old build can still sign in
-# and record a purchase.
-#
-# Off until set, and fails open: an unreadable value serves everyone, because
-# a switch that locks out every user when Redis blinks is worse than none.
-
-MIN_BUILD_KEY = "opsstate:minbuild"
-MIN_BUILD_MAX = 100_000
-
-#: What a refused build is told. Here rather than in main.py so the bot's
-#: confirmation can quote it word for word.
-UPDATE_REQUIRED_DETAIL = (
-    "This version of SnapWorth is no longer supported. "
-    "Update SnapWorth from the App Store to keep using it.")
-
-
-async def minimum_build() -> int | None:
-    """The oldest build /scan, /listing and /trends still serve, or None.
-
-    Raises nothing: anything unreadable is None, which serves every build.
-    """
-    cache = _cache
-    if cache is None:
-        return None
-    try:
-        raw = await cache.get(MIN_BUILD_KEY)
-        value = int(raw) if raw else None
-    except Exception:
-        return None
-    return value if value is not None and 0 < value <= MIN_BUILD_MAX else None
-
-
-async def _minbuild_command(argument: str, rest: str) -> tuple[str, opsformat.Buttons]:
-    """`/minbuild`, `/minbuild <n>`, `/minbuild off`, and their confirmations.
-
-    Two taps, like `/lever`. The confirmation quotes what refused users are
-    told, because it sends them to the App Store: set past the build that is
-    actually live there, it tells them to install an update that does not
-    exist.
-    """
-    parts = (rest or "").split()
-    confirmed = any(token.lower() == "yes" for token in parts[1:])
-    current = await minimum_build()
-    back = [[("📵 Minimum build", "minbuild")]]
-    cache = _cache
-    if cache is None:  # the bot is wired by `configure`, which sets it first
-        return "📵 No store is configured, so there is no minimum build.", back
-
-    if argument == "off":
-        if current is None:
-            return "📵 No minimum build is set — every build is served.", back
-        if not confirmed:
-            return (f"📵 <b>Serve every build again?</b>\n"
-                    f"Builds below <b>{current}</b> are refused now.",
-                    [[("✅ Yes, serve all", "minbuild off yes"),
-                      ("Cancel", "minbuild")]])
-        await cache.delete(MIN_BUILD_KEY)
-        log.warning("minimum build cleared from chat", extra={"previous": current})
-        return "📵 Minimum build cleared — every build is served.", back
-
-    if argument.isdigit():
-        wanted = int(argument)
-        if not 0 < wanted <= MIN_BUILD_MAX:
-            return f"📵 <b>{wanted}</b> is not a build number.", back
-        if not confirmed:
-            return (f"📵 <b>Refuse builds below {wanted}?</b>\n"
-                    f"On /scan and /listing they would be told: "
-                    f"<i>{html.escape(UPDATE_REQUIRED_DETAIL)}</i>\n"
-                    f"/trends is refused too, but the app drops that error "
-                    f"silently and its Trending card just disappears.\n"
-                    f"Only do this once build <b>{wanted}</b> is live on the "
-                    f"App Store. Builds 7 and older cannot show this text and "
-                    f"will see \"Something went wrong\". A build that sends "
-                    f"<code>X-SnapWorth-Build</code> is refused with a 426 and "
-                    f"shows the app's own update message in the app's "
-                    f"language; only the Scan tab's alert adds an App Store "
-                    f"button. Sign-in and purchases "
-                    f"stay open, and a request that does not say its build is "
-                    f"always served. The access log's <code>build</code> field "
-                    f"shows who is still on an older one, and "
-                    f"<code>snapworth_outdated_build_refused_total</code> "
-                    f"counts refusals.\n"
-                    f"Currently: <b>{current if current is not None else 'none'}</b>.",
-                    [[(f"✅ Yes, require {wanted}", f"minbuild {wanted} yes"),
-                      ("Cancel", "minbuild")]])
-        await cache.set(MIN_BUILD_KEY, str(wanted))
-        log.warning("minimum build set from chat",
-                    extra={"minimum": wanted, "previous": current})
-        return f"📵 Minimum build set to <b>{wanted}</b>.", back
-
-    if current is None:
-        return ("📵 <b>Minimum build</b>: none — every build is served.\n"
-                "<code>/minbuild &lt;n&gt;</code> refuses builds below n on "
-                "/scan, /listing and /trends. /scan and /listing tell them to "
-                "update; on /trends the Trending card just disappears.",
-                await _buttons())
-    return (f"📵 <b>Minimum build</b>: <b>{current}</b>\n"
-            f"Builds below it are told to update on /scan and /listing, and "
-            f"lose the Trending card, since the app drops a /trends error "
-            f"silently. Sign-in and purchases stay open.",
-            [[("↩️ Serve every build", "minbuild off")]] + await _buttons())
-
 
 async def _feed_enabled() -> bool:
     try:
@@ -3137,7 +2660,7 @@ async def _experiment_text(now: datetime | None = None) -> str:
     # environment only, so arming from chat left it saying "lever not armed"
     # for the whole window; then it read both and printed them raw, so
     # FREE_SCANS_FIRST_DAY=1 — no welcome at a daily limit of 1 — read as armed.
-    lever = _welcome_html(await _welcome_setting())
+    lever = levers.welcome_html(await levers.welcome_setting())
     window = (f"{start:%d %b} → {end:%d %b}"
               + ("" if closed else f" · {left} day{'s' if left != 1 else ''} left")
               + f" · {lever}")
@@ -3174,9 +2697,9 @@ async def _experiment_text(now: datetime | None = None) -> str:
     notes = []
     # A window whose lever moved mid-flight and does not say so is worse than
     # no window: the numbers look continuous and are not.
-    for day_changed, before, after in _lever_changes_in(shown, await _levers())[-4:]:
+    for day_changed, before, after in _lever_changes_in(shown, await levers.read())[-4:]:
         notes.append(f"⚠️ lever changed on {day_changed[4:6]}-{day_changed[6:]}: "
-                     f"{_lever_label(before)} → {_lever_label(after)}")
+                     f"{levers.lever_label(before)} → {levers.lever_label(after)}")
     if partial:
         notes.append(f"* {EXPERIMENT_PARTIAL_NOTE}. Every other column is a whole day.")
     if unsplit:
@@ -3243,11 +2766,11 @@ async def _experiment_export(now: datetime | None = None) -> str:
     ttl_days = STATS_TTL // 86400
     rows = [",".join(["day", *EXPERIMENT_COUNTERS, "note"])]
     try:
-        # The lever's record as well as the counters. `_levers()` on its own
+        # The lever's record as well as the counters. `levers.read()` on its own
         # turns a failed read into {}, and a kept copy built from that shows no
-        # lever move: the window that `_set_free_scan_lever` records changes
+        # lever move: the window that `levers._set_free_scan_lever` records changes
         # so as never to produce.
-        levers = await _levers(required=True)
+        lever_doc = await levers.read(required=True)
         for d in shown:
             iso = f"{d[:4]}-{d[4:6]}-{d[6:]}"
             if _stat_expired(d, now):
@@ -3266,25 +2789,25 @@ async def _experiment_export(now: datetime | None = None) -> str:
                 "copy without them would say nothing happened. Try again in a "
                 "minute.")
 
-    setting = await _welcome_setting()
+    setting = await levers.welcome_setting()
     if setting is not None:
         # The quota reads the lever best-effort, as a scan must, and an
         # unreadable one reads as the environment's value. In a kept copy that
         # would be the environment's welcome while the lever said otherwise.
         # So the override is the one just read `required`, through the parse
-        # `free_scan_lever` hands the quota; what it grants is still the
+        # `levers.free_scan_lever` hands the quota; what it grants is still the
         # quota's `allowance`.
-        setting = dataclasses.replace(setting, override=_lever_value(levers))
-    _, head, why = _welcome_summary(setting)
+        setting = dataclasses.replace(setting, override=levers.lever_value(lever_doc))
+    _, head, why = levers.welcome_summary(setting)
     lines = [_csv_comment(f"SnapWorth free-scan experiment · {start:%Y-%m-%d} to "
                           f"{end:%Y-%m-%d} · exported {now:%Y-%m-%d %H:%M} UTC"
                           + ("" if today > EXPERIMENT_END_DAY
                              else " while the window was open")),
              _csv_comment(f"welcome at export: {head} — {why}")]
-    for day_changed, before, after in _lever_changes_in(shown, levers):
+    for day_changed, before, after in _lever_changes_in(shown, lever_doc):
         lines.append(_csv_comment(
             f"lever changed {day_changed[:4]}-{day_changed[4:6]}-{day_changed[6:]}: "
-            f"{_lever_label(before)} -> {_lever_label(after)}"))
+            f"{levers.lever_label(before)} -> {levers.lever_label(after)}"))
     lines.extend(rows)
 
     kept = [d for d in shown if not _stat_expired(d, now)]

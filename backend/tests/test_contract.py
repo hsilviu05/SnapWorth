@@ -29,8 +29,8 @@ import pytest
 
 import aiconfig
 import apierrors
+import levers
 import main
-import notify
 import quota
 from cache import InMemoryCache, ResilientCache
 from tests.conftest import build_deps
@@ -255,8 +255,8 @@ class TestErrorBodies:
     def test_the_update_required_426(self, monkeypatch):
         """What a build that sends `X-SnapWorth-Build` gets below `/minbuild`."""
         store = ResilientCache(None, InMemoryCache())
-        monkeypatch.setattr(notify, "_cache", store)
-        asyncio.run(store.set(notify.MIN_BUILD_KEY, "30"))
+        monkeypatch.setattr(levers, "_cache", store)
+        asyncio.run(store.set(levers.MIN_BUILD_KEY, "30"))
         main._rate_store.clear()
         main._ip_rate_store.clear()
         # Patched so a gate that let this through could not reach the model.
@@ -269,7 +269,7 @@ class TestErrorBodies:
         assert r.status_code == 426, r.text
         fixture = _check_error("errors/scan-426-update-required.json", _error(r))
         assert fixture["body"]["code"] == apierrors.UPDATE_REQUIRED
-        assert fixture["body"]["detail"] == notify.UPDATE_REQUIRED_DETAIL
+        assert fixture["body"]["detail"] == levers.UPDATE_REQUIRED_DETAIL
 
     def test_the_rate_limit_429(self):
         # The real per-device limit, so the wording is production's.
