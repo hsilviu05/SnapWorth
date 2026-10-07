@@ -24,18 +24,19 @@ import pytest_asyncio
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import auditlog  # noqa: E402
+import chatlog  # noqa: E402
 import checkup  # noqa: E402
 import levers  # noqa: E402
 import notify  # noqa: E402
-import opsspend
-import telegram  # noqa: E402
-import chatlog  # noqa: E402
+import observability  # noqa: E402
+import opsexperiment  # noqa: E402
 import opsformat  # noqa: E402
 import opsindex  # noqa: E402
+import opsspend  # noqa: E402
 import opsstats  # noqa: E402
 import opssupport  # noqa: E402
+import telegram  # noqa: E402
 import trends  # noqa: E402
-import observability  # noqa: E402
 from cache import InMemoryCache, ResilientCache  # noqa: E402
 from datetime import datetime, timedelta, timezone  # noqa: E402
 from entitlements import FREE, Entitlement, Reinstatement  # noqa: E402
@@ -3393,9 +3394,9 @@ class TestExperimentCommand:
     START, END = "20260910", "20260924"
 
     def _window(self, monkeypatch, partial: str = "20260910") -> None:
-        monkeypatch.setattr(notify, "EXPERIMENT_START_DAY", self.START)
-        monkeypatch.setattr(notify, "EXPERIMENT_END_DAY", self.END)
-        monkeypatch.setattr(notify, "EXPERIMENT_PARTIAL_DAY", partial)
+        monkeypatch.setattr(opsexperiment, "EXPERIMENT_START_DAY", self.START)
+        monkeypatch.setattr(opsexperiment, "EXPERIMENT_END_DAY", self.END)
+        monkeypatch.setattr(opsexperiment, "EXPERIMENT_PARTIAL_DAY", partial)
         wire_welcome(monkeypatch, env_first_day=3)
 
     async def _seed(self, cache, day: str, *, act=0, free=0, hits=0, subs=0,
@@ -3418,7 +3419,7 @@ class TestExperimentCommand:
         await self._seed(cache, "20260910", act=6, free=4, hits=1)
         await self._seed(cache, "20260911", act=8, free=7, hits=3)
         await self._seed(cache, "20260912", act=9, free=8, hits=2, trials=1)
-        text = await notify._experiment_text(
+        text = await opsexperiment.experiment_text(
             datetime(2026, 9, 12, 20, 0, tzinfo=timezone.utc))
         assert "day 3 of 15" in text
         assert "6 limit hits · 1 trial start · 0 paid (17%)" in text
@@ -3433,7 +3434,7 @@ class TestExperimentCommand:
         self._window(monkeypatch)
         await self._seed(cache, "20260911", act=8, free=7, hits=4, trials=2)
         await self._seed(cache, "20260914", act=5, free=3, conversions=1, direct=1)
-        text = await notify._experiment_text(
+        text = await opsexperiment.experiment_text(
             datetime(2026, 9, 14, 20, 0, tzinfo=timezone.utc))
         assert "trial  paid" in text
         assert "<code>09-11      8     7     4     2     0</code>" in text
@@ -3449,7 +3450,7 @@ class TestExperimentCommand:
         no trial starts and no purchases would erase them."""
         self._window(monkeypatch)
         await self._seed(cache, "20260912", act=9, free=8, hits=2, subs=1)
-        text = await notify._experiment_text(
+        text = await opsexperiment.experiment_text(
             datetime(2026, 9, 12, 20, 0, tzinfo=timezone.utc))
         assert "<code>09-12      9     8     2     0     0</code> †" in text
         assert "2 limit hits · 0 trial starts · 0 paid (50%)" in text
@@ -3463,7 +3464,7 @@ class TestExperimentCommand:
         real effect gets read as a weak one."""
         self._window(monkeypatch)
         await self._seed(cache, "20260910", act=6, free=4, hits=1)
-        text = await notify._experiment_text(
+        text = await opsexperiment.experiment_text(
             datetime(2026, 9, 10, 20, 0, tzinfo=timezone.utc))
         assert "09-10" in text
         assert "*" in text
@@ -3477,7 +3478,7 @@ class TestExperimentCommand:
         "no limit hits" about days whose evidence no longer exists."""
         self._window(monkeypatch)
         await self._seed(cache, "20260910", act=6, free=4, hits=5)
-        text = await notify._experiment_text(
+        text = await opsexperiment.experiment_text(
             datetime(2026, 10, 25, 8, 0, tzinfo=timezone.utc))
         assert "—" in text
         assert "gone, not zero" in text
@@ -3489,7 +3490,7 @@ class TestExperimentCommand:
     async def test_every_day_expired_says_nothing_readable(
             self, enabled_notify, cache, monkeypatch):
         self._window(monkeypatch)
-        text = await notify._experiment_text(
+        text = await opsexperiment.experiment_text(
             datetime(2026, 11, 30, 8, 0, tzinfo=timezone.utc))
         assert "Nothing readable" in text
         assert "No limit hits" not in text
@@ -3499,7 +3500,7 @@ class TestExperimentCommand:
             self, enabled_notify, cache, monkeypatch):
         self._window(monkeypatch)
         await self._seed(cache, "20260910", hits=99)
-        text = await notify._experiment_text(
+        text = await opsexperiment.experiment_text(
             datetime(2026, 9, 8, 9, 0, tzinfo=timezone.utc))
         assert "Window opens 10 Sep" in text
         assert "2 days from now" in text
@@ -3510,7 +3511,7 @@ class TestExperimentCommand:
             self, enabled_notify, cache, monkeypatch):
         """Read in October, the window is still 15 rows — not every day since."""
         self._window(monkeypatch)
-        text = await notify._experiment_text(
+        text = await opsexperiment.experiment_text(
             datetime(2026, 9, 30, 8, 0, tzinfo=timezone.utc))
         assert "closed after 15 days" in text
         assert "09-24" in text
@@ -3525,7 +3526,7 @@ class TestExperimentCommand:
         finding rather than an absence."""
         self._window(monkeypatch)
         wire_welcome(monkeypatch, env_first_day=0)
-        text = await notify._experiment_text(
+        text = await opsexperiment.experiment_text(
             datetime(2026, 9, 12, 8, 0, tzinfo=timezone.utc))
         assert "lever not armed" in text
 
@@ -3534,7 +3535,7 @@ class TestExperimentCommand:
             self, enabled_notify, cache, monkeypatch):
         self._window(monkeypatch)
         await self._seed(cache, "20260911", act=4, free=3)
-        text = await notify._experiment_text(
+        text = await opsexperiment.experiment_text(
             datetime(2026, 9, 11, 8, 0, tzinfo=timezone.utc))
         assert "No limit hits" in text
         assert "%" not in text
@@ -3553,7 +3554,7 @@ class TestExperimentCommand:
         """
         self._window(monkeypatch)
         await self._seed(cache, "20260910", act=7, free=8)
-        text = await notify._experiment_text(
+        text = await opsexperiment.experiment_text(
             datetime(2026, 9, 10, 19, 30, tzinfo=timezone.utc))
         assert "No limit hits recorded" in text
         assert "spent the" not in text          # the claim itself is gone
@@ -3566,7 +3567,7 @@ class TestExperimentCommand:
         dropping it everywhere would lose the more useful sentence."""
         self._window(monkeypatch, partial="20250101")   # outside this window
         await self._seed(cache, "20260910", act=7, free=8)
-        text = await notify._experiment_text(
+        text = await opsexperiment.experiment_text(
             datetime(2026, 9, 10, 19, 30, tzinfo=timezone.utc))
         assert "none of which spent the day's allowance" in text
         assert "*" not in text
@@ -3574,15 +3575,15 @@ class TestExperimentCommand:
     @pytest.mark.asyncio
     async def test_a_misconfigured_window_explains_itself(
             self, enabled_notify, monkeypatch):
-        monkeypatch.setattr(notify, "EXPERIMENT_START_DAY", "not-a-day")
-        monkeypatch.setattr(notify, "EXPERIMENT_END_DAY", self.END)
-        text = await notify._experiment_text(
+        monkeypatch.setattr(opsexperiment, "EXPERIMENT_START_DAY", "not-a-day")
+        monkeypatch.setattr(opsexperiment, "EXPERIMENT_END_DAY", self.END)
+        text = await opsexperiment.experiment_text(
             datetime(2026, 9, 12, 8, 0, tzinfo=timezone.utc))
         assert "misconfigured" in text
 
-        monkeypatch.setattr(notify, "EXPERIMENT_START_DAY", self.END)
-        monkeypatch.setattr(notify, "EXPERIMENT_END_DAY", self.START)
-        assert "misconfigured" in await notify._experiment_text(
+        monkeypatch.setattr(opsexperiment, "EXPERIMENT_START_DAY", self.END)
+        monkeypatch.setattr(opsexperiment, "EXPERIMENT_END_DAY", self.START)
+        assert "misconfigured" in await opsexperiment.experiment_text(
             datetime(2026, 9, 12, 8, 0, tzinfo=timezone.utc))
 
     @pytest.mark.asyncio
@@ -3859,10 +3860,10 @@ class TestFreeScanLever:
             self, enabled_notify, monkeypatch):
         """A window whose lever moved mid-flight and does not say so is worse
         than no window: the numbers look continuous and are not."""
-        monkeypatch.setattr(notify, "EXPERIMENT_START_DAY", opsstats.day())
-        monkeypatch.setattr(notify, "EXPERIMENT_END_DAY", opsstats.day())
+        monkeypatch.setattr(opsexperiment, "EXPERIMENT_START_DAY", opsstats.day())
+        monkeypatch.setattr(opsexperiment, "EXPERIMENT_END_DAY", opsstats.day())
         await self._run("/lever arm 3 yes")
-        text = await notify._experiment_text()
+        text = await opsexperiment.experiment_text()
         assert "lever changed" in text
 
     @pytest.mark.asyncio
@@ -4416,9 +4417,9 @@ class TestExperimentExport:
 
     @pytest.fixture(autouse=True)
     def _window(self, enabled_notify, monkeypatch):
-        monkeypatch.setattr(notify, "EXPERIMENT_START_DAY", self.START)
-        monkeypatch.setattr(notify, "EXPERIMENT_END_DAY", self.END)
-        monkeypatch.setattr(notify, "EXPERIMENT_PARTIAL_DAY", self.START)
+        monkeypatch.setattr(opsexperiment, "EXPERIMENT_START_DAY", self.START)
+        monkeypatch.setattr(opsexperiment, "EXPERIMENT_END_DAY", self.END)
+        monkeypatch.setattr(opsexperiment, "EXPERIMENT_PARTIAL_DAY", self.START)
         wire_welcome(monkeypatch, daily=1, env_first_day=3)
 
     async def _seed(self, cache, day: str, **counts) -> None:
@@ -4436,7 +4437,7 @@ class TestExperimentExport:
         await self._seed(cache, "20260910", active_users=6, scans_free=4, limit_hits=1)
         await self._seed(cache, "20260912", active_users=9, scans_free=8,
                          limit_hits=2, new_subs=1)
-        text = await notify._experiment_export(
+        text = await opsexperiment.experiment_export(
             datetime(2026, 9, 30, 8, 0, tzinfo=timezone.utc))
         lines = self._csv(text)
         assert lines[0] == ("# SnapWorth free-scan experiment · 2026-09-10 to "
@@ -4447,7 +4448,7 @@ class TestExperimentExport:
                              "trial_conversions,paid_direct,new_subs,note")
         rows = lines[header + 1:]
         assert len(rows) == 15, rows
-        assert rows[0] == f"2026-09-10,6,4,1,0,0,0,0,{notify.EXPERIMENT_PARTIAL_NOTE}"
+        assert rows[0] == f"2026-09-10,6,4,1,0,0,0,0,{opsexperiment.EXPERIMENT_PARTIAL_NOTE}"
         assert rows[1] == "2026-09-11,0,0,0,0,0,0,0,", "a readable day with no counts is a zero"
         # A day from before #218 keeps the one figure it has.
         assert rows[2] == "2026-09-12,9,8,2,0,0,0,1,"
@@ -4458,7 +4459,7 @@ class TestExperimentExport:
     async def test_an_expired_day_is_empty_not_zero(self, cache):
         await self._seed(cache, "20260910", active_users=6, scans_free=4, limit_hits=5)
         await self._seed(cache, "20260911", active_users=8, scans_free=7, limit_hits=3)
-        text = await notify._experiment_export(
+        text = await opsexperiment.experiment_export(
             datetime(2026, 10, 15, 8, 0, tzinfo=timezone.utc))
         lines = self._csv(text)
         assert "2026-09-10,,,,,,,,expired: past the 35-day counter TTL" in lines, lines
@@ -4467,7 +4468,7 @@ class TestExperimentExport:
 
     @pytest.mark.asyncio
     async def test_an_open_window_exports_the_days_so_far(self, cache):
-        text = await notify._experiment_export(
+        text = await opsexperiment.experiment_export(
             datetime(2026, 9, 12, 20, 0, tzinfo=timezone.utc))
         lines = self._csv(text)
         assert lines[0].endswith("while the window was open")
@@ -4492,7 +4493,7 @@ class TestExperimentExport:
             "changes": [["20260911", None, 12]]}))
         await self._seed(cache, "20260910", active_users=6, scans_free=4, limit_hits=1)
 
-        lines = self._csv(await notify._experiment_export(
+        lines = self._csv(await opsexperiment.experiment_export(
             datetime(2026, 9, 30, 8, 0, tzinfo=timezone.utc)))
         parsed = list(csv.reader(lines))
         notes = [row for row in parsed if row and row[0].startswith("#")]
@@ -4502,10 +4503,10 @@ class TestExperimentExport:
         assert notes[2] == ["# lever changed 2026-09-11: environment default -> "
                             "12 first-day scans"]
         table = [row for row in parsed if row and not row[0].startswith("#")]
-        assert table[0] == ["day", *notify.EXPERIMENT_COUNTERS, "note"]
+        assert table[0] == ["day", *opsexperiment.EXPERIMENT_COUNTERS, "note"]
         assert {len(row) for row in table} == {len(table[0])}, table
         assert table[1] == ["2026-09-10", "6", "4", "1", "0", "0", "0", "0",
-                            notify.EXPERIMENT_PARTIAL_NOTE]
+                            opsexperiment.EXPERIMENT_PARTIAL_NOTE]
         # A reader that skips `#` lines gets the table and nothing else.
         rows = list(csv.DictReader(ln for ln in lines if not ln.startswith("#")))
         assert len(rows) == 15 and rows[0]["limit_hits"] == "1", rows[0]
@@ -4520,7 +4521,7 @@ class TestExperimentExport:
                 raise CacheUnavailable("redis down")
             return None
         monkeypatch.setattr(notify._cache, "get", down)
-        text = await notify._experiment_export(
+        text = await opsexperiment.experiment_export(
             datetime(2026, 9, 30, 8, 0, tzinfo=timezone.utc))
         assert "Nothing exported" in text and "CacheUnavailable" in text, text
         assert "<pre>" not in text
@@ -4534,8 +4535,8 @@ class TestExperimentExport:
         move in it, and nothing refused it."""
         from cache import CacheUnavailable
 
-        monkeypatch.setattr(notify, "EXPERIMENT_START_DAY", opsstats.day())
-        monkeypatch.setattr(notify, "EXPERIMENT_END_DAY", opsstats.day())
+        monkeypatch.setattr(opsexperiment, "EXPERIMENT_START_DAY", opsstats.day())
+        monkeypatch.setattr(opsexperiment, "EXPERIMENT_END_DAY", opsstats.day())
         await notify.handle_command("/lever arm 4 yes")
         real_get = cache.get
 
@@ -4544,7 +4545,7 @@ class TestExperimentExport:
                 raise CacheUnavailable("redis down")
             return await real_get(key, required=required)
         monkeypatch.setattr(notify._cache, "get", levers_down)
-        text = await notify._experiment_export()
+        text = await opsexperiment.experiment_export()
         assert "Nothing exported" in text and "CacheUnavailable" in text, text
         assert "<pre>" not in text
 
@@ -4556,8 +4557,8 @@ class TestExperimentExport:
         reads the lever that way too) came out as though it had never
         moved. Here only that best-effort read misses; the export must still
         carry what the stored record says."""
-        monkeypatch.setattr(notify, "EXPERIMENT_START_DAY", opsstats.day())
-        monkeypatch.setattr(notify, "EXPERIMENT_END_DAY", opsstats.day())
+        monkeypatch.setattr(opsexperiment, "EXPERIMENT_START_DAY", opsstats.day())
+        monkeypatch.setattr(opsexperiment, "EXPERIMENT_END_DAY", opsstats.day())
         await notify.handle_command("/lever arm 4 yes")
         real_get = cache.get
 
@@ -4566,7 +4567,7 @@ class TestExperimentExport:
                 return None
             return await real_get(key, required=required)
         monkeypatch.setattr(notify._cache, "get", best_effort_misses)
-        lines = self._csv(await notify._experiment_export())
+        lines = self._csv(await opsexperiment.experiment_export())
         day = opsstats.day()
         assert (f"# lever changed {day[:4]}-{day[4:6]}-{day[6:]}: "
                 "environment default -> 4 first-day scans") in lines, lines
@@ -4577,17 +4578,17 @@ class TestExperimentExport:
     @pytest.mark.asyncio
     async def test_a_lever_move_inside_the_window_travels_with_the_rows(
             self, monkeypatch):
-        monkeypatch.setattr(notify, "EXPERIMENT_START_DAY", opsstats.day())
-        monkeypatch.setattr(notify, "EXPERIMENT_END_DAY", opsstats.day())
+        monkeypatch.setattr(opsexperiment, "EXPERIMENT_START_DAY", opsstats.day())
+        monkeypatch.setattr(opsexperiment, "EXPERIMENT_END_DAY", opsstats.day())
         await notify.handle_command("/lever arm 4 yes")
-        lines = self._csv(await notify._experiment_export())
+        lines = self._csv(await opsexperiment.experiment_export())
         day = opsstats.day()
         assert (f"# lever changed {day[:4]}-{day[4:6]}-{day[6:]}: "
                 "environment default -> 4 first-day scans") in lines, lines
 
     @pytest.mark.asyncio
     async def test_before_the_window_opens_there_is_nothing_to_export(self):
-        text = await notify._experiment_export(
+        text = await opsexperiment.experiment_export(
             datetime(2026, 9, 8, 9, 0, tzinfo=timezone.utc))
         assert text == "💾 Nothing to export — the window opens 10 Sep."
 
@@ -4601,11 +4602,11 @@ class TestExperimentExport:
 
     @pytest.mark.asyncio
     async def test_the_table_says_when_its_oldest_day_goes(self):
-        text = await notify._experiment_text(
+        text = await opsexperiment.experiment_text(
             datetime(2026, 9, 30, 8, 0, tzinfo=timezone.utc))
         assert ("💾 The 09-10 counters expire on 15 Oct — /experiment export "
                 "gives a copy to keep.") in text, text
-        gone = await notify._experiment_text(
+        gone = await opsexperiment.experiment_text(
             datetime(2026, 11, 30, 8, 0, tzinfo=timezone.utc))
         assert "/experiment export" not in gone, "nothing is left to keep"
 
