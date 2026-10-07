@@ -2920,7 +2920,8 @@ final class WidgetMonthLedgerTests: XCTestCase {
     }
 
     private func ledger(_ results: [ScanResult]) -> (profit: Double, flips: Int, sold: Int) {
-        WidgetDataStore.monthLedger(results: results, now: day(9, 20), calendar: cal)
+        let month = WidgetDataStore.monthLedger(results: results, now: day(9, 20), calendar: cal)
+        return (month.profit, month.flips, month.sold)
     }
 
     func test_salesWithNoCostBasisStillCountAsSales() {

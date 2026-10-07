@@ -24,12 +24,21 @@ enum WidgetDataStore {
     /// the sales nobody entered a cost basis for, and collapsing that
     /// difference into one nil is what let the widget print "No flips sold yet
     /// this month" beside a Flips screen reading "2 items sold".
+    ///
+    /// `parts` is the profit per currency, the phone's own first (#224): what
+    /// the widget prints. `profit` is the first part, for a widget built
+    /// before `parts`, and is the month's whole profit when the month was kept
+    /// in one currency, as nearly every month is.
     static func monthLedger(results: [ScanResult], now: Date = Date(),
-                            calendar: Calendar = .current)
-    -> (profit: Double, flips: Int, sold: Int) {
+                            calendar: Calendar = .current, locale: Locale = .current)
+    -> (profit: Double, parts: [WidgetMoney], flips: Int, sold: Int) {
         let sales = LedgerMath.sales(
-            LedgerMath.soldInMonth(results, containing: now, calendar: calendar))
-        return (NSDecimalNumber(decimal: sales.profit).doubleValue, sales.priced, sales.count)
+            LedgerMath.soldInMonth(results, containing: now, calendar: calendar), locale: locale)
+        let parts = SaleCurrency.ordered(sales.profit, locale: locale).map {
+            WidgetMoney(code: $0,
+                        amount: NSDecimalNumber(decimal: sales.profit.amount(in: $0)).doubleValue)
+        }
+        return (parts.first?.amount ?? 0, parts, sales.priced, sales.count)
     }
 
     /// Call this after any insert/delete of ScanResults in the main app.
@@ -159,7 +168,8 @@ enum WidgetDataStore {
             // caption that says "0 sold" beside a real profit would be its own
             // contradiction.
             monthSold: month.sold,
-            totalLikely: likely
+            totalLikely: likely,
+            monthProfitParts: month.flips > 0 ? month.parts : nil
         )
 
         guard

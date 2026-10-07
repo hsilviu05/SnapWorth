@@ -9,15 +9,16 @@ import SwiftUI
 struct PaidPriceCard: View {
     @Binding var text: String
     let focus: FocusState<ResultView.Field?>.Binding
-    /// The flip's currency, as the ledger shows it (`SaleCurrency`, #224).
-    var currencySymbol: String = "$"
+    /// The flip's currency (`SaleCurrency.of`, #224): the symbol beside the
+    /// field and the currency VoiceOver reads the amount in.
+    var currencyCode: String = "USD"
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("What did you pay?")
                 .snapSectionHeader()
             HStack(spacing: 4) {
-                Text(currencySymbol)
+                Text(SaleCurrency.symbol(currencyCode))
                     .font(.dmSans(17, weight: .medium))
                     .foregroundStyle(Color.snapWarmGray)
                     .accessibilityHidden(true)
@@ -27,9 +28,7 @@ struct PaidPriceCard: View {
                     .foregroundStyle(Color.snapEspresso)
                     .focused(focus, equals: .paid)
                     .accessibilityLabel("What did you pay?")
-                    .accessibilityValue(text.isEmpty
-                        ? String(localized: "Not set")
-                        : String(localized: "\(text) dollars"))
+                    .accessibilityValue(LedgerAmountSpeech.value(text, code: currencyCode))
                     .accessibilityHint("Adds your find multiple to the share card")
             }
             Text("Adds your find multiple to the share card")
@@ -143,10 +142,9 @@ struct FlipStatusCard: View {
                 .font(.dmSans(15, weight: .semibold))
                 .foregroundStyle(Color.snapEspresso)
                 .accessibilityLabel(title)
-                .accessibilityValue(text.wrappedValue.isEmpty
-                    ? String(localized: "Not set")
-                    : String(localized: "\(text.wrappedValue) dollars"))
-                .accessibilityHint("Enter an amount in dollars")
+                .accessibilityValue(LedgerAmountSpeech.value(text.wrappedValue,
+                                                             code: SaleCurrency.of(result)))
+                .modifier(DollarAmountHint(code: SaleCurrency.of(result)))
         }
     }
 
@@ -258,13 +256,36 @@ struct FlipStatusCard: View {
         }
     }
 
+    /// The same printer My Flips uses for this flip, so the sheet and the
+    /// list cannot spell one profit two ways.
     private func signedProfit(_ d: Decimal) -> String {
-        let f = NumberFormatter()
-        f.numberStyle = .currency
-        f.currencyCode = SaleCurrency.of(result)
-        f.maximumFractionDigits = 0
-        let money = f.string(from: NSDecimalNumber(decimal: abs(d))) ?? "0"
-        return d < 0 ? "−\(money)" : "+\(money)"
+        SaleCurrency.signed(d, code: SaleCurrency.of(result))
+    }
+}
+
+/// What VoiceOver hears for a typed amount: the amount in its currency, "80
+/// lei" or "$80". These fields said "80 dollars" whatever the flip's currency
+/// (AUDIT-2026-10-07, M1); text that does not parse is read as typed.
+enum LedgerAmountSpeech {
+    static func value(_ text: String, code: String) -> String {
+        guard !text.isEmpty else { return String(localized: "Not set") }
+        guard let amount = MoneyInput.parse(text), amount.isFinite else { return text }
+        return SaleCurrency.format(Decimal(amount), code: code)
+    }
+}
+
+/// "Enter an amount in dollars", only where the amount is in dollars. There
+/// is no hint for another currency rather than a wrong one: the label says
+/// which field it is and the value says the currency.
+private struct DollarAmountHint: ViewModifier {
+    let code: String
+
+    func body(content: Content) -> some View {
+        if code == "USD" {
+            content.accessibilityHint("Enter an amount in dollars")
+        } else {
+            content
+        }
     }
 }
 

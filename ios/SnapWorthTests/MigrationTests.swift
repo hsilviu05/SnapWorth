@@ -665,7 +665,7 @@ final class PortfolioInsightsTests: XCTestCase {
         // Sold: paid 20, sold 100, fees 10 -> realised 70. It must not also be
         // counted as value still held.
         let i = HistoryViewModel.insights(for: [item(.sold, paid: 20, sold: 100, fees: 10)])
-        XCTAssertEqual(i.realized, 70)
+        XCTAssertEqual(i.realized, LedgerMath.Amounts([SaleCurrency.regionDefault(): 70]))
         XCTAssertEqual(i.unrealized, 0, "a sold item is no longer held")
     }
 
@@ -723,20 +723,20 @@ final class PortfolioInsightsTests: XCTestCase {
         // Honest rather than convenient: the realised line carries the money.
         let all = [item(.sold, paid: 10, sold: 50), item(.sold, paid: 20, sold: 90)]
         XCTAssertEqual(HistoryViewModel.portfolioTotal(of: all), 0)
-        XCTAssertGreaterThan(HistoryViewModel.insights(for: all).realized, 0)
+        XCTAssertTrue(HistoryViewModel.insights(for: all).realized.hasGain)
     }
 
     func test_saleWithNoCostBasisContributesNothingRatherThanGuessing() {
         // realizedProfit is nil without a paid price. Treating that as zero is
         // right; inventing a cost basis would not be.
         let i = HistoryViewModel.insights(for: [item(.sold, sold: 100)])
-        XCTAssertEqual(i.realized, 0)
+        XCTAssertTrue(i.realized.isEmpty)
     }
 
     func test_heldItemsCountTowardUnrealised() {
         let i = HistoryViewModel.insights(for: [item(.owned), item(.listed)])
         XCTAssertGreaterThan(i.unrealized, 0)
-        XCTAssertEqual(i.realized, 0)
+        XCTAssertTrue(i.realized.isEmpty)
     }
 
     func test_realisedLineAppearsOnceNothingIsUnlisted() {

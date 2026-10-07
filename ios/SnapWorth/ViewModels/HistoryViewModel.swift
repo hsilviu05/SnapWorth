@@ -123,8 +123,9 @@ final class HistoryViewModel {
         /// Scanned but never marked owned/listed/sold — the pile you meant to
         /// do something with.
         let unlisted: Int
-        /// Profit actually banked on sold items.
-        let realized: Decimal
+        /// Profit actually banked on sold items, per currency: a sale is in
+        /// the currency it was typed in (`LedgerMath.Amounts`).
+        let realized: LedgerMath.Amounts
         /// Estimated value still sitting in things you hold.
         let unrealized: Decimal
         /// Longest hold among items not yet sold, in days.
@@ -158,8 +159,10 @@ final class HistoryViewModel {
         if i.unlisted > 0 {
             return String(localized: "\(i.unlisted) finds you haven't listed yet")
         }
-        if i.realized > 0 {
-            return String(localized: "\(money(i.realized)) realised · \(money(i.unrealized)) still held")
+        if i.realized.hasGain {
+            // The realised half in the sales' own currencies, the held half
+            // in dollars: it is the estimate of what is held.
+            return String(localized: "\(SaleCurrency.format(i.realized)) realised · \(money(i.unrealized)) still held")
         }
         if let days = i.oldestHoldDays, days >= 30 {
             return String(localized: "Held for \(days) days")

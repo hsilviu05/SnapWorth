@@ -319,14 +319,13 @@ struct MonthProfitView: View {
     /// priced, so these differ exactly when a sale has no paid price.
     private var sold: Int { haul.monthSold(at: now) }
 
-    private var value: String {
-        guard let profit else { return "—" }
-        return WidgetHaulData.compactMoney(profit)
-    }
+    /// In the currency each sale was typed in (`monthProfitText`): this
+    /// printed every month's profit as dollars.
+    private var value: String { haul.monthProfitText(at: now) ?? "—" }
 
     private var colour: Color {
-        guard let profit else { return Color.wWarmGray }
-        return profit < 0 ? Color.wTerracotta : Color.wSage
+        guard profit != nil else { return Color.wWarmGray }
+        return haul.monthProfitIsLoss(at: now) ? Color.wTerracotta : Color.wSage
     }
 
     /// Three states, not two. A nil profit used to mean only one thing here —
@@ -345,14 +344,13 @@ struct MonthProfitView: View {
     }
 
     private var spoken: String {
-        guard let profit else {
+        guard profit != nil else {
             guard sold > 0 else { return String(localized: "No flips sold yet this month") }
             let count = String(localized: "\(sold) flips sold this month")
             return String(localized: "\(count), profit unknown until you add what you paid")
         }
         let from = String(localized: "from \(flips) flips")
-        return String(localized:
-            "\(WidgetHaulData.compactMoney(profit)) profit this month \(from)")
+        return String(localized: "\(value) profit this month \(from)")
     }
 }
 

@@ -25,6 +25,13 @@ struct WidgetFind: Codable, Identifiable, Equatable {
     var range: String
 }
 
+/// One currency's part of a money figure the app hands the widget.
+struct WidgetMoney: Codable, Equatable {
+    /// ISO 4217, as the ledger records it (`saleCurrency`, #224).
+    var code: String
+    var amount: Double
+}
+
 /// What the app last told the widgets about the user's library.
 ///
 /// **Every field added after v1 must be optional or defaulted in `init(from:)`.**
@@ -113,6 +120,17 @@ struct WidgetHaulData: Codable, Equatable {
     /// back to the old behaviour until the app next runs.
     var totalLikely: Double?
 
+    // v5 — added 1.5.3
+    /// The month's profit per currency, the phone's own first.
+    ///
+    /// A flip's amounts are in the currency they were typed in (#224), so the
+    /// month is a total per currency. `monthProfit` alone was printed as
+    /// dollars whatever it was in: 100 lei of profit read "$100" on the Home
+    /// Screen (AUDIT-2026-10-07, M1). `monthProfit` is still written, as the
+    /// first part, and still decides whether there is a figure at all. Nil in
+    /// a blob from an older build, which reads as dollars, as it always did.
+    var monthProfitParts: [WidgetMoney]?
+
     static let empty = WidgetHaulData(
         totalLow: 0, totalHigh: 0, itemCount: 0,
         lastItemName: "", lastItemRange: "", updatedAt: .distantPast,
@@ -159,6 +177,7 @@ struct WidgetHaulData: Codable, Equatable {
         case freeScansRemaining, isPro, streak, recentFinds, monthProfit, monthFlips
         case streakLastScan, freeScanAllowance, monthSold
         case totalLikely
+        case monthProfitParts
     }
 
     init(totalLow: Double, totalHigh: Double, itemCount: Int,
@@ -166,7 +185,8 @@ struct WidgetHaulData: Codable, Equatable {
          freeScansRemaining: Int?, isPro: Bool, streak: Int,
          recentFinds: [WidgetFind], monthProfit: Double?, monthFlips: Int,
          streakLastScan: Date? = nil, freeScanAllowance: Int? = nil,
-         monthSold: Int = 0, totalLikely: Double? = nil) {
+         monthSold: Int = 0, totalLikely: Double? = nil,
+         monthProfitParts: [WidgetMoney]? = nil) {
         self.totalLow = totalLow
         self.totalHigh = totalHigh
         self.itemCount = itemCount
@@ -183,6 +203,7 @@ struct WidgetHaulData: Codable, Equatable {
         self.freeScanAllowance = freeScanAllowance
         self.monthSold = monthSold
         self.totalLikely = totalLikely
+        self.monthProfitParts = monthProfitParts
     }
 
     init(from decoder: Decoder) throws {
@@ -205,6 +226,7 @@ struct WidgetHaulData: Codable, Equatable {
         freeScanAllowance = try c.decodeIfPresent(Int.self, forKey: .freeScanAllowance)
         monthSold = try c.decodeIfPresent(Int.self, forKey: .monthSold) ?? 0
         totalLikely = try c.decodeIfPresent(Double.self, forKey: .totalLikely)
+        monthProfitParts = try c.decodeIfPresent([WidgetMoney].self, forKey: .monthProfitParts)
     }
 }
 
@@ -252,6 +274,24 @@ extension WidgetHaulData {
             return "\(sign)$\(String(format: "%.1f", thousands))K"
         }
         return "\(sign)$\(Int(thousands.rounded()))K"
+    }
+
+    /// `compactMoney` in a ledger currency (#224). Dollars keep the "$1.2K"
+    /// form. Any other currency is printed whole, as `locale` writes it ("1,240
+    /// lei", "1.240 €"): where the symbol goes and what a "K" reads as differ
+    /// by locale, and a wrong abbreviation is worse than a long figure on a
+    /// tile that scales its text down to fit. The minus is U+2212, as above.
+    static func compactMoney(_ value: Double, code: String,
+                             locale: Locale = .current) -> String {
+        guard code != "USD" else { return compactMoney(value) }
+        let whole = value.rounded()
+        let f = NumberFormatter()
+        f.numberStyle = .currency
+        f.locale = locale
+        f.currencyCode = code
+        f.maximumFractionDigits = 0
+        let money = f.string(from: NSNumber(value: abs(whole))) ?? "\(Int(abs(whole))) \(code)"
+        return whole < 0 ? "−\(money)" : money
     }
 
     /// The one number, when there is room for one number.
@@ -553,6 +593,25 @@ extension WidgetHaulData {
     /// September's sales just as the profit figure once did.
     func monthSold(at now: Date) -> Int {
         monthIsCurrent(at: now) ? monthSold : 0
+    }
+
+    /// The month's profit as the widget prints it, in each currency it was
+    /// made in: "$214", "80 lei · $12". Nil exactly when `monthProfit(at:)` is.
+    /// A blob with no parts was written before currencies, and reads as dollars.
+    func monthProfitText(at now: Date, locale: Locale = .current) -> String? {
+        guard let profit = monthProfit(at: now) else { return nil }
+        guard let parts = monthProfitParts, !parts.isEmpty else {
+            return Self.compactMoney(profit)
+        }
+        return parts.map { Self.compactMoney($0.amount, code: $0.code, locale: locale) }
+            .joined(separator: " · ")
+    }
+
+    /// Whether the month reads as a loss: every currency it was made in is one.
+    func monthProfitIsLoss(at now: Date) -> Bool {
+        guard let profit = monthProfit(at: now) else { return false }
+        guard let parts = monthProfitParts, !parts.isEmpty else { return profit < 0 }
+        return parts.allSatisfy { $0.amount < 0 }
     }
 
     /// What the "Scans left" widget is looking at, as of `now`.

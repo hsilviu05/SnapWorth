@@ -32,9 +32,12 @@ What it enforces, because the public repo is where the labels go:
   byte for byte: re-encoding the app's 1024 px copy would only lose detail it
   never had. ZIP records are tagged `stored_1024`, because that copy is
   smaller than what the app sent the model.
-* **Currencies are never converted.** The ZIP says `currency_assumed: "USD"`
-  because the app never asks; such a record is tagged `currency_assumed` for
-  the reviewer to confirm or correct. An EU sale stays in its own currency.
+* **Currencies are never converted.** From 1.5.3 a ZIP record carries
+  `currency` when the user chose one in the ledger, and otherwise
+  `currency_assumed`: the phone's region currency, which the ledger showed.
+  Earlier exports said `currency_assumed: "USD"` for every flip. An assumed
+  currency is tagged `currency_assumed` for the reviewer to confirm or correct.
+  An EU sale stays in its own currency.
 * **All or nothing.** If any row is refused, nothing is written, and every
   problem is printed at once.
 * **A photo is taken once.** A row whose photo hashes the same as an image

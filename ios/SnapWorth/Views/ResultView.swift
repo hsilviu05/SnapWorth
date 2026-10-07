@@ -170,7 +170,7 @@ struct ResultView: View {
                             .padding(.top, priceCovered ? -8 : 12)
 
                         PaidPriceCard(text: $paidPriceText, focus: $focusedField,
-                                      currencySymbol: SaleCurrency.symbol(SaleCurrency.of(result)))
+                                      currencyCode: SaleCurrency.of(result))
                             .padding(.horizontal, 20)
                             .padding(.top, 12)
 
