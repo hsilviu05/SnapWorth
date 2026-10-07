@@ -140,6 +140,36 @@ class TestClaim:
                 run(referral.claim(subject, device, code))
             assert exc.value.status == 409
 
+    def test_one_network_can_draw_only_so_many_codes_a_day(self, monkeypatch):
+        """A reinstall loop is a new subject and device each time; the
+        address is what it cannot change as cheaply (AUDIT-2026-10-07, L2)."""
+        monkeypatch.setattr(referral, "CLAIMS_PER_ADDRESS_PER_DAY", 2)
+        code = self.setup_code()
+        run(load(POOL_FRIEND, ["F1AAAA", "F2BBBB", "F3CCCC", "F4DDDD"]))
+        assert run(referral.claim("s1", "d1", code, "203.0.113.5")) == "F1AAAA"
+        assert run(referral.claim("s2", "d2", code, "203.0.113.5")) == "F2BBBB"
+        with pytest.raises(ReferralError) as exc:
+            run(referral.claim("s3", "d3", code, "203.0.113.5"))
+        assert exc.value.status == 429
+        # The refused claim took nothing, and another network is unaffected.
+        assert run(referral.claim("s4", "d4", code, "198.51.100.9")) == "F3CCCC"
+
+    def test_the_address_is_not_stored(self):
+        code = self.setup_code()
+        run(load(POOL_FRIEND, ["F1AAAA"]))
+        run(referral.claim("s1", "d1", code, "203.0.113.77"))
+        stored = getattr(auth.deps.cache._fallback, "_data", {})
+        assert stored, "the test reads the store the claim wrote to"
+        assert not any("203.0.113.77" in key for key in stored)
+
+    def test_a_failed_claim_does_not_count_against_the_network(self, monkeypatch):
+        monkeypatch.setattr(referral, "CLAIMS_PER_ADDRESS_PER_DAY", 1)
+        code = self.setup_code()
+        with pytest.raises(ReferralError):                      # empty pool
+            run(referral.claim("s1", "d1", code, "203.0.113.5"))
+        run(load(POOL_FRIEND, ["F1AAAA"]))
+        assert run(referral.claim("s1", "d1", code, "203.0.113.5")) == "F1AAAA"
+
     def test_empty_pool_is_503_and_undone_so_a_retry_can_succeed(self):
         code = self.setup_code()
         with pytest.raises(ReferralError) as exc:

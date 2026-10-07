@@ -321,6 +321,32 @@ class TestChallenge:
         assert first.status_code in (400, 401)
         assert second.status_code == 400
 
+    def test_two_requests_racing_on_one_challenge_admit_one(self):
+        """A read and then a delete let both racers find the nonce before
+        either removed it. One atomic take admits exactly one."""
+        class _SlowReads(InMemoryCache):
+            async def get(self, key):
+                value = await super().get(key)
+                await asyncio.sleep(0)          # the gap a network round trip leaves
+                return value
+
+        build_deps()
+        try:
+            auth.deps.cache = ResilientCache(_SlowReads(), InMemoryCache())
+
+            async def race():
+                await auth.deps.cache.set(auth._challenge_key("c"), "1", 60)
+                return await asyncio.gather(auth._consume_challenge("c"),
+                                            auth._consume_challenge("c"),
+                                            return_exceptions=True)
+
+            outcomes = asyncio.run(race())
+            assert outcomes.count(None) == 1
+            refused = [o for o in outcomes if o is not None]
+            assert len(refused) == 1 and getattr(refused[0], "status_code", None) == 400
+        finally:
+            build_deps()
+
 
 class _AttestStateDown(InMemoryCache):
     """Redis that fails only on attestation state, so the challenge works."""
@@ -934,7 +960,7 @@ class _Full(InMemoryCache):
 class _Down(InMemoryCache):
     async def get(self, *a, **k):
         raise ConnectionError("down")
-    set = delete = add = incr = get
+    set = delete = add = incr = take = get
 
 
 def _anonymous_request():

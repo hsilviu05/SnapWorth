@@ -148,3 +148,33 @@ class TestBuildCache:
         built = await cache_module.build_cache()
         assert not built.is_configured
         assert await built.get("nothing", required=True) is None
+
+
+# ── take: a single-use value is spent once ───────────────────────────────────
+
+class TestTake:
+    """`take` deletes a key and says whether this call removed it, so a
+    single-use value (an App Attest challenge) admits one caller only."""
+
+    def test_redis_take_reads_dels_count(self):
+        import asyncio
+
+        class _Client:
+            def __init__(self):
+                self.keys = {"chal:x": "1"}
+
+            async def delete(self, key):
+                return 1 if self.keys.pop(key, None) is not None else 0
+
+        cache = cache_module.RedisCache(_Client())
+        assert asyncio.run(cache.take("chal:x")) is True
+        assert asyncio.run(cache.take("chal:x")) is False
+
+    def test_memory_take_ignores_an_expired_value(self):
+        import asyncio
+        import time
+
+        memory = cache_module.InMemoryCache()
+        memory._data["chal:x"] = ("1", time.time() - 1)
+        assert asyncio.run(memory.take("chal:x")) is False
+        assert "chal:x" not in memory._data
