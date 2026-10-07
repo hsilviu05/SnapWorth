@@ -35,6 +35,19 @@ confidence vs. actual hit rate) so these become empirical rather than assumed.
 Until that runs against a real dataset, treat the absolute numbers as ordinal:
 the ranking is meaningful, the exact value is not yet.
 
+What a band promises (#226, step 1, chosen 2026-10-07 before any fit): the
+event is **the sale lands inside the range shown** (`in_range`), because that
+is how a user reads "$20–$40 · High". A calibrated score of N means about N%
+of such estimates hold the sale, so the bands promise:
+
+    High    (≥ 70)  the sale lands in the range at least 70% of the time
+    Medium  (45–69) 45–69% of the time
+    Low     (< 45)  no promise; check before buying
+
+Measured on the gold set's test split, never assumed. Until a calibrator
+fitted to this event is switched on, the weighted score below makes none of
+these promises, and copy must not claim them.
+
 Once a calibrator has been fitted on the gold set, CONFIDENCE_CALIBRATION maps
 the weighted score through it before the caps (see `calibrator`). It is off by
 default, and in shadow until switched on.
@@ -425,6 +438,10 @@ CALIBRATION_ENV = "CONFIDENCE_CALIBRATION"
 CALIBRATION_MODE_ENV = "CONFIDENCE_CALIBRATION_MODE"
 CALIBRATION_MODES = ("shadow", "on")
 
+#: The event a band promises (see the module docstring). A calibrator fitted
+#: to any other event measures something the badge does not claim.
+CONFIDENCE_EVENT = "in_range"
+
 
 @dataclass(frozen=True)
 class Calibrator:
@@ -439,8 +456,8 @@ _calibrator: Calibrator | None | object = _UNSET
 def calibrator() -> Calibrator | None:
     """The configured calibrator, read once; None when off or unusable.
 
-    A file that is missing, unreadable or not MEASURED is refused with an
-    error in the log rather than failing startup: confidence falls back to the
+    A file that is missing, unreadable, not MEASURED or fitted to another
+    event than CONFIDENCE_EVENT is refused with an error in the log rather than failing startup: confidence falls back to the
     weighted score it has always served.
     """
     global _calibrator
@@ -466,6 +483,11 @@ def calibrator() -> Calibrator | None:
     if model.provenance is not Provenance.MEASURED:
         log.error("confidence calibration %s is %s, not measured; serving the weighted score",
                   path, model.provenance.value)
+        return None
+    if model.event != CONFIDENCE_EVENT:
+        log.error("confidence calibration %s was fitted to %r, not %r; serving the "
+                  "weighted score", path, model.event or "an unrecorded event",
+                  CONFIDENCE_EVENT)
         return None
     _calibrator = Calibrator(model=model, mode=mode)
     log.info("confidence calibration loaded", extra={

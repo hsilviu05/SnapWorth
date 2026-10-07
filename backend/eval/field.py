@@ -99,15 +99,21 @@ def summarise(rows: list[Row]) -> dict:
 
 
 def reliability(rows: list[Row]) -> dict[str, dict]:
-    """Per confidence band: how often the sale landed within 25% of the
-    estimate. A band that claims more than it delivers is what #226 fixes."""
+    """Per confidence band: how often the sale landed in the range shown,
+    which is what the band promises (`confidence.CONFIDENCE_EVENT`), and how
+    often within 25% of the estimate. A band that claims more than it
+    delivers is what #226 fixes."""
     out: dict[str, dict] = {}
     for band in sorted({r.keys["confidence_band"] for r in rows}):
         subset = [r for r in rows if r.keys["confidence_band"] == band]
+        enough = len(subset) >= MIN_GROUP
+        in_range = metrics.range_coverage([(r.low, r.high, r.sold) for r in subset])
         within = metrics.within_tolerance([(r.point, r.sold) for r in subset], 25.0)
         out[band] = {"n": len(subset),
+                     "in_range": (in_range * 100 if in_range is not None
+                                  and enough else None),
                      "within_25pct": (within * 100 if within is not None
-                                      and len(subset) >= MIN_GROUP else None)}
+                                      and enough else None)}
     return out
 
 
@@ -153,8 +159,9 @@ def render(rep: dict) -> str:
                              f"bias {num(s['bias'])}%  within 25% {num(s['within_25pct'])}%")
             else:
                 lines.append(f"  {value:<14} n={s['n']:<4} (fewer than {MIN_GROUP}: no figures)")
-    lines += ["", "Reliability by confidence band (share within 25%)"]
+    lines += ["", "Reliability by confidence band (sold in the range shown; within 25%)"]
     for band, s in rep["reliability_by_band"].items():
-        lines.append(f"  {band:<10} n={s['n']:<4} {num(s['within_25pct'])}%")
+        lines.append(f"  {band:<10} n={s['n']:<4} in range {num(s['in_range'])}%  "
+                     f"within 25% {num(s['within_25pct'])}%")
     return "\n".join(lines) + "\n"
 

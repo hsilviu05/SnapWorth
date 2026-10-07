@@ -341,15 +341,31 @@ one, and percentage-ranked reports bury the second behind the first.
 says they are "a considered prior, not a fitted model". This is how they stop
 being assumed.
 
-Target: **P(estimate within 25% of the true sale price)** — the same event as
-the `within_25pct` headline metric.
+Target: **P(the sale lands inside the range shown)**: the `in_range` event,
+`confidence.CONFIDENCE_EVENT`.
 
-**The event is not chosen yet** (#226, step 1, the owner's). Within 25% is
-what the code has defaulted to; "the sale lands in the range" is how a user
-reads "$20–$40 · High". Every surface that shows the band changes meaning when
-it is chosen, so it is written down here, with what each band then promises
-(e.g. "High means a ≥ 70% measured hit rate"), before any fit is deployed.
-Until then both are recorded on every example, and `--event` picks one.
+**Pre-registered 2026-10-07, before any fit** (#226, step 1, the owner's
+decision). It is how a user reads "$20–$40 · High", so it is what the badge
+promises. A calibrated score of N means about N% of such estimates hold the
+sale:
+
+| Band | Score | Promise, measured on the gold set's test split |
+|---|---|---|
+| High | ≥ 70 | the sale lands in the range at least 70% of the time |
+| Medium | 45–69 | 45–69% of the time |
+| Low | < 45 | no promise; check before buying |
+
+Within 25% of the likely price was the other candidate. It stays the headline
+accuracy metric and is still recorded on every example (`--event within_25pct`
+fits to it), but it is not what the band means. The runner's
+`calibration_ece` gate metric still measures it: that metric guards the raw
+score against regressing, and moving it to the range event would also change
+the A/B arm format, which carries no ranges. That move is a follow-up.
+
+Every fitted model file records its event, and the server refuses to load one
+fitted to anything but `in_range`. Until a model fitted to that event is
+switched on, the weighted score makes none of these promises, and no copy may
+claim them.
 
 | Method | When |
 |---|---|

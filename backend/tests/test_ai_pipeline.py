@@ -472,7 +472,7 @@ def _compute(**overrides):
 # ── Calibration flag (#226) ─────────────────────────────────────────────────
 
 def _calibration_file(tmp_path, *, a: float = 1.0, b: float = -2.0,
-                      provenance: str = "measured") -> str:
+                      provenance: str = "measured", event: str = "in_range") -> str:
     """A Platt model file as `eval.cli calibrate --out` writes one. The default
     shifts every score sharply down, so its effect cannot be mistaken."""
     from datetime import datetime, timezone
@@ -482,7 +482,8 @@ def _calibration_file(tmp_path, *, a: float = 1.0, b: float = -2.0,
         method="platt", provenance=Provenance(provenance),
         fitted_at=datetime.now(timezone.utc), n_examples=240,
         platt=calibration.PlattModel(a=a, b=b),
-        dataset_version="gold-test" if provenance == "measured" else "")
+        dataset_version="gold-test" if provenance == "measured" else "",
+        event=event)
     path = tmp_path / "calibration.json"
     model.save(str(path))
     return str(path)
@@ -539,6 +540,19 @@ class TestCalibrationFlag:
         assert result.calibrated_score is None
         assert result.score == result.weighted_score
         assert "not measured" in caplog.text
+
+    @pytest.mark.parametrize("event", ["within_25pct", ""])
+    def test_a_model_fitted_to_another_event_is_refused(self, calibration_env, tmp_path,
+                                                        caplog, event):
+        """The band promises the sale lands in the range (#226). A model
+        fitted to within-25%, or to an unrecorded event, measures something
+        else."""
+        calibration_env(_calibration_file(tmp_path, event=event), "on")
+        with caplog.at_level("ERROR", logger="snapworth.confidence"):
+            result = _compute()
+        assert result.calibrated_score is None
+        assert result.score == result.weighted_score
+        assert "'in_range'" in caplog.text
 
     def test_a_missing_file_falls_back_to_the_weighted_score(self, calibration_env, tmp_path):
         calibration_env(str(tmp_path / "nope.json"), "on")

@@ -260,6 +260,7 @@ def cmd_calibrate(args) -> int:
         train, holdout = calibration_module.split_examples(examples)
     model = calibration_module.fit(
         train, method=args.method, dataset_version=args.dataset_version,
+        event=str(raw.get("event") or ""),
         provenance=Provenance.MEASURED if args.dataset_version else Provenance.PROJECTED,
     )
     if model is None:
@@ -271,6 +272,7 @@ def cmd_calibrate(args) -> int:
     print(json.dumps({
         "method": model.method,
         "provenance": model.provenance.value,
+        "event": model.event or None,
         "n_train": len(train),
         "n_holdout": len(holdout),
         "holdout_evaluation": evaluation,

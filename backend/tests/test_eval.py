@@ -661,7 +661,9 @@ class TestCalibrationExamples:
                             "--examples-out", str(examples)]) == 0
 
         written = json.loads(examples.read_text())
-        assert written["event"] == "within_25pct"
+        # By default, what the band promises: the sale lands in the range.
+        assert written["event"] == "in_range"
+        assert all(e["correct"] == e["in_range"] for e in written["examples"])
         assert len(written["examples"]) == 90
         first = written["examples"][0]
         assert set(first) == {"item_id", "split", "signals", "raw_confidence",
@@ -677,15 +679,16 @@ class TestCalibrationExamples:
         assert report["n_train"] == dev
         assert report["n_holdout"] == 90 - dev
         assert report["method"] == "platt"
+        assert report["event"] == "in_range"
 
     def test_the_event_picks_which_outcome_counts(self, tmp_path, monkeypatch):
         monkeypatch.setattr(runner, "run_live", _fake_run_with_signals())
         examples = tmp_path / "examples.json"
         assert runner.main(["--dataset", str(self._dataset(tmp_path, 30)),
-                            "--examples-out", str(examples), "--event", "in_range"]) == 0
+                            "--examples-out", str(examples), "--event", "within_25pct"]) == 0
         written = json.loads(examples.read_text())
-        assert written["event"] == "in_range"
-        assert all(e["correct"] == e["in_range"] for e in written["examples"])
+        assert written["event"] == "within_25pct"
+        assert all(e["correct"] == e["within_25pct"] for e in written["examples"])
 
     def test_reliability_reads_the_same_file(self, tmp_path, monkeypatch, capsys):
         from eval import cli

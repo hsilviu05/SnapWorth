@@ -550,9 +550,9 @@ def metric_set(report: dict, label: str) -> MetricSet:
     return result
 
 
-#: What a confidence score can be calibrated to mean. Which one the badge
-#: promises users is the owner's decision (#226, step 1); both are written so
-#: either can be fitted from one run.
+#: What a confidence score can be calibrated to mean. The badge promises
+#: `in_range` (`confidence.CONFIDENCE_EVENT`, #226 step 1); `within_25pct` is
+#: still written on every record, for comparison with the headline metric.
 CALIBRATION_EVENTS = ("within_25pct", "in_range")
 
 
@@ -561,9 +561,9 @@ def calibration_examples(predictions: list[Prediction], event: str) -> list[dict
     reads: its signals, the raw score, whether it came true under `event`,
     the gold id and its dev/test split.
 
-    `within_25pct` is the event `eval.calibration` defaults to; `in_range` is
-    how a user reads "$20–$40 · High". Both flags are kept on every record;
-    `correct` is the chosen one.
+    `in_range` is what the badge promises: the sale lands inside the range
+    shown, as a user reads "$20–$40 · High". Both flags are kept on every
+    record; `correct` is the chosen one.
     """
     if event not in CALIBRATION_EVENTS:
         raise ValueError(f"unknown calibration event {event!r}")
@@ -830,8 +830,10 @@ def main(argv=None) -> int:
                         help="write one calibration example per priced item (signals, "
                              "raw score, outcome, split) for `eval.cli calibrate`; from "
                              "the first repeat, one arm only")
-    parser.add_argument("--event", choices=CALIBRATION_EVENTS, default="within_25pct",
-                        help="with --examples-out: what counts as correct (#226)")
+    parser.add_argument("--event", choices=CALIBRATION_EVENTS,
+                        default=confidence_module.CONFIDENCE_EVENT,
+                        help="with --examples-out: what counts as correct; the "
+                             "default is what the band promises (#226)")
     parser.add_argument("--coverage-only", action="store_true",
                         help="report dataset composition and exit — no model calls")
     args = parser.parse_args(argv)
