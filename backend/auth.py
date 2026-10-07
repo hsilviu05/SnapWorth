@@ -40,6 +40,7 @@ import auditlog
 import levers
 import metrics
 import notify
+import opsstats
 import ratelimit
 from cache import CacheUnavailable, ResilientCache
 from devicecheck import DeviceCheckClient
@@ -194,7 +195,7 @@ class EntitlementRequest(BaseModel):
     device_id: str | None = Field(
         default=None, min_length=1, max_length=64, pattern=r"^[A-Za-z0-9._-]+$")
     # The paywall a purchase was made from, sent by 1.5.2+ on the one sync
-    # right after it (#218). Only `notify.PAYWALL_TRIGGERS` is kept; anything
+    # right after it (#218). Only `opsstats.PAYWALL_TRIGGERS` is kept; anything
     # else — absent, unknown, the wrong type, too long — reads as None rather
     # than a 422, because a purchase sync must never fail over an analytics
     # field, and an older or newer build must sync exactly as before. Counted
@@ -204,7 +205,7 @@ class EntitlementRequest(BaseModel):
     @field_validator("paywall_trigger", mode="before")
     @classmethod
     def _known_trigger_or_none(cls, value: object) -> str | None:
-        return value if isinstance(value, str) and value in notify.PAYWALL_TRIGGERS else None
+        return value if isinstance(value, str) and value in opsstats.PAYWALL_TRIGGERS else None
 
 
 class EntitlementResponse(BaseModel):

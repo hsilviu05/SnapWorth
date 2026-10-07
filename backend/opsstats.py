@@ -29,6 +29,26 @@ log = logging.getLogger("snapworth.notify")
 # two full weeks, plus slack; they are operational tallies, not records.
 STATS_TTL = 60 * 60 * 24 * 35
 
+# The day counters a subscription's first sighting and its first paid period
+# feed (#218). `new_subs` is every first sighting, one per
+# originalTransactionId, and is exactly `trial_starts + paid_direct +
+# offer_starts`; `trial_conversions` is not a new subscription and is not in
+# it. See `_count_new_subscription`.
+START_COUNTERS = {"trial": "trial_starts", "paid": "paid_direct"}
+OFFER_STARTS = "offer_starts"
+TRIAL_CONVERSIONS = "trial_conversions"
+
+# Every place the app can show a paywall: `PaywallTrigger`'s raw values in
+# ios/SnapWorth/Services/Analytics.swift, copied exactly. `thrift_flip` is not
+# here: it retired with #128, before any build sent a trigger. The set is
+# closed because each value becomes a counter key; anything else a client
+# sends is ignored, never stored.
+PAYWALL_TRIGGERS: tuple[str, ...] = (
+    "onboarding", "scan_limit", "upgrade_button", "settings", "ledger_history",
+    "ledger_export", "snap_sell", "portfolio_trend", "valuation_detail",
+    "trends", "add_tag", "haul",
+)
+
 _cache: ResilientCache | None = None
 
 
@@ -113,3 +133,13 @@ async def sum_stat(days: list[str], name: str) -> int:
 def days_ending_today(n: int, now: datetime | None = None) -> list[str]:
     now = now or datetime.now(timezone.utc)
     return [day(now - timedelta(days=i)) for i in range(n)]
+
+
+async def sub_counts(days: list[str]) -> tuple[int, int, int]:
+    """(trial starts, trial conversions, direct purchases), summed over `days`."""
+    trials = conversions = direct = 0
+    for day in days:
+        trials += await read_stat(day, START_COUNTERS["trial"])
+        conversions += await read_stat(day, TRIAL_CONVERSIONS)
+        direct += await read_stat(day, START_COUNTERS["paid"])
+    return trials, conversions, direct
