@@ -157,22 +157,21 @@ class TestRangeMetrics:
 
 class TestCalibration:
     def test_perfectly_calibrated_system_has_low_ece(self):
-        # 90-confidence predictions that are all accurate.
-        scored = [(95, 100.0, 100.0)] * 10
-        assert not_none(metrics.calibration(scored)).ece < 0.15
+        # 90-confidence predictions that all came true.
+        assert metrics.calibration([(95, True)] * 10).ece < 0.15
 
     def test_overconfident_system_is_detected(self):
         """The exact failure v1 had: high confidence, poor accuracy."""
-        scored = [(95, 500.0, 100.0)] * 10          # claims ~95%, right 0% of the time
-        assert not_none(metrics.calibration(scored)).ece > 0.8
+        # Claims ~95%, right 0% of the time.
+        assert metrics.calibration([(95, False)] * 10).ece > 0.8
 
     def test_underconfident_system_is_also_detected(self):
-        scored = [(5, 100.0, 100.0)] * 10           # claims ~5%, right 100% of the time
-        assert not_none(metrics.calibration(scored)).ece > 0.8
+        # Claims ~5%, right 100% of the time.
+        assert metrics.calibration([(5, True)] * 10).ece > 0.8
 
     def test_buckets_report_claimed_vs_actual(self):
-        scored = [(95, 100.0, 100.0)] * 5 + [(15, 900.0, 100.0)] * 5
-        table = not_none(metrics.calibration(scored)).as_table()
+        points = [(95, True)] * 5 + [(15, False)] * 5
+        table = metrics.calibration(points).as_table()
         assert len(table) == 2
         high = next(b for b in table if b["range"] == "80-100")
         assert high["actual"] == 1.0
