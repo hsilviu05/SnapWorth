@@ -229,6 +229,12 @@ struct ShareCardView: View {
         let paidShown = printedDollars(paid)
         let low = printedDollars(result.displayValueLow)
         if paidShown == 0 { return String(localized: "Free find") }
+        // The estimate is in dollars and the paid price in the currency it was
+        // typed in (#224). Dividing one by the other made 20 lei paid against
+        // a $40 estimate a "2x find", where it is about nine; with no exchange
+        // rate on the phone, a multiple is claimed only between two dollar
+        // figures (AUDIT-2026-10-07, M1).
+        guard SaleCurrency.of(result) == "USD" else { return nil }
         guard paidShown < low else { return nil }
         // `floor`, not `round`. Round-to-nearest made the threshold for an
         // "Nx find" claim `low/paid >= N - 0.5`, so the very first badge a user
@@ -244,8 +250,9 @@ struct ShareCardView: View {
         return multiple > 1 ? String(localized: "\(multiple)x find") : nil
     }
 
+    /// What was paid, in the currency it was typed in.
     private func fmtCurrency(_ value: Double) -> String {
-        NumberFormatter.snapCurrency.string(from: NSNumber(value: value)) ?? "$\(Int(value))"
+        SaleCurrency.format(Decimal(value), code: SaleCurrency.of(result))
     }
 
     /// A money figure as this card prints it.
@@ -292,16 +299,18 @@ struct ShareCardView: View {
 /// shown for a month that actually has sold items (caller guards this).
 struct MonthShareCardView: View {
     let monthTitle: String          // e.g. "July 2026"
-    let realizedProfit: Decimal
+    /// Per currency: "+80 lei", or "+80 lei · +$12" for a mixed month.
+    let realizedProfit: LedgerMath.Amounts
     let itemsSold: Int
     let bestFlipName: String?
-    let bestFlipProfit: Decimal?
+    /// Already printed in the best flip's own currency.
+    let bestFlipProfit: String?
 
     static let cardWidth:  CGFloat = 540
     static let cardHeight: CGFloat = 960
     private let innerPad: CGFloat = 36
 
-    private var isProfit: Bool { realizedProfit >= 0 }
+    private var isProfit: Bool { !realizedProfit.isLoss }
     private var accent: Color { isProfit ? Color(hex: "6F8F6B") : Color(hex: "C4562F") }
 
     var body: some View {
@@ -315,7 +324,7 @@ struct MonthShareCardView: View {
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, innerPad)
 
-            Text(signed(realizedProfit))
+            Text(verbatim: SaleCurrency.signed(realizedProfit))
                 .font(Font.fraunces(84, weight: .bold))
                 .foregroundStyle(accent)
                 .minimumScaleFactor(0.4)
@@ -342,7 +351,7 @@ struct MonthShareCardView: View {
                                                 : String(localized: "items sold"))
                 if let name = bestFlipName, let profit = bestFlipProfit {
                     Rectangle().fill(Color(hex: "EFE6DC")).frame(width: 1, height: 72)
-                    statBlock(value: signed(profit), label: String(localized: "best flip"), caption: name)
+                    statBlock(value: profit, label: String(localized: "best flip"), caption: name)
                 }
             }
             .padding(.horizontal, innerPad)
@@ -402,11 +411,6 @@ struct MonthShareCardView: View {
             }
         }
         .frame(maxWidth: .infinity)
-    }
-
-    private func signed(_ d: Decimal) -> String {
-        let money = NumberFormatter.snapCurrency.string(from: NSDecimalNumber(decimal: abs(d))) ?? "$0"
-        return d < 0 ? "−\(money)" : "+\(money)"
     }
 }
 
@@ -726,8 +730,9 @@ struct GuessShareCardView: View {
         .background(Color(hex: "FBF7F2"))
     }
 
+    /// What was paid, in the currency it was typed in.
     private func fmtCurrency(_ value: Double) -> String {
-        NumberFormatter.snapCurrency.string(from: NSNumber(value: value)) ?? "$\(Int(value))"
+        SaleCurrency.format(Decimal(value), code: SaleCurrency.of(result))
     }
 
     @ViewBuilder

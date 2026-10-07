@@ -37,16 +37,65 @@ enum LedgerMath {
         interval.start <= date && date < interval.end
     }
 
+    // ── Money in more than one currency ──────────────────────────────────────
+
+    /// Amounts in one or more currencies, summed per currency and never across.
+    ///
+    /// A flip's paid, sold and fee amounts are in the currency they were typed
+    /// in (`SaleCurrency.of`, #224), and the phone has no exchange rate. Totals
+    /// that added the raw numbers and printed them as dollars turned 100 lei
+    /// sold into "+$100", and 80 lei plus $12 into "+$92" (AUDIT-2026-10-07,
+    /// M1). A total over several flips is a total per currency;
+    /// `SaleCurrency.signed(_:)` prints it as "+80 lei · +$12".
+    struct Amounts: Equatable {
+        private(set) var byCurrency: [String: Decimal] = [:]
+
+        init() {}
+
+        /// As written: `Amounts(["RON": 80, "USD": 12])`.
+        init(_ byCurrency: [String: Decimal]) {
+            self.byCurrency = byCurrency
+        }
+
+        mutating func add(_ amount: Decimal, in code: String) {
+            byCurrency[code, default: 0] += amount
+        }
+
+        var isEmpty: Bool { byCurrency.isEmpty }
+
+        func amount(in code: String) -> Decimal { byCurrency[code] ?? 0 }
+
+        /// Something in it is a gain.
+        var hasGain: Bool { byCurrency.values.contains { $0 > 0 } }
+
+        /// Every amount in it is a loss, which is when a total reads as one.
+        var isLoss: Bool { !byCurrency.isEmpty && byCurrency.values.allSatisfy { $0 < 0 } }
+    }
+
+    /// `amount` of each find in `results`, in that find's currency. A find
+    /// with no amount is left out, not counted as zero.
+    static func amounts(_ results: [ScanResult], locale: Locale = .current,
+                        _ amount: (ScanResult) -> Decimal?) -> Amounts {
+        var total = Amounts()
+        for result in results {
+            if let value = amount(result) {
+                total.add(value, in: SaleCurrency.of(result, locale: locale))
+            }
+        }
+        return total
+    }
+
     // ── Sales ────────────────────────────────────────────────────────────────
 
     /// What a set of finds sold for, in the terms every sales total uses.
     struct Sales: Equatable {
-        /// Realised profit, summed over the sales with a paid price.
+        /// Realised profit, summed over the sales with a paid price, per
+        /// currency (`Amounts`).
         ///
         /// `realizedProfit` is nil without one, and a sale with no cost basis
         /// has no knowable profit: counting it as zero would understate the
         /// figure, and guessing a basis would invent it.
-        var profit: Decimal = 0
+        var profit = Amounts()
         /// How many sales `profit` is the profit *of*.
         var priced: Int = 0
         /// Every sale, priced or not. Larger than `priced` by exactly the
@@ -78,10 +127,11 @@ enum LedgerMath {
 
     /// Profit and counts over the sold finds among `results`. Anything not
     /// sold is ignored, so a whole library can be passed for all-time totals.
-    static func sales(_ results: [ScanResult]) -> Sales {
+    static func sales(_ results: [ScanResult], locale: Locale = .current) -> Sales {
         let sold = sold(results)
-        let profits = sold.compactMap(\.realizedProfit)
-        return Sales(profit: total(profits), priced: profits.count, count: sold.count)
+        return Sales(profit: amounts(sold, locale: locale, \.realizedProfit),
+                     priced: sold.filter { $0.realizedProfit != nil }.count,
+                     count: sold.count)
     }
 
     // ── Holdings ─────────────────────────────────────────────────────────────

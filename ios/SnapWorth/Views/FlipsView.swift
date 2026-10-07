@@ -106,7 +106,7 @@ struct FlipsView: View {
 
             Text(vm.signedMoney(s.realizedProfit))
                 .font(.fraunces(38, weight: .bold))
-                .foregroundStyle(s.realizedProfit < 0 ? Color.snapTerracottaText : Color.snapSageText)
+                .foregroundStyle(s.realizedProfit.isLoss ? Color.snapTerracottaText : Color.snapSageText)
                 .lineLimit(1)
                 .minimumScaleFactor(0.5)
 
@@ -144,7 +144,9 @@ struct FlipsView: View {
             statCard(title: "Avg ROI", value: s.averageROI.map { vm.roiPercent($0) } ?? "—")
             statCard(
                 title: "Best flip",
-                value: s.bestFlip?.realizedProfit.map { vm.signedMoney($0) } ?? "—",
+                value: s.bestFlip.flatMap { flip in
+                    flip.realizedProfit.map { vm.signedMoney($0, code: SaleCurrency.of(flip)) }
+                } ?? "—",
                 caption: s.bestFlip?.itemName
             )
             statCard(
@@ -191,8 +193,10 @@ struct FlipsView: View {
 
     private var monthlyCard: some View {
         let buckets = vm.monthlyBuckets(allResults)
+        // One currency sets the bar lengths; each label prints them all.
+        let code = vm.chartCurrency(buckets)
         let maxVal = buckets
-            .map { NSDecimalNumber(decimal: $0.profit).doubleValue }
+            .map { NSDecimalNumber(decimal: $0.profit.amount(in: code)).doubleValue }
             .map { Swift.max($0, 0) }
             .max() ?? 0
 
@@ -202,7 +206,7 @@ struct FlipsView: View {
 
             VStack(spacing: 10) {
                 ForEach(buckets) { bucket in
-                    monthRow(bucket, maxVal: maxVal)
+                    monthRow(bucket, maxVal: maxVal, code: code)
                 }
             }
         }
@@ -212,8 +216,9 @@ struct FlipsView: View {
         .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
     }
 
-    private func monthRow(_ bucket: FlipsViewModel.MonthBucket, maxVal: Double) -> some View {
-        let val = NSDecimalNumber(decimal: bucket.profit).doubleValue
+    private func monthRow(_ bucket: FlipsViewModel.MonthBucket, maxVal: Double,
+                          code: String) -> some View {
+        let val = NSDecimalNumber(decimal: bucket.profit.amount(in: code)).doubleValue
         let frac = maxVal > 0 ? Swift.max(0, val) / maxVal : 0
         return HStack(spacing: 12) {
             Text(bucket.label)
@@ -325,9 +330,10 @@ struct FlipsView: View {
     /// distinguishable without relying on sage vs terracotta.
     private func rowAccessibilityValue(_ item: ScanResult) -> String {
         var parts = [item.status.label]
+        let code = SaleCurrency.of(item)
         if item.status == .sold {
             if let profit = item.realizedProfit {
-                let money = vm.signedMoney(profit)
+                let money = vm.signedMoney(profit, code: code)
                 parts.append(profit < 0
                              ? String(localized: "Loss of \(money)")
                              : String(localized: "Profit of \(money)"))
@@ -335,7 +341,7 @@ struct FlipsView: View {
                 parts.append(String(localized: "Profit unknown — add what you paid"))
             }
         } else if let paid = item.paidPrice {
-            parts.append(String(localized: "Paid \(vm.money(Decimal(paid)))"))
+            parts.append(String(localized: "Paid \(vm.money(Decimal(paid), code: code))"))
         }
         return parts.joined(separator: ". ")
     }
@@ -370,7 +376,7 @@ struct FlipsView: View {
     private func trailingValue(_ item: ScanResult) -> some View {
         if item.status == .sold {
             if let profit = item.realizedProfit {
-                Text(vm.signedMoney(profit))
+                Text(vm.signedMoney(profit, code: SaleCurrency.of(item)))
                     .font(.dmSans(15, weight: .bold))
                     .foregroundStyle(profit < 0 ? Color.snapTerracottaText : Color.snapSageText)
             } else {
@@ -380,7 +386,7 @@ struct FlipsView: View {
             }
         } else if let paid = item.paidPrice {
             VStack(alignment: .trailing, spacing: 1) {
-                Text(vm.money(Decimal(paid)))
+                Text(vm.money(Decimal(paid), code: SaleCurrency.of(item)))
                     .font(.dmSans(14, weight: .semibold))
                     .foregroundStyle(Color.snapEspresso)
                 Text("paid").font(.dmSans(10)).foregroundStyle(Color.snapWarmGray)

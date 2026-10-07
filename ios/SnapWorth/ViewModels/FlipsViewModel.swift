@@ -124,8 +124,11 @@ final class FlipsViewModel {
 
     // ── Summary ────────────────────────────────────────────────────────────────
 
+    /// Every money figure here is per currency (`LedgerMath.Amounts`): a
+    /// flip's amounts are in the currency they were typed in, and lei and
+    /// dollars do not add.
     struct Summary {
-        var realizedProfit: Decimal = 0
+        var realizedProfit = LedgerMath.Amounts()
         /// Everything sold in scope, priced or not.
         var itemsSold: Int = 0
         /// The subset `realizedProfit` is actually the profit *of*. Smaller
@@ -147,14 +150,38 @@ final class FlipsViewModel {
             let gap = String(localized: "\(itemsSold - itemsPriced) needs a paid price")
             return String(localized: "\(sales) · \(gap)")
         }
-        var totalInvested: Decimal = 0
-        var averageROI: Decimal?          // fraction, e.g. 0.42
+        var totalInvested = LedgerMath.Amounts()
+        var averageROI: Decimal?          // fraction, e.g. 0.42: no currency
         var bestFlip: ScanResult?
         var unrealizedCount: Int = 0
-        var unrealizedInvested: Decimal = 0
+        var unrealizedInvested = LedgerMath.Amounts()
     }
 
-    func summary(_ all: [ScanResult], scope: Scope, now: Date = Date()) -> Summary {
+    /// The best flip among `sold`, by profit.
+    ///
+    /// Profits compare only within a currency: 50 forints is not more than 40
+    /// euros. So the pick is made among the flips in the currency most of them
+    /// share (the phone's own on a tie, then by code), which in a ledger kept
+    /// in one currency is every flip, as before.
+    func bestFlip(_ sold: [ScanResult], locale: Locale = .current) -> ScanResult? {
+        let priced = sold.filter { $0.realizedProfit != nil }
+        guard !priced.isEmpty else { return nil }
+        let counts = Dictionary(grouping: priced) { SaleCurrency.of($0, locale: locale) }
+            .mapValues(\.count)
+        let home = SaleCurrency.regionDefault(locale: locale)
+        guard let code = counts.keys.max(by: { a, b in
+            let (x, y) = (counts[a] ?? 0, counts[b] ?? 0)
+            if x != y { return x < y }
+            if (a == home) != (b == home) { return b == home }
+            return a > b
+        }) else { return nil }
+        return priced
+            .filter { SaleCurrency.of($0, locale: locale) == code }
+            .max { ($0.realizedProfit ?? 0) < ($1.realizedProfit ?? 0) }
+    }
+
+    func summary(_ all: [ScanResult], scope: Scope, now: Date = Date(),
+                 locale: Locale = .current) -> Summary {
         var s = Summary()
 
         let scopedSold = scope == .month
@@ -174,7 +201,7 @@ final class FlipsViewModel {
         // In the list the gap is already visible (the row shows "—" and says
         // "Profit unknown — add what you paid"). The header and the share card
         // show only totals, so they need the count to carry it.
-        let sales = LedgerMath.sales(scopedSold)
+        let sales = LedgerMath.sales(scopedSold, locale: locale)
         s.itemsSold = sales.count
         s.itemsPriced = sales.priced
         s.realizedProfit = sales.profit
@@ -182,19 +209,17 @@ final class FlipsViewModel {
         let rois = scopedSold.compactMap(\.roi)
         s.averageROI = rois.isEmpty ? nil : rois.reduce(0, +) / Decimal(rois.count)
 
-        s.bestFlip = scopedSold
-            .filter { $0.realizedProfit != nil }
-            .max { ($0.realizedProfit ?? 0) < ($1.realizedProfit ?? 0) }
+        s.bestFlip = bestFlip(scopedSold, locale: locale)
 
         // Cost basis deployed: paid on everything currently owned/listed/sold.
-        s.totalInvested = (all.filter { $0.status != .scanned })
-            .compactMap(\.paidPrice)
-            .reduce(Decimal(0)) { $0 + Decimal($1) }
+        let paid: (ScanResult) -> Decimal? = { $0.paidPrice.map { Decimal($0) } }
+        s.totalInvested = LedgerMath.amounts(all.filter { $0.status != .scanned },
+                                             locale: locale, paid)
 
         // Open positions (money still on the table).
         let open = all.filter { $0.status == .owned || $0.status == .listed }
         s.unrealizedCount = open.count
-        s.unrealizedInvested = open.compactMap(\.paidPrice).reduce(Decimal(0)) { $0 + Decimal($1) }
+        s.unrealizedInvested = LedgerMath.amounts(open, locale: locale, paid)
 
         return s
     }
@@ -204,8 +229,26 @@ final class FlipsViewModel {
     struct MonthBucket: Identifiable {
         let id = UUID()
         let monthStart: Date
-        let profit: Decimal
+        let profit: LedgerMath.Amounts
         let label: String       // "Jul"
+    }
+
+    /// The currency the bars are drawn in. A bar is one length, and lengths
+    /// in two currencies do not compare, so the chart scales by the currency
+    /// most months have (the phone's own on a tie). Each row's label still
+    /// prints every currency that month had.
+    func chartCurrency(_ buckets: [MonthBucket], locale: Locale = .current) -> String {
+        let home = SaleCurrency.regionDefault(locale: locale)
+        var months: [String: Int] = [:]
+        for bucket in buckets {
+            for code in bucket.profit.byCurrency.keys { months[code, default: 0] += 1 }
+        }
+        return months.keys.max { a, b in
+            let (x, y) = (months[a] ?? 0, months[b] ?? 0)
+            if x != y { return x < y }
+            if (a == home) != (b == home) { return b == home }
+            return a > b
+        } ?? home
     }
 
     /// The same month rule as the header and the widget — `LedgerMath`'s —
@@ -213,7 +256,8 @@ final class FlipsViewModel {
     /// `DateInterval.contains`, which counts a month's closing instant in the
     /// month after it too; see `LedgerMath.contains`.
     func monthlyBuckets(_ all: [ScanResult], count: Int = 6,
-                        now: Date = Date(), calendar: Calendar = .current) -> [MonthBucket] {
+                        now: Date = Date(), calendar: Calendar = .current,
+                        locale: Locale = .current) -> [MonthBucket] {
         let sold = LedgerMath.sold(all)
         guard let thisMonthStart = LedgerMath.month(containing: now, calendar: calendar)?.start
         else { return [] }
@@ -222,7 +266,7 @@ final class FlipsViewModel {
             guard let monthStart = calendar.date(byAdding: .month, value: -offset, to: thisMonthStart),
                   let interval = LedgerMath.month(containing: monthStart, calendar: calendar)
             else { return nil }
-            let profit = LedgerMath.sales(LedgerMath.sold(sold, in: interval)).profit
+            let profit = LedgerMath.sales(LedgerMath.sold(sold, in: interval), locale: locale).profit
             return MonthBucket(monthStart: monthStart, profit: profit, label: Self.monthLabel(monthStart))
         }
     }
@@ -251,7 +295,9 @@ final class FlipsViewModel {
             realizedProfit: s.realizedProfit,
             itemsSold: s.itemsPriced,
             bestFlipName: s.bestFlip?.itemName,
-            bestFlipProfit: s.bestFlip?.realizedProfit
+            bestFlipProfit: s.bestFlip.flatMap { flip in
+                flip.realizedProfit.map { SaleCurrency.signed($0, code: SaleCurrency.of(flip)) }
+            }
         )
         let renderer = ImageRenderer(content: card)
         // Capped at 2 for the same reason as the result-sheet cards — see
@@ -268,8 +314,13 @@ final class FlipsViewModel {
     }
 
     /// Plain UTF-8 CSV of sold flips for the user's bookkeeping. RFC-4180 quoting.
-    /// Columns: Date, Item, Paid, Sold, Fees, Profit, ROI.
-    func csv(_ all: [ScanResult]) -> String {
+    /// Columns: Date, Item, Paid, Sold, Fees, Profit, ROI, Currency.
+    ///
+    /// Currency is the ISO code the row's amounts were typed in (#224). Last,
+    /// so a sheet built on the first seven columns still lines up; without it
+    /// a ledger kept in lei and euros was one column of bare numbers that sum
+    /// to nothing (AUDIT-2026-10-07, M1).
+    func csv(_ all: [ScanResult], locale: Locale = .current) -> String {
         let sold = all.filter { $0.status == .sold }
             .sorted { ($0.soldDate ?? $0.timestamp) < ($1.soldDate ?? $1.timestamp) }
 
@@ -293,7 +344,7 @@ final class FlipsViewModel {
         day.calendar = Calendar.current
         day.dateFormat = "yyyy-MM-dd"
 
-        var rows = ["Date,Item,Paid,Sold,Fees,Profit,ROI"]
+        var rows = ["Date,Item,Paid,Sold,Fees,Profit,ROI,Currency"]
         for r in sold {
             let date = r.soldDate.map { day.string(from: $0) } ?? ""
             let paid = r.paidPrice.map { Self.moneyColumn($0) } ?? ""
@@ -308,7 +359,7 @@ final class FlipsViewModel {
             let cols = [Self.csvEscape(date), Self.csvText(r.itemName),
                         Self.csvEscape(paid), Self.csvEscape(soldStr),
                         Self.csvEscape(fees), Self.csvEscape(profit),
-                        Self.csvEscape(roi)]
+                        Self.csvEscape(roi), SaleCurrency.of(r, locale: locale)]
             rows.append(cols.joined(separator: ","))
         }
         return rows.joined(separator: "\r\n") + "\r\n"
@@ -334,17 +385,30 @@ final class FlipsViewModel {
         return f.string(from: Date())
     }
 
-    // ── Formatting (reuses the app's currency formatter / locale) ───────────────
+    // ── Formatting: a flip's money in its own currency (`SaleCurrency`) ─────────
+    //
+    // These took a bare `Decimal` and printed it through `snapCurrency`, US
+    // dollars, whatever the flip was typed in. Each now says which currency it
+    // prints, so there is no way left to print a lei amount as dollars.
 
-    func money(_ d: Decimal) -> String {
-        NumberFormatter.snapCurrency.string(from: NSDecimalNumber(decimal: d)) ?? "$0"
+    /// One flip's amount: "$40", "40 lei".
+    func money(_ d: Decimal, code: String) -> String {
+        SaleCurrency.format(d, code: code)
     }
 
-    /// Signed money for profit rows ("+$40", "−$12").
-    func signedMoney(_ d: Decimal) -> String {
-        let base = money(abs(d))
-        if d < 0 { return "−\(base)" }
-        return "+\(base)"
+    /// One flip's amount, signed for profit rows: "+$40", "−12 lei".
+    func signedMoney(_ d: Decimal, code: String) -> String {
+        SaleCurrency.signed(d, code: code)
+    }
+
+    /// A total over flips: "$150", or "150 lei · $40" when they differ.
+    func money(_ amounts: LedgerMath.Amounts) -> String {
+        SaleCurrency.format(amounts)
+    }
+
+    /// A total over flips, signed: "+$214", "+80 lei · −$12".
+    func signedMoney(_ amounts: LedgerMath.Amounts) -> String {
+        SaleCurrency.signed(amounts)
     }
 
     func roiPercent(_ fraction: Decimal) -> String {
@@ -478,7 +542,7 @@ enum FlipsArchive {
         "likely_source", "confidence_score", "confidence_band",
         "category", "brand", "condition_grade", "prompt_version",
         "paid_price", "sold_price", "sold_date", "listed_date",
-        "currency_assumed",
+        "currency", "currency_assumed",
     ]
 
     /// One flip's record, as JSON-ready values. `photo` names the file beside
@@ -492,6 +556,12 @@ enum FlipsArchive {
         // model's number.
         let modelLikely = detail?.likely ?? detail?.expected
         let likely = modelLikely ?? (r.valueLow + r.valueHigh) / 2
+        // The currency the amounts were typed in (#224). `currency` only when
+        // the user chose it; otherwise the region currency the ledger showed,
+        // as `currency_assumed`, which the intake tags for the reviewer. This
+        // wrote "USD" for every flip after the ledger had started printing lei
+        // (AUDIT-2026-10-07, M1).
+        let chosen = r.saleCurrency.flatMap { SaleCurrency.all.contains($0) ? $0 : nil }
         let values: [String: Any?] = [
             "schema": schemaVersion,
             "id": r.id.uuidString,
@@ -516,9 +586,8 @@ enum FlipsArchive {
             "sold_price": r.soldPrice,
             "sold_date": r.soldDate.map(day.string(from:)),
             "listed_date": r.listedDate.map(day.string(from:)),
-            // The app never asks which currency a sale was in: "Sold for"
-            // sits beside a fixed "$". The owner corrects it at intake.
-            "currency_assumed": "USD",
+            "currency": chosen,
+            "currency_assumed": chosen == nil ? SaleCurrency.of(r) : nil,
         ]
         return values.mapValues { $0 ?? NSNull() }
     }

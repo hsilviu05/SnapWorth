@@ -30,11 +30,66 @@ enum SaleCurrency {
 
     /// "$", "lei", "€" — the symbol the ledger shows beside an amount.
     static func symbol(_ code: String, locale: Locale = .current) -> String {
+        formatter(code, locale: locale).currencySymbol ?? code
+    }
+
+    // ── Printing a flip's money ──────────────────────────────────────────────
+    //
+    // Every amount a user typed into the ledger is printed through these, in
+    // the currency it was typed in. Totals and lists printed them through
+    // `NumberFormatter.snapCurrency`, which is US dollars: the result sheet
+    // read "+80 lei" and My Flips "+$80" for the same sale (AUDIT-2026-10-07,
+    // M1). `snapCurrency` stays for estimates, which are in dollars.
+
+    /// An amount in whole units, as `locale` writes `code`: "$80", "80 lei".
+    static func format(_ amount: Decimal, code: String, locale: Locale = .current) -> String {
+        formatter(code, locale: locale).string(from: NSDecimalNumber(decimal: amount))
+            ?? "\(amount) \(code)"
+    }
+
+    /// Signed, with U+2212 for a loss as `FlipsViewModel` always printed it:
+    /// "+80 lei", "−$12".
+    static func signed(_ amount: Decimal, code: String, locale: Locale = .current) -> String {
+        let money = format(abs(amount), code: code, locale: locale)
+        return amount < 0 ? "−\(money)" : "+\(money)"
+    }
+
+    /// A total in one currency or several, never added across them: "80 lei",
+    /// "80 lei · $12". Empty is zero in the phone's currency.
+    static func format(_ amounts: LedgerMath.Amounts, locale: Locale = .current) -> String {
+        joined(amounts, locale: locale) { format($0, code: $1, locale: locale) }
+    }
+
+    /// `format(_:locale:)`, signed: "+80 lei · −$12".
+    static func signed(_ amounts: LedgerMath.Amounts, locale: Locale = .current) -> String {
+        joined(amounts, locale: locale) { signed($0, code: $1, locale: locale) }
+    }
+
+    /// The currencies in `amounts`, the phone's own first and the rest by
+    /// code, so a mixed total always reads in the same order.
+    static func ordered(_ amounts: LedgerMath.Amounts, locale: Locale = .current) -> [String] {
+        let home = regionDefault(locale: locale)
+        return amounts.byCurrency.keys.sorted { a, b in
+            if (a == home) != (b == home) { return a == home }
+            return a < b
+        }
+    }
+
+    private static func joined(_ amounts: LedgerMath.Amounts, locale: Locale,
+                               _ each: (Decimal, String) -> String) -> String {
+        guard !amounts.isEmpty else { return each(0, regionDefault(locale: locale)) }
+        return ordered(amounts, locale: locale)
+            .map { each(amounts.amount(in: $0), $0) }
+            .joined(separator: " · ")
+    }
+
+    private static func formatter(_ code: String, locale: Locale) -> NumberFormatter {
         let f = NumberFormatter()
         f.numberStyle = .currency
         f.locale = locale
         f.currencyCode = code
-        return f.currencySymbol ?? code
+        f.maximumFractionDigits = 0
+        return f
     }
 }
 
