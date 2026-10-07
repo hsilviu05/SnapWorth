@@ -33,6 +33,7 @@ import auth  # noqa: E402
 import entitlements  # noqa: E402
 import main  # noqa: E402
 import metrics  # noqa: E402
+import levers  # noqa: E402
 import notify  # noqa: E402
 import opsstats  # noqa: E402
 import observability  # noqa: E402
@@ -505,15 +506,15 @@ class TestOutdatedBuildsAreToldToUpdate:
 
     @pytest.fixture(autouse=True)
     def _switch(self, monkeypatch):
-        # `main` reads the minimum through `notify`, whose store the lifespan
+        # `main` reads the minimum through `levers`, whose store the lifespan
         # wires; `TestClient` without a `with` never runs it.
         self.store = ResilientCache(None, InMemoryCache())
-        monkeypatch.setattr(notify, "_cache", self.store)
+        monkeypatch.setattr(levers, "_cache", self.store)
         main._rate_store.clear()
         main._ip_rate_store.clear()
 
     def _require(self, build: int) -> None:
-        asyncio.run(self.store.set(notify.MIN_BUILD_KEY, str(build)))
+        asyncio.run(self.store.set(levers.MIN_BUILD_KEY, str(build)))
 
     def _trends(self, agent: str):
         return client.get("/trends", headers={"User-Agent": agent,
@@ -539,7 +540,7 @@ class TestOutdatedBuildsAreToldToUpdate:
         # (`.unusablePhoto`); a 426 would be shown as "Something went wrong",
         # and a 502 as "Our AI is temporarily unavailable" on builds 8-10.
         assert r.status_code == 422, r.text
-        assert r.json()["detail"] == notify.UPDATE_REQUIRED_DETAIL
+        assert r.json()["detail"] == levers.UPDATE_REQUIRED_DETAIL
         assert "App Store" in r.json()["detail"]
         assert counted == [] and completed == []
 
@@ -548,7 +549,7 @@ class TestOutdatedBuildsAreToldToUpdate:
         here is a `DEPENDENCY` error, which pages and feeds the 5xx surge."""
         self._require(18)
         r = self._trends(_app_agent(12))
-        assert r.json()["detail"] == notify.UPDATE_REQUIRED_DETAIL
+        assert r.json()["detail"] == levers.UPDATE_REQUIRED_DETAIL
         assert r.status_code < 500
         assert not observability.classify_status(r.status_code).pages
 
@@ -558,7 +559,7 @@ class TestOutdatedBuildsAreToldToUpdate:
         r = client.request(method, path, json={} if method == "POST" else None,
                            headers={"User-Agent": _app_agent(12)})
         assert r.status_code == 422, r.text
-        assert r.json()["detail"] == notify.UPDATE_REQUIRED_DETAIL
+        assert r.json()["detail"] == levers.UPDATE_REQUIRED_DETAIL
 
     def test_the_minimum_itself_and_newer_are_served(self):
         self._require(18)
@@ -614,10 +615,10 @@ class TestABuildThatSaysItsBuildGetsA426:
     @pytest.fixture(autouse=True)
     def _switch(self, monkeypatch):
         self.store = ResilientCache(None, InMemoryCache())
-        monkeypatch.setattr(notify, "_cache", self.store)
+        monkeypatch.setattr(levers, "_cache", self.store)
         main._rate_store.clear()
         main._ip_rate_store.clear()
-        asyncio.run(self.store.set(notify.MIN_BUILD_KEY, "30"))
+        asyncio.run(self.store.set(levers.MIN_BUILD_KEY, "30"))
 
     def _headers(self, build: str, agent_build: int = 29) -> dict[str, str]:
         return {"User-Agent": _app_agent(agent_build), "X-SnapWorth-Build": build,
@@ -632,7 +633,7 @@ class TestABuildThatSaysItsBuildGetsA426:
                                headers=self._headers("29"))
         assert not model.called
         assert r.status_code == 426, r.text
-        assert r.json() == {"detail": notify.UPDATE_REQUIRED_DETAIL,
+        assert r.json() == {"detail": levers.UPDATE_REQUIRED_DETAIL,
                             "code": "update_required"}
 
     def test_the_minimum_and_newer_are_served(self):

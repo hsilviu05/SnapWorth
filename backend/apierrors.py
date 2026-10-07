@@ -41,7 +41,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 
 # ── /scan, /listing, /trends ─────────────────────────────────────────────────
 
-#: Below the operator's minimum build (`notify.minimum_build`). 426 for a build
+#: Below the operator's minimum build (`levers.minimum_build`). 426 for a build
 #: that says so in `X-SnapWorth-Build`, 422 for one read from the User-Agent.
 UPDATE_REQUIRED = "update_required"
 #: The day's free allowance is spent (402).

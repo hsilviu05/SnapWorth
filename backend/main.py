@@ -42,6 +42,7 @@ import devicecheck
 import entitlements
 import imagequality
 import imagevalidation
+import levers
 import metrics
 import notify
 import opsspend
@@ -254,7 +255,7 @@ async def _lifespan(_app: FastAPI):
         # The operator's runtime override, settable from the ops bot. Injected
         # rather than imported: `quota` must not depend on `notify`, and this
         # is the one place that already holds both.
-        welcome_override=notify.free_scan_lever)
+        welcome_override=levers.free_scan_lever)
     social_readers = social.from_env(_cache)
     social.configure(social_readers)
     notify.configure(_cache, status_provider=_status_snapshot,
@@ -460,14 +461,14 @@ async def _refuse_outdated_build(request: Request) -> None:
     build, explicit = observability.client_build(request.headers)
     if build is None:
         return
-    minimum = await notify.minimum_build()
+    minimum = await levers.minimum_build()
     if minimum is None or build >= minimum:
         return
     metrics.outdated_build_refused.inc(endpoint=metrics.endpoint_label(request.url.path))
     log.info("outdated build told to update",
              extra={"build": build, "minimum": minimum, "explicit": explicit})
     raise APIError(426 if explicit else 422, apierrors.UPDATE_REQUIRED,
-                   notify.UPDATE_REQUIRED_DETAIL)
+                   levers.UPDATE_REQUIRED_DETAIL)
 
 
 async def _bot_scan(image_bytes: bytes, declared_type: str) -> dict:

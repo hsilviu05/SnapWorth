@@ -37,6 +37,7 @@ from pydantic import BaseModel, Field, field_validator
 import apierrors
 import appattest
 import auditlog
+import levers
 import metrics
 import notify
 import ratelimit
@@ -297,7 +298,7 @@ async def _issue_token(subject: str, device_token: str | None) -> TokenResponse:
         tier=ent.tier,
         free_scans_remaining=min(remaining, 10_000),
         support_id=auditlog.pseudonymise(subject),
-        paywall_default_plan=await notify.paywall_default_plan(),
+        paywall_default_plan=await levers.paywall_default_plan(),
     )
 
 
