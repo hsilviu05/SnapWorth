@@ -3662,17 +3662,25 @@ final class HaulHarness {
     }
 }
 
-/// Polls until `condition` holds, failing the test after `timeout`.
+/// Polls until `condition` holds, failing the test after `timeout` worth of
+/// polls.
+///
+/// Budgeted in polls, not wall-clock time (#299): a CI runner that stalls —
+/// one froze for ten minutes mid-suite — used to pass a `Date` deadline
+/// without the condition being checked again, and failed a test whose work
+/// had finished. A stall now spends no polls. Each poll sleeps at least
+/// 5 ms, so a real hang still fails after no less than `timeout`.
 @MainActor
 func haulWait(_ what: String, timeout: TimeInterval = 5,
               file: StaticString = #filePath, line: UInt = #line,
               _ condition: () -> Bool) async {
-    let deadline = Date().addingTimeInterval(timeout)
+    var polls = max(1, Int(timeout / 0.005))
     while !condition() {
-        if Date() > deadline {
+        if polls == 0 {
             XCTFail("timed out waiting for \(what)", file: file, line: line)
             return
         }
+        polls -= 1
         try? await Task.sleep(for: .milliseconds(5))
     }
 }
