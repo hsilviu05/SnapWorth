@@ -52,6 +52,7 @@ class Cache(Protocol):
     async def add(self, key: str, value: str, ttl: int | None = None) -> bool: ...
     async def incr(self, key: str, ttl: int | None = None, amount: int = 1) -> int: ...
     async def delete(self, key: str) -> None: ...
+    async def take(self, key: str) -> bool: ...
     async def ping(self) -> bool: ...
 
 
@@ -105,6 +106,13 @@ class InMemoryCache:
         async with self._lock:
             self._data.pop(key, None)
 
+    async def take(self, key: str) -> bool:
+        """Delete `key`. True only for the call that removed a live value."""
+        async with self._lock:
+            present = self._live(key) is not None
+            self._data.pop(key, None)
+            return present
+
     async def ping(self) -> bool:
         return True
 
@@ -136,6 +144,11 @@ class RedisCache:
 
     async def delete(self, key: str) -> None:
         await self._redis.delete(key)
+
+    async def take(self, key: str) -> bool:
+        # DEL answers how many keys it removed, in one atomic command, so two
+        # callers racing on one key cannot both see it removed.
+        return bool(await self._redis.delete(key))
 
     async def ping(self) -> bool:
         return bool(await self._redis.ping())
@@ -263,6 +276,11 @@ class ResilientCache:
 
     async def delete(self, key: str, *, required: bool = False) -> None:
         await self._call("delete", key, required=required)
+
+    async def take(self, key: str, *, required: bool = False) -> bool:
+        """Delete `key` and say whether this call removed it: a single-use
+        value is spent by exactly one caller, however many race for it."""
+        return await self._call("take", key, required=required)
 
     async def health(self) -> dict:
         ok = False

@@ -89,6 +89,16 @@ PENDING_TTL = 60 * 10
 # 887M codes at ten a day is not a plan.
 MAX_FAILED_CLAIMS_PER_DAY = 10
 
+# Friend codes handed out per client address per UTC day (AUDIT-2026-10-07,
+# L2). A claim needs a new App Attest subject, which is a reinstall of the
+# genuine app on real hardware, and the route's limits count requests per hour.
+# Nothing bounded how many codes one network could draw from the pool in a
+# day, so a scripted reinstall loop could empty it and every genuine friend
+# would be told "Invites are paused". Generous on purpose: a household or a
+# carrier NAT sharing one address is the case to leave alone. 0 turns it off.
+CLAIMS_PER_ADDRESS_PER_DAY = max(
+    0, int(os.environ.get("REFERRAL_CLAIMS_PER_ADDRESS_PER_DAY", "20") or 0))
+
 POOL_FRIEND = "friend"
 POOL_REWARD = "reward"
 POOLS = (POOL_FRIEND, POOL_REWARD)
@@ -269,6 +279,13 @@ def _fail_key(subject: str) -> str:
     return f"ref:fail:{subject}:{time.strftime('%Y%m%d', time.gmtime())}"
 
 
+def _address_key(ip: str) -> str:
+    # A keyed hash, not the address: the count needs to tell addresses apart,
+    # not to know them.
+    tag = auditlog.keyed_tag("referral-address", ip, 16)
+    return f"ref:addr:{tag}:{time.strftime('%Y%m%d', time.gmtime())}"
+
+
 def pool_size_key(pool: str) -> str:
     return f"refpool:{pool}:size"
 
@@ -421,7 +438,7 @@ async def _bind(subject: str, device: str) -> None:
             raise ReferralError(403, "This install already has an invite on another device.")
 
 
-async def claim(subject: str, device: str, raw_code: str) -> str:
+async def claim(subject: str, device: str, raw_code: str, ip: str | None = None) -> str:
     """Record the referral and return the friend's Apple offer code.
 
     The two markers, once per device and once per subject, are written for
@@ -436,6 +453,10 @@ async def claim(subject: str, device: str, raw_code: str) -> str:
     cache = deps.cache
     if int(await cache.get(_fail_key(subject)) or 0) >= MAX_FAILED_CLAIMS_PER_DAY:
         raise ReferralError(429, "Too many tries today. Try again tomorrow.")
+    address = _address_key(ip) if ip is not None and CLAIMS_PER_ADDRESS_PER_DAY else None
+    if address and int(await cache.get(address) or 0) >= CLAIMS_PER_ADDRESS_PER_DAY:
+        raise ReferralError(429, "Too many invites claimed from this network today. "
+                                 "Try again tomorrow.")
 
     code = normalise_code(raw_code)
     referrer = await cache.get(_code_key(code)) if len(code) == CODE_LENGTH else None
@@ -487,6 +508,12 @@ async def claim(subject: str, device: str, raw_code: str) -> str:
         # synced after they expire finds no claim and rewards nobody.
         log.error("referral claim not confirmed; its markers expire in %ds", PENDING_TTL,
                   extra={"referrer": auditlog.pseudonymise(referrer)})
+    if address:
+        # Counted once a code has left the pool: that is what is being bounded.
+        try:
+            await cache.incr(address, ttl=2 * 60 * 60 * 24)
+        except Exception as exc:
+            log.warning("referral address count failed: %s", type(exc).__name__)
     notify.count_referral("claimed")
     return friend_code
 
@@ -782,7 +809,8 @@ async def claim_route(req: ClaimRequest, request: Request,
         raise HTTPException(status_code=404, detail="Invites aren't available right now.")
     try:
         await _admit("claim", principal, req.device_id, request)
-        code = await claim(principal.subject, req.device_id, req.code)
+        code = await claim(principal.subject, req.device_id, req.code,
+                           ratelimit.client_ip(request))
     except ReferralError as exc:
         raise HTTPException(status_code=exc.status, detail=str(exc)) from None
     except CacheUnavailable:

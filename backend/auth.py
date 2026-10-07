@@ -340,12 +340,13 @@ async def challenge(request: Request) -> ChallengeResponse:
 
 
 async def _consume_challenge(value: str) -> None:
-    """Single-use: a nonce is deleted the moment it is accepted."""
-    key = _challenge_key(value)
-    present = await deps.cache.get(key)
-    if not present:
+    """Single-use: a nonce is deleted the moment it is accepted.
+
+    One atomic delete that says whether it removed anything. A read followed
+    by a delete let two requests racing on one nonce both find it present
+    before either deleted it."""
+    if not await deps.cache.take(_challenge_key(value)):
         raise APIError(400, apierrors.CHALLENGE_INVALID, "Challenge is unknown or expired.")
-    await deps.cache.delete(key)
 
 
 @router.post("/attest", response_model=TokenResponse, response_model_exclude_none=True)

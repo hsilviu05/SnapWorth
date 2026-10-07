@@ -141,6 +141,40 @@ def test_a_range_upside_down_is_refused():
     assert post(outcome(estimate_low=50.0, estimate_high=20.0)).status_code == 422
 
 
+def test_the_values_the_app_sends_are_stored_as_sent():
+    body = outcome(category="shoes", condition_grade="likeNew", condition_chosen="used",
+                   confidence_band="High", prompt_version="v2.1")
+    assert post(body).status_code == 200
+    record = stored(body["contribution_id"])
+    assert (record["category"], record["condition_grade"], record["condition_chosen"],
+            record["confidence_band"], record["prompt_version"]) == (
+        "shoes", "likeNew", "used", "High", "v2.1")
+
+
+@pytest.mark.parametrize("field, sent, kept", [
+    ("category", "Patagonia Better Sweater", "other"),
+    ("condition_grade", "Jane's coat", None),
+    ("condition_chosen", "Jane's coat", None),
+    ("confidence_band", "Jane Doe", "unknown"),
+    ("prompt_version", "jane.doe", "unknown"),
+])
+def test_a_naming_field_never_stores_free_text(field, sent, kept):
+    """A modified client could otherwise store an item's name where a
+    category goes. Normalised rather than refused: an old flip may carry a
+    value from an earlier release, and its sale should still be shared."""
+    body = outcome(**{field: sent})
+    assert post(body).status_code == 200
+    record = stored(body["contribution_id"])
+    assert record[field] == kept
+    assert sent not in json.dumps(record)
+
+
+def test_a_band_in_another_case_is_kept_as_the_band():
+    body = outcome(confidence_band="medium")
+    assert post(body).status_code == 200
+    assert stored(body["contribution_id"])["confidence_band"] == "Medium"
+
+
 # ── Who may call ─────────────────────────────────────────────────────────────
 
 def test_unattested_callers_are_refused():

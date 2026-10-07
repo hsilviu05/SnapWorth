@@ -13,6 +13,14 @@ refused rather than a stray key stored. **Never sent, so never stored:** the
 photo, the item's name, notes, the price paid, or any device identifier. The
 brand is a yes/no (was one identified), not its text.
 
+The fields that name a value rather than carry text (category, the two
+conditions, the confidence band, the prompt version) are stored only as one
+of the values the server itself uses. Anything else is stored as "other" or
+"unknown", or dropped, never as the text it arrived as. It is normalised
+rather than refused because an old flip can carry a value from an earlier
+release, and refusing it would stop that sale from being shared. The point is
+that a modified client cannot use these fields to store an item's name.
+
 It is not gold data. A typed price with no receipt is `medium` label
 confidence at best (`eval/schema.py`), so field outcomes are their own
 measurement, tagged user-reported, and never an input to the CI gate.
@@ -52,6 +60,8 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 import auditlog
+import categories
+import prompts
 import ratelimit
 from auth import Principal, deps, require_auth
 from cache import CacheUnavailable
@@ -76,6 +86,16 @@ MARKETPLACES = frozenset({"ebay", "poshmark", "mercari", "depop", "vinted", "fac
 #: The ceiling on any price field. A thrift flip above this is not one this
 #: product prices, and a typo of a few zeros should not skew a median.
 MAX_PRICE = 100_000.0
+
+#: The condition grades a valuation names (`valuation._CONDITION_GRADES`) and
+#: the app's `Condition` raw values: the same four.
+CONDITIONS = frozenset({"new", "likeNew", "good", "used"})
+
+#: The confidence bands, by their case-folded name.
+BANDS = {"high": "High", "medium": "Medium", "low": "Low"}
+
+#: What a band or prompt version the server does not use is stored as.
+UNKNOWN = "unknown"
 
 limiter: Callable[[str, str | None], Awaitable[None]] | None = None
 
@@ -123,6 +143,28 @@ class Outcome(BaseModel):
         if value is not None and value not in MARKETPLACES:
             raise ValueError("unknown marketplace")
         return value
+
+    # The four below normalise rather than refuse: see the module docstring.
+
+    @field_validator("category")
+    @classmethod
+    def _category_by_name(cls, value: str) -> str:
+        return categories.normalise(value)
+
+    @field_validator("condition_grade", "condition_chosen")
+    @classmethod
+    def _condition_by_name(cls, value: str | None) -> str | None:
+        return value if value in CONDITIONS else None
+
+    @field_validator("confidence_band")
+    @classmethod
+    def _band_by_name(cls, value: str) -> str:
+        return BANDS.get(value.strip().lower(), UNKNOWN)
+
+    @field_validator("prompt_version")
+    @classmethod
+    def _prompt_by_name(cls, value: str) -> str:
+        return value if value in prompts.PROMPTS else UNKNOWN
 
     @field_validator("sold_day", "scan_day")
     @classmethod
