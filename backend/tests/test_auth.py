@@ -30,7 +30,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import appattest  # noqa: E402
 import auditlog  # noqa: E402
 import auth  # noqa: E402
-import notify  # noqa: E402
+import levers  # noqa: E402
 from cache import CacheUnavailable, InMemoryCache, ResilientCache  # noqa: E402
 from main import app  # noqa: E402
 from quota import QuotaExceeded, QuotaUnavailable, ScanQuota  # noqa: E402
@@ -764,7 +764,7 @@ class TestPaywallDefaultPlan:
     def test_unset_lever_leaves_the_field_out(self, monkeypatch):
         async def unset():
             return None
-        monkeypatch.setattr(notify, "paywall_default_plan", unset)
+        monkeypatch.setattr(levers, "paywall_default_plan", unset)
         build_deps(enforce=True)
         try:
             response = asyncio.run(auth._issue_token("subj", None))
@@ -776,7 +776,7 @@ class TestPaywallDefaultPlan:
     def test_a_set_lever_is_sent(self, monkeypatch):
         async def monthly():
             return "monthly"
-        monkeypatch.setattr(notify, "paywall_default_plan", monthly)
+        monkeypatch.setattr(levers, "paywall_default_plan", monthly)
         build_deps(enforce=True)
         try:
             response = asyncio.run(auth._issue_token("subj", None))
