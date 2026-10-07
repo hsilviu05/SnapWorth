@@ -79,6 +79,15 @@ def test_the_reliability_table_is_by_band(tmp_path):
     assert table["Low"]["within_25pct"] == 0.0
 
 
+def test_the_band_is_judged_by_the_range_it_promises(tmp_path):
+    """$21 is inside $20–$40 but 43% under the $30 estimate: kept by the
+    promise the band makes (#226), missed by the headline metric."""
+    rows, currencies = field.load(write(tmp_path, [record(21, band="High") for _ in range(5)]))
+    table = field.report(rows, currencies)["reliability_by_band"]
+    assert table["High"]["in_range"] == 100.0
+    assert table["High"]["within_25pct"] == 0.0
+
+
 def test_the_cli_prints_and_writes_and_nothing_here_is_a_gate_metric(tmp_path):
     path = write(tmp_path, [record(30) for _ in range(5)])
     out = io.StringIO()

@@ -408,6 +408,10 @@ class CalibrationModel:
     platt: PlattModel | None = None
     dataset_version: str = ""
     notes: str = ""
+    # What `correct` meant in the examples it was fitted on (`runner
+    # --event`). The server refuses a model whose event is not the one the
+    # band promises; "" is a file written before the event was recorded.
+    event: str = ""
 
     def __post_init__(self) -> None:
         if self.provenance is Provenance.MEASURED and not self.dataset_version:
@@ -442,6 +446,7 @@ class CalibrationModel:
             "n_examples": self.n_examples,
             "tolerance_pct": self.tolerance_pct,
             "dataset_version": self.dataset_version,
+            "event": self.event,
             "notes": self.notes,
         }
         if self.logistic:
@@ -480,6 +485,7 @@ class CalibrationModel:
             platt=PlattModel(**platt) if platt else None,
             dataset_version=str(payload.get("dataset_version", "")),
             notes=str(payload.get("notes", "")),
+            event=str(payload.get("event", "")),
         )
 
 
@@ -496,6 +502,7 @@ def fit(
     dataset_version: str = "",
     provenance: Provenance = Provenance.MEASURED,
     tolerance_pct: float = DEFAULT_TOLERANCE_PCT,
+    event: str = "",
 ) -> CalibrationModel | None:
     """Fit a calibrator. Returns None when there is not enough data.
 
@@ -513,7 +520,7 @@ def fit(
     # call site below.
     common: dict[str, Any] = dict(
         provenance=provenance, fitted_at=now, n_examples=len(examples),
-        dataset_version=dataset_version, tolerance_pct=tolerance_pct)
+        dataset_version=dataset_version, tolerance_pct=tolerance_pct, event=event)
 
     if method == "logistic":
         # One name per branch. Reusing a single `model` binding across the three
