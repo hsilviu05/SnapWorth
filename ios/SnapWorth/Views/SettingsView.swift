@@ -109,7 +109,7 @@ struct SettingsView: View {
                         // estimate once three scans are in — so for every engaged user,
                         // which is the only kind who goes looking for this row,
                         // tapping it did nothing at all. Twice.
-                        vm.openURL("\(Config.appStoreURL)?action=write-review")
+                        vm.rateApp()
                     }
                 }
 

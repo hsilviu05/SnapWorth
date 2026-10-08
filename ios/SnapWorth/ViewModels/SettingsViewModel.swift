@@ -57,8 +57,18 @@ final class SettingsViewModel {
             : String(localized: "This will permanently delete all \(count) saved scans.")
     }
 
+    /// Opens a URL outside the app. `UIApplication.shared.open` in the app; a
+    /// test replaces it to see where a row leads.
+    @ObservationIgnored var open: (URL) -> Void = { UIApplication.shared.open($0) }
+
     func openURL(_ urlString: String) {
         guard let url = URL(string: urlString) else { return }
-        UIApplication.shared.open(url)
+        open(url)
+    }
+
+    /// "Rate SnapWorth": the App Store's review composer, which opens every
+    /// time — not the system prompt, which may not (see the row).
+    func rateApp() {
+        openURL("\(Config.appStoreURL)?action=write-review")
     }
 }

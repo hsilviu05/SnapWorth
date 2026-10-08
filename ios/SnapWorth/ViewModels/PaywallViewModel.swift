@@ -93,6 +93,26 @@ final class PaywallViewModel {
         selectedProductID = fallback
     }
 
+    /// The paywall came on screen: the close button's delay starts, and
+    /// `paywall_viewed` is sent.
+    func didAppear(trigger: PaywallTrigger) {
+        startCloseButtonTimer()
+        // `isFirstRun`, not `isFirstScan`: both first-run paywalls open
+        // after the first result has been recorded.
+        Analytics.shared.track(.paywallViewed(trigger: trigger, isFirst: ScanTally.isFirstRun()))
+    }
+
+    /// The paywall left the screen.
+    func didDisappear(trigger: PaywallTrigger) {
+        cancelTimer()
+        // Only a close *without* a purchase. A completed purchase also
+        // dismisses this sheet, and counting that as a dismissal would put
+        // every conversion on both sides of the look-to-buy rate.
+        if !isPurchaseComplete {
+            Analytics.shared.track(.paywallDismissed(trigger: trigger))
+        }
+    }
+
     func cancelTimer() {
         closeButtonTask?.cancel()
         closeButtonTask = nil

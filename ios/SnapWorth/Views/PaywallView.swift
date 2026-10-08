@@ -303,22 +303,8 @@ struct PaywallView: View {
             // sitting right there unselected.
             vm.reconcileSelection(with: purchaseService.pricing)
         }
-        .onAppear {
-            vm.startCloseButtonTimer()
-            // `isFirstRun`, not `isFirstScan`: both first-run paywalls open
-            // after the first result has been recorded.
-            Analytics.shared.track(.paywallViewed(trigger: trigger,
-                                                  isFirst: ScanTally.isFirstRun()))
-        }
-        .onDisappear {
-            vm.cancelTimer()
-            // Only a close *without* a purchase. A completed purchase also
-            // dismisses this sheet, and counting that as a dismissal would put
-            // every conversion on both sides of the look-to-buy rate.
-            if !vm.isPurchaseComplete {
-                Analytics.shared.track(.paywallDismissed(trigger: trigger))
-            }
-        }
+        .onAppear { vm.didAppear(trigger: trigger) }
+        .onDisappear { vm.didDisappear(trigger: trigger) }
         .onChange(of: vm.isPurchaseComplete) { _, complete in
             if complete { dismiss() }
         }

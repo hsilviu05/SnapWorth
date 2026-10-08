@@ -4467,21 +4467,23 @@ final class FullDetailOfferTests: XCTestCase {
     }
 
 
-    /// Source-level: which sheet is fresh is decided at its call site. Only the
-    /// scan sheet may say so. My Finds and My Flips, whose items include
+    /// Which sheet is fresh is decided where each screen builds it. Only the
+    /// scan's may say so. My Finds and My Flips, whose items include
     /// everything listed and sold, must not.
-    func test_onlyTheScanSheetIsFresh() throws {
-        let views = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent().deletingLastPathComponent()
-            .appendingPathComponent("SnapWorth/Views")
-        func source(_ name: String) throws -> String {
-            try String(contentsOf: views.appendingPathComponent(name), encoding: .utf8)
-        }
-        XCTAssertTrue(try source("ScanView.swift").contains("isFreshScan: true"))
-        for reopened in ["HistoryView.swift", "FlipsView.swift"] {
-            let file = try source(reopened)
-            XCTAssertTrue(file.contains("ResultView("), reopened)
-            XCTAssertFalse(file.contains("isFreshScan"), "\(reopened) reopens saved finds")
+    @MainActor
+    func test_onlyTheScanSheetIsFresh() {
+        let find = ScanResult(itemName: "Levi's 501", brand: "Levi's", category: "clothing",
+                                conditionNotes: "Good", valueLow: 28, valueHigh: 55,
+                                confidence: "High", soldListingsCount: 0,
+                                listingTitle: "T", listingDescription: "D")
+        let store = MockPurchaseService()
+        XCTAssertTrue(ScanView.resultView(for: find, purchaseService: store,
+                                          saved: true, revealed: false) {}.isFreshScan)
+        let reopened = ["My Finds": HistoryView.resultView(for: find, purchaseService: store) {},
+                        "My Flips": FlipsView.resultView(for: find, purchaseService: store) {}]
+        for (screen, sheet) in reopened {
+            XCTAssertFalse(sheet.isFreshScan, "\(screen) reopens saved finds")
+            XCTAssertFalse(sheet.offersTagReread, "\(screen) would re-price a find the user has acted on")
         }
     }
 
@@ -7631,18 +7633,19 @@ final class SettingsEntitlementObservationTests: XCTestCase {
         }
     }
 
-    func test_theRateRowDoesNotSpendASystemPrompt() throws {
+    @MainActor
+    func test_theRateRowDoesNotSpendASystemPrompt() {
         // `requestReview()` asks the system to *maybe* show a prompt — roughly
         // three per year per app, ignored otherwise with no error and no
         // callback — and `ReviewPrompt` already spends that quota on its own,
         // after a revealed estimate once three scans are in. So for every
         // engaged user, the only kind who goes looking for the row, tapping it
-        // did nothing.
-        let settings = try source("Views/SettingsView.swift")
-        XCTAssertTrue(settings.contains("action=write-review"),
-                      "the row must open the review composer")
-        XCTAssertFalse(settings.contains("requestReview()"),
-                       "back to the API that silently drops the call")
+        // did nothing. The row opens the review composer instead, every time.
+        let vm = SettingsViewModel()
+        var opened: [URL] = []
+        vm.open = { opened.append($0) }
+        vm.rateApp()
+        XCTAssertEqual(opened.map(\.absoluteString), ["\(Config.appStoreURL)?action=write-review"])
     }
 
     func test_settingsReadsTheEntitlementAsAValueItCanObserve() throws {
@@ -8493,41 +8496,44 @@ final class RetentionFunnelTests: XCTestCase {
 
     // ── Where they fire ─────────────────────────────────────────────────────
 
-    /// Source-inspected: the paywall's `onAppear` is where `paywall_viewed`
-    /// is built, and the fix is which `ScanTally` question it asks.
-    func test_thePaywallAsksWhetherThisIsTheFirstRunNotTheFirstScan() throws {
-        let source = try String(
-            contentsOf: URL(fileURLWithPath: #filePath)
-                .deletingLastPathComponent()
-                .deletingLastPathComponent()
-                .appendingPathComponent("SnapWorth/Views/PaywallView.swift"),
-            encoding: .utf8)
-        XCTAssertTrue(source.contains("isFirst: ScanTally.isFirstRun()"))
-        XCTAssertFalse(source.contains("ScanTally.isFirstScan()"),
-                       "both first-run paywalls open after the first scan is recorded")
+    /// Both first-run paywalls open after the first result has been recorded,
+    /// when `isFirstScan()` is already false, so `paywall_viewed{is_first}`
+    /// asks whether this is the first run.
+    @MainActor
+    func test_thePaywallAsksWhetherThisIsTheFirstRunNotTheFirstScan() {
+        ScanEntryPoints.isolateDefaults(in: self)
+        UserDefaults.standard.removeObject(forKey: ScanTally.countKey)
+        ScanTally.record()
+        XCTAssertFalse(ScanTally.isFirstScan())
+        let spy = FunnelSpy()
+        Analytics.shared.configure(spy)
+
+        let vm = PaywallViewModel()
+        vm.didAppear(trigger: .scanLimit)
+        vm.didDisappear(trigger: .scanLimit)
+
+        XCTAssertEqual(spy.params(for: "paywall_viewed")?["is_first"], "true")
     }
 
-    /// Source-inspected, like the repo's other "a modifier that must be there"
-    /// tests: a purchase also dismisses the sheet, and counting that as a
-    /// dismissal would put every conversion on both sides of the rate. Nothing
-    /// in-process can assert what SwiftUI's `onDisappear` closure did.
-    func test_aPurchaseIsNotCountedAsAPaywallDismissal() throws {
-        let source = try String(
-            contentsOf: URL(fileURLWithPath: #filePath)
-                .deletingLastPathComponent()
-                .deletingLastPathComponent()
-                .appendingPathComponent("SnapWorth/Views/PaywallView.swift"),
-            encoding: .utf8)
+    /// A purchase also closes the sheet, and counting that as a dismissal would
+    /// put every conversion on both sides of the look-to-buy rate.
+    @MainActor
+    func test_aPurchaseIsNotCountedAsAPaywallDismissal() async {
+        let spy = FunnelSpy()
+        Analytics.shared.configure(spy)
+        var dismissals: Int { spy.events.filter { $0.name == "paywall_dismissed" }.count }
 
-        guard let disappear = source.range(of: ".onDisappear {"),
-              let end = source.range(of: "\n        }", range: disappear.upperBound..<source.endIndex)
-        else { return XCTFail("could not locate the paywall's onDisappear") }
+        let closed = PaywallViewModel()
+        closed.didAppear(trigger: .scanLimit)
+        closed.didDisappear(trigger: .scanLimit)
+        XCTAssertEqual(dismissals, 1, "closed without buying")
 
-        let body = String(source[disappear.upperBound..<end.lowerBound])
-        XCTAssertTrue(body.contains("paywallDismissed"),
-                      "the dismissal event left onDisappear")
-        XCTAssertTrue(body.contains("!vm.isPurchaseComplete"),
-                      "a completed purchase would be counted as a dismissal too")
+        let bought = PaywallViewModel()
+        bought.didAppear(trigger: .scanLimit)
+        await bought.purchase(service: ResyncStub(subscribed: false, resync: .confirmed), trigger: .scanLimit)
+        XCTAssertTrue(bought.isPurchaseComplete)
+        bought.didDisappear(trigger: .scanLimit)
+        XCTAssertEqual(dismissals, 1, "a purchase was counted as a dismissal")
     }
 
     /// Thrift Flip emitted `scan_completed` and `scan_failed` but never
@@ -8553,41 +8559,30 @@ final class RetentionFunnelTests: XCTestCase {
 
     /// `ResultView` serves three call sites: a fresh scan, My Finds, and the
     /// ledger. Only the first is a funnel event — left ungated, browsing your
-    /// own library would inflate `scan_result_shown` without limit.
-    @MainActor func test_onlyAFreshScanReportsItsResultAsShown() throws {
-        func source(_ path: String) throws -> String {
-            try String(contentsOf: URL(fileURLWithPath: #filePath)
-                .deletingLastPathComponent()
-                .deletingLastPathComponent()
-                .appendingPathComponent(path), encoding: .utf8)
-        }
-
-        XCTAssertTrue(try source("SnapWorth/Views/ScanView.swift").contains("isFreshScan: true"),
-                      "the scan path no longer marks its own result as fresh")
-        // A rare find's reveal has already put this valuation on screen and
-        // reported it — once, from the reveal — and the full result after it
-        // is told so, rather than told it is not fresh.
-        XCTAssertTrue(try source("SnapWorth/Views/ScanView.swift").contains("priceAlreadyShown: vm.rareFindReveal != nil"),
-                      "the full result after a reveal would report the valuation a second time")
-        XCTAssertTrue(try source("SnapWorth/Views/RareFindViews.swift").contains(".scanResultShown(isFirst:"),
-                      "a rare find's reveal shows the real estimate but does not report it")
-        for browsing in ["SnapWorth/Views/HistoryView.swift",
-                         "SnapWorth/Views/FlipsView.swift"] {
-            XCTAssertFalse(try source(browsing).contains("isFreshScan"),
-                           "\(browsing) reopens saved finds — it must not report them as scans")
-        }
-        let result = ScanResult(itemName: "Item", brand: "B", category: "clothing",
-                                conditionNotes: "Good", valueLow: 40, valueHigh: 60,
+    /// own library would inflate `scan_result_shown` without limit. A rare
+    /// find's reveal reports the valuation it shows, once, and the full result
+    /// after it does not report it again.
+    @MainActor func test_onlyAFreshScanReportsItsResultAsShown() {
+        let result = ScanResult(itemName: "Levi's 501", brand: "Levi's", category: "clothing",
+                                conditionNotes: "Good", valueLow: 28, valueHigh: 55,
                                 confidence: "High", soldListingsCount: 0,
                                 listingTitle: "T", listingDescription: "D")
         let store = MockPurchaseService()
-        XCTAssertTrue(ResultView(result: result, purchaseService: store, onDismiss: {},
-                                 isFreshScan: true).reportsScanResultShown)
-        XCTAssertFalse(ResultView(result: result, purchaseService: store, onDismiss: {},
-                                  priceAlreadyShown: true, isFreshScan: true).reportsScanResultShown,
-                       "a rare find's reveal has already reported it")
-        XCTAssertFalse(ResultView(result: result, purchaseService: store, onDismiss: {})
-                        .reportsScanResultShown, "a reopened find is not a scan")
+        XCTAssertTrue(ScanView.resultView(for: result, purchaseService: store,
+                                          saved: true, revealed: false) {}.reportsScanResultShown)
+        XCTAssertFalse(ScanView.resultView(for: result, purchaseService: store,
+                                           saved: true, revealed: true) {}.reportsScanResultShown,
+                       "the full result after a reveal would report the valuation a second time")
+        for reopened in [HistoryView.resultView(for: result, purchaseService: store) {},
+                         FlipsView.resultView(for: result, purchaseService: store) {}] {
+            XCTAssertFalse(reopened.reportsScanResultShown, "a reopened find is not a scan")
+        }
+
+        let spy = FunnelSpy()
+        Analytics.shared.configure(spy)
+        RareFindRevealView.reportReveal()
+        XCTAssertEqual(spy.events.map(\.name), ["scan_result_shown", "rare_find_easter_egg_shown"],
+                       "a rare find's reveal shows the real estimate and must report it")
     }
 
     /// The spy proves the envelope: name and parameters reach a backend intact.

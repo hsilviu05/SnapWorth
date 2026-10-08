@@ -579,20 +579,27 @@ struct ScanView: View {
                     // stay true: it is still a fresh result, with "Sharpen this
                     // estimate", the tag re-read and the full breakdown on
                     // offer, and the rating request after the number.
-                    ResultView(
-                        result: result,
-                        purchaseService: purchaseService,
-                        onDismiss: { showResult = false },
-                        didSave: !vm.saveFailed,
-                        coverPrice: true,
-                        priceAlreadyShown: vm.rareFindReveal != nil,
-                        isFreshScan: true
-                    )
+                    Self.resultView(for: result, purchaseService: purchaseService,
+                                    saved: !vm.saveFailed, revealed: vm.rareFindReveal != nil) {
+                        showResult = false
+                    }
                 }
             }
             .presentationDetents([.large])
             .presentationDragIndicator(.visible)
         }
+    }
+
+    /// The sheet for a scan just made: a fresh result, which plays the guess
+    /// cover, offers both re-reads and asks for a rating after the number.
+    /// `revealed`: a rare find's reveal has already shown the estimate and
+    /// reported it (`priceAlreadyShown`).
+    static func resultView(for result: ScanResult, purchaseService: any PurchaseService,
+                           saved: Bool, revealed: Bool,
+                           onDismiss: @escaping () -> Void) -> ResultView {
+        ResultView(result: result, purchaseService: purchaseService, onDismiss: onDismiss,
+                   didSave: saved, coverPrice: true, priceAlreadyShown: revealed,
+                   isFreshScan: true)
     }
 
     /// The analysing overlay, or the rare-find appraisal that stands in for it

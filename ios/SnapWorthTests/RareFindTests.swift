@@ -539,30 +539,25 @@ final class RareFindWatchTests: XCTestCase {
 }
 
 // MARK: - Rare find: what the joke leaves alone
-//
-// Wiring that only a whole scan exercises, and a scan needs the network — so
-// these read the source, as ProductionHardeningTests does for the funnel.
 
 final class RareFindWiringTests: XCTestCase {
 
-    private func source(_ path: String) throws -> String {
-        try String(contentsOf: URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .appendingPathComponent(path), encoding: .utf8)
-    }
-
-    /// The full result after a reveal is the full result: `coverPrice` also
-    /// offers "Sharpen this estimate", so the reveal lifts the guess cover
-    /// with a parameter of its own rather than by turning `coverPrice` off.
-    /// The same for `isFreshScan`, which also offers the tag re-read and the
-    /// full breakdown (`FullDetailOffer`).
-    func test_theFullResultAfterAReveal_stillOffersToSharpenTheEstimate() throws {
-        let scanView = try source("SnapWorth/Views/ScanView.swift")
-        XCTAssertTrue(scanView.contains("coverPrice: true,"))
-        XCTAssertTrue(scanView.contains("priceAlreadyShown: vm.rareFindReveal != nil"))
-        XCTAssertFalse(scanView.contains("coverPrice: vm.rareFindReveal"))
-        XCTAssertFalse(scanView.contains("isFreshScan: vm.rareFindReveal"))
+    /// The full result after a reveal is the full result: still a fresh scan,
+    /// so it offers "Sharpen this estimate" (`offersTagReread`), the full
+    /// breakdown and the rating request. What the reveal changes it changes
+    /// through `priceAlreadyShown` alone: the guess cover starts lifted and
+    /// `scan_result_shown`, which the reveal has sent, is not sent again.
+    @MainActor
+    func test_theFullResultAfterAReveal_stillOffersToSharpenTheEstimate() {
+        let result = ScanResult(itemName: "Levi's 501", brand: "Levi's", category: "clothing",
+                                conditionNotes: "Good", valueLow: 28, valueHigh: 55,
+                                confidence: "High", soldListingsCount: 0,
+                                listingTitle: "T", listingDescription: "D")
+        let sheet = ScanView.resultView(for: result, purchaseService: MockPurchaseService(),
+                                        saved: true, revealed: true) {}
+        XCTAssertTrue(sheet.isFreshScan)
+        XCTAssertTrue(sheet.offersTagReread, "no Sharpen this estimate after a reveal")
+        XCTAssertFalse(sheet.reportsScanResultShown)
     }
 }
 

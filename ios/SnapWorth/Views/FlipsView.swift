@@ -40,7 +40,7 @@ struct FlipsView: View {
         }
         .onAppear { Analytics.shared.track(.ledgerDashboardViewed) }
         .sheet(item: $selectedItem) { item in
-            ResultView(result: item, purchaseService: purchaseService, onDismiss: { selectedItem = nil })
+            Self.resultView(for: item, purchaseService: purchaseService) { selectedItem = nil }
         }
         .sheet(isPresented: $showPaywall) {
             PaywallView(purchaseService: purchaseService, trigger: paywallTrigger)
@@ -527,6 +527,12 @@ struct FlipsView: View {
         Analytics.shared.track(.ledgerPaywallHit(trigger: trigger))
         paywallTrigger = trigger
         showPaywall = true
+    }
+
+    /// A flip reopened from the ledger, as `HistoryView.resultView`.
+    static func resultView(for result: ScanResult, purchaseService: any PurchaseService,
+                           onDismiss: @escaping () -> Void) -> ResultView {
+        ResultView(result: result, purchaseService: purchaseService, onDismiss: onDismiss)
     }
 }
 
