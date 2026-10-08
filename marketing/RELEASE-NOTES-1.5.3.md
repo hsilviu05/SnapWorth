@@ -30,7 +30,9 @@ would start minting codes that its own policy says it doesn't keep.
 | [#306](https://github.com/hsilviu05/SnapWorth/pull/306) | The in-app privacy policy discloses shared sales, and says an invite code is made for every device once Invite a friend is available. Dated October 6, 2026, the same as `/privacy` | Yes, in Settings → Privacy Policy |
 | [#288](https://github.com/hsilviu05/SnapWorth/pull/288)–[#293](https://github.com/hsilviu05/SnapWorth/pull/293) | ResultView split into sections with explicit inputs, in six stages (#229). The intent is no visual change | No, if the walkthrough below passes |
 | [#311](https://github.com/hsilviu05/SnapWorth/pull/311) | `haulWait` counts polls rather than wall-clock time, so a slow CI runner can't fail `HaulSessionTests` (#299) | No, tests only |
-| this PR | `chore: 1.5.3, build 23`, a lower bound for 23, not the build | No |
+| [#313](https://github.com/hsilviu05/SnapWorth/pull/313) | `chore: 1.5.3, build 23`, a lower bound for 23, not the build | No |
+| [#320](https://github.com/hsilviu05/SnapWorth/pull/320) | A flip's money stays in its own currency everywhere it is printed: My Flips rows, header, Invested and monthly bars total per currency instead of adding lei to dollars; the share cards, the Profit widget (blob v5, `monthProfitParts`), the CSV (a last Currency column) and the photo export name it; VoiceOver reads it (audit M1). A one-currency ledger looks as before apart from the symbol | **Yes**, outside the US |
+| [#326](https://github.com/hsilviu05/SnapWorth/pull/326) | `detachedCopy()` keeps a sold flip's `saleCurrency` and `outcomeID` (no caller copies a sold flip yet, so no user has hit it); paywall plan cards are redacted and disabled together; scan, listing and paywall paths take injected requests so their tests run the code (audit L6) | No |
 
 ### Server and website (deployed on merge; already serving 22)
 
@@ -42,6 +44,9 @@ would start minting codes that its own policy says it doesn't keep.
 | [#306](https://github.com/hsilviu05/SnapWorth/pull/306) | `/privacy`, the web copy of the policy change above |
 | [#295](https://github.com/hsilviu05/SnapWorth/pull/295), [#300](https://github.com/hsilviu05/SnapWorth/pull/300), [#303](https://github.com/hsilviu05/SnapWorth/pull/303), [#305](https://github.com/hsilviu05/SnapWorth/pull/305), [#307](https://github.com/hsilviu05/SnapWorth/pull/307), [#308](https://github.com/hsilviu05/SnapWorth/pull/308) | notify.py split (#230), no behaviour change |
 | [#302](https://github.com/hsilviu05/SnapWorth/pull/302), [#304](https://github.com/hsilviu05/SnapWorth/pull/304) | RUNBOOK: Redis runs with AOF and RDB on its volume (#207) |
+| [#310](https://github.com/hsilviu05/SnapWorth/pull/310), [#314](https://github.com/hsilviu05/SnapWorth/pull/314) | Confidence calibrator behind `CONFIDENCE_CALIBRATION`, with the in-range event (#226). **Unset in production**, so served scores are unchanged |
+| [#316](https://github.com/hsilviu05/SnapWorth/pull/316), [#317](https://github.com/hsilviu05/SnapWorth/pull/317), [#318](https://github.com/hsilviu05/SnapWorth/pull/318) | notify.py split continued: `/costs`, the levers and `/minbuild`, `/experiment` and `/paywall` (#230), no behaviour change |
+| [#319](https://github.com/hsilviu05/SnapWorth/pull/319) | Audit fixes: App Attest success-path tests, one-use auth challenges (atomic `take`), sale-sharing naming fields normalised to known values, a per-address referral claim cap (dormant while referrals are off) |
 
 ### Repository only
 
@@ -50,6 +55,9 @@ would start minting codes that its own policy says it doesn't keep.
 | [#286](https://github.com/hsilviu05/SnapWorth/pull/286) | The accuracy gate is armed: fail closed, private photos, pinned config, weekly run (#215) |
 | [#309](https://github.com/hsilviu05/SnapWorth/pull/309) | Calibration tools: Platt scaling and a per-band reliability table (#226, part 1) |
 | [#312](https://github.com/hsilviu05/SnapWorth/pull/312) | Per-region scoring in dollars from a pinned ECB table (#225) |
+| [#315](https://github.com/hsilviu05/SnapWorth/pull/315) | ECE and the reliability table on the in-range event (#226) |
+| [#321](https://github.com/hsilviu05/SnapWorth/pull/321) | Backend runs on `main` are serialised in push order, so the newest merge is the one that deploys |
+| [#322](https://github.com/hsilviu05/SnapWorth/pull/322), [#325](https://github.com/hsilviu05/SnapWorth/pull/325) | `AUDIT-2026-10-07.md`; RUNBOOK records the production config verified on 2026-10-07 (#207); simulator walkthroughs in `docs/walkthroughs/2026-10-08` |
 
 ### Not in this build
 
@@ -175,6 +183,24 @@ open an issue for the failure that names the build its fix needs.
 - [ ] Paid, sold, fees and profit all show the chosen symbol, and a flip
       from 22 (no currency stored) still reads as before.
 
+### Currency across flips ([#320](https://github.com/hsilviu05/SnapWorth/pull/320))
+
+The Simulator run in Romanian already passed (`docs/walkthroughs/2026-10-08`,
+`320-currency-romania.jpg`). These need a phone, because they mix currencies
+and use the real widget:
+
+- [ ] Two sold flips, one RON and one USD: My Flips' header, Invested and the
+      month's bar print "+… lei · +$…" (the phone's own currency first) and
+      never one summed figure. The best flip is chosen within a currency.
+- [ ] The Profit widget, removed and re-added first, prints both currencies,
+      and is red only when both are a loss.
+- [ ] The month share card and a sold result's share card print the paid
+      price in its own currency; a "2x find" badge appears only when both
+      figures are dollars.
+- [ ] Export CSV: the last column is Currency. The photo export's JSON has
+      `currency` for a flip that chose one.
+- [ ] VoiceOver reads a lei profit as lei, not dollars.
+
 ### ResultView walkthrough (#229 acceptance)
 
 Compare against 22 side by side, on a fresh scan and on a reopened find, as
@@ -183,7 +209,15 @@ listed or sold with profit, Add the tag (camera and library), Why this price
 (teaser, re-read, "scanned before Pro"), Snap → Sell generate, copy and
 share, listing-photo cleanup, and the share card.
 
-- [ ] Nothing differs. Attach the screenshots to #229 and close it.
+The free path is done: a Simulator run of the build before the split
+against `main` showed no layout differences
+(`docs/walkthroughs/2026-10-08/README.md`). What is left is the Pro states,
+which need Xcode's StoreKit configuration: run the `SnapWorth (Mock scans)`
+scheme from Xcode, buy Pro, then walk Why this price (unlocked), Add the tag
+(camera and library), Snap → Sell (generate, copy, share) and listing-photo
+cleanup.
+
+- [ ] Nothing differs in the Pro states. Attach the screenshots to #229 and close it.
 
 ### Privacy policy (#306)
 
