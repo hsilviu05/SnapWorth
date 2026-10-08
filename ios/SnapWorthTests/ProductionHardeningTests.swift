@@ -420,6 +420,69 @@ final class TLSRefusalMappingTests: XCTestCase {
     }
 }
 
+// MARK: - The two camera-side scan paths, run
+//
+// `ScanViewModel.startScan` and `ThriftFlipViewModel.scanItem` called
+// `ScanAPIClient.shared` directly, so what they do around the request — a 402
+// that is the paywall, the background activity, the subscriber re-send, the
+// funnel's first event — was asserted by reading their source. Each takes the
+// request as `scanner` now, and those rules are run instead.
+
+/// Drives one scan down either path with the request replaced.
+@MainActor
+enum ScanEntryPoints {
+    enum Path: String, CaseIterable { case camera, thriftFlip }
+
+    /// What the screen shows once the scan is over.
+    struct Shown {
+        var result: ScanResult?
+        var showPaywall: Bool
+        var subscriptionUnconfirmed: Bool
+    }
+
+    /// A scan writes the free-scan count, the tally, the streak and the review
+    /// count to the standard defaults; all of it is put back when `test` ends.
+    static func isolateDefaults(in test: XCTestCase) {
+        let domain = Bundle.main.bundleIdentifier ?? "app.snapworth"
+        let saved = UserDefaults.standard.persistentDomain(forName: domain) ?? [:]
+        test.addTeardownBlock {
+            UserDefaults.standard.setPersistentDomain(saved, forName: domain)
+        }
+    }
+
+    static func repository() throws -> ScanRepository {
+        let container = try ModelContainer(for: ScanResult.self,
+                                           configurations: ModelConfiguration(isStoredInMemoryOnly: true))
+        return ScanRepository(context: ModelContext(container))
+    }
+
+    static func scan(_ path: Path, purchaseService: any PurchaseService, repository: ScanRepository,
+                     answer: @escaping (UIImage) async throws -> ScanAPIResponse) async -> Shown {
+        switch path {
+        case .camera:
+            let vm = ScanViewModel()
+            vm.scanner = answer
+            await vm.startScan(image: HaulFixtures.photo(), purchaseService: purchaseService,
+                               repository: repository)
+            return Shown(result: vm.scanResult, showPaywall: vm.showPaywall,
+                         subscriptionUnconfirmed: vm.showSubscriptionUnconfirmed)
+        case .thriftFlip:
+            let vm = ThriftFlipViewModel()
+            vm.scanner = answer
+            await vm.scanItem(image: HaulFixtures.photo(), purchaseService: purchaseService,
+                              repository: repository)
+            return Shown(result: vm.scanResult, showPaywall: vm.showPaywall,
+                         subscriptionUnconfirmed: vm.showSubscriptionUnconfirmed)
+        }
+    }
+
+    /// Answers each call with the next item of `script`.
+    static func answers(_ script: [Result<ScanAPIResponse, Error>]) -> (UIImage) async throws -> ScanAPIResponse {
+        var remaining = script
+        return { _ in try remaining.removeFirst().get() }
+    }
+}
+
 // MARK: - 402 routing
 //
 // The backend returns 402 both for a spent free allowance and for a Pro-only
@@ -474,22 +537,24 @@ final class PaymentRequiredMappingTests: XCTestCase {
         }
     }
 
-    /// Source-level, because both scans go through `ScanAPIClient.shared`,
-    /// which a unit test cannot make answer 402. Thrift Flip opened the
-    /// paywall on a 402 and left the counter alone, so the Scan tab and the
-    /// widget kept advertising a free scan the server had just refused.
-    func test_bothScanEntryPointsZeroTheCounterWhenTheServerRefuses() throws {
-        let root = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent().deletingLastPathComponent()
-            .appendingPathComponent("SnapWorth/ViewModels")
-        for name in ["ScanViewModel.swift", "ThriftFlipViewModel.swift"] {
-            let file = try String(contentsOf: root.appendingPathComponent(name), encoding: .utf8)
-            let start = try XCTUnwrap(file.range(of: "if appError.isPaywall {"), name)
-            let end = try XCTUnwrap(file.range(of: "showPaywall = true",
-                                               range: start.upperBound..<file.endIndex), name)
-            XCTAssertTrue(file[start.upperBound..<end.lowerBound]
-                            .contains("FreeScanCounter.serverRemaining = 0"),
-                          "\(name) opens the paywall on a 402 without zeroing the count")
+    /// Both entry points reconcile the count where the server refuses. The
+    /// local count can still read "1 left" here — that skew is how the request
+    /// got past the pre-flight gate — and the paywall used to open with the
+    /// top bar and the widget still advertising the scan just refused.
+    @MainActor
+    func test_bothScanEntryPointsZeroTheCounterWhenTheServerRefuses() async throws {
+        ScanEntryPoints.isolateDefaults(in: self)
+        let refused = ScanAPIError.serverError(402, "You've used today's free scan.")
+        for path in ScanEntryPoints.Path.allCases {
+            FreeScanCounter.serverRemaining = 1
+            let shown = await ScanEntryPoints.scan(
+                path, purchaseService: MockPurchaseService(),
+                repository: try ScanEntryPoints.repository(),
+                answer: ScanEntryPoints.answers([.failure(refused)]))
+            XCTAssertTrue(shown.showPaywall, path.rawValue)
+            XCTAssertEqual(FreeScanCounter.serverRemaining, 0,
+                           "\(path.rawValue) opens the paywall on a 402 without zeroing the count")
+            XCTAssertFalse(FreeScanCounter.hasRemaining, path.rawValue)
         }
     }
 }
@@ -1727,22 +1792,24 @@ final class ScanPersistenceFailureTests: XCTestCase {
         }
     }
 
-    func test_resultIsPresentedBeforePersistenceIsAttempted() {
-        // The ordering is the fix. `scanResult` must be assigned before the
-        // save, so no persistence outcome can prevent the result being shown.
-        let source = try! String(
-            contentsOf: URL(fileURLWithPath: #filePath)
-                .deletingLastPathComponent()
-                .deletingLastPathComponent()
-                .appendingPathComponent("SnapWorth/ViewModels/ScanViewModel.swift"),
-            encoding: .utf8)
+    func test_resultIsPresentedBeforePersistenceIsAttempted() async throws {
+        // No save outcome may take the result away: the server charged for
+        // this valuation when it answered. A fallback launch is a save failure
+        // a test can cause for real — `save` throws `storeUnavailable` before
+        // any insert — so the scan is run on one.
+        ScanEntryPoints.isolateDefaults(in: self)
+        AppLaunchState.recordPersistentStoreFallback(CocoaError(.fileReadCorruptFile))
+        defer { AppLaunchState.reset() }
 
-        let assignIndex = source.range(of: "scanResult = result")?.lowerBound
-        let saveIndex = source.range(of: "try repository.save(result)")?.lowerBound
-        XCTAssertNotNil(assignIndex)
-        XCTAssertNotNil(saveIndex)
-        XCTAssertLessThan(assignIndex!, saveIndex!,
-                          "scanResult must be assigned BEFORE the save is attempted")
+        let vm = ScanViewModel()
+        vm.scanner = ScanEntryPoints.answers([.success(HaulFixtures.response("Off-White Out of Office"))])
+        await vm.startScan(image: HaulFixtures.photo(),
+                           purchaseService: MockPurchaseService(forcedSubscribed: true),
+                           repository: try ScanEntryPoints.repository())
+
+        XCTAssertEqual(vm.scanResult?.itemName, "Off-White Out of Office",
+                       "a failed save took the result away")
+        XCTAssertTrue(vm.saveFailed, "the sheet must say the result was not kept")
     }
 
     func test_saveFailureFlagStartsClearAndResets() {
@@ -1983,93 +2050,111 @@ final class PersistentStoreFallbackTests: XCTestCase {
 }
 
 /// Finding C — Snap → Sell adoption must count successes, not attempts.
+///
+/// Run against `ResultViewModel.listingGenerator`. These read the method's
+/// source while the request could not be replaced, which pinned its wording
+/// rather than what it does.
+@MainActor
 final class ListingAnalyticsOrderingTests: XCTestCase {
 
-    func test_listingGeneratedFiresAfterSuccessNotBefore() {
-        // Ordering is the fix: the track call must sit after the assignment
-        // that only happens on success, so a timeout cannot be counted as a
-        // generated listing.
-        let source = try! String(
-            contentsOf: URL(fileURLWithPath: #filePath)
-                .deletingLastPathComponent()
-                .deletingLastPathComponent()
-                .appendingPathComponent("SnapWorth/ViewModels/ResultViewModel.swift"),
-            encoding: .utf8)
+    private var spy = ListingEventSpy()
 
-        guard let body = source.range(of: "func generateListing") else {
-            return XCTFail("generateListing not found")
-        }
-        let scope = String(source[body.lowerBound...])
-
-        let assign = scope.range(of: "generatedListing = listing")?.lowerBound
-        let track = scope.range(of: ".listingGenerated(")?.lowerBound
-        XCTAssertNotNil(assign)
-        XCTAssertNotNil(track)
-        XCTAssertLessThan(assign!, track!,
-                          "listingGenerated must fire only after a successful generation")
+    override func setUp() {
+        super.setUp()
+        spy = ListingEventSpy()
+        Analytics.shared.configure(spy)
     }
 
-    func test_aStaleListingResponseIsDroppedNotInstalled() {
-        // Neither the marketplace chip nor the condition chip is disabled
-        // while a generation is in flight — only the Generate button is — and
-        // both clear the draft on the way out. So the user could tap Vinted,
-        // watch the eBay draft correctly disappear, and then see it reinstate
-        // itself when the in-flight response landed: eBay's voice under the
-        // Vinted chip, at eBay's Ask and Floor, behind an "Open eBay" button.
-        //
-        // Source-inspected because the property is an *ordering* one, like its
-        // neighbour above: the guard has to sit between the await and the
-        // assignment, and a test that drives the happy path cannot show that.
-        // Matched on a string that cannot occur in prose, so the explanatory
-        // comment beside the guard cannot satisfy this by accident — the
-        // mistake a source-inspecting test in SnapWorthTests made earlier.
-        let source = try! String(
-            contentsOf: URL(fileURLWithPath: #filePath)
-                .deletingLastPathComponent()
-                .deletingLastPathComponent()
-                .appendingPathComponent("SnapWorth/ViewModels/ResultViewModel.swift"),
-            encoding: .utf8)
-
-        guard let body = source.range(of: "func generateListing") else {
-            return XCTFail("generateListing not found")
-        }
-        let scope = String(source[body.lowerBound...])
-
-        let needle = "guard requested == selectedMarketplace,"
-        let guards = scope.components(separatedBy: needle).count - 1
-        XCTAssertEqual(guards, 2,
-                       "both the success and the failure path must drop a stale response")
-
-        guard let firstGuard = scope.range(of: needle)?.lowerBound,
-              let assign = scope.range(of: "generatedListing = listing")?.lowerBound else {
-            return XCTFail("the guard or the assignment is missing")
-        }
-        XCTAssertLessThan(firstGuard, assign,
-                          "the staleness test must run before the listing is installed")
-
-        // And the request must be pinned before the await, not read back from
-        // live state afterwards — which is the whole defect.
-        guard let pin = scope.range(of: "let requested = selectedMarketplace")?.lowerBound,
-              let call = scope.range(of: "try await ListingAPIClient")?.lowerBound else {
-            return XCTFail("the pinned marketplace is missing")
-        }
-        XCTAssertLessThan(pin, call)
+    private func find() -> ScanResult {
+        ScanResult(itemName: "Levi's 501", brand: "Levi's", category: "clothing",
+                   conditionNotes: "Good", valueLow: 20, valueHigh: 40, confidence: "High",
+                   soldListingsCount: 0, listingTitle: "T", listingDescription: "D")
     }
 
-    func test_failurePathDoesNotTrackGeneration() {
-        let source = try! String(
-            contentsOf: URL(fileURLWithPath: #filePath)
-                .deletingLastPathComponent()
-                .deletingLastPathComponent()
-                .appendingPathComponent("SnapWorth/ViewModels/ResultViewModel.swift"),
-            encoding: .utf8)
-        guard let catchRange = source.range(of: "listingError = AppError.from(error)") else {
-            return XCTFail("failure path not found")
+    private var generated: [[String: String]] {
+        spy.events.filter { $0.name == "listing_generated" }.map(\.parameters)
+    }
+
+    func test_listingGeneratedFiresAfterSuccessNotBefore() async {
+        // Ordering is the fix: the event goes out once the listing is on
+        // screen, so a timeout cannot be counted as a generated listing.
+        let vm = ResultViewModel()
+        vm.listingGenerator = { _, marketplace in HaulFixtures.listing(marketplace) }
+        var installedWhenSent: Bool?
+        spy.onTrack = { event in
+            if event.name == "listing_generated" { installedWhenSent = vm.generatedListing != nil }
         }
-        // Nothing between entering the catch and setting the error should emit
-        // a generation event.
-        let catchScope = String(source[catchRange.lowerBound...].prefix(200))
-        XCTAssertFalse(catchScope.contains("listingGenerated"))
+        await vm.generateListing(result: find(), purchaseService: MockPurchaseService(forcedSubscribed: true))
+
+        XCTAssertEqual(generated, [["marketplace": Marketplace.ebay.rawValue]])
+        XCTAssertEqual(installedWhenSent, true, "sent before the listing was installed")
+    }
+
+    func test_failurePathDoesNotTrackGeneration() async {
+        let vm = ResultViewModel()
+        vm.listingGenerator = { _, _ in throw AppError.timeout }
+        await vm.generateListing(result: find(), purchaseService: MockPurchaseService(forcedSubscribed: true))
+
+        XCTAssertNil(vm.generatedListing)
+        XCTAssertEqual(vm.listingError, AppError.timeout.errorDescription)
+        XCTAssertEqual(generated, [], "a timeout was counted as a generated listing")
+    }
+
+    /// Neither the marketplace chip nor the condition chip is disabled while
+    /// a generation is in flight — only the Generate button is — and both
+    /// clear the draft on the way out. So the user could tap Vinted, watch the
+    /// eBay draft correctly disappear, and then see it reinstate itself when
+    /// the in-flight response landed: eBay's voice under the Vinted chip, at
+    /// eBay's Ask and Floor, behind an "Open eBay" button. A failure that
+    /// lands late is dropped too: a retry banner under a chip whose own draft
+    /// is fine is noise.
+    func test_aStaleListingResponseIsDroppedNotInstalled() async throws {
+        enum MoveOn: String, CaseIterable { case marketplace, condition }
+        for moveOn in MoveOn.allCases {
+            for succeeds in [true, false] {
+                let label = "\(moveOn.rawValue), \(succeeds ? "success" : "failure")"
+                spy.events.removeAll()
+                let gate = HaulCallGate<GeneratedListing>(mode: .manual) { _ in .success(HaulFixtures.listing()) }
+                let vm = ResultViewModel()
+                vm.listingGenerator = { _, _ in try await gate.call() }
+                let find = find()
+                let request = Task {
+                    await vm.generateListing(result: find,
+                                             purchaseService: MockPurchaseService(forcedSubscribed: true))
+                }
+                let deadline = Date().addingTimeInterval(5)
+                while gate.waiting == 0, Date() < deadline {
+                    try await Task.sleep(for: .milliseconds(1))
+                }
+                XCTAssertEqual(gate.waiting, 1, "\(label): the request never went out")
+
+                switch moveOn {
+                case .marketplace: vm.selectMarketplace(.vinted)
+                case .condition: find.condition = find.condition == .new ? .used : .new
+                }
+                if succeeds {
+                    gate.succeedOldest(HaulFixtures.listing(.ebay))
+                } else {
+                    gate.failOldest(AppError.timeout)
+                }
+                await request.value
+
+                XCTAssertNil(vm.generatedListing, "\(label): the draft for what the user left came back")
+                XCTAssertNil(vm.listingError, "\(label): a retry banner for a request the user left")
+                XCTAssertEqual(generated, [], "\(label): a listing nobody is shown was counted")
+                XCTAssertFalse(vm.isGeneratingListing, label)
+            }
+        }
+    }
+}
+
+private final class ListingEventSpy: AnalyticsService {
+    var events: [AnalyticsEvent] = []
+    /// Called as each event is sent, to read the screen at that moment.
+    var onTrack: ((AnalyticsEvent) -> Void)?
+    func track(_ event: AnalyticsEvent) {
+        events.append(event)
+        onTrack?(event)
     }
 }
 
@@ -6520,35 +6605,40 @@ final class BackgroundScanActivityTests: XCTestCase {
         XCTAssertFalse(activity.isActive)
     }
 
-    /// Source-level: all three paths go through `ScanAPIClient.shared`, which
-    /// a unit test cannot drive. What matters is that each one begins the
-    /// activity and ends it in a `defer`.
-    func test_everyPaidScanPathKeepsItselfAlive() throws {
-        let root = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent().deletingLastPathComponent()
-            .appendingPathComponent("SnapWorth")
-        // ResultView's two re-reads live in ResultViewModel since #229, behind
-        // its injectable `scanner`.
-        for (path, scanCall) in [("ViewModels/ScanViewModel.swift", "ScanAPIClient.shared.scan("),
-                                 ("ViewModels/ThriftFlipViewModel.swift", "ScanAPIClient.shared.scan("),
-                                 ("ViewModels/ResultViewModel.swift", "try await scanner(")] {
-            let file = try String(contentsOf: root.appendingPathComponent(path), encoding: .utf8)
-            var searchFrom = file.startIndex
-            var found = 0
-            while let call = file.range(of: scanCall,
-                                        range: searchFrom..<file.endIndex) {
-                let before = file[file.startIndex..<call.lowerBound]
-                let begin = try XCTUnwrap(before.range(of: "BackgroundScanActivity.begin(",
-                                                       options: .backwards),
-                                          "\(path): a scan with no background activity")
-                XCTAssertTrue(file[begin.upperBound..<call.lowerBound]
-                                .contains("defer { background.end() }"),
-                              "\(path): the activity is never ended")
-                found += 1
-                searchFrom = call.upperBound
+    /// Every paid request is made inside an activity, read from inside the
+    /// request itself, and no activity outlives its scan.
+    func test_everyPaidScanPathKeepsItselfAlive() async throws {
+        ScanEntryPoints.isolateDefaults(in: self)
+        let idle = BackgroundScanActivity.openCount
+        var openDuringRequest: [String: Int] = [:]
+        for path in ScanEntryPoints.Path.allCases {
+            _ = await ScanEntryPoints.scan(path, purchaseService: MockPurchaseService(forcedSubscribed: true),
+                                           repository: try ScanEntryPoints.repository()) { _ in
+                openDuringRequest[path.rawValue] = BackgroundScanActivity.openCount
+                return HaulFixtures.response()
             }
-            XCTAssertGreaterThan(found, 0, path)
         }
+
+        // The sheet's two re-reads, behind `ResultViewModel.scanner`.
+        let full = try JSONDecoder().decode(ScanAPIResponse.self,
+                                            from: ScanContractTests.contractData("scan-response.json"))
+        let vm = ResultViewModel()
+        vm.scanner = { _, tag in
+            openDuringRequest[tag == nil ? "full breakdown" : "tag"] = BackgroundScanActivity.openCount
+            return full
+        }
+        let store = ResyncStub(subscribed: true, resync: .confirmed)
+        await vm.rescanWithTag(UIImage(), photo: UIImage(), result: SubscriberPaywallTests.thinFind(),
+                               purchaseService: store) {}
+        await vm.rereadForFullDetail(offer: .reread, photo: UIImage(),
+                                     result: SubscriberPaywallTests.thinFind(),
+                                     purchaseService: store) {}
+
+        XCTAssertEqual(Set(openDuringRequest.keys), ["camera", "thriftFlip", "tag", "full breakdown"])
+        for (path, open) in openDuringRequest {
+            XCTAssertEqual(open, idle + 1, "\(path) sends its request with no background activity")
+        }
+        XCTAssertEqual(BackgroundScanActivity.openCount, idle, "an activity outlived its scan")
     }
 }
 
@@ -6826,31 +6916,65 @@ final class SubscriberPaywallTests: XCTestCase {
         XCTAssertEqual(syncFailures, ["offline"])
     }
 
-    /// Source-level: these go through `ScanAPIClient.shared` and
-    /// `ListingAPIClient.shared`, which a unit test cannot make answer 402.
-    /// Every request a subscriber can be refused on has to ask first.
-    func test_everyPaidRequestAsksBeforeSellingAPlan() throws {
-        let root = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent().deletingLastPathComponent()
-            .appendingPathComponent("SnapWorth")
-        let calls = [("ViewModels/ScanViewModel.swift", "ScanAPIClient.shared.scan("),
-                     ("ViewModels/ThriftFlipViewModel.swift", "ScanAPIClient.shared.scan("),
-                     ("ViewModels/ResultViewModel.swift", "try await scanner("),
-                     ("ViewModels/ResultViewModel.swift", "ListingAPIClient.shared.generate(")]
-        for (path, call) in calls {
-            let file = try String(contentsOf: root.appendingPathComponent(path), encoding: .utf8)
-            var searchFrom = file.startIndex
-            var found = 0
-            while let site = file.range(of: call, range: searchFrom..<file.endIndex) {
-                let leadStart: String.Index = file.index(site.lowerBound, offsetBy: -160,
-                                                         limitedBy: file.startIndex) ?? file.startIndex
-                let lead: Substring = file[leadStart..<site.lowerBound]
-                XCTAssertTrue(lead.contains("purchaseService.confirmingSubscription {"),
-                              "\(path): \(call) can sell a subscriber their own plan")
-                found += 1
-                searchFrom = site.upperBound
+    /// Every request a subscriber can be refused on is re-sent once their
+    /// subscription has been, before anything offers them a plan. Here the
+    /// server has not heard about the subscription yet: it refuses the first
+    /// request and agrees on the re-send.
+    func test_everyPaidRequestAsksBeforeSellingAPlan() async throws {
+        ScanEntryPoints.isolateDefaults(in: self)
+        let refused = self.refused
+        for path in ScanEntryPoints.Path.allCases {
+            let store = ResyncStub(subscribed: true, resync: .confirmed)
+            let shown = await ScanEntryPoints.scan(
+                path, purchaseService: store, repository: try ScanEntryPoints.repository(),
+                answer: ScanEntryPoints.answers([.failure(refused), .success(HaulFixtures.response())]))
+            XCTAssertNotNil(shown.result, path.rawValue)
+            XCTAssertFalse(shown.showPaywall, "\(path.rawValue) sells a subscriber their own plan")
+            XCTAssertEqual(store.resyncCalls, 1, path.rawValue)
+        }
+
+        // The sheet's two re-reads and its listing.
+        func refusedOnce<T>(then answer: T) -> () async throws -> T {
+            var refusals = 1
+            return {
+                if refusals > 0 { refusals -= 1; throw refused }
+                return answer
             }
-            XCTAssertGreaterThan(found, 0, path)
+        }
+        let full = try JSONDecoder().decode(ScanAPIResponse.self,
+                                            from: ScanContractTests.contractData("scan-response.json"))
+        var applied: [String] = []
+
+        let tagStore = ResyncStub(subscribed: true, resync: .confirmed)
+        let tagRead = ResultViewModel()
+        let tagAnswer = refusedOnce(then: full)
+        tagRead.scanner = { _, _ in try await tagAnswer() }
+        await tagRead.rescanWithTag(UIImage(), photo: UIImage(), result: Self.thinFind(),
+                                    purchaseService: tagStore) { applied.append("tag") }
+        XCTAssertNil(tagRead.tagError)
+        XCTAssertEqual(tagStore.resyncCalls, 1)
+
+        let fullStore = ResyncStub(subscribed: true, resync: .confirmed)
+        let fullRead = ResultViewModel()
+        let fullAnswer = refusedOnce(then: full)
+        fullRead.scanner = { _, _ in try await fullAnswer() }
+        await fullRead.rereadForFullDetail(offer: .reread, photo: UIImage(), result: Self.thinFind(),
+                                           purchaseService: fullStore) { applied.append("full breakdown") }
+        XCTAssertNil(fullRead.fullDetailError)
+        XCTAssertEqual(fullStore.resyncCalls, 2, "once before the scan, as this re-read always is, and once for the 402")
+
+        let listingStore = ResyncStub(subscribed: true, resync: .confirmed)
+        let listing = ResultViewModel()
+        let listingAnswer = refusedOnce(then: HaulFixtures.listing())
+        listing.listingGenerator = { _, _ in try await listingAnswer() }
+        await listing.generateListing(result: Self.thinFind(), purchaseService: listingStore)
+        XCTAssertNotNil(listing.generatedListing, "a subscriber's listing read as a Pro feature")
+        XCTAssertNil(listing.listingError)
+        XCTAssertEqual(listingStore.resyncCalls, 1)
+
+        XCTAssertEqual(applied, ["tag", "full breakdown"])
+        for vm in [tagRead, fullRead, listing] {
+            XCTAssertFalse(vm.showSubscriptionUnconfirmed)
         }
     }
 }
@@ -8409,19 +8533,21 @@ final class RetentionFunnelTests: XCTestCase {
     /// Thrift Flip emitted `scan_completed` and `scan_failed` but never
     /// `scan_started`, so every started-to-completed rate was computed against a
     /// denominator missing that tab's scans. Haul mode (#93) is the third way
-    /// in, and the same denominator.
-    func test_everyScanEntryPointEmitsScanStarted() throws {
-        for file in ["SnapWorth/ViewModels/ScanViewModel.swift",
-                     "SnapWorth/ViewModels/ThriftFlipViewModel.swift",
-                     "SnapWorth/ViewModels/HaulSession.swift"] {
-            let source = try String(
-                contentsOf: URL(fileURLWithPath: #filePath)
-                    .deletingLastPathComponent()
-                    .deletingLastPathComponent()
-                    .appendingPathComponent(file),
-                encoding: .utf8)
-            XCTAssertTrue(source.contains(".scanStarted(isFirst:"),
-                          "\(file) does not report the start of a scan")
+    /// in, and the same denominator: `HaulAnalyticsTests` counts one per photo.
+    @MainActor
+    func test_everyScanEntryPointEmitsScanStarted() async throws {
+        ScanEntryPoints.isolateDefaults(in: self)
+        for path in ScanEntryPoints.Path.allCases {
+            let spy = FunnelSpy()
+            Analytics.shared.configure(spy)
+            _ = await ScanEntryPoints.scan(path, purchaseService: MockPurchaseService(forcedSubscribed: true),
+                                           repository: try ScanEntryPoints.repository(),
+                                           answer: ScanEntryPoints.answers([.success(HaulFixtures.response())]))
+            let names = spy.events.map(\.name)
+            XCTAssertEqual(names.filter { $0 == "scan_started" }.count, 1,
+                           "\(path.rawValue) does not report the start of a scan")
+            XCTAssertLessThan(try XCTUnwrap(names.firstIndex(of: "scan_started")),
+                              try XCTUnwrap(names.firstIndex(of: "scan_completed")), path.rawValue)
         }
     }
 

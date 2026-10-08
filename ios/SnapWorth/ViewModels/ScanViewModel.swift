@@ -98,6 +98,12 @@ final class ScanViewModel {
     var streak: Int { ScanStreak.current() }
 
     // ── Scan trigger ─────────────────────────────────────────────────
+    /// The paid scan. `ScanAPIClient.shared` in the app; a test replaces it,
+    /// as it does `ResultViewModel.scanner`.
+    @ObservationIgnored var scanner: (UIImage) async throws -> ScanAPIResponse = {
+        try await ScanAPIClient.shared.scan(image: $0)
+    }
+
     /// - Parameter afterPurchase: the scan a purchase has just unblocked.
     ///   The purchase tells the server in a detached task, so this one waits
     ///   for the server to have heard first — otherwise the new subscriber's
@@ -154,7 +160,7 @@ final class ScanViewModel {
 
         do {
             let response = try await purchaseService.confirmingSubscription {
-                try await ScanAPIClient.shared.scan(image: image)
+                try await scanner(image)
             }
             // The estimate is in, so the race is decided here: a match that has
             // not landed by now never will, as far as this scan is concerned.
@@ -565,6 +571,11 @@ enum ScanStreak {
 final class BackgroundScanActivity {
     private var identifier: UIBackgroundTaskIdentifier = .invalid
 
+    /// How many are open: begun, and not yet ended by their caller or by
+    /// iOS. UIKit keeps its own list out of reach, so this is what a test
+    /// reads to see a scan hold one for the length of its request.
+    private(set) static var openCount = 0
+
     private init() {}
 
     static func begin(_ name: String) -> BackgroundScanActivity {
@@ -572,6 +583,7 @@ final class BackgroundScanActivity {
         activity.identifier = UIApplication.shared.beginBackgroundTask(withName: name) {
             activity.end()
         }
+        if activity.isActive { openCount += 1 }
         return activity
     }
 
@@ -581,6 +593,7 @@ final class BackgroundScanActivity {
         guard identifier != .invalid else { return }
         UIApplication.shared.endBackgroundTask(identifier)
         identifier = .invalid
+        Self.openCount -= 1
     }
 }
 

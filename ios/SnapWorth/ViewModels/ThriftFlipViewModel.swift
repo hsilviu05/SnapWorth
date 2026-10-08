@@ -50,6 +50,11 @@ final class ThriftFlipViewModel {
     var libraryWarning: String?
 
     // ── Scan the item (respects the shared daily free-scan cap) ─────────────────
+    /// The paid scan, as `ScanViewModel.scanner`.
+    @ObservationIgnored var scanner: (UIImage) async throws -> ScanAPIResponse = {
+        try await ScanAPIClient.shared.scan(image: $0)
+    }
+
     func scanItem(image: UIImage, purchaseService: any PurchaseService,
                   repository: ScanRepository) async {
         guard !isScanningItem else { return }
@@ -88,7 +93,7 @@ final class ThriftFlipViewModel {
 
         do {
             let response = try await purchaseService.confirmingSubscription {
-                try await ScanAPIClient.shared.scan(image: prepared)
+                try await scanner(prepared)
             }
             let storedImage = await storedImageData
             // The only surface that shows the photo is a 64pt header.

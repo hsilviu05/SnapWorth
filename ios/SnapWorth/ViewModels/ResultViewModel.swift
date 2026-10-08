@@ -18,6 +18,11 @@ final class ResultViewModel {
     /// A subscriber's listing was refused 402 even after their subscription
     /// was re-sent — see `PurchaseService.confirmingSubscription`.
     var showSubscriptionUnconfirmed = false
+    /// The listing request. `ListingAPIClient.shared` in the app; a test
+    /// replaces it, as it does `scanner`.
+    @ObservationIgnored var listingGenerator: (ListingInput, Marketplace) async throws -> GeneratedListing = {
+        try await ListingAPIClient.shared.generate($0, marketplace: $1)
+    }
 
     // ── Re-reads: the tag (#88) and the full breakdown (#87) ───────────────
     // Moved out of `ResultView` (#229) so the rules they keep are tested by
@@ -349,7 +354,7 @@ final class ResultViewModel {
             // about gets its 402 — which read, in red under the Pro badge,
             // "This is a Pro feature" to someone paying for Pro.
             let listing = try await purchaseService.confirmingSubscription {
-                try await ListingAPIClient.shared.generate(input, marketplace: requested)
+                try await listingGenerator(input, requested)
             }
             // Stale: the user moved on and has already seen this cleared, so
             // drop it rather than put it back. The `defer` above still resets
