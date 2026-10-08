@@ -1888,7 +1888,9 @@ final class MonthCountTests: XCTestCase {
 
     func test_monthCountDoesNotUseAFullFetch() {
         // The regression this guards: `fetchAll().filter { … }` was O(history)
-        // on the main actor, on the result-presentation path.
+        // on the main actor, on the result-presentation path. Source-level
+        // because the property is the cost: a full fetch counts correctly,
+        // and `test_countsOnlyThisMonth` already runs the count.
         let source = try! String(
             contentsOf: URL(fileURLWithPath: #filePath)
                 .deletingLastPathComponent()
@@ -1908,15 +1910,27 @@ final class MonthCountTests: XCTestCase {
                        "the scan path must not fetch the whole history")
     }
 
-    func test_widgetSyncIsDeferredOffThePresentationPath() {
-        let source = try! String(
-            contentsOf: URL(fileURLWithPath: #filePath)
-                .deletingLastPathComponent()
-                .deletingLastPathComponent()
-                .appendingPathComponent("SnapWorth/Services/ScanRepository.swift"),
-            encoding: .utf8)
-        XCTAssertTrue(source.contains("scheduleWidgetSync"),
-                      "widget aggregation must be deferred, not inline in save")
+    func test_widgetSyncIsDeferredOffThePresentationPath() async throws {
+        // Aggregating the library for the widgets ran inside `save`, on the
+        // result-presentation path. It is debounced: `save` returns with the
+        // widgets untouched, and they catch up a moment later.
+        let suite = try XCTUnwrap(UserDefaults(suiteName: WidgetDataStore.appGroupID))
+        let before = suite.data(forKey: WidgetDataStore.haulKey)
+        addTeardownBlock { suite.set(before, forKey: WidgetDataStore.haulKey) }
+        suite.removeObject(forKey: WidgetDataStore.haulKey)
+
+        let (repository, _) = try repository()
+        try repository.save(result(at: Date()))
+        XCTAssertNil(suite.data(forKey: WidgetDataStore.haulKey), "the widgets were aggregated inside save")
+
+        let deadline = Date().addingTimeInterval(5)
+        while suite.data(forKey: WidgetDataStore.haulKey) == nil, Date() < deadline {
+            try await Task.sleep(for: .milliseconds(50))
+        }
+        let haul = try JSONDecoder().decode(
+            WidgetHaulData.self, from: XCTUnwrap(suite.data(forKey: WidgetDataStore.haulKey),
+                                                 "the widgets never caught up"))
+        XCTAssertEqual(haul.itemCount, 1)
     }
 }
 
@@ -7416,6 +7430,9 @@ final class EntitlementSyncMemoryTests: XCTestCase {
 
     /// The first scan paid for the whole App Attest handshake inside
     /// "Analyzing…", because nothing asked for a token before it did.
+    ///
+    /// Source-level: the prewarm hangs off the app's root view, which a unit
+    /// test does not launch, and App Attest does not run in a simulator.
     func test_theTokenIsMintedBeforeTheFirstScanAsksForIt() throws {
         let app = try String(
             contentsOf: URL(fileURLWithPath: #filePath)
@@ -9093,6 +9110,9 @@ final class ReviewPromptTimingTests: XCTestCase {
                        "asked for a review instead of starting the gap")
     }
 
+    /// The scan path's half is source-level: the request it used to make
+    /// waited on a 1.2 s timer, which a test could only catch by sitting
+    /// out the timer on every run. The sheet's half is run.
     func test_theRequestIsMadeFromTheRevealedResult() throws {
         func source(_ path: String) throws -> String {
             try String(contentsOf: URL(fileURLWithPath: #filePath)
