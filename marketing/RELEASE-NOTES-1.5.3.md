@@ -2,7 +2,9 @@
 
 ## Scope
 
-1.5.2 (22) was approved on 2026-10-07. 1.5.3 (23) is a patch release in
+1.5.2 (22) is **Waiting for Review** (App Store Connect, 2026-10-08), and
+1.5.1 (21) is live. 1.5.3 (23) cannot be submitted until 22 leaves review:
+Apple takes one version at a time. 1.5.3 is a patch release in
 the *Evidence & growth* milestone. It ships early: the roadmap (#233) had it
 for ~10 Dec, and the owner moved the submit to ~Sun/Mon 2026-10-11/12. So it
 carries what merged after 22's archive, and nothing that waits on measured
