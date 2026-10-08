@@ -246,7 +246,7 @@ final class ScanResult {
     /// silently drops a field would show the user a result missing their photo
     /// or their paid price.
     func detachedCopy() -> ScanResult {
-        ScanResult(
+        let copy = ScanResult(
             id: id,
             timestamp: timestamp,
             itemName: itemName,
@@ -272,6 +272,10 @@ final class ScanResult {
             valueHistoryData: valueHistoryData,
             valuationDetailData: valuationDetailData
         )
+        // Not init parameters: both are set once a find is sold or shared.
+        copy.saleCurrency = saleCurrency
+        copy.outcomeID = outcomeID
+        return copy
     }
 
     // ── Condition & re-pricing ─────────────────────────────────────────────────

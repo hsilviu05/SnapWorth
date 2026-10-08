@@ -1696,40 +1696,64 @@ final class ScanPersistenceFailureTests: XCTestCase {
         XCTAssertFalse(copy === original, "a copy, so a rollback cannot reach it")
     }
 
-    func test_detachedCopyCarriesEveryStoredProperty() {
+    func test_detachedCopyCarriesEveryStoredProperty() throws {
         // A copy that silently dropped a field would show the user a result
-        // missing their photo or what they paid. The model's memberwise init
-        // is the list of stored properties, so the copy has to name every
-        // parameter of it.
-        let source = try! String(
-            contentsOf: URL(fileURLWithPath: #filePath)
-                .deletingLastPathComponent()
-                .deletingLastPathComponent()
-                .appendingPathComponent("SnapWorth/Models/ScanResult.swift"),
-            encoding: .utf8)
+        // missing their photo or what they paid. Held to the model's schema,
+        // not its source: this used to compare `detachedCopy` with the init's
+        // parameters, and the two stored properties #224 added are not init
+        // parameters, so the copy dropped both while the test passed.
+        let original = ScanResult(
+            id: UUID(), timestamp: Date(timeIntervalSince1970: 1_790_000_000),
+            itemName: "Levi's 501", brand: "Levi's", category: "clothing",
+            conditionNotes: "Minimal wear", valueLow: 28, valueHigh: 55, confidence: "High",
+            soldListingsCount: 7, listingTitle: "Title", listingDescription: "Description",
+            imageData: Data([1, 2, 3]), paidPrice: 20, statusRaw: FlipStatus.sold.rawValue,
+            listedDate: Date(timeIntervalSince1970: 1_790_100_000), soldPrice: 60,
+            soldDate: Date(timeIntervalSince1970: 1_790_200_000), feesEstimate: 4,
+            notes: "back-room rail", conditionRaw: Condition.likeNew.rawValue,
+            portfolioValueRaw: 41, valueHistoryData: Data([4, 5]), valuationDetailData: Data([6]))
+        original.saleCurrency = "RON"
+        original.outcomeID = "outcome-1"
 
-        guard let initRange = source.range(of: "    init(\n"),
-              let initEnd = source.range(of: "    ) {", range: initRange.lowerBound..<source.endIndex),
-              let copyRange = source.range(of: "func detachedCopy() -> ScanResult {"),
-              let copyEnd = source.range(of: "        )\n    }",
-                                         range: copyRange.lowerBound..<source.endIndex)
-        else { return XCTFail("could not locate init or detachedCopy") }
+        let copy = original.detachedCopy()
 
-        func labels(_ text: String) -> Set<String> {
-            Set(text.split(separator: "\n").compactMap { line in
-                let trimmed = line.trimmingCharacters(in: .whitespaces)
-                guard let colon = trimmed.firstIndex(of: ":") else { return nil }
-                let label = String(trimmed[trimmed.startIndex..<colon])
-                return label.allSatisfy { $0.isLetter || $0.isNumber } ? label : nil
-            })
+        // Every value above differs from what the init would default it to,
+        // so a property the copy drops reads differently here.
+        let carried: [String: (ScanResult, ScanResult) -> Bool] = [
+            "id": { $0.id == $1.id },
+            "timestamp": { $0.timestamp == $1.timestamp },
+            "itemName": { $0.itemName == $1.itemName },
+            "brand": { $0.brand == $1.brand },
+            "category": { $0.category == $1.category },
+            "conditionNotes": { $0.conditionNotes == $1.conditionNotes },
+            "valueLow": { $0.valueLow == $1.valueLow },
+            "valueHigh": { $0.valueHigh == $1.valueHigh },
+            "confidence": { $0.confidence == $1.confidence },
+            "soldListingsCount": { $0.soldListingsCount == $1.soldListingsCount },
+            "listingTitle": { $0.listingTitle == $1.listingTitle },
+            "listingDescription": { $0.listingDescription == $1.listingDescription },
+            "imageData": { $0.imageData == $1.imageData },
+            "paidPrice": { $0.paidPrice == $1.paidPrice },
+            "statusRaw": { $0.statusRaw == $1.statusRaw },
+            "listedDate": { $0.listedDate == $1.listedDate },
+            "soldPrice": { $0.soldPrice == $1.soldPrice },
+            "soldDate": { $0.soldDate == $1.soldDate },
+            "feesEstimate": { $0.feesEstimate == $1.feesEstimate },
+            "notes": { $0.notes == $1.notes },
+            "saleCurrency": { $0.saleCurrency == $1.saleCurrency },
+            "outcomeID": { $0.outcomeID == $1.outcomeID },
+            "conditionRaw": { $0.conditionRaw == $1.conditionRaw },
+            "portfolioValueRaw": { $0.portfolioValueRaw == $1.portfolioValueRaw },
+            "valueHistoryData": { $0.valueHistoryData == $1.valueHistoryData },
+            "valuationDetailData": { $0.valuationDetailData == $1.valuationDetailData },
+        ]
+        let entity = try XCTUnwrap(Schema([ScanResult.self]).entitiesByName["ScanResult"])
+        XCTAssertEqual(Set(carried.keys), Set(entity.storedProperties.map(\.name)),
+                       "a stored property this test does not compare: give it a value above and a row here")
+        for (name, same) in carried.sorted(by: { $0.key < $1.key }) {
+            XCTAssertTrue(same(original, copy), "detachedCopy() drops \(name)")
         }
-
-        let declared = labels(String(source[initRange.upperBound..<initEnd.lowerBound]))
-        let copied = labels(String(source[copyRange.upperBound..<copyEnd.lowerBound]))
-        XCTAssertFalse(declared.isEmpty, "the parser found no init parameters")
-        XCTAssertEqual(declared.subtracting(copied), [],
-                       "detachedCopy() is missing stored properties — a copy " +
-                       "that drops a field shows the user an incomplete result")
+        XCTAssertFalse(copy === original, "a copy, so a rollback cannot reach it")
     }
 
     /// `ScanPersistenceError` must not carry a `ScanResult`.
@@ -1739,36 +1763,12 @@ final class ScanPersistenceFailureTests: XCTestCase {
     /// tempting silencer, `@unchecked Sendable`, would assert something untrue
     /// of a managed model rather than fix anything.
     ///
-    /// Source-inspected because there is nothing to assert at runtime: a
-    /// payload put back would compile, pass every other test, and only show up
-    /// as a warning nobody reads, or as an error the day the project moves to
-    /// Swift 6.
-    func test_thePersistenceErrorCarriesNoModel() throws {
-        let source = try String(
-            contentsOf: URL(fileURLWithPath: #filePath)
-                .deletingLastPathComponent()
-                .deletingLastPathComponent()
-                .appendingPathComponent("SnapWorth/Services/ScanRepository.swift"),
-            encoding: .utf8)
-
-        guard let start = source.range(of: "enum ScanPersistenceError: Error {"),
-              let end = source.range(of: "\n}", range: start.upperBound..<source.endIndex)
-        else { return XCTFail("could not locate ScanPersistenceError") }
-
-        let body = String(source[start.upperBound..<end.lowerBound])
-        let cases = body
-            .split(separator: "\n")
-            .map { $0.trimmingCharacters(in: .whitespaces) }
-            .filter { $0.hasPrefix("case ") }
-
-        XCTAssertEqual(cases.count, 2, "the parser found the wrong thing")
-        for line in cases {
-            XCTAssertFalse(line.contains("("),
-                           "\(line) — a persistence error is the wrong place to " +
-                           "carry a view's display object, and a SwiftData model " +
-                           "makes the enum non-Sendable. The caller takes its own " +
-                           "detachedCopy() before calling save().")
-        }
+    /// The enum is `CaseIterable`, which the compiler synthesises only while no
+    /// case has a payload, so one put back no longer builds. What is left to
+    /// run is what each case means to a caller.
+    func test_thePersistenceErrorCarriesNoModel() {
+        XCTAssertEqual(ScanPersistenceError.allCases.map { AppError.from($0) },
+                       [.persistence, .storageUnavailable])
     }
 
     func test_theRepositoryRollsBackOnEveryFailurePath() {

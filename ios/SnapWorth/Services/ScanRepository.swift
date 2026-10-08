@@ -20,7 +20,11 @@ import SwiftUI
 /// business deciding what a screen shows next. A caller that needs to survive
 /// the rollback takes its own `detachedCopy()` before calling `save` — which is
 /// also where the knowledge of whether it needs one lives.
-enum ScanPersistenceError: Error {
+///
+/// `CaseIterable` holds it there: the compiler synthesises `allCases` only
+/// while no case has a payload, so putting one back is a build error rather
+/// than a concurrency warning nobody reads.
+enum ScanPersistenceError: Error, CaseIterable {
     /// The insert was rolled back, so the row passed to `save` is no longer
     /// registered with any context.
     case saveFailed
