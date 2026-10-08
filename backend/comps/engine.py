@@ -98,8 +98,9 @@ class CompsEngine:
             cached = None
 
         if cached is not None:
-            return finish(self._build(identity, list(cached), window,
-                                      queried=(), failed=(), cache_hit=True))
+            return finish(self._attributed(self._build(
+                identity, list(cached), window,
+                queried=(), failed=(), cache_hit=True)))
 
         eligible = [
             entry for entry in self.registry.eligible(query)
@@ -115,18 +116,38 @@ class CompsEngine:
 
         # Cache raw provider output — including the empty case, which is what
         # stops unidentifiable items re-querying every provider forever.
+        # Stored no longer than the strictest grant among the providers asked:
+        # an empty answer from a provider is still its answer.
+        ceilings = [
+            entry.provider.capabilities.max_cache_seconds for entry in eligible
+            if entry.provider.name in queried
+            and entry.provider.capabilities.max_cache_seconds is not None]
         try:
-            await self.cache.put(identity, window, raw)
+            await self.cache.put(identity, window, raw,
+                                 max_ttl_seconds=min(ceilings, default=None))
         except Exception as exc:
             log.warning("comps cache write failed: %s", exc)
 
-        return finish(replace(
+        return finish(self._attributed(replace(
             self._build(identity, raw, window,
                         queried=queried, failed=failed, cache_hit=False),
-            provider_latency_ms=latencies))
+            provider_latency_ms=latencies)))
 
     async def health(self):
         return await self.registry.health()
+
+    def _attributed(self, result: CompsResult) -> CompsResult:
+        """The credit owed for the comps this result carries.
+
+        Taken from the comps' marketplaces rather than from who was queried,
+        so a cache hit owes the same credit as the lookup that filled it.
+        """
+        marketplaces = {comp.provider for comp in result.comps}
+        credits = sorted({
+            caps.attribution for caps in
+            (entry.provider.capabilities for entry in self.registry.all)
+            if caps.attribution and caps.marketplace in marketplaces})
+        return replace(result, attributions=tuple(credits)) if credits else result
 
     # ── Internals ────────────────────────────────────────────────────────────
 

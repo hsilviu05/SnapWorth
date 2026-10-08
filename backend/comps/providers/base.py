@@ -57,6 +57,14 @@ class ProviderCapabilities:
     supports_currency: frozenset[str] = frozenset({"USD"})
     max_results: int = 50
     typical_latency_ms: float = 400.0
+    # What a written grant may impose, expressed where the engine enforces it.
+    # `max_cache_seconds`: the longest this provider's results may be stored;
+    # a lookup is cached for the smallest of the configured TTL and the
+    # ceilings of every provider it queried. None ⇒ no ceiling of its own.
+    max_cache_seconds: int | None = None
+    # Credit the provider requires wherever its data is shown. Carried on the
+    # result and the shadow log line, so it reaches the UI with #41.
+    attribution: str | None = None
 
     def handles(self, category: str) -> bool:
         return not self.categories or category.strip().lower() in self.categories

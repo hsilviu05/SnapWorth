@@ -146,13 +146,21 @@ class CompsCache:
         return comps or None
 
     async def put(self, identity: ItemIdentity, window_days: int,
-                  comps: list[Comp]) -> None:
-        """Store provider results, or a negative marker when empty."""
+                  comps: list[Comp], *, max_ttl_seconds: int | None = None) -> None:
+        """Store provider results, or a negative marker when empty.
+
+        `max_ttl_seconds` is the providers' ceiling (`ProviderCapabilities
+        .max_cache_seconds`): neither entry outlives it, whatever the
+        configured TTLs say.
+        """
+        def capped(ttl: int) -> int:
+            return ttl if max_ttl_seconds is None else min(ttl, max_ttl_seconds)
+
         try:
             if not comps:
                 await self.backend.set(
                     negative_key(identity, window_days), _NEGATIVE,
-                    self.negative_ttl_seconds)
+                    capped(self.negative_ttl_seconds))
                 return
             payload = json.dumps({
                 "version": CACHE_VERSION,
@@ -160,7 +168,8 @@ class CompsCache:
                 "comps": [_comp_to_dict(c) for c in comps],
             })
             await self.backend.set(
-                positive_key(identity, window_days), payload, self.ttl_seconds)
+                positive_key(identity, window_days), payload,
+                capped(self.ttl_seconds))
         except Exception as exc:
             log.warning("comps cache write failed: %s", exc)
 
@@ -186,7 +195,8 @@ class CompsCacheLike(Protocol):
                   window_days: int) -> list[Comp] | None: ...
 
     async def put(self, identity: ItemIdentity, window_days: int,
-                  comps: list[Comp]) -> None: ...
+                  comps: list[Comp], *,
+                  max_ttl_seconds: int | None = None) -> None: ...
 
     async def invalidate(self, identity: ItemIdentity,
                          window_days: int) -> None: ...
@@ -199,7 +209,8 @@ class NullCompsCache:
         return None
 
     async def put(self, identity: ItemIdentity, window_days: int,
-                  comps: list[Comp]) -> None:
+                  comps: list[Comp], *,
+                  max_ttl_seconds: int | None = None) -> None:
         return None
 
     async def invalidate(self, identity: ItemIdentity, window_days: int) -> None:

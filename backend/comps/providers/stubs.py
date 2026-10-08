@@ -97,12 +97,19 @@ class FixtureProvider:
 # .eligible` filters them out whenever the caller asks for sold-only data, which
 # the engine always does. They are declared so the decision is visible and
 # argued rather than an unexplained omission.
+#
+# Each note agrees with its row in docs/COMPS-ARCHITECTURE.md's provider table,
+# and `supports_sold=True` is declared only where the source publishes sold
+# prices at all; tests/test_comps_engine.py pins the set. A new candidate gets
+# a stub only once it has actually been asked for access (#231), so this list
+# and the outreach tracker stay one list.
 
 def default_stubs() -> list[StubProvider]:
     return [
         StubProvider(
             name="ebay",
-            note="Browse + Marketplace Insights API; requires approved app credentials",
+            note="Marketplace Insights application declined (2026-09-03); "
+                 "not planned (#36, #42). Browse is active listings only.",
             capabilities=ProviderCapabilities(
                 marketplace=Marketplace.EBAY,
                 categories=frozenset(),                     # widest coverage
@@ -113,7 +120,9 @@ def default_stubs() -> list[StubProvider]:
         ),
         StubProvider(
             name="stockx",
-            note="No official public API; needs commercial agreement",
+            note="Official developer API, application required; sold-data "
+                 "scope unconfirmed. To be asked in writing: see the outreach "
+                 "tracker (#231).",
             capabilities=ProviderCapabilities(
                 marketplace=Marketplace.STOCKX,
                 categories=frozenset({"shoes", "clothing", "accessories"}),
@@ -123,7 +132,8 @@ def default_stubs() -> list[StubProvider]:
         ),
         StubProvider(
             name="goat",
-            note="No official public API; overlaps StockX coverage",
+            note="No official API; unofficial endpoints are not authorised "
+                 "(COMPS-ARCHITECTURE.md, Legal). Overlaps StockX.",
             capabilities=ProviderCapabilities(
                 marketplace=Marketplace.GOAT,
                 categories=frozenset({"shoes"}),
@@ -139,7 +149,7 @@ def default_stubs() -> list[StubProvider]:
             capabilities=ProviderCapabilities(
                 marketplace=Marketplace.DISCOGS,
                 categories=frozenset({"books", "collectibles", "other"}),
-                supports_sold=True,
+                supports_sold=False,                        # until a grant says otherwise
                 typical_latency_ms=500.0,
             ),
         ),
@@ -151,13 +161,14 @@ def default_stubs() -> list[StubProvider]:
             capabilities=ProviderCapabilities(
                 marketplace=Marketplace.REVERB,
                 categories=frozenset({"other", "collectibles"}),
-                supports_sold=True,
+                supports_sold=False,                        # until a grant says otherwise
                 typical_latency_ms=450.0,
             ),
         ),
         StubProvider(
             name="chrono24",
-            note="Partner API only; watches",
+            note="No public API or partner programme found; sold-data access "
+                 "unconfirmed. Watches.",
             capabilities=ProviderCapabilities(
                 marketplace=Marketplace.CHRONO24,
                 categories=frozenset({"accessories"}),
@@ -167,7 +178,8 @@ def default_stubs() -> list[StubProvider]:
         ),
         StubProvider(
             name="mercari",
-            note="No official API; US-centric",
+            note="No official API; unofficial endpoints are not authorised "
+                 "(COMPS-ARCHITECTURE.md, Legal). US-centric.",
             capabilities=ProviderCapabilities(
                 marketplace=Marketplace.MERCARI,
                 categories=frozenset(),
