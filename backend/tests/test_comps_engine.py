@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import os
 import sys
+from dataclasses import replace
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 
@@ -519,6 +520,143 @@ class TestCompsCache:
         assert engine is not None
         result = asyncio.run(engine.lookup(identity()))
         assert result.status is CompsStatus.OK      # comps still served
+
+
+class _RecordingBackend(_MemoryBackend):
+    """Remembers the TTL each key was written with."""
+
+    def __init__(self):
+        super().__init__()
+        self.ttls = {}
+
+    async def set(self, key, value, ttl=None, **kw):
+        self.data[key] = value
+        self.ttls[key] = ttl
+
+
+def _capped_fixture(name, ceiling, comps=(), *, attribution=None):
+    from comps.providers.base import ProviderCapabilities
+    return FixtureProvider(name=name, comps=list(comps), capabilities=ProviderCapabilities(
+        marketplace=Marketplace.FIXTURE, categories=frozenset(), supports_sold=True,
+        requires_credentials=False, max_cache_seconds=ceiling,
+        attribution=attribution))
+
+
+def _engine_over(*providers, cache):
+    registry = ProviderRegistry()
+    for provider in providers:
+        registry.register(provider)
+    return CompsEngine(registry=registry, cache=cache,
+                       flags=CompsFlags(enabled=True, shadow_mode=False))
+
+
+class TestGrantLimits:
+    """#232: what a written grant may impose is enforced in code, not in prose."""
+
+    def test_a_provider_ceiling_shortens_the_cached_entry(self):
+        from comps.cache import positive_key
+        backend = _RecordingBackend()
+        engine = _engine_over(_capped_fixture("fixture", 21_600, many()),
+                              cache=CompsCache(backend=backend))
+        result = asyncio.run(engine.lookup(identity()))
+        assert result.status is CompsStatus.OK
+        # 6 h, not the configured 24 h.
+        assert backend.ttls[positive_key(identity(), result.window_days)] == 21_600
+
+    def test_two_providers_take_the_smaller_ceiling(self):
+        from comps.cache import positive_key
+        backend = _RecordingBackend()
+        engine = _engine_over(_capped_fixture("strict", 3_600, many()),
+                              _capped_fixture("lenient", 43_200),
+                              cache=CompsCache(backend=backend))
+        result = asyncio.run(engine.lookup(identity()))
+        assert backend.ttls[positive_key(identity(), result.window_days)] == 3_600
+
+    def test_the_ceiling_bounds_the_negative_entry_too(self):
+        from comps.cache import negative_key
+        backend = _RecordingBackend()
+        engine = _engine_over(_capped_fixture("fixture", 600),
+                              cache=CompsCache(backend=backend))
+        result = asyncio.run(engine.lookup(identity()))
+        assert result.status is CompsStatus.INSUFFICIENT_COMPS
+        assert backend.ttls[negative_key(identity(), result.window_days)] == 600
+
+    def test_no_ceiling_keeps_the_configured_ttls(self):
+        from comps.cache import positive_key
+        backend = _RecordingBackend()
+        engine = _engine_over(_capped_fixture("fixture", None, many()),
+                              cache=CompsCache(backend=backend, ttl_seconds=86_400))
+        result = asyncio.run(engine.lookup(identity()))
+        assert backend.ttls[positive_key(identity(), result.window_days)] == 86_400
+
+    def test_attribution_follows_the_comps_through_the_cache(self):
+        from comps.shadow import report
+        fixture_comps = [replace(c, provider=Marketplace.FIXTURE) for c in many()]
+        engine = _engine_over(
+            _capped_fixture("fixture", None, fixture_comps,
+                            attribution="Data from Fixture"),
+            cache=CompsCache(backend=_MemoryBackend()))
+        first = asyncio.run(engine.lookup(identity()))
+        second = asyncio.run(engine.lookup(identity()))
+        assert second.cache_hit
+        for result in (first, second):
+            assert result.attributions == ("Data from Fixture",)
+            fields = report(result, model_low=80, model_high=120, model_expected=100)
+            assert fields["attribution"] == ["Data from Fixture"]
+
+    def test_no_attribution_adds_no_field(self):
+        from comps.shadow import report
+        engine = _engine_over(_capped_fixture("fixture", None, many()),
+                              cache=NullCompsCache())
+        result = asyncio.run(engine.lookup(identity()))
+        assert result.attributions == ()
+        assert "attribution" not in report(
+            result, model_low=80, model_high=120, model_expected=100)
+
+
+class TestProviderBacklog:
+    """The stubs are the integration backlog; they must agree with the
+    provider table in docs/COMPS-ARCHITECTURE.md."""
+
+    # The table's "Sold data" column: ✅ or ⚠️. Discogs and Reverb are ❌ ("No
+    # usable sold data") and stay False until a written grant says otherwise.
+    SOLD = {"ebay", "stockx", "goat", "chrono24", "mercari", "grailed"}
+
+    def _table(self):
+        path = os.path.join(os.path.dirname(__file__), "..", "..", "docs",
+                            "COMPS-ARCHITECTURE.md")
+        with open(path, encoding="utf-8") as fh:
+            text = fh.read()
+        rows = {}
+        for line in text.split("### Provider assessment", 1)[1].splitlines():
+            if not line.startswith("| **"):
+                continue
+            cells = [c.strip() for c in line.strip("|").split("|")]
+            rows[cells[0].strip("*").lower()] = cells
+        return rows
+
+    def test_exactly_these_stubs_declare_sold_data(self):
+        declared = {s.name for s in default_stubs() if s.capabilities.supports_sold}
+        assert declared == self.SOLD
+        assert "discogs" not in declared and "reverb" not in declared
+
+    def test_every_stub_with_sold_data_has_a_table_row_saying_so(self):
+        table = self._table()
+        for name in self.SOLD:
+            assert name in table, name
+            assert not table[name][1].startswith("❌"), name
+
+    def test_no_unauthorised_source_carries_a_priority(self):
+        for name, cells in self._table().items():
+            api, priority = cells[2], cells[4]
+            if api.startswith(("Unofficial", "None")):
+                assert not priority.strip("*").startswith("P"), name
+
+    def test_comps_stay_off_and_no_stub_is_enabled(self):
+        assert not CompsFlags().enabled
+        registry = ProviderRegistry()
+        register_defaults(registry)
+        assert not any(entry.enabled for entry in registry.all)
 
 
 # ── Catalog ──────────────────────────────────────────────────────────────────

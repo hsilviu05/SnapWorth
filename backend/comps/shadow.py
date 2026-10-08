@@ -112,6 +112,8 @@ def report(result: CompsResult, *, model_low: float, model_high: float,
         "latency_ms": round(result.latency_ms, 1),
         "cache_hit": result.cache_hit,
     }
+    if result.attributions:
+        fields["attribution"] = list(result.attributions)
     if result.comps:
         fields["match_confidence"] = round(
             statistics.median(c.match_score for c in result.comps), 3)

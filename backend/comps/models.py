@@ -371,6 +371,9 @@ class CompsResult:
     provider_latency_ms: tuple[tuple[str, float], ...] = ()
     window_days: int = 90
     notes: tuple[str, ...] = ()
+    # Credit the contributing providers require (`ProviderCapabilities
+    # .attribution`), to be shown wherever these comps are.
+    attributions: tuple[str, ...] = ()
 
     @property
     def has_evidence(self) -> bool:

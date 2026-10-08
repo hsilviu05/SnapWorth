@@ -116,15 +116,15 @@ class Comp:
 
 | Provider | Sold data | API | Categories | Priority | Notes |
 |---|---|---|---|---|---|
-| **eBay** | ❌ Marketplace Insights not granted | Official, approval required | All | **Not planned** | eBay declined our application (2026-09-03), and we did not pursue it further; #36 and #42 closed as not planned. Browse API is active listings only |
-| **StockX** | ✅ Public bid/ask + last sale | Unofficial | Sneakers, streetwear | **P1** | Near-exact matching by SKU |
-| **GOAT** | ✅ | Unofficial | Sneakers | P2 | Overlaps StockX |
+| **eBay** | ⚠️ Marketplace Insights has it; not granted to us | Official, approval required | All | **Not planned** | eBay declined our application (2026-09-03), and we did not pursue it further; #36 and #42 closed as not planned. Browse API is active listings only |
+| **StockX** | ⚠️ Unconfirmed | Official developer API, application required | Sneakers, streetwear | **Pending outreach** | Sold-data scope unconfirmed; to be asked in writing, see the outreach tracker (#231). Near-exact matching by SKU if granted |
+| **GOAT** | ⚠️ Unconfirmed | Unofficial | Sneakers | **Blocked** | Unofficial endpoints are not authorised (Legal, below). Overlaps StockX |
 | **Discogs** | ❌ No usable sold data | Official | Vinyl, music | **Blocked** | No endpoint returns sales; pricing is Restricted Data, no commercial use. See below |
-| **Chrono24** | ⚠️ Asking, some sold | Partner only | Watches | P2 | High value per item — worth the integration cost |
+| **Chrono24** | ⚠️ Unconfirmed | No public API or partner programme found | Watches | **Blocked** | High value per item; reopens only with a written grant |
 | **Reverb** | ❌ No usable sold data | Official | Instruments | **Blocked** | Price guide endpoint withdrawn; public listings are asking prices. See below |
-| **Mercari** | ⚠️ Limited | Unofficial | General | P3 | US-centric |
-| **Grailed** | ⚠️ Sold shown, no API | None | Menswear | P3 | Scraping only — legal review first |
-| **Vinted** | ❌ | None | Fashion | P4 | No sold prices exposed |
+| **Mercari** | ⚠️ Limited | Unofficial | General | **Blocked** | Unofficial endpoints are not authorised (Legal, below). US-centric |
+| **Grailed** | ⚠️ Sold shown, no API | None | Menswear | **Blocked** | Scraping only; not without counsel (Legal, below) |
+| **Vinted** | ❌ | None | Fashion | ✗ | No sold prices exposed |
 | **Facebook** | ❌ | None | General | ✗ | No sold data — excluded by principle 3 |
 | **Etsy** | ❌ | Official but no sold | Handmade | ✗ | Same |
 
@@ -156,8 +156,8 @@ nothing usable. Checked against each provider's own documentation and terms on
   2022-07-01) also bar using the API "to collect, scan, or otherwise request
   Reverb content for analytics, machine learning … unless expressly authorized."
 
-Both would have to declare `supports_sold=False`, which the registry never
-selects for pricing, so neither is built. Written permission from either
+Both declare `supports_sold=False` (`comps/providers/stubs.py`), which the
+registry never selects for pricing, so neither is built. Written permission from either
 provider reopens this; nothing short of that does.
 
 ---
@@ -334,7 +334,11 @@ All fields optional; clients that do not read them are unaffected.
   barred from commercial use. Written permission required before any use.
 - **Reverb:** price guide not publicly available; the analytics clause needs
   express authorisation. Written permission required before any use.
-- **Unofficial endpoints (StockX, GOAT, Mercari):** these are not authorised APIs.
+- **StockX:** has an official developer API with an application process; whether
+  it grants sold data for this use is unconfirmed, to be asked in writing (#231).
+  Nothing is built before a written answer.
+- **Unofficial endpoints (GOAT, Mercari, and StockX's unofficial ones):** these
+  are not authorised APIs.
   Get legal review before shipping, and treat ToS as a hard constraint, not a
   risk to price in.
 - **Scraping (Grailed):** do not ship without counsel. Reputational and legal
@@ -342,6 +346,9 @@ All fields optional; clients that do not read them are unaffected.
 - **Attribution:** where a provider requires visible credit, the UI must show it.
 
 Adding a provider is a **legal decision before an engineering one**.
+No row in the table above carries a P-priority while this section rules its
+source out; a row moves to a priority only with a written grant, mapped to code
+by `COMPS-ENGINE.md`'s *Adding a provider*, step 0.
 
 ---
 

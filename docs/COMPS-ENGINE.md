@@ -94,6 +94,23 @@ would show today; the agreement numbers #40 and #41 wait on need a provider.
 
 ## Adding a provider
 
+0. **Map the grant to code.** With the provider's written permission in hand,
+   write down, clause by clause, what enforces it. A clause with no row here
+   is a clause nothing enforces: add the mechanism first, or don't add the
+   provider.
+
+   | Grant clause | Enforced by |
+   |---|---|
+   | Sold prices may be used for pricing | `ProviderCapabilities.supports_sold=True`; otherwise `False`, and the registry never selects it |
+   | Limited to some categories | `ProviderCapabilities.categories`, and `COMPS_CATEGORIES` for the rollout |
+   | Data may be stored for at most *N* | `ProviderCapabilities.max_cache_seconds`; a lookup is cached for the smallest of `COMPS_CACHE_TTL` / `COMPS_NEGATIVE_CACHE_TTL` and every answering provider's ceiling |
+   | Credit required where shown | `ProviderCapabilities.attribution`, carried on `CompsResult.attributions` and the `comps shadow` log line; the UI shows it once comps are served (#41) |
+   | Only sales within a period | `COMPS_WINDOW_DAYS` (per-category windows in `flags.py`) |
+   | Only some environments, or a trial period | `COMPS_PROVIDERS` names it; `COMPS_ENABLED` stays false until the grant covers the outreach issue's points (#231) |
+   | What may be logged | The shadow log fields in `comps/shadow.py:report`, which carry prices and counts, never seller ids |
+
+   Record the grant and this table in the outreach tracker (#231), and update
+   the stub's note and its row in `COMPS-ARCHITECTURE.md`.
 1. Implement the `CompsProvider` protocol (`providers/base.py`).
 2. Declare `ProviderCapabilities` honestly — especially `supports_sold`. A
    provider that only exposes asking prices must declare `False`; the registry
