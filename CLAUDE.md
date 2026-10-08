@@ -128,5 +128,11 @@ xcodebuild test -project ios/SnapWorth.xcodeproj -scheme SnapWorth \
   -only-testing:SnapWorthTests/WidgetScansLeftTests
 ```
 
+A failing run then sits for ten minutes before it exits, collecting
+diagnostics from the simulator until that times out ("Timed out after 600.0
+seconds while waiting for a response from the invoked process"). A passing
+run is unaffected. Add `-collect-test-diagnostics never` while iterating on a
+failure.
+
 `xcrun swiftc -typecheck` over a target's sources is seconds rather than
 minutes for a model or copy change — a supplement, not a substitute.
