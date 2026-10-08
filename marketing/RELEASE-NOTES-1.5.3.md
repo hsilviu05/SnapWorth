@@ -31,6 +31,7 @@ would start minting codes that its own policy says it doesn't keep.
 | [#298](https://github.com/hsilviu05/SnapWorth/pull/298) | Settings → Privacy → **Share sale prices to improve estimates**, off by default, with a one-time card the first time a sold price is saved, and *Delete my shared sales*. A sold flip has a **Currency** (defaulting from the phone's region), and its paid, sold, fee and profit rows show it (#224) | **Yes** |
 | [#306](https://github.com/hsilviu05/SnapWorth/pull/306) | The in-app privacy policy discloses shared sales, and says an invite code is made for every device once Invite a friend is available. Dated October 6, 2026, the same as `/privacy` | Yes, in Settings → Privacy Policy |
 | [#288](https://github.com/hsilviu05/SnapWorth/pull/288)–[#293](https://github.com/hsilviu05/SnapWorth/pull/293) | ResultView split into sections with explicit inputs, in six stages (#229). The intent is no visual change | No, if the walkthrough below passes |
+| this PR | The rare-find easter egg is **on** (`Config.rareFindEasterEggEnabled = true`). Its code (#200) has been in the binary, dark, since 22 | Only to someone who scans that one shirt |
 | [#311](https://github.com/hsilviu05/SnapWorth/pull/311) | `haulWait` counts polls rather than wall-clock time, so a slow CI runner can't fail `HaulSessionTests` (#299) | No, tests only |
 | [#313](https://github.com/hsilviu05/SnapWorth/pull/313) | `chore: 1.5.3, build 23`, a lower bound for 23, not the build | No |
 | [#320](https://github.com/hsilviu05/SnapWorth/pull/320) | A flip's money stays in its own currency everywhere it is printed: My Flips rows, header, Invested and monthly bars total per currency instead of adding lei to dollars; the share cards, the Profit widget (blob v5, `monthProfitParts`), the CSV (a last Currency column) and the photo export name it; VoiceOver reads it (audit M1). A one-currency ledger looks as before apart from the symbol | **Yes**, outside the US |
@@ -221,6 +222,24 @@ cleanup.
 
 - [ ] Nothing differs in the Pro states. Attach the screenshots to #229 and close it.
 
+### Rare-find easter egg (#200, on from 23)
+
+Uses the shirt in `ios/SnapWorthTests/rare-find-reference-shirt.png`, or that
+image on another screen.
+
+- [ ] Scanning the shirt plays the appraisal (about 5 s), labelled
+      "EASTER EGG · Just for fun — not a real valuation", then the real
+      estimate below it. My Finds, My Flips and the widgets show the scan as
+      any other.
+- [ ] A different shirt, including one reading "…a very strange time in my
+      life", scans normally with no appraisal.
+- [ ] Airplane mode: the scan fails as any scan does, with no appraisal stuck
+      on screen.
+- [ ] VoiceOver reads the card, and the tagline in an English voice.
+- [ ] **Owner:** a native reader checks the ro, es, de and zh-Hans jokes
+      (none has had one). `RareFind.brandName` stays `nil` (no brand line)
+      unless you supply the label's name before the archive.
+
 ### Privacy policy (#306)
 
 - [ ] Settings → Privacy Policy reads "Last updated: October 6, 2026" and
@@ -258,6 +277,10 @@ cleanup.
 - [ ] What's New pasted in all five locales, from the blocks above.
 - [ ] App Review notes pasted (below).
 - [ ] Phased release on.
+- [ ] App Review notes include the *Easter egg* paragraph below, and the
+      reference photo `ios/SnapWorthTests/rare-find-reference-shirt.png` is
+      attached under *App Review Information → Attachment*. Guideline 2.3.1:
+      a hidden feature has to be described to review.
 
 ### Build 23 — the archive
 
@@ -283,6 +306,8 @@ In-app purchases made in the review Sandbox unlock SnapWorth Pro immediately. To
 New in this version: an optional, off-by-default setting, Settings → Privacy → "Share sale prices to improve estimates". When it is on, marking an item as sold sends the sale price, its currency and the estimate shown at scan time to our server, to measure estimate accuracy. It never sends the photo, the item's name, notes, the price paid or a device identifier. The privacy policy (Settings → Privacy Policy) describes it, and "Delete my shared sales" removes everything sent.
 
 The iMessage stickers are in the sticker drawer. In Messages, open the emoji keyboard and go to Stickers to find Tag's pack.
+
+Easter egg: scanning one particular printed shirt (photo attached) plays a short, clearly labelled joke appraisal ("EASTER EGG · Just for fun — not a real valuation") before the real estimate, which is shown below it unchanged. Nothing from the joke is saved, priced or sold. It triggers only on that shirt's printed text, read on the device.
 ```
 
 Only if referrals launch with 23, add (with a real code from the friend pool):
