@@ -272,8 +272,7 @@ struct HistoryView: View {
             PaywallView(purchaseService: purchaseService, trigger: paywallTrigger)
         }
         .sheet(item: $selectedResult) { result in
-            ResultView(result: result, purchaseService: purchaseService,
-                       onDismiss: { selectedResult = nil })
+            Self.resultView(for: result, purchaseService: purchaseService) { selectedResult = nil }
                 .presentationDragIndicator(.visible)
         }
         .confirmationDialog(
@@ -304,6 +303,14 @@ struct HistoryView: View {
         } message: {
             Text(vm.deleteError ?? "")
         }
+    }
+
+    /// A find reopened from My Finds. Not a scan: it sends no funnel event and
+    /// offers no re-read, which would rewrite a number the user has already
+    /// acted on (`ResultView.isFreshScan`).
+    static func resultView(for result: ScanResult, purchaseService: any PurchaseService,
+                           onDismiss: @escaping () -> Void) -> ResultView {
+        ResultView(result: result, purchaseService: purchaseService, onDismiss: onDismiss)
     }
 }
 

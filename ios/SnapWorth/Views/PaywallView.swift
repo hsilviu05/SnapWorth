@@ -93,6 +93,22 @@ struct PaywallView: View {
                     .accessibilitySortPriority(100)
 
                     // ── Plan cards ─────────────────────────────────────────
+                    // Each a placeholder until StoreKit returns its plan, per
+                    // card, not across both: a fetch that returns one plan and
+                    // not the other should show the real price it has rather
+                    // than hide it behind a placeholder, and must never show a
+                    // placeholder that reads like a price it doesn't have.
+                    //
+                    // A placeholder also cannot be tapped (`PlanCard.isLoaded`).
+                    // A tap on the grey card moved the selection to a product
+                    // StoreKit never returned, which drives three derived
+                    // values wrong at once: the CTA goes inert, `pricing(_:)`
+                    // falls back to a "—" placeholder, and the subheadline
+                    // reads "Loading plans…" forever with nothing loading.
+                    // `reconcileSelection` runs only from `.task` and the
+                    // retry, so it cannot undo it — the paywall could not be
+                    // bought from at all, and the way out was guessing that
+                    // tapping the other card back repairs the screen.
                     VStack(spacing: 12) {
                         PlanCard(
                             title: String(localized: "Yearly"),
@@ -100,43 +116,24 @@ struct PaywallView: View {
                             priceDetail: yearlyDetail(yearly),
                             badge: yearly.savingsPercent.map { String(localized: "SAVE \($0.formatted(.percent))") }
                                 ?? String(localized: "BEST VALUE"),
-                            isSelected: vm.selectedProductID == Config.yearlyProductID
+                            isSelected: vm.selectedProductID == Config.yearlyProductID,
+                            isLoaded: isLoaded(Config.yearlyProductID)
                         ) {
                             Haptics.selection()
                             vm.selectedProductID = Config.yearlyProductID
                         }
-                        // Redacted per card, not across both: a fetch that
-                        // returns one plan and not the other should show the
-                        // real price it has rather than hide it behind a
-                        // placeholder, and must never show a placeholder that
-                        // reads like a price it doesn't have.
-                        .redacted(reason: isLoaded(Config.yearlyProductID) ? [] : .placeholder)
-                        // `.redacted` changes rendering and nothing else — a
-                        // `PlanCard` is a `Button` and its action still ran. A
-                        // tap on the grey card moved the selection to a product
-                        // StoreKit never returned, which drives three derived
-                        // values wrong at once: the CTA goes inert,
-                        // `pricing(_:)` falls back to a "—" placeholder, and
-                        // the subheadline reads "Loading plans…" forever with
-                        // nothing loading. `reconcileSelection` runs only from
-                        // `.task` and the retry, so it cannot undo it — the
-                        // paywall could not be bought from at all, and the way
-                        // out was guessing that tapping the other card back
-                        // repairs the screen.
-                        .disabled(!isLoaded(Config.yearlyProductID))
 
                         PlanCard(
                             title: String(localized: "Monthly"),
                             price: monthly.displayPrice,
                             priceDetail: String(localized: "Flexible, cancel anytime"),
                             badge: nil,
-                            isSelected: vm.selectedProductID == Config.monthlyProductID
+                            isSelected: vm.selectedProductID == Config.monthlyProductID,
+                            isLoaded: isLoaded(Config.monthlyProductID)
                         ) {
                             Haptics.selection()
                             vm.selectedProductID = Config.monthlyProductID
                         }
-                        .redacted(reason: isLoaded(Config.monthlyProductID) ? [] : .placeholder)
-                        .disabled(!isLoaded(Config.monthlyProductID))
                     }
                     .padding(.horizontal, 20)
 
@@ -303,22 +300,8 @@ struct PaywallView: View {
             // sitting right there unselected.
             vm.reconcileSelection(with: purchaseService.pricing)
         }
-        .onAppear {
-            vm.startCloseButtonTimer()
-            // `isFirstRun`, not `isFirstScan`: both first-run paywalls open
-            // after the first result has been recorded.
-            Analytics.shared.track(.paywallViewed(trigger: trigger,
-                                                  isFirst: ScanTally.isFirstRun()))
-        }
-        .onDisappear {
-            vm.cancelTimer()
-            // Only a close *without* a purchase. A completed purchase also
-            // dismisses this sheet, and counting that as a dismissal would put
-            // every conversion on both sides of the look-to-buy rate.
-            if !vm.isPurchaseComplete {
-                Analytics.shared.track(.paywallDismissed(trigger: trigger))
-            }
-        }
+        .onAppear { vm.didAppear(trigger: trigger) }
+        .onDisappear { vm.didDisappear(trigger: trigger) }
         .onChange(of: vm.isPurchaseComplete) { _, complete in
             if complete { dismiss() }
         }

@@ -993,6 +993,12 @@ struct PlanCard: View {
     let priceDetail: String
     let badge: String?
     let isSelected: Bool
+    /// Whether StoreKit has returned this plan. Until it has, the card is a
+    /// grey placeholder, and one that cannot be tapped: `.redacted` changes
+    /// rendering and nothing else, so on its own the card's action still ran
+    /// (see the paywall's plan cards). One input for both, so no caller can
+    /// apply one without the other.
+    let isLoaded: Bool
     let action: () -> Void
 
     var body: some View {
@@ -1062,6 +1068,8 @@ struct PlanCard: View {
         .accessibilityValue("\(price). \(priceDetail)\(badge.map { ". \($0)" } ?? "")")
         .accessibilityHint(String(localized: "Selects the \(title.lowercased()) plan"))
         .accessibilityAddTraits(isSelected ? [.isButton, .isSelected] : .isButton)
+        .redacted(reason: isLoaded ? [] : .placeholder)
+        .disabled(!isLoaded)
     }
 }
 

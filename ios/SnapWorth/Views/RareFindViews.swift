@@ -411,6 +411,13 @@ struct RareFindRevealView: View {
             range: result.formattedRange, confidence: snapConfidencePhrase(result.confidence)))
     }
 
+    /// What a reveal reports: the valuation it puts on screen, and the one
+    /// event the easter egg adds.
+    static func reportReveal() {
+        Analytics.shared.track(.scanResultShown(isFirst: ScanTally.isFirstRun()))
+        Analytics.shared.track(.rareFindEasterEggShown)
+    }
+
     /// Once per reveal: the events, the haptic and the announcement, then the
     /// fade and — unless Reduce Motion is on — the count-up and the stamp.
     private func play() async {
@@ -424,9 +431,7 @@ struct RareFindRevealView: View {
         // again after a reveal (ScanView passes it `priceAlreadyShown`). Left
         // on the full result, it went unsent by anyone who swiped the sheet
         // away from here, and late for everyone else.
-        Analytics.shared.track(.scanResultShown(isFirst: ScanTally.isFirstRun()))
-        // The one event the easter egg adds.
-        Analytics.shared.track(.rareFindEasterEggShown)
+        Self.reportReveal()
         Haptics.success()
         // Queued, not interrupting: presenting the sheet has just moved
         // VoiceOver onto the card, whose label starts with the same news.
