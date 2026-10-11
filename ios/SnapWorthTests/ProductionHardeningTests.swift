@@ -2611,6 +2611,35 @@ final class MoneyInputTests: XCTestCase {
         XCTAssertNil(MoneyInput.decimal(""))
     }
 
+    /// A pasted tracking number kept its digits and became a 9.4e21 sold
+    /// price, and My Flips trapped on its ROI every time it opened.
+    func test_anAmountAboveTheCeilingIsRefused() {
+        let tracking = "9400 1118 9922 3197 4284 90"
+        XCTAssertNil(MoneyInput.parse(tracking))
+        XCTAssertNil(MoneyInput.decimal(tracking))
+        XCTAssertNil(MoneyInput.parse(String(repeating: "9", count: 320)), "parses to infinity")
+        XCTAssertEqual(MoneyInput.parse("100000000"), 100_000_000, "the ceiling itself is accepted")
+        XCTAssertEqual(MoneyInput.decimal("1.234.567"), 1_234_567)
+    }
+
+    /// A row saved before the ceiling still has to draw.
+    @MainActor
+    func test_aHugeSavedAmountDrawsInsteadOfTrapping() {
+        let roi = FlipsViewModel().roiPercent(Decimal(string: "4.7e20")!)
+        XCTAssertTrue(roi.hasPrefix("+") && roi.hasSuffix("%"), roi)
+        XCTAssertEqual(FlipsViewModel().roiPercent(Decimal(string: "0.42")!), "+42%")
+        XCTAssertTrue(ThriftFlipViewModel.percent(Decimal(string: "-4.7e20")!).hasSuffix("%"))
+        XCTAssertTrue(WidgetHaulData.compactMoney(9.4e21).hasSuffix("K"))
+        XCTAssertEqual(WidgetHaulData.compactMoney(.infinity), "—")
+
+        let r = ScanResult(itemName: "Item", brand: "B", category: "clothing",
+                           conditionNotes: "Good", valueLow: 40, valueHigh: 60,
+                           confidence: "High", soldListingsCount: 0,
+                           listingTitle: "T", listingDescription: "D",
+                           paidPrice: 20, statusRaw: "sold", soldPrice: .infinity)
+        XCTAssertNil(r.realizedProfit, "Decimal(Double.infinity) is a precondition failure")
+    }
+
     /// The guess field stripped the comma rather than folding it, so "12,50"
     /// scored as 1250 — a hundredfold-wrong guess, worse than refusing it.
     func test_guessParsingReadsTheCommaRatherThanStrippingIt() {

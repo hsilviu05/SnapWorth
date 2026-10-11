@@ -543,6 +543,10 @@ final class ScanResult {
     /// — we never guess profit from a missing cost basis.
     var realizedProfit: Decimal? {
         guard status == .sold, let sold = soldPrice, let paid = paidPrice else { return nil }
+        // `Decimal(Double.infinity)` is a precondition failure, and this runs
+        // at launch (the widget seed). About 309 pasted digits parsed to
+        // infinity before `MoneyInput.ceiling`; a row saved then has no profit.
+        guard sold.isFinite, paid.isFinite, (feesEstimate ?? 0).isFinite else { return nil }
         return Decimal(sold) - Decimal(paid) - Decimal(feesEstimate ?? 0)
     }
 

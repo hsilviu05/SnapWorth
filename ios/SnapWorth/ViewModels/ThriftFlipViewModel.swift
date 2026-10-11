@@ -456,9 +456,13 @@ final class ThriftFlipViewModel {
         return value < 0 ? "−\(base)" : base
     }
 
+    /// Never traps, as `FlipsViewModel.roiPercent`: `Int(Double)` does
+    /// outside Int's range.
     static func percent(_ fraction: Decimal) -> String {
-        let value = Int((NSDecimalNumber(decimal: fraction).doubleValue * 100).rounded())
-        return "\(value)%"
+        let percent = (NSDecimalNumber(decimal: fraction).doubleValue * 100).rounded()
+        guard percent.isFinite else { return "—" }
+        let digits = Int(exactly: percent).map { "\($0)" } ?? String(format: "%.0f", percent)
+        return digits + "%"
     }
 
     /// Shared with ResultView's money fields — see `MoneyInput`.

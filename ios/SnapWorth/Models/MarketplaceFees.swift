@@ -83,16 +83,30 @@ enum MoneyInput {
         text.distance(from: text.index(after: separator), to: text.endIndex) == 3
     }
 
-    /// Nil for empty or unparseable input — the caller keeps the previous
-    /// value rather than clobbering it with a zero.
+    /// The largest amount a field accepts. Far above any flip in any of the
+    /// ledger's currencies (a hundred million forints is about $270,000).
+    ///
+    /// Everything that is not a digit is dropped, so a pasted tracking number
+    /// ("9400 1118 9922 3197 4284 90") parsed as 9.4e21 and was saved as the
+    /// sold price. Its ROI then trapped `Int(Double)` every time My Flips drew
+    /// its header, and about 309 digits parse to infinity, which traps
+    /// `Decimal(Double)` in `realizedProfit` at launch.
+    static let ceiling: Double = 100_000_000
+
+    /// Nil for empty or unparseable input, or anything above `ceiling` — the
+    /// caller keeps the previous value rather than clobbering it.
     static func parse(_ text: String) -> Double? {
-        normalized(text).flatMap(Double.init)
+        guard let value = normalized(text).flatMap(Double.init),
+              value.isFinite, value <= ceiling else { return nil }
+        return value
     }
 
     /// Same rules, as a `Decimal` — money math elsewhere in the app avoids
     /// binary floating point.
     static func decimal(_ text: String) -> Decimal? {
-        normalized(text).flatMap { Decimal(string: $0) }
+        guard let value = normalized(text).flatMap({ Decimal(string: $0) }),
+              value <= Decimal(ceiling) else { return nil }
+        return value
     }
 }
 

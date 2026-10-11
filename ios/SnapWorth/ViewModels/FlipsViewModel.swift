@@ -379,10 +379,15 @@ final class FlipsViewModel {
         // month; on 31 December, into the wrong tax year, while the app's own
         // month card counted it correctly.
         //
-        // Same construction as `fileStamp()`, so the two cannot drift.
+        // Same construction as `fileStamp()`, so the two cannot drift. The
+        // local day comes from the formatter's default time zone; the year is
+        // the Gregorian one, because "yyyy-MM-dd" is ISO. This set
+        // `Calendar.current`, which undid the POSIX locale's Gregorian
+        // calendar: on a Buddhist-calendar phone (Thailand) a 2026 sale
+        // exported as "2569-10-08", and on a Japanese one as "0008-10-08".
         let day = DateFormatter()
         day.locale = Locale(identifier: "en_US_POSIX")
-        day.calendar = Calendar.current
+        day.calendar = Calendar(identifier: .gregorian)
         day.dateFormat = "yyyy-MM-dd"
 
         var rows = ["Date,Item,Paid,Sold,Fees,Profit,ROI,Currency"]
@@ -422,6 +427,7 @@ final class FlipsViewModel {
     private static func fileStamp() -> String {
         let f = DateFormatter()
         f.locale = Locale(identifier: "en_US_POSIX")
+        f.calendar = Calendar(identifier: .gregorian)
         f.dateFormat = "yyyy-MM-dd"
         return f.string(from: Date())
     }
@@ -452,9 +458,14 @@ final class FlipsViewModel {
         SaleCurrency.signed(amounts)
     }
 
+    /// "+42%". Never traps: `Int(Double)` does outside Int's range, and a row
+    /// saved before `MoneyInput.ceiling` can hold a pasted 22-digit "price",
+    /// which crashed My Flips on every open. Such a figure prints in full.
     func roiPercent(_ fraction: Decimal) -> String {
-        let value = Int((NSDecimalNumber(decimal: fraction).doubleValue * 100).rounded())
-        return (value > 0 ? "+" : "") + "\(value)%"
+        let percent = (NSDecimalNumber(decimal: fraction).doubleValue * 100).rounded()
+        guard percent.isFinite else { return "—" }
+        let digits = Int(exactly: percent).map { "\($0)" } ?? String(format: "%.0f", percent)
+        return (percent > 0 ? "+" : "") + digits + "%"
     }
 
     // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -691,11 +702,12 @@ enum FlipsArchive {
         return zip
     }
 
-    /// A local-calendar day, as the CSV writes it (see `FlipsViewModel.csv`).
+    /// A local day with a Gregorian year, as the CSV writes it (see
+    /// `FlipsViewModel.csv`): `sold_date`, `listed_date` and the folder name.
     private static let day: DateFormatter = {
         let f = DateFormatter()
         f.locale = Locale(identifier: "en_US_POSIX")
-        f.calendar = Calendar.current
+        f.calendar = Calendar(identifier: .gregorian)
         f.dateFormat = "yyyy-MM-dd"
         return f
     }()

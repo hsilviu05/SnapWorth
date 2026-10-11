@@ -219,6 +219,11 @@ and use the real widget:
       "−$0.40", never "−$0". Whole amounts still read "$80". The share
       cards keep whole units, and paid 0.50 is "Free" on the result card
       and "Free find" on both guess-story cards.
+- [ ] With Settings → General → Language & Region → Calendar set to
+      Buddhist, the CSV's Date column and the photo export's `sold_date`
+      read 2026, like the file name (they read 2569).
+- [ ] Paste a long number (a tracking number) into Sold for: the field
+      keeps its last good value, and My Flips still opens.
 - [ ] Export CSV: the last column is Currency. The photo export's JSON has
       `currency` for a flip that chose one.
 - [ ] VoiceOver reads a lei profit as lei, not dollars.
