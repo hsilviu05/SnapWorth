@@ -10418,6 +10418,33 @@ final class LedgerCurrencyTests: XCTestCase {
                           "$80")
     }
 
+    func test_anAmountUnderAUnitPrintsItsCents() {
+        // Paid 10.40, sold 10: the sheet showed a loss arrow beside "−$0".
+        let loss = Decimal(10.0) - Decimal(10.4)
+        XCTAssertEqual(SaleCurrency.signed(loss, code: "USD", locale: us), "−$0.40")
+        XCTAssertEqual(SaleCurrency.signed(0.49, code: "USD", locale: us), "+$0.49")
+        XCTAssertEqual(SaleCurrency.format(10.4, code: "USD", locale: us), "$10.40")
+        XCTAssertEqual(SaleCurrency.signed(LedgerMath.Amounts(["USD": loss]), locale: us), "−$0.40")
+        XCTAssertEqual(SaleCurrency.signed(-0.004, code: "USD", locale: us), "+$0",
+                       "nothing that prints as zero reads as a loss")
+        XCTAssertEqual(SaleCurrency.formatWhole(10.4, code: "USD", locale: us), "$10",
+                       "the share cards keep whole units")
+    }
+
+    @MainActor
+    func test_theGuessCardsCallAPriceThatPrintsAsZeroFree() {
+        // 0.50 paid printed "Paid $0" on both story cards, while the result
+        // card for the same find said "Free →".
+        let flip = sold(paid: 0.5, price: 10, currency: "USD")
+        XCTAssertEqual(GuessShareCardView(result: flip, photo: nil, style: .guess).paidLabel,
+                       "Free find")
+        flip.paidPrice = 8
+        XCTAssertEqual(GuessShareCardView(result: flip, photo: nil, style: .reveal).paidLabel,
+                       "Paid $8")
+        flip.paidPrice = nil
+        XCTAssertNil(GuessShareCardView(result: flip, photo: nil, style: .guess).paidLabel)
+    }
+
     @MainActor
     func test_theProfitSortRanksWithinACurrency() {
         let forints = sold(paid: 1_000, price: 6_000, currency: "HUF")

@@ -171,7 +171,7 @@ struct ShareCardView: View {
     private var heroSection: some View {
         if let paid = result.paidPrice {
             VStack(spacing: 6) {
-                Text(printedDollars(paid) == 0
+                Text(Self.printedDollars(paid) == 0
                      ? String(localized: "Free →")
                      : String(localized: "Paid \(fmtCurrency(paid)) →"))
                     .font(Font.dmSans(17, weight: .semibold))
@@ -226,8 +226,8 @@ struct ShareCardView: View {
         // find", and $1.50 printed "Paid $2" beside the 30x taken from 1.50.
         // The `== 0` test has to move with it, or a paid price the card prints
         // as $0 escapes the free branch and becomes the divisor of a multiple.
-        let paidShown = printedDollars(paid)
-        let low = printedDollars(result.displayValueLow)
+        let paidShown = Self.printedDollars(paid)
+        let low = Self.printedDollars(result.displayValueLow)
         if paidShown == 0 { return String(localized: "Free find") }
         // The estimate is in dollars and the paid price in the currency it was
         // typed in (#224). Dividing one by the other made 20 lei paid against
@@ -250,18 +250,22 @@ struct ShareCardView: View {
         return multiple > 1 ? String(localized: "\(multiple)x find") : nil
     }
 
-    /// What was paid, in the currency it was typed in.
+    /// What was paid, in the currency it was typed in, in whole units like
+    /// the estimate beside it (`SaleCurrency.formatWhole`): the ledger prints
+    /// cents, and this card divides by the figure it prints.
     private func fmtCurrency(_ value: Double) -> String {
-        SaleCurrency.format(Decimal(value), code: SaleCurrency.of(result))
+        SaleCurrency.formatWhole(Decimal(value), code: SaleCurrency.of(result))
     }
 
-    /// A money figure as this card prints it.
+    /// A money figure as the share cards print it.
     ///
-    /// `NumberFormatter.snapCurrency` has `maximumFractionDigits = 0`, so
-    /// anything measured against a figure the card shows has to lose its cents
-    /// the same way first. Half-even because that is `NumberFormatter`'s own
-    /// default rounding: $22.50 lands on the $22 the card prints, not on $23.
-    private func printedDollars(_ value: Double) -> Double {
+    /// `NumberFormatter.snapCurrency` and `SaleCurrency.formatWhole` have
+    /// `maximumFractionDigits = 0`, so anything measured against a figure a
+    /// card shows has to lose its cents the same way first. Half-even because
+    /// that is `NumberFormatter`'s own default rounding: $22.50 lands on the
+    /// $22 the card prints, not on $23. Static, because the guess cards make
+    /// the same "Free" decision from the same printed figure.
+    static func printedDollars(_ value: Double) -> Double {
         value.rounded(.toNearestOrEven)
     }
 
@@ -634,10 +638,8 @@ struct GuessShareCardView: View {
                 .padding(.horizontal, sidePad)
                 .padding(.top, 28)
 
-            if let paid = result.paidPrice {
-                Text(paid == 0
-                     ? String(localized: "Free find")
-                     : String(localized: "Paid \(fmtCurrency(paid))"))
+            if let paidLabel {
+                Text(paidLabel)
                     .font(Font.dmSans(17, weight: .semibold))
                     .foregroundStyle(Color(hex: "8B7D71"))
                     .lineLimit(1)
@@ -730,9 +732,21 @@ struct GuessShareCardView: View {
         .background(Color(hex: "FBF7F2"))
     }
 
-    /// What was paid, in the currency it was typed in.
+    /// "Free find" or "Paid $8", on both cards; nil when nothing was paid.
+    ///
+    /// Free when the *printed* figure is zero, as `ShareCardView` decides it.
+    /// Tested on the stored value, 0.50 paid printed "Paid $0" on both story
+    /// cards while the result card for the same find said "Free →".
+    var paidLabel: String? {
+        guard let paid = result.paidPrice else { return nil }
+        return ShareCardView.printedDollars(paid) == 0
+            ? String(localized: "Free find")
+            : String(localized: "Paid \(fmtCurrency(paid))")
+    }
+
+    /// What was paid, in the currency it was typed in, in whole units.
     private func fmtCurrency(_ value: Double) -> String {
-        SaleCurrency.format(Decimal(value), code: SaleCurrency.of(result))
+        SaleCurrency.formatWhole(Decimal(value), code: SaleCurrency.of(result))
     }
 
     @ViewBuilder

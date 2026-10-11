@@ -73,17 +73,34 @@ enum SaleCurrency {
     // read "+80 lei" and My Flips "+$80" for the same sale (AUDIT-2026-10-07,
     // M1). `snapCurrency` stays for estimates, which are in dollars.
 
-    /// An amount in whole units, as `locale` writes `code`: "$80", "80 lei".
+    /// An amount as `locale` writes `code`: "$80", "80 lei", and to the cent
+    /// when it is not a whole number, "$10.40".
+    ///
+    /// This dropped the fraction always, so a sale 40 cents under its cost
+    /// read "−$0" under a loss arrow, and 49 cents over it "+$0" — the defect
+    /// `snapCurrencyCents` fixed in Thrift Flip. Rounded to the cent first, so
+    /// the Double-to-Decimal residue in 10.4 − 10 is not a fraction.
     static func format(_ amount: Decimal, code: String, locale: Locale = .current) -> String {
-        formatter(code, locale: locale).string(from: NSDecimalNumber(decimal: amount))
-            ?? "\(amount) \(code)"
+        let cents = rounded(amount, scale: 2)
+        let whole = rounded(cents, scale: 0) == cents
+        return formatter(code, locale: locale, whole: whole)
+            .string(from: NSDecimalNumber(decimal: cents)) ?? "\(amount) \(code)"
+    }
+
+    /// `format` in whole units, for the share cards: they print the paid price
+    /// beside a whole-dollar estimate and divide one by the other, as printed
+    /// (`ShareCardView.findBadge`).
+    static func formatWhole(_ amount: Decimal, code: String, locale: Locale = .current) -> String {
+        formatter(code, locale: locale, whole: true)
+            .string(from: NSDecimalNumber(decimal: amount)) ?? "\(amount) \(code)"
     }
 
     /// Signed, with U+2212 for a loss as `FlipsViewModel` always printed it:
-    /// "+80 lei", "−$12".
+    /// "+80 lei", "−$12". The sign is the printed figure's, so nothing that
+    /// rounds to zero reads as a loss.
     static func signed(_ amount: Decimal, code: String, locale: Locale = .current) -> String {
         let money = format(abs(amount), code: code, locale: locale)
-        return amount < 0 ? "−\(money)" : "+\(money)"
+        return rounded(amount, scale: 2) < 0 ? "−\(money)" : "+\(money)"
     }
 
     /// A total in one currency or several, never added across them: "80 lei",
@@ -115,12 +132,18 @@ enum SaleCurrency {
             .joined(separator: " · ")
     }
 
-    private static func formatter(_ code: String, locale: Locale) -> NumberFormatter {
+    private static func formatter(_ code: String, locale: Locale,
+                                  whole: Bool = true) -> NumberFormatter {
         let f = NumberFormatter()
         f.numberStyle = .currency
         f.locale = code == "USD" ? dollarLocale(locale) : locale
         f.currencyCode = code
-        f.maximumFractionDigits = 0
+        if whole {
+            f.maximumFractionDigits = 0
+        } else {
+            f.minimumFractionDigits = 2
+            f.maximumFractionDigits = 2
+        }
         return f
     }
 
@@ -139,6 +162,13 @@ enum SaleCurrency {
         f.locale = locale
         f.currencyCode = home
         return f.currencySymbol == "$" ? locale : us
+    }
+
+    private static func rounded(_ value: Decimal, scale: Int) -> Decimal {
+        var input = value
+        var result = Decimal()
+        NSDecimalRound(&result, &input, scale, .plain)
+        return result
     }
 }
 

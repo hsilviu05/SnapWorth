@@ -211,6 +211,10 @@ and use the real widget:
 - [ ] The month share card and a sold result's share card print the paid
       price in its own currency; a "2x find" badge appears only when both
       figures are dollars.
+- [ ] Paid 10.40, sold 10: the sheet, the My Flips row and the header read
+      "−$0.40", never "−$0". Whole amounts still read "$80". The share
+      cards keep whole units, and paid 0.50 is "Free" on the result card
+      and "Free find" on both guess-story cards.
 - [ ] Export CSV: the last column is Currency. The photo export's JSON has
       `currency` for a flip that chose one.
 - [ ] VoiceOver reads a lei profit as lei, not dollars.
