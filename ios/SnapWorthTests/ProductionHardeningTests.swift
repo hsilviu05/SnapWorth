@@ -10581,3 +10581,20 @@ final class ClearHistoryDigestTests: XCTestCase {
         XCTAssertTrue(body.contains("schedulePortfolioDigest(results: [])"))
     }
 }
+
+// ── "Copy message and address" copies the address ────────────────────────────
+//
+// The mail-unavailable fallback's button copied the message alone, so a user
+// pasting into another mail app had no recipient and had to come back to read
+// it off the card.
+
+@MainActor
+final class FeedbackClipboardTests: XCTestCase {
+
+    func test_theAddressComesFirstOnALineOfItsOwn() {
+        let text = FeedbackView.clipboardText(body: "It crashed.\n\nApp 1.5.3 (23)")
+        XCTAssertEqual(text.components(separatedBy: "\n").first, Config.supportEmail,
+                       "first, so it can be cut into the To field")
+        XCTAssertTrue(text.hasSuffix("It crashed.\n\nApp 1.5.3 (23)"), "and the message, whole")
+    }
+}
