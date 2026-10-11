@@ -125,6 +125,7 @@ final class ScanRepository {
         // Nor a shared sale: deleting a sold flip un-marks it for good.
         if let outcomeID { sharing.forget([outcomeID]) }
         scheduleWidgetSync()
+        scheduleDigestSync()
     }
 
     /// - Parameter pendingPhotos: where Haul mode keeps photos it has not
@@ -320,6 +321,25 @@ final class ScanRepository {
             // so giving it its own trigger would be a second thing to keep in
             // step with this one.
             await ThriftRunController.update(results: all)
+        }
+    }
+
+    private(set) static var digestSync: Task<Void, Never>?
+
+    /// Rebuilds the weekly digest from what a delete left. Its rungs' text is
+    /// fixed when scheduled ("Your 12 finds are worth $340."), so a deleted
+    /// find stayed in up to four Sundays until the next foreground rebuilt
+    /// them. Coalesced, and capturing the context rather than `self`, for the
+    /// reasons `scheduleWidgetSync` gives: a Haul discard deletes finds one
+    /// after another.
+    private func scheduleDigestSync() {
+        Self.digestSync?.cancel()
+        let context = self.context
+        Self.digestSync = Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(600))
+            guard !Task.isCancelled else { return }
+            let all = (try? context.fetch(FetchDescriptor<ScanResult>())) ?? []
+            await NotificationManager.shared.schedulePortfolioDigest(results: all)
         }
     }
 }
