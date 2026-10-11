@@ -442,6 +442,92 @@ class TestEntitlementService:
             "a re-subscription was killed by the tombstone for the term "
             "before it")
 
+    @staticmethod
+    def _refunded_yearly(now: int) -> entitlements.Entitlement:
+        """A yearly bought 8 days ago and refunded a week ago, as the REFUND
+        notification carries it."""
+        return entitlements.Entitlement(
+            tier="pro", product_id="com.snapworth.yearly",
+            expires_at=now + 357 * 86_400,
+            original_transaction_id=valid_payload()["originalTransactionId"],
+            environment="Production", revoked_at=now - 7 * 86_400,
+            purchased_at=now - 8 * 86_400)
+
+    @pytest.mark.asyncio
+    async def test_a_monthly_bought_after_a_refunded_yearly_is_pro(
+            self, service, pinned_root):
+        """One subscription group, one level: the monthly keeps the yearly's
+        original transaction id and expires eleven months before the refunded
+        yearly would have. Compared by expiry alone it was refused on every
+        sync until then, while the customer paid each month."""
+        leaf_key, chain = pinned_root
+        now = int(time.time())
+        await service.revoke(self._refunded_yearly(now))
+        monthly = valid_payload(productId="com.snapworth.monthly",
+                                purchaseDate=now * 1000,
+                                expiresDate=(now + 31 * 86_400) * 1000)
+        ent = await service.record("subject-monthly", make_jws(monthly, leaf_key, chain))
+        assert ent.tier == "pro"
+        assert ent.purchased_at == now
+        # And it survives the entry lapsing: `_rederive` asks the same question.
+        await service._cache.delete("ent:subject-monthly")
+        assert (await service.current("subject-monthly")).tier == "pro"
+
+    @pytest.mark.asyncio
+    async def test_the_refunded_term_redelivered_is_still_refused(
+            self, service, pinned_root):
+        """Its purchase date is before the refund, so the purchase-date rule
+        never excuses it, and the expiry rule refuses it."""
+        leaf_key, chain = pinned_root
+        now = int(time.time())
+        refunded = self._refunded_yearly(now)
+        await service.revoke(refunded)
+        assert refunded.expires_at is not None and refunded.purchased_at is not None
+        again = valid_payload(purchaseDate=refunded.purchased_at * 1000,
+                              expiresDate=refunded.expires_at * 1000)
+        ent = await service.record("subject-redelivered", make_jws(again, leaf_key, chain))
+        assert ent.tier == "free"
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("order", ["older term second", "older term first"])
+    async def test_two_refunds_on_one_subscription_both_stand(
+            self, service, pinned_root, order):
+        """Apple sends a REFUND per refunded transaction, in no promised order.
+        The tombstone held one expiry and was overwritten, so the older term's
+        REFUND arriving second moved it off the current term, and `_rederive`
+        restored Pro from the pre-refund proof for the rest of that month."""
+        leaf_key, chain = pinned_root
+        now = int(time.time())
+        payload = valid_payload(productId="com.snapworth.monthly",
+                                expiresDate=(now + 28 * 86_400) * 1000)
+        await service.record("subject-two", make_jws(payload, leaf_key, chain))
+        otid = payload["originalTransactionId"]
+        current = entitlements.Entitlement(
+            tier="pro", product_id="com.snapworth.monthly",
+            expires_at=now + 28 * 86_400, original_transaction_id=otid,
+            environment="Production", revoked_at=now)
+        older = entitlements.Entitlement(
+            tier="pro", product_id="com.snapworth.monthly",
+            expires_at=now - 2 * 86_400, original_transaction_id=otid,
+            environment="Production", revoked_at=now - 60)
+        for ent in ((current, older) if order == "older term second" else (older, current)):
+            assert await service.revoke(ent) is True
+        stored = json.loads(await service._cache.get(f"entrevoked:{otid}"))
+        assert stored == {"revoked_at": now, "expires_at": now + 28 * 86_400}
+
+        await service._cache.delete("ent:subject-two")
+        assert (await service.current("subject-two")).tier == "free"
+        assert await service._cache.get("entproof:subject-two") in (None, "")
+
+    @pytest.mark.asyncio
+    async def test_a_non_expiring_refund_is_not_narrowed_by_a_later_one(self, service):
+        otid = valid_payload()["originalTransactionId"]
+        for expires_at in (None, int(time.time()) + 86_400):
+            await service.revoke(entitlements.Entitlement(
+                tier="pro", product_id="com.snapworth.yearly", expires_at=expires_at,
+                original_transaction_id=otid, environment="Production"))
+        assert json.loads(await service._cache.get(f"entrevoked:{otid}"))["expires_at"] is None
+
     @pytest.mark.asyncio
     async def test_a_revocation_without_a_transaction_id_is_not_retried(
             self, service):

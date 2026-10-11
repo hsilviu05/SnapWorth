@@ -423,15 +423,16 @@ def status_class(code: int) -> str:
 # scanner probing random URLs would create a series per probe.
 #
 # Every route the app registers must be here; a test compares this with
-# `main.app.routes`. The last four were missing, so Apple's server
-# notifications, both referral calls and the TikTok callback were all counted
-# as "other" — indistinguishable from a scanner's probes.
+# `main.app.routes` and the OpenAPI paths. Apple's server notifications, both
+# referral calls and the TikTok callback were missing, and later /outcomes,
+# so all were counted as "other" — indistinguishable from a scanner's probes.
+# One path covers every method on it: `method` is its own label.
 KNOWN_ENDPOINTS = frozenset({
     "/scan", "/listing", "/trends", "/health", "/health/live", "/health/ready",
     "/metrics", "/privacy", "/terms",
     "/auth/challenge", "/auth/attest", "/auth/refresh", "/auth/entitlement",
     "/apple/notifications", "/apple/notifications/sandbox", "/referral/status", "/referral/claim",
-    "/social/tiktok/callback",
+    "/social/tiktok/callback", "/outcomes",
 })
 
 

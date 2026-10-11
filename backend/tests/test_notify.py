@@ -2868,8 +2868,9 @@ class TestHistoryAndArchive:
 
     @pytest.mark.asyncio
     async def test_history_count_argument_and_cap(self, cache, enabled_notify):
+        start = int(time.time()) - 3600
         await cache.set(chatlog.ARCHIVE_KEY, json.dumps(
-            [[1_756_900_000 + i, f"<b>message {i}</b>"] for i in range(40)]), 600)
+            [[start + i, f"<b>message {i}</b>"] for i in range(40)]), 600)
         assert "last 3 of 40" in await notify.handle_command("/history 3")
         assert "last 25 of 40" in await notify.handle_command("/history 999")
         assert "last 8 of 40" in await notify.handle_command("/history nonsense")
@@ -2877,11 +2878,31 @@ class TestHistoryAndArchive:
 
     @pytest.mark.asyncio
     async def test_archive_is_capped_and_old_entries_roll_off(self, cache, enabled_notify):
+        now = int(time.time())
         await cache.set(chatlog.ARCHIVE_KEY, json.dumps(
-            [[1, "old"]] * chatlog.ARCHIVE_CAP), 600)
-        await chatlog.archive(notify._cache, [[9, 2, "new"]])
+            [[now - 3600, "old"]] * chatlog.ARCHIVE_CAP), 600)
+        await chatlog.archive(notify._cache, [[9, now, "new"]])
         kept = json.loads(await cache.get(chatlog.ARCHIVE_KEY))
-        assert len(kept) == chatlog.ARCHIVE_CAP and kept[-1] == [2, "new"]
+        assert len(kept) == chatlog.ARCHIVE_CAP and kept[-1] == [now, "new"]
+
+    @pytest.mark.asyncio
+    async def test_the_archive_keeps_30_days_by_each_entrys_own_time(
+            self, cache, enabled_notify):
+        """Every /clear renewed the key's 30-day TTL, and nothing looked at an
+        entry's age, so a day-1 /sub answer was still in /history on day 80,
+        under a footer saying "Kept 30 days"."""
+        now = int(time.time())
+        await cache.set(chatlog.ARCHIVE_KEY, json.dumps([
+            [now - chatlog.ARCHIVE_TTL - 60, "a /sub answer from last month"],
+            [now - 86_400, "yesterday's alert"]]), chatlog.ARCHIVE_TTL)
+
+        text = await notify.handle_command("/history")
+        assert "last month" not in text
+        assert "last 1 of 1 kept messages" in text
+
+        await chatlog.archive(notify._cache, [[9, now, "today's alert"]])
+        kept = json.loads(await cache.get(chatlog.ARCHIVE_KEY))
+        assert [a[1] for a in kept] == ["yesterday's alert", "today's alert"]
 
     @pytest.mark.asyncio
     async def test_clear_forwards_to_an_archive_chat_when_configured(self, cache, monkeypatch):
@@ -4728,7 +4749,48 @@ class TestSaleCountingAndResubscribe:
         # Same term, arriving after the REFUND.
         await notify.entitlement_recorded("b" * 64, Entitlement(
             "pro", "com.snapworth.yearly", now + 30 * 86_400, "otid-late",
-            "Production", **common))
+            "Production", purchased_at=now - 86_400, **common))
+
+        rows = subs_rows(await notify.handle_command("/subs"))
+        assert rows and "refund" in rows[0], rows
+
+    @pytest.mark.asyncio
+    async def test_a_monthly_bought_after_a_refunded_yearly_clears_the_row(
+            self, enabled_notify):
+        """Monthly and yearly share the original transaction id, and a monthly
+        bought after the refund expires months before the refunded yearly
+        would have: by expiry alone the row stayed `refund`, out of active and
+        MRR, while the customer paid every month."""
+        now = int(time.time())
+        common = dict(original_purchase_at=now - 8 * 86_400, currency="USD")
+        await notify.entitlement_recorded("d" * 64, Entitlement(
+            "pro", "com.snapworth.yearly", now + 357 * 86_400, "otid-switch",
+            "Production", price=39.99, revoked_at=now - 7 * 86_400, **common))
+        await notify.entitlement_recorded("d" * 64, Entitlement(
+            "pro", "com.snapworth.monthly", now + 31 * 86_400, "otid-switch",
+            "Production", price=4.99, purchased_at=now, **common))
+
+        text = await notify.handle_command("/subs")
+        assert "1 active" in text, text
+        rows = subs_rows(text)
+        assert rows and "refund" not in rows[0], rows
+
+    @pytest.mark.asyncio
+    async def test_an_older_terms_refund_arriving_second_keeps_the_mark(
+            self, enabled_notify):
+        """Two REFUNDs in either order: the mark keeps the later expiry, so a
+        redelivered transaction for the refunded current term cannot clear it."""
+        now = int(time.time())
+        common = dict(original_purchase_at=now - 60 * 86_400, price=4.99,
+                      currency="USD")
+        for expires, revoked in ((now + 28 * 86_400, now), (now - 2 * 86_400, now - 60)):
+            await notify.entitlement_recorded("e" * 64, Entitlement(
+                "pro", "com.snapworth.monthly", expires, "otid-two",
+                "Production", revoked_at=revoked, **common))
+        # The current term, redelivered without its revocation.
+        await notify.entitlement_recorded("e" * 64, Entitlement(
+            "pro", "com.snapworth.monthly", now + 28 * 86_400, "otid-two",
+            "Production", purchased_at=now - 2 * 86_400, **common))
 
         rows = subs_rows(await notify.handle_command("/subs"))
         assert rows and "refund" in rows[0], rows
@@ -5623,6 +5685,24 @@ class TestAReversedRefund:
         assert "Refund block" in text
         assert "not</b> refunded" in text
         assert ("🔓 Lift refund block", "sub 2000000000000008 lift") in _flat(buttons)
+
+    @pytest.mark.asyncio
+    async def test_a_block_does_not_cover_a_term_bought_after_the_refund(
+            self, enabled_notify, cache, monkeypatch):
+        """The access path spares a monthly bought after a refunded yearly,
+        though it expires first; /sub must not report it as denied."""
+        from dataclasses import replace
+        now = int(time.time())
+        yearly = sub("2000000000000011", "com.snapworth.yearly", expires_in_days=357)
+        await _refund_block_store(cache).revoke(yearly, revoked_at=now - 7 * 86_400)
+        monthly = replace(sub("2000000000000011", expires_in_days=31), purchased_at=now)
+        _patch_lookup(monkeypatch, [_FakeStatus(monthly, state="active")])
+
+        text, buttons = await notify.handle_command_with_buttons(
+            "/sub 2000000000000011")
+
+        assert "It does not cover the current term." in text
+        assert not any("lift" in data for _, data in _flat(buttons))
 
     @pytest.mark.asyncio
     async def test_a_block_apple_agrees_with_is_not_offered(

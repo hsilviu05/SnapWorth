@@ -80,6 +80,20 @@ class TestValidate:
         with pytest.raises(imagevalidation.ImageValidationError):
             imagevalidation.validate(buf.getvalue(), "image/png")
 
+    def test_a_flat_png_far_above_any_upload_is_rejected_before_decode(self):
+        """7070x7070 (50 MP) passed the old ceiling at ~160 KB, and the quality
+        check then decoded it at full size on the only worker. No genuine
+        upload is above 1568 px on its long edge."""
+        buf = io.BytesIO()
+        Image.new("L", (7070, 7070), color=0).save(buf, format="PNG")
+        with pytest.raises(imagevalidation.ImageValidationError):
+            imagevalidation.validate(buf.getvalue(), "image/png")
+
+    def test_a_full_12_megapixel_photo_is_still_accepted(self):
+        buf = io.BytesIO()
+        Image.new("RGB", (4032, 3024), color=0).save(buf, format="JPEG")
+        assert imagevalidation.validate(buf.getvalue(), "image/jpeg") == "image/jpeg"
+
     def test_heic_mislabelled_as_jpeg_is_accepted(self):
         # iOS clients routinely mislabel HEIC; sniffing keeps them working.
         heic = b"\x00\x00\x00\x18ftypheic" + b"\x00" * 512

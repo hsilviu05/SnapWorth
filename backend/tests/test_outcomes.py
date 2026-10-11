@@ -137,6 +137,30 @@ def test_malformed_values_are_refused(overrides):
     assert post(outcome(**overrides)).status_code == 422
 
 
+@pytest.mark.parametrize("currency, price", [
+    ("HUF", 120_000), ("HUF", 30_000_000), ("CZK", 2_000_000), ("RON", 300_000),
+])
+def test_the_sold_price_ceiling_is_in_the_sale_currency(currency, price):
+    """100,000 forints is about $275: a flat ceiling refused every Hungarian
+    sale above it, and the app retries a refusal silently, forever."""
+    body = outcome(currency=currency, sold_price=price)
+    assert post(body).status_code == 200
+    assert stored(body["contribution_id"])["sold_price"] == price
+
+
+@pytest.mark.parametrize("currency, price", [
+    ("USD", 250_000), ("EUR", 100_001), ("HUF", 50_000_000), ("CZK", 3_000_000),
+])
+def test_a_sold_price_beyond_its_currency_ceiling_is_refused(currency, price):
+    body = outcome(currency=currency, sold_price=price)
+    assert post(body).status_code == 422
+    assert stored(body["contribution_id"]) is None
+
+
+def test_every_sale_currency_has_a_ceiling():
+    assert set(outcomes.PER_USD) == outcomes.CURRENCIES
+
+
 def test_a_range_upside_down_is_refused():
     assert post(outcome(estimate_low=50.0, estimate_high=20.0)).status_code == 422
 
@@ -194,6 +218,18 @@ def test_one_install_has_a_daily_cap(monkeypatch):
     assert post(outcome()).status_code == 429
 
 
+def test_a_fresh_token_does_not_reset_the_daily_cap(monkeypatch):
+    """The token is the request's to pick. Counted on it, a caller sending a
+    new one each time never reached the cap; counted on the attested caller,
+    it does, and another caller keeps an allowance of its own."""
+    monkeypatch.setattr(outcomes, "DAILY_CAP", 2)
+    tokens = [c * 40 for c in "cde"]
+    assert post(outcome(contributor_token=tokens[0])).status_code == 200
+    assert post(outcome(contributor_token=tokens[1])).status_code == 200
+    assert post(outcome(contributor_token=tokens[2])).status_code == 429
+    assert post(outcome(contributor_token=tokens[2]), subject="attested-key-2").status_code == 200
+
+
 # ── Lifecycle ────────────────────────────────────────────────────────────────
 
 def test_an_edit_replaces_the_same_record():
@@ -244,3 +280,84 @@ def test_the_export_has_every_live_record_and_no_contributor():
     rows = [json.loads(line) for line in run(outcomes.export_jsonl()).splitlines()]
     assert [r["contribution_id"] for r in rows] == [kept["contribution_id"].lower()]
     assert "contributor" not in rows[0]
+
+
+def test_the_export_has_a_record_once_after_delete_all_and_a_re_share():
+    """Delete-all removes the record, not its slot, and the app re-sends a
+    sold flip with its old contribution id: the second send is new to `add`
+    and gets a second slot, which the export counted as a second sale."""
+    body = outcome()
+    post(body)
+    assert delete({"contributor_token": TOKEN_A}).json() == {"deleted": 1}
+    assert post(body).json() == {"stored": True, "created": True}
+    rows = [json.loads(line) for line in run(outcomes.export_jsonl()).splitlines()]
+    assert [r["contribution_id"] for r in rows] == [body["contribution_id"].lower()]
+
+
+# ── The deletion index outlives nothing it points to ─────────────────────────
+
+DAY = 86_400
+
+
+@pytest.fixture
+def clock(monkeypatch):
+    """The in-memory cache's clock, movable. Records and indexes expire by it."""
+    import cache as cache_module
+    now = [cache_module.time.time()]
+    monkeypatch.setattr(cache_module.time, "time", lambda: now[0])
+    return now
+
+
+def share(body: dict, subject: str = "attested-key-1") -> bool:
+    return run(outcomes.store(outcomes.Outcome(**body), subject))
+
+
+def delete_all(token: str = TOKEN_A) -> int:
+    return run(outcomes.delete(outcomes.Deletion(contributor_token=token)))
+
+
+def test_delete_all_finds_records_shared_long_after_the_first(clock):
+    """The per-install counter expired 400 days after the install's *first*
+    share, however many followed: on day 401 delete-all read a count of 0,
+    removed nothing, reported success, and the day-300 records lived to 700."""
+    share(outcome())
+    clock[0] += 300 * DAY
+    later = [outcome() for _ in range(3)]
+    for body in later:
+        share(body)
+    clock[0] += 101 * DAY
+    assert delete_all() == 3
+    for body in later:
+        assert stored(body["contribution_id"]) is None
+
+
+def test_an_edited_record_stays_deletable_after_its_first_pointer_expires(clock):
+    """An edit renews the record for 400 days; the pointer written at the
+    first send did not, so the edited record outlived its index entry."""
+    body = outcome()
+    share(body)
+    clock[0] += 350 * DAY
+    assert share({**body, "sold_price": 42.0}) is False
+    clock[0] += 51 * DAY
+    assert stored(body["contribution_id"]) is not None, "the edit renewed the record"
+    assert delete_all() == 1
+    assert stored(body["contribution_id"]) is None
+
+
+def test_an_edit_does_not_count_twice_in_delete_all():
+    body = outcome()
+    share(body)
+    share({**body, "sold_price": 42.0})
+    assert delete_all() == 1
+
+
+def test_rotating_the_audit_salt_leaves_shared_sales_editable_and_deletable(monkeypatch):
+    """RUNBOOK §8.5 allows rotating AUDIT_SALT. Tagged with it, every record
+    became undeletable and uneditable by its own install for 400 days."""
+    import auditlog
+    body = outcome()
+    share(body)
+    monkeypatch.setattr(auditlog, "_SALT", b"a-rotated-salt")
+    assert share({**body, "sold_price": 42.0}) is False, "the owner can still edit"
+    assert run(outcomes.delete(outcomes.Deletion(
+        contributor_token=TOKEN_A, contribution_id=body["contribution_id"]))) == 1

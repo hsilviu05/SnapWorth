@@ -271,6 +271,13 @@ class TestRequestInstrumentation:
         from fastapi.routing import APIRoute
 
         routes = {r.path for r in app.routes if isinstance(r, APIRoute)}
+        # Since fastapi 0.142 `app.routes` holds an included router as one
+        # wrapper, not its APIRoutes, so the line above saw main.py's own
+        # routes only and /outcomes arrived as "other" without failing this.
+        # The schema lists every router's paths, however they are wrapped.
+        routes |= set(app.openapi()["paths"])
+        assert {"/outcomes", "/auth/attest", "/referral/claim"} <= routes, (
+            "the routers' paths are missing from what this test checks")
         assert routes - metrics.KNOWN_ENDPOINTS == set()
 
 

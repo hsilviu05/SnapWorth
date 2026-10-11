@@ -641,6 +641,28 @@ class TestScanEndpoint:
             assert "Maria" not in str(record.__dict__), (
                 f"{record.getMessage()!r} logs what was scanned")
 
+    def test_an_unreadable_scan_logs_the_reply_shape_not_its_content(self, caplog):
+        """The unparseable-after-reformat line logged the first 200 characters
+        of the reply, which under v2 open with the item name, under the
+        request id "scan start" ties to the device's pseudonym."""
+        truncated = MagicMock()
+        truncated.text = '{"item_name": "Signed Jordan card to Maria", "brand": "Nik'
+        garbled = MagicMock()
+        garbled.text = "I cannot reformat that."
+        with caplog.at_level("INFO", logger="snapworth"):
+            with patch("main._model") as mock_model:
+                mock_model.generate_content_async = AsyncMock(side_effect=[truncated, garbled])
+                r = _make_scan_request(device_id="log-test-unreadable")
+        assert r.status_code == 502
+        unreadable = [rec for rec in caplog.records
+                      if rec.getMessage() == "scan unparseable after reformat"]
+        assert unreadable, "the path must actually run"
+        assert not hasattr(unreadable[0], "raw_prefix")
+        assert getattr(unreadable[0], "keys_seen") == ["item_name", "brand"]
+        for record in caplog.records:
+            assert "Maria" not in str(record.__dict__), (
+                f"{record.getMessage()!r} logs what was scanned")
+
 
 # ── POST /listing (Snap → Sell) ───────────────────────────────────────────────
 
@@ -781,6 +803,40 @@ class TestListingEndpoint:
         assert data["title"]
         assert data["listing_price"] > 0
         assert "Patagonia" in data["title"]
+
+    def test_a_prompt_level_block_from_the_real_sdk_falls_back(self):
+        """Read as an empty reply, the SDK's no-candidates block answered 502
+        after a retry instead of the deterministic listing a block gets."""
+        from google.genai import types
+        blocked = types.GenerateContentResponse.model_validate(
+            {"promptFeedback": {"blockReason": "PROHIBITED_CONTENT"}})
+        with patch("main._model") as mm:
+            mm.generate_content_async = AsyncMock(return_value=blocked)
+            r = _post_listing()
+        assert r.status_code == 200
+        assert "Patagonia" in r.json()["title"]
+        assert mm.generate_content_async.await_count == 1
+
+    def test_listing_logs_never_carry_the_reply_or_the_prices(self, caplog):
+        """The parse-error line printed 200 characters of the model's title and
+        description, and "listing ok" logged the ask and floor beside the
+        device's pseudonym: a per-device record of what someone is selling."""
+        garbled = 'Sure! {"title": "Signed Jordan card to Maria", "description": '
+        with caplog.at_level("INFO", logger="snapworth"):
+            with patch("main._model") as mm:
+                mm.generate_content_async = AsyncMock(return_value=self._mock(garbled))
+                assert _post_listing(device_id="listing-log-1").status_code == 200
+                mm.generate_content_async = AsyncMock(
+                    return_value=self._mock(json.dumps(MOCK_LISTING_JSON)))
+                assert _post_listing(device_id="listing-log-2").status_code == 200
+        messages = [r.getMessage() for r in caplog.records]
+        assert any(m.startswith("listing json parse error") for m in messages)
+        assert "listing ok" in messages
+        for record in caplog.records:
+            assert "Maria" not in record.getMessage()
+            assert "Maria" not in str(record.__dict__)
+            if record.getMessage() == "listing ok":
+                assert not hasattr(record, "ask") and not hasattr(record, "floor")
 
     def test_floor_never_exceeds_ask(self):
         bad = {**MOCK_LISTING_JSON, "listing_price": 40.0, "negotiation_floor": 80.0}
@@ -1096,6 +1152,36 @@ class TestRepeatedSafetyBlocks:
             model.generate_content_async = AsyncMock(return_value=self._blocked_response())
             codes = [_make_scan_request(device_id="off").status_code for _ in range(4)]
         assert codes == [422, 422, 422, 422]
+
+    def test_a_prompt_level_block_from_the_real_sdk_counts_toward_the_pause(self, monkeypatch):
+        """google-genai answers an input-level block with no candidates and a
+        `.text` of None, never an exception. Read as an empty reply, it was
+        retried, answered 502 "try again", marked the model unhealthy (paging
+        the operator about an outage that was not one) and never counted
+        toward this pause — the case the pause exists for."""
+        from unittest.mock import AsyncMock, patch
+
+        from google.genai import types
+
+        import main
+        from cache import InMemoryCache, ResilientCache
+        monkeypatch.setattr(main, "_cache", ResilientCache(None, InMemoryCache()))
+        monkeypatch.setattr(main, "_model_health", main._ModelHealth())
+        monkeypatch.setattr(main, "SAFETY_BLOCKS_BEFORE_PAUSE", 2)
+        _rate_store.clear()
+        _ip_rate_store.clear()
+        blocked = types.GenerateContentResponse.model_validate(
+            {"promptFeedback": {"blockReason": "PROHIBITED_CONTENT"}})
+        with patch("main._model") as model:
+            model.generate_content_async = AsyncMock(return_value=blocked)
+            first = _make_scan_request(device_id="sdk-block")
+            second = _make_scan_request(device_id="sdk-block")
+            third = _make_scan_request(device_id="sdk-block")
+        assert (first.status_code, second.status_code) == (422, 422)
+        assert first.json()["code"] == "photo_unusable"
+        assert "paused for 24 hours" in third.json()["detail"]
+        assert model.generate_content_async.await_count == 2, "a block is never retried"
+        assert main._model_health.healthy, "a block is not an outage"
 
 
 class TestTrendsEndpoint:

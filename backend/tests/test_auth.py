@@ -254,6 +254,41 @@ class TestAppAttest:
         assert r.status_code == 401
         assert r.json()["detail"] == "Attestation object is malformed."
 
+    # ecdsa-with-SHA256 → an unassigned sibling arc, in the leaf's signature
+    # algorithm (twice); id-ecPublicKey → the same, in the intermediate's key.
+    _UNKNOWN_ALGORITHMS = {
+        "leaf signature": (0, "06082a8648ce3d040302", "06082a8648ce3d040309"),
+        "intermediate key": (1, "06072a8648ce3d0201", "06072a8648ce3d0209"),
+    }
+
+    @pytest.mark.parametrize("case", sorted(_UNKNOWN_ALGORITHMS))
+    def test_a_certificate_with_an_unknown_algorithm_is_an_attestation_error(
+            self, monkeypatch, case):
+        """cryptography raises UnsupportedAlgorithm for an OID it does not
+        know, which `except InvalidSignature` let through as a 500, before
+        any Apple signature had been checked."""
+        index, known, unknown = self._UNKNOWN_ALGORITHMS[case]
+        root, x5c = self._chain_signed_by_a_test_root()
+        monkeypatch.setattr(appattest, "_load_root", lambda: root)
+        patched = x5c[index].replace(bytes.fromhex(known), bytes.fromhex(unknown))
+        assert patched != x5c[index]
+        x5c[index] = patched
+        obj = {"fmt": "apple-appattest", "attStmt": {"x5c": x5c}, "authData": b"\x00" * 60}
+        with pytest.raises(appattest.AttestationError, match="not signed by Apple"):
+            appattest.verify_attestation(cbor2.dumps(obj), b"chal", b"k", TEST_APP_ID)
+
+    def test_the_endpoint_answers_an_unknown_signature_algorithm_with_401(self):
+        _, x5c = self._chain_signed_by_a_test_root()
+        x5c[0] = x5c[0].replace(bytes.fromhex("06082a8648ce3d040302"),
+                                bytes.fromhex("06082a8648ce3d040309"))
+        obj = {"fmt": "apple-appattest", "attStmt": {"x5c": x5c}, "authData": b"\x00" * 60}
+        challenge = client.post("/auth/challenge").json()["challenge"]
+        r = client.post("/auth/attest", json={
+            "key_id": base64.b64encode(b"k").decode(),
+            "attestation": base64.b64encode(cbor2.dumps(obj)).decode(),
+            "challenge": challenge})
+        assert r.status_code == 401
+
     def test_assertion_replay_rejected(self):
         """Counter must strictly advance — this is the anti-replay control."""
         from cryptography.hazmat.primitives import serialization
