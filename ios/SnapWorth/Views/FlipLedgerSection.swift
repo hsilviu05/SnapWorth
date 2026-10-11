@@ -191,7 +191,12 @@ struct FlipStatusCard: View {
     private var soldDateBinding: Binding<Date> {
         Binding(
             get: { result.soldDate ?? Date() },
-            set: { result.soldDate = $0 }
+            // Half of the widget's month filter, as in `setStatus`. The
+            // refresh is debounced, so scrolling the wheel is one write.
+            set: {
+                result.soldDate = $0
+                onLedgerChange()
+            }
         )
     }
 

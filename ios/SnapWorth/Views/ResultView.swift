@@ -339,6 +339,14 @@ struct ResultView: View {
             else if let parsed = MoneyInput.parse(newValue) { result.feesEstimate = parsed }
             ledgerDidChange()
         }
+        // The Currency menu, and `SaleCurrency.pin`. The cached share card
+        // prints the paid price in this currency and shows a find multiple
+        // only for dollars, and the widget's month profit is per currency;
+        // both kept the old currency until something else re-rendered them.
+        .onChange(of: result.saleCurrency) { _, _ in
+            vm.scheduleShareCardUpdate(result: result, photo: photo)
+            ledgerDidChange()
+        }
         .fullScreenCover(isPresented: $showTagCamera) {
             TagCameraSheet { image in
                 showTagCamera = false
@@ -524,6 +532,11 @@ struct ResultView: View {
     /// typed what it went for was left with "This month: $0 from 0 flips" on
     /// the Home Screen until they happened to scan or delete something, which
     /// is the next thing that touches the widget.
+    ///
+    /// Every ledger edit calls it: the status chips, the three amounts, the
+    /// sold date (the other half of the month filter) and the currency (the
+    /// month profit is printed per currency). The last two were missed, and
+    /// left the widget on the old month or the old currency.
     ///
     /// Deliberately *not* `valuationDidChange`: the estimate itself has not
     /// moved, so there is no new portfolio point to record — and throwing away

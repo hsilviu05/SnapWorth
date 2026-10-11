@@ -208,6 +208,10 @@ and use the real widget:
       never one summed figure. The best flip is chosen within a currency.
 - [ ] The Profit widget, removed and re-added first, prints both currencies,
       and is red only when both are a loss.
+- [ ] On a sale made this month, move the sold date into last month, then
+      switch the currency: the widget follows each change within a second or
+      two, with no scan or relaunch. After the currency switch, Share →
+      Result card prints the paid price in the new currency.
 - [ ] The month share card and a sold result's share card print the paid
       price in its own currency; a "2x find" badge appears only when both
       figures are dollars.
