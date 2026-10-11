@@ -30,9 +30,12 @@ Identity and deletion
 The app makes a random **contribution id** per flip (an edit re-sends and
 replaces the same record) and a random **contributor token** per install,
 used only to delete. The server keeps a keyed hash of the token
-(`auditlog.keyed_tag`), never the token. Un-marking a sale deletes its
+(`contributor_tag`), never the token. Un-marking a sale deletes its
 record; "Delete my shared sales" deletes every record the token made. A
 record can be replaced or deleted only with the token that made it.
+
+The daily cap is the one thing counted on the attested caller rather than
+the token: the token is whatever the request says, so a cap on it was none.
 
 Storage
 -------
@@ -41,7 +44,9 @@ read-modify-write lists: a global sequence for the export
 (`outcome-seq`, `outcome-slot:<n>`) and one per contributor for deletion
 (`outcome-by:<tag>:seq`, `outcome-by:<tag>:<n>`). A deleted record leaves its
 slot pointing at nothing, which the export and the deletion skip. Records and
-indexes keep for `RECORD_TTL`.
+indexes keep for `RECORD_TTL`. Every send, an edit included, writes a fresh
+deletion pointer and renews the per-contributor counter, so the deletion
+index lives as long as the newest record it has to find.
 
 Durable records need Redis persistence (AOF), which is RUNBOOK §11's and the
 Railway config issue's; until it is on, a Redis restart loses what arrived
@@ -50,6 +55,8 @@ since the last snapshot.
 
 from __future__ import annotations
 
+import hashlib
+import hmac
 import json
 import time
 from collections.abc import Awaitable, Callable
@@ -57,7 +64,7 @@ from datetime import date, datetime, timezone
 from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Request
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 import auditlog
 import categories
@@ -85,7 +92,19 @@ MARKETPLACES = frozenset({"ebay", "poshmark", "mercari", "depop", "vinted", "fac
 
 #: The ceiling on any price field. A thrift flip above this is not one this
 #: product prices, and a typo of a few zeros should not skew a median.
+#: The estimates are dollars. The sold price is in its own currency, and is
+#: held to this many dollars' worth of it through `PER_USD`.
 MAX_PRICE = 100_000.0
+
+#: Units of each sale currency per dollar, rounded up generously. Only the
+#: sold price's ceiling uses it, so it needs the order of magnitude, not the
+#: rate. Without it the ceiling was 100,000 of anything: about $275 in
+#: forints, so every Hungarian sale above that was refused with a 422 the
+#: app retries silently.
+PER_USD = {"USD": 1, "EUR": 1, "GBP": 1, "CHF": 1, "CAD": 1.5, "AUD": 1.6,
+           "BGN": 2, "RON": 5, "PLN": 4.5, "CNY": 8, "MXN": 21, "SEK": 12,
+           "NOK": 12, "DKK": 8, "CZK": 26, "HUF": 420}
+assert set(PER_USD) == CURRENCIES, "every sale currency needs a ceiling"
 
 #: The condition grades a valuation names (`valuation._CONDITION_GRADES`) and
 #: the app's `Condition` raw values: the same four.
@@ -124,7 +143,7 @@ class Outcome(BaseModel):
     estimate_high: float = Field(ge=0, le=MAX_PRICE)
     likely: float | None = Field(default=None, ge=0, le=MAX_PRICE)
     expected: float | None = Field(default=None, ge=0, le=MAX_PRICE)
-    sold_price: float = Field(gt=0, le=MAX_PRICE)
+    sold_price: float = Field(gt=0)
     currency: str
     sold_day: date
     days_listed_to_sold: int | None = Field(default=None, ge=0, le=3650)
@@ -166,6 +185,13 @@ class Outcome(BaseModel):
     def _prompt_by_name(cls, value: str) -> str:
         return value if value in prompts.PROMPTS else UNKNOWN
 
+    @model_validator(mode="after")
+    def _sold_price_in_range(self) -> "Outcome":
+        # After the field validators, so `currency` is one PER_USD has.
+        if self.sold_price > MAX_PRICE * PER_USD[self.currency]:
+            raise ValueError("sold_price is above the ceiling for its currency")
+        return self
+
     @field_validator("sold_day", "scan_day")
     @classmethod
     def _not_in_the_future(cls, value: date) -> date:
@@ -188,9 +214,20 @@ class Deletion(BaseModel):
     contribution_id: str | None = Field(default=None, pattern=r"^[0-9A-Fa-f-]{32,36}$")
 
 
+#: The key `contributor_tag` hashes under. **Never change it.** A record's
+#: ownership, and its install's "Delete my shared sales", is the tag it was
+#: stored under, so a new key orphans every record for its 400 days: the
+#: owner can neither edit nor delete it, and delete-all reports success while
+#: removing nothing. That is why it is not AUDIT_SALT, which RUNBOOK §8.5
+#: allows rotating. It need not be secret: the token is 256 random bits made
+#: by the app, so the tag cannot be reversed without it either way.
+_TAG_KEY = b"snapworth-outcomes-v1"
+
+
 def contributor_tag(token: str) -> str:
-    """The stored stand-in for a contributor token, keyed with the audit salt."""
-    return auditlog.keyed_tag("outcomes", token, 24)
+    """The stored stand-in for a contributor token: a keyed hash, never the
+    token, under a key that does not rotate (`_TAG_KEY`)."""
+    return hmac.new(_TAG_KEY, token.encode(), hashlib.sha256).hexdigest()[:24]
 
 
 def _record_key(contribution_id: str) -> str:
@@ -209,8 +246,13 @@ def _by_key(tag: str, n: int) -> str:
     return f"outcome-by:{tag}:{n}"
 
 
-def _cap_key(tag: str) -> str:
-    return f"outcome-cap:{tag}:{time.strftime('%Y%m%d', time.gmtime())}"
+def _cap_key(subject: str) -> str:
+    """The daily cap's counter, per attested caller: the token is the
+    request's to pick, so a fresh one per send never reached a cap keyed on
+    it. Keyed-hashed, so no raw subject is written; a salt rotation only
+    restarts the day's count."""
+    who = auditlog.keyed_tag("outcomes-cap", subject, 24)
+    return f"outcome-cap:{who}:{time.strftime('%Y%m%d', time.gmtime())}"
 
 
 class OutcomeError(Exception):
@@ -219,17 +261,30 @@ class OutcomeError(Exception):
         self.status = status
 
 
-async def store(outcome: Outcome) -> bool:
-    """Insert or replace a record. True when it was new."""
+async def store(outcome: Outcome, subject: str) -> bool:
+    """Insert or replace a record. True when it was new.
+
+    `subject` is the attested caller, the daily cap's key."""
     cache = deps.cache
     tag = contributor_tag(outcome.contributor_token)
-    if await cache.incr(_cap_key(tag), ttl=2 * 86400, required=True) > DAILY_CAP:
+    if await cache.incr(_cap_key(subject), ttl=2 * 86400, required=True) > DAILY_CAP:
         raise OutcomeError(429, "Too many shared sales today. Try again tomorrow.")
-    key = _record_key(outcome.contribution_id)
+    contribution_id = outcome.contribution_id.lower()
+    key = _record_key(contribution_id)
     record = outcome.model_dump(mode="json", exclude={"contributor_token"})
     record["contributor"] = tag
     record["received"] = datetime.now(timezone.utc).date().isoformat()
     body = json.dumps(record, sort_keys=True)
+    # The deletion pointer first, and on every send, an edit included. The
+    # record gets a fresh RECORD_TTL on each send, and so must what finds it:
+    # the pointer used to be written on the first send only, and the
+    # counter's expiry was anchored to the install's first share, so 400 days
+    # on delete-all read a count of 0 and removed nothing while later records
+    # lived on. Written before the record, a failure in between leaves a
+    # pointer to nothing, which `delete` skips, never a record nothing finds.
+    m = await cache.incr(_by_seq_key(tag), required=True)
+    await cache.expire(_by_seq_key(tag), RECORD_TTL, required=True)
+    await cache.set(_by_key(tag, m), contribution_id, ttl=RECORD_TTL, required=True)
     # Set-if-absent, so two first sends of one sale cannot both index it.
     if not await cache.add(key, body, ttl=RECORD_TTL, required=True):
         existing = await cache.get(key, required=True)
@@ -238,10 +293,7 @@ async def store(outcome: Outcome) -> bool:
         await cache.set(key, body, ttl=RECORD_TTL, required=True)
         return False
     n = await cache.incr("outcome-seq", required=True)
-    await cache.set(_slot_key(n), outcome.contribution_id.lower(), ttl=RECORD_TTL, required=True)
-    m = await cache.incr(_by_seq_key(tag), ttl=RECORD_TTL, required=True)
-    await cache.set(_by_key(tag, m), outcome.contribution_id.lower(), ttl=RECORD_TTL,
-                    required=True)
+    await cache.set(_slot_key(n), contribution_id, ttl=RECORD_TTL, required=True)
     return True
 
 
@@ -277,10 +329,16 @@ async def export_jsonl() -> str:
     cache = deps.cache
     count = int(await cache.get("outcome-seq", required=True) or 0)
     lines: list[str] = []
+    # A record can hold more than one slot: deleted and then sent again (the
+    # app re-sends a sold flip after "Delete my shared sales"), it is new to
+    # `add` and gets another. Emitted once, or the field report counts that
+    # sale twice.
+    seen: set[str] = set()
     for n in range(1, count + 1):
         contribution_id = await cache.get(_slot_key(n), required=True)
-        if not contribution_id:
+        if not contribution_id or contribution_id in seen:
             continue
+        seen.add(contribution_id)
         raw = await cache.get(_record_key(contribution_id), required=True)
         if not raw:
             continue                        # deleted since
@@ -311,7 +369,7 @@ async def share(outcome: Outcome, request: Request,
     if outcome.estimate_high < outcome.estimate_low:
         raise HTTPException(status_code=422, detail="estimate_high is below estimate_low")
     try:
-        created = await store(outcome)
+        created = await store(outcome, principal.subject)
     except OutcomeError as exc:
         raise HTTPException(status_code=exc.status, detail=str(exc)) from None
     except CacheUnavailable:

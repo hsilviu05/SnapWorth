@@ -51,6 +51,7 @@ class Cache(Protocol):
     async def set(self, key: str, value: str, ttl: int | None = None) -> None: ...
     async def add(self, key: str, value: str, ttl: int | None = None) -> bool: ...
     async def incr(self, key: str, ttl: int | None = None, amount: int = 1) -> int: ...
+    async def expire(self, key: str, ttl: int) -> None: ...
     async def delete(self, key: str) -> None: ...
     async def take(self, key: str) -> bool: ...
     async def ping(self) -> bool: ...
@@ -102,6 +103,13 @@ class InMemoryCache:
             self._data[key] = (str(nxt), expiry)
             return nxt
 
+    async def expire(self, key: str, ttl: int) -> None:
+        """Give a live key `ttl` seconds from now. A missing key stays missing."""
+        async with self._lock:
+            value = self._live(key)
+            if value is not None:
+                self._data[key] = (value, time.time() + ttl)
+
     async def delete(self, key: str) -> None:
         async with self._lock:
             self._data.pop(key, None)
@@ -141,6 +149,10 @@ class RedisCache:
                 pipe.expire(key, ttl, nx=True)
             results = await pipe.execute()
         return int(results[0])
+
+    async def expire(self, key: str, ttl: int) -> None:
+        # Plain EXPIRE: unlike `incr`'s, this one is meant to extend.
+        await self._redis.expire(key, ttl)
 
     async def delete(self, key: str) -> None:
         await self._redis.delete(key)
@@ -273,6 +285,12 @@ class ResilientCache:
     async def incr(self, key: str, ttl: int | None = None, amount: int = 1,
                    *, required: bool = False) -> int:
         return await self._call("incr", key, ttl, amount, required=required)
+
+    async def expire(self, key: str, ttl: int, *, required: bool = False) -> None:
+        """Reset a live key's lifetime to `ttl`. `incr` anchors a counter's
+        expiry to its first use; this is for a counter that has to outlive
+        what it counts."""
+        await self._call("expire", key, ttl, required=required)
 
     async def delete(self, key: str, *, required: bool = False) -> None:
         await self._call("delete", key, required=required)
