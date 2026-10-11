@@ -108,6 +108,31 @@ class TestExtractText:
         with pytest.raises(aiconfig.ModelUnavailable):
             aiconfig.extract_text(_Resp(raises=True))
 
+    @pytest.mark.parametrize("reason", ["PROHIBITED_CONTENT", "SAFETY", "OTHER", "IMAGE_SAFETY"])
+    def test_a_prompt_level_block_from_the_real_sdk_is_a_block(self, reason):
+        """google-genai's `.text` returns None for a response with no
+        candidates rather than raising, so a prompt-level block reached the
+        empty-text path, read as an outage, and was retried. Built from the
+        SDK's own type, not `_Resp`, whose `.text` raises as the SDK never does."""
+        from google.genai import types
+        response = types.GenerateContentResponse.model_validate(
+            {"promptFeedback": {"blockReason": reason}})
+        with pytest.raises(aiconfig.ModelBlocked) as caught:
+            aiconfig.extract_text(response)
+        assert str(caught.value) == reason, "the enum's name, not 'BlockedReason.X'"
+
+    def test_an_unspecified_block_reason_is_not_a_block(self):
+        from google.genai import types
+        response = types.GenerateContentResponse.model_validate(
+            {"promptFeedback": {"blockReason": "BLOCKED_REASON_UNSPECIFIED"}})
+        with pytest.raises(aiconfig.ModelUnavailable):
+            aiconfig.extract_text(response)
+
+    def test_an_empty_sdk_response_with_no_feedback_is_unavailable(self):
+        from google.genai import types
+        with pytest.raises(aiconfig.ModelUnavailable):
+            aiconfig.extract_text(types.GenerateContentResponse.model_validate({}))
+
     def test_usage_ignores_non_numeric_shapes(self):
         class _U:
             prompt_token_count = "not a number"

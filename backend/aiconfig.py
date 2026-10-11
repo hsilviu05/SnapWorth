@@ -370,6 +370,26 @@ def _finish_reason_name(response) -> str:
     return str(name if isinstance(name, str) else finish).upper()
 
 
+def _prompt_block_name(response) -> str:
+    """The prompt-level block reason (`promptFeedback.blockReason`) as an
+    upper-case name, or "" when there is none.
+
+    `.name`, not `str()`: `BlockedReason` is a str enum, and on Python 3.13
+    `str()` of one reads "BlockedReason.SAFETY". BLOCKED_REASON_UNSPECIFIED is
+    no block. Anything that is neither an enum nor a string, a MagicMock
+    included, is "" rather than a guess, for `_finish_reason_name`'s reason.
+    """
+    feedback = getattr(response, "prompt_feedback", None)
+    block = getattr(feedback, "block_reason", None)
+    if block is None:
+        return ""
+    name = getattr(block, "name", None)
+    if not isinstance(name, str):
+        name = block if isinstance(block, str) else ""
+    name = name.upper()
+    return "" if name == "BLOCKED_REASON_UNSPECIFIED" else name
+
+
 def extract_text(response) -> str:
     """Read text from a response, distinguishing a safety block from a failure.
 
@@ -386,12 +406,14 @@ def extract_text(response) -> str:
     try:
         text = (response.text or "").strip()
     except Exception as exc:
-        # `.text` raises when there are no candidates — usually a block.
+        # `.text` raised when there were no candidates in the old SDK —
+        # usually a block.
         reason = _finish_reason_name(response)
-        feedback = getattr(response, "prompt_feedback", None)
-        block_reason = getattr(feedback, "block_reason", None)
-        if reason in _BLOCK_MARKERS or isinstance(block_reason, str) and block_reason:
-            raise ModelBlocked(reason or str(block_reason)) from None
+        if reason in _BLOCK_MARKERS:
+            raise ModelBlocked(reason) from None
+        block = _prompt_block_name(response)
+        if block:
+            raise ModelBlocked(block) from None
         raise ModelUnavailable(f"response carried no text: {exc}") from exc
 
     if text:
@@ -401,10 +423,17 @@ def extract_text(response) -> str:
             log.warning("model response hit max_output_tokens — output truncated")
         return text
 
-    # Empty but no exception: a block that returned an empty candidate.
+    # Empty but no exception: a block that returned an empty candidate, or a
+    # prompt-level block with no candidates at all. google-genai's `.text`
+    # returns None for the second rather than raising, so it lands here, and
+    # read as an outage it was retried, paged the operator as "model
+    # unhealthy", and never counted toward the device's safety pause.
     reason = _finish_reason_name(response)
     if reason in _BLOCK_MARKERS:
         raise ModelBlocked(reason)
+    block = _prompt_block_name(response)
+    if block:
+        raise ModelBlocked(block)
     raise ModelUnavailable(f"model returned empty text (finish_reason={reason or 'unknown'})")
 
 

@@ -2284,6 +2284,11 @@ def _not_resalable_message(val: valuation_module.Valuation) -> str:
     return f"{reason} Try a photo of a single item you'd actually sell."
 
 
+#: Image-quality decodes allowed at once (`_analyse`). Each is a full-size
+#: decode in a worker thread, up to `imagevalidation.MAX_PIXELS`.
+_QUALITY_DECODES = asyncio.Semaphore(2)
+
+
 async def _analyse(image_bytes: bytes, content_type: str, *, subject: str,
                    device_short: str, tag_bytes: bytes | None = None,
                    tag_type: str = "", count: bool = True,
@@ -2313,7 +2318,15 @@ async def _analyse(image_bytes: bytes, content_type: str, *, subject: str,
     # Deliberately the *item* photo only. The tag close-up is usually shot at
     # arm's length against fabric and scores worse on blur; letting it drag the
     # confidence down would punish the user for supplying more information.
-    quality = imagequality.analyse(image_bytes)
+    #
+    # Off the event loop, and two at a time. `analyse` decodes at full
+    # resolution before it downscales, and this process is the only worker:
+    # run inline, a crafted flat-colour PNG of a few hundred KB held every
+    # other request (scans on a deadline, auth, Apple's notifications, health)
+    # for 1-2 s. The semaphore keeps threads from turning that into several
+    # full-size decodes in memory at once.
+    async with _QUALITY_DECODES:
+        quality = await asyncio.to_thread(imagequality.analyse, image_bytes)
 
     prompt_text, prompt_version = prompts.get_prompt(SCAN_PROMPT_VERSION)
 
@@ -2377,7 +2390,13 @@ async def _analyse(image_bytes: bytes, content_type: str, *, subject: str,
             raw, deadline=deadline, tier=tier if count else None,
             label="reformat" if count else "bot_reformat")
         if data is None:
-            log.error("scan unparseable after reformat", extra={"raw_prefix": raw[:200]})
+            # The reply's shape, never its content: under v2 it opens with the
+            # item name, and this line shares "scan start"'s request id, which
+            # names the device. See "scan ok" below. The keys come from the
+            # prompt's fixed schema.
+            log.error("scan unparseable after reformat", extra={
+                "raw_len": len(raw),
+                "keys_seen": re.findall(r'"(\w+)"\s*:', raw[:2000])[:20]})
             if count:
                 notify.count_scan_failure("unreadable")
             raise APIError(
@@ -3153,13 +3172,19 @@ async def listing(
     except (json.JSONDecodeError, ValueError) as exc:
         # A garbled model reply shouldn't cost the user their listing — fall back
         # to a deterministic one built from their own valuation.
-        log.warning("listing json parse error, using fallback: %s | raw: %.200s", exc, raw)
+        #
+        # The error and the length, never the reply: it is the model's title
+        # and description for the item, under a request id that the
+        # `listing.authorised` audit line ties to the caller. The error names
+        # only a position or a type.
+        log.warning("listing json parse error, using fallback: %s (raw_len=%d)",
+                    exc, len(raw))
         return _fallback_listing(req)
 
     result = _validate_listing(data, req)
+    # No ask or floor beside the device's pseudonym, for "scan ok"'s reason.
     log.info("listing ok", extra={
-        "device": auditlog.pseudonymise(principal.subject), "marketplace": marketplace,
-        "ask": result.listing_price, "floor": result.negotiation_floor})
+        "device": auditlog.pseudonymise(principal.subject), "marketplace": marketplace})
     return result
 
 

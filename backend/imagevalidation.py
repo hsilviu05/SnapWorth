@@ -20,10 +20,13 @@ import apierrors
 
 log = logging.getLogger("snapworth.imagevalidation")
 
-# Upper bound on total pixels. A 50 MP image is far beyond any phone camera
-# and is the classic decompression-bomb shape: tiny compressed payload, huge
-# allocation on decode. 50 MP ≈ 200 MB as RGBA.
-MAX_PIXELS = 50_000_000
+# Upper bound on total pixels: the decompression-bomb shape, a tiny compressed
+# payload with a huge allocation on decode. The app uploads at most 1568 px on
+# the long edge (`ScanAPIClient.maxUploadEdge`), and so does the eval harness;
+# this still admits a full 12 MP photo. It was 50 MP, about 200 MB as RGBA,
+# which a flat-colour PNG of ~160 KB reached, and `imagequality` decodes at
+# full size: over a second of CPU and ~280 MB per upload.
+MAX_PIXELS = 4096 * 4096
 MAX_DIMENSION = 20_000
 
 # Minimum useful size — anything smaller cannot produce a usable valuation and
