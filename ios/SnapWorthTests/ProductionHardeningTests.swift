@@ -6194,6 +6194,35 @@ final class WidgetSyncDebounceTests: XCTestCase {
         XCTAssertTrue(fromA.isCancelled,
                       "a second repository could not see the first one's task")
     }
+
+    /// Deleting one find rebuilt nothing: the digest's rungs kept the text
+    /// they were scheduled with, the deleted find included, until the next
+    /// foreground. Two deletes in a row leave one rebuild standing.
+    func test_deletingAFindRebuildsTheDigestOnce() throws {
+        let config = ModelConfiguration(isStoredInMemoryOnly: true)
+        let container = try ModelContainer(for: ScanResult.self, configurations: config)
+        let context = ModelContext(container)
+        let repo = ScanRepository(context: context)
+        defer {
+            cancelPendingSync()
+            ScanRepository.digestSync?.cancel()
+        }
+        let finds = (0..<2).map { _ in
+            ScanResult(itemName: "Item", brand: "B", category: "clothing",
+                       conditionNotes: "Good", valueLow: 10, valueHigh: 20,
+                       confidence: "High", soldListingsCount: 0,
+                       listingTitle: "T", listingDescription: "D")
+        }
+        finds.forEach { context.insert($0) }
+        try context.save()
+
+        try repo.delete(finds[0])
+        let first = try XCTUnwrap(ScanRepository.digestSync,
+                                  "a delete left the digest as it was")
+        try repo.delete(finds[1])
+        XCTAssertTrue(first.isCancelled, "a burst of deletes must not mean a rebuild each")
+        XCTAssertFalse(try XCTUnwrap(ScanRepository.digestSync).isCancelled)
+    }
 }
 
 // ── Declining to sign in is not a failure ────────────────────────────────────
