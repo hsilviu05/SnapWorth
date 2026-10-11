@@ -343,7 +343,7 @@ not the build (CLAUDE.md). This record is the build.
 ```
 No account is needed. SnapWorth works from the first launch without signing in.
 
-In-app purchases made in the review Sandbox unlock SnapWorth Pro immediately. To see the Pro features, buy from the paywall, for example from "Unlock why this price" on a scan result. You can then open "Why this price", create listing drafts, use Haul mode (tap "Haul" above the shutter), and export sold items from My Flips (mark an item as sold, then tap ⋯ → Export photos and estimates).
+In-app purchases made in the review Sandbox unlock SnapWorth Pro immediately. To see the Pro features, buy from the paywall, for example from "Unlock why this price" on a scan result. You can then open "Why this price", create listing drafts, use Haul mode (tap "Haul" above the shutter), and export sold items from My Flips (mark an item as sold, then tap ⋯ → Export photos and estimates (ZIP)).
 
 New in this version: an optional, off-by-default setting, Settings → Privacy → "Share sale prices to improve estimates". When it is on, marking an item as sold sends the sale price, its currency and the estimate shown at scan time to our server, to measure estimate accuracy. It never sends the photo, the item's name, notes, the price paid or a device identifier. The privacy policy (Settings → Privacy Policy) describes it, and "Delete my shared sales" removes everything sent.
 
