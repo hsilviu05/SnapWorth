@@ -157,6 +157,9 @@ struct SnapWorthApp: App {
                     // so the write cannot race the store.
                     seedWidgetData(isPro: isPro)
                 }
+                .onReceive(NotificationCenter.default.publisher(for: .snapFreeScansChanged)) { _ in
+                    seedWidgetData()
+                }
         }
         .modelContainer(sharedModelContainer)
     }
@@ -318,6 +321,9 @@ extension Notification.Name {
     /// Posted just before a deep link to another tab, so whatever is presented
     /// over the tab bar gets out of the way. See `SnapWorthApp.open(_:center:)`.
     static let snapDismissForRoute   = Notification.Name("snapDismissForRoute")
+    /// Posted on the main actor when a token mint moved the free-scan count,
+    /// so the widget blob is rewritten. See `AttestationService.post`.
+    static let snapFreeScansChanged  = Notification.Name("snapFreeScansChanged")
 }
 
 // ── Root navigator ────────────────────────────────────────────────────────────

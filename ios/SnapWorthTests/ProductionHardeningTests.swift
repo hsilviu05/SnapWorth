@@ -6652,6 +6652,20 @@ final class BearerRetryStructureTests: XCTestCase {
         }
     }
 
+    /// A mint records the server's free-scan count, and the Scans-left widget
+    /// reads its blob, not that count. The actor cannot write the blob, so it
+    /// posts and the app writes it; either half alone leaves the widget stale.
+    func test_aMintThatMovesTheFreeScanCountRewritesTheWidget() throws {
+        let mint = try body(
+            of: "private func post<B: Encodable>(path: String, body: B) async throws -> String {",
+            in: try source("Services/AttestationService.swift"))
+        XCTAssertTrue(mint.contains("post(name: .snapFreeScansChanged"),
+                      "the mint changes the count and tells nobody")
+        let app = try source("SnapWorthApp.swift")
+        XCTAssertTrue(app.contains("publisher(for: .snapFreeScansChanged)"),
+                      "nothing rewrites the widget blob when the count moves")
+    }
+
     func test_noServiceAttachesABearerWithoutTheWrapper() throws {
         // A sweep rather than a proof: file-level, so it catches a whole file
         // that forgot — which is exactly what happened — but not a second call
