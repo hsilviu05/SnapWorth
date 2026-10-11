@@ -21,7 +21,7 @@ import pytest
 from cryptography import x509
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import ec
-from cryptography.hazmat.primitives.asymmetric.utils import Prehashed
+from cryptography.hazmat.primitives.asymmetric.utils import Prehashed  # the old, wrong convention
 from cryptography.x509.oid import NameOID
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -184,8 +184,9 @@ class TestAttestation:
 def assertion(device, *, challenge: bytes = CHALLENGE, counter: int = 1,
               rp_id: str = APP_ID) -> bytes:
     auth_data = hashlib.sha256(rp_id.encode()).digest() + b"\x00" + struct.pack(">I", counter)
-    digest = hashlib.sha256(auth_data + hashlib.sha256(challenge).digest()).digest()
-    signature = device.sign(digest, ec.ECDSA(Prehashed(hashes.SHA256())))
+    nonce = hashlib.sha256(auth_data + hashlib.sha256(challenge).digest()).digest()
+    # As the Secure Enclave does: the nonce signed as a message, ECDSA-SHA256.
+    signature = device.sign(nonce, ec.ECDSA(hashes.SHA256()))
     return cbor2.dumps({"signature": signature, "authenticatorData": auth_data})
 
 
@@ -201,6 +202,17 @@ class TestAssertion:
 
     def test_a_genuine_assertion_returns_its_counter(self):
         assert check(assertion(self.device, counter=7), self.device, previous=6) == 7
+
+    def test_a_signature_over_the_nonce_as_a_prehashed_digest_is_refused(self):
+        # The convention this verifier wrongly used until 2026-10-11: the nonce
+        # treated as the hash ECDSA signed. A device never signs that way, so a
+        # verifier that accepts it is the one that rejected every real refresh.
+        auth_data = hashlib.sha256(APP_ID.encode()).digest() + b"\x00" + struct.pack(">I", 1)
+        nonce = hashlib.sha256(auth_data + hashlib.sha256(CHALLENGE).digest()).digest()
+        signature = self.device.sign(nonce, ec.ECDSA(Prehashed(hashes.SHA256())))
+        blob = cbor2.dumps({"signature": signature, "authenticatorData": auth_data})
+        with pytest.raises(AttestationError, match="signature is invalid"):
+            check(blob, self.device)
 
     def test_a_signature_by_another_key_is_refused(self):
         forger = ec.generate_private_key(ec.SECP256R1())
