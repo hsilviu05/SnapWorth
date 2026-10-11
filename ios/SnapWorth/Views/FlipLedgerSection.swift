@@ -5,13 +5,24 @@ import SwiftUI
 // in `.onChange`) and the keyboard focus; these cards take bindings to both
 // and read nothing else of the sheet's.
 
-/// What the user paid, which the share card turns into a find multiple.
+/// What the user paid, which the share card prints, and in dollars turns
+/// into a find multiple.
 struct PaidPriceCard: View {
     @Binding var text: String
     let focus: FocusState<ResultView.Field?>.Binding
     /// The flip's currency (`SaleCurrency.of`, #224): the symbol beside the
     /// field and the currency VoiceOver reads the amount in.
     var currencyCode: String = "USD"
+
+    /// What the caption under the field promises. The share card prints
+    /// "Paid X →" in any currency, but a find multiple only between two
+    /// dollar figures (`ShareCardView.findBadge`), so every user outside
+    /// dollars was promised a multiple that could not appear.
+    static func caption(for currencyCode: String) -> String {
+        currencyCode == "USD"
+            ? String(localized: "Adds your find multiple to the share card")
+            : String(localized: "Adds what you paid to the share card")
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -29,9 +40,9 @@ struct PaidPriceCard: View {
                     .focused(focus, equals: .paid)
                     .accessibilityLabel("What did you pay?")
                     .accessibilityValue(LedgerAmountSpeech.value(text, code: currencyCode))
-                    .accessibilityHint("Adds your find multiple to the share card")
+                    .accessibilityHint(Text(Self.caption(for: currencyCode)))
             }
-            Text("Adds your find multiple to the share card")
+            Text(Self.caption(for: currencyCode))
                 .font(.snapCaption)
                 .foregroundStyle(Color.snapWarmGray)
                 // Already spoken as the field's hint.
@@ -180,7 +191,11 @@ struct FlipStatusCard: View {
 
     private var profitAccessibilityValue: String {
         guard let profit = result.realizedProfit else {
-            return String(localized: "Unknown — add what you paid to calculate it")
+            // Whichever price is missing, the sold price first (the field
+            // just above); this asked for the paid price in every case.
+            return result.soldPrice == nil
+                ? String(localized: "Unknown — add what it sold for to calculate it")
+                : String(localized: "Unknown — add what you paid to calculate it")
         }
         let amount = signedProfit(profit)
         return profit < 0
@@ -191,7 +206,12 @@ struct FlipStatusCard: View {
     private var soldDateBinding: Binding<Date> {
         Binding(
             get: { result.soldDate ?? Date() },
-            set: { result.soldDate = $0 }
+            // Half of the widget's month filter, as in `setStatus`. The
+            // refresh is debounced, so scrolling the wheel is one write.
+            set: {
+                result.soldDate = $0
+                onLedgerChange()
+            }
         )
     }
 
@@ -203,6 +223,8 @@ struct FlipStatusCard: View {
         switch status {
         case .sold:
             if result.soldDate == nil { result.soldDate = Date() }
+            // The Currency menu appears now, showing the default; store it.
+            SaleCurrency.pin(result)
             if previous != .sold { Analytics.shared.track(.ledgerItemMarkedSold) }
             // No longer needs a "did it sell?" nudge.
             let id = result.id
@@ -234,7 +256,9 @@ struct FlipStatusCard: View {
     }
 
     /// Which currency this flip's amounts are in (#224). Defaults to the
-    /// phone's region; a sale shared from here keeps it, never relabelled USD.
+    /// phone's region, or to dollars on a flip saved with amounts before
+    /// currencies existed (`SaleCurrency.of`), and is stored once an amount
+    /// or the sale is (`SaleCurrency.pin`); a sale shared from here keeps it.
     private var currencyMenu: some View {
         HStack {
             Text("Currency")

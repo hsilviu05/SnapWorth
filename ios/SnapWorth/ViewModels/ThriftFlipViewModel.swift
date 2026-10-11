@@ -331,6 +331,11 @@ final class ThriftFlipViewModel {
         // the same rule, so a correction after the save cannot write a
         // different kind of number than the save did.
         result.feesEstimate = Self.ledgerFees(from: calculation)
+        // In dollars, as everything on this screen is: its fields' "$", the
+        // resale price seeded from the dollar estimate, the fee table. Left
+        // nil it was read as the region default (#224), and My Flips printed
+        // the $8 just typed as "8 lei". Kept if a currency is already stored.
+        if result.saleCurrency == nil { result.saleCurrency = "USD" }
         result.status = .owned
         do {
             try repository.save(result)
@@ -392,6 +397,7 @@ final class ThriftFlipViewModel {
               let purchase = Self.decimal(shelfPriceText)
         else { return }
         result.paidPrice = NSDecimalNumber(decimal: purchase).doubleValue
+        if result.saleCurrency == nil { result.saleCurrency = "USD" }
         if let fees = Self.ledgerFees(from: calculation) {
             result.feesEstimate = fees
         }
@@ -453,9 +459,13 @@ final class ThriftFlipViewModel {
         return value < 0 ? "−\(base)" : base
     }
 
+    /// Never traps, as `FlipsViewModel.roiPercent`: `Int(Double)` does
+    /// outside Int's range.
     static func percent(_ fraction: Decimal) -> String {
-        let value = Int((NSDecimalNumber(decimal: fraction).doubleValue * 100).rounded())
-        return "\(value)%"
+        let percent = (NSDecimalNumber(decimal: fraction).doubleValue * 100).rounded()
+        guard percent.isFinite else { return "—" }
+        let digits = Int(exactly: percent).map { "\($0)" } ?? String(format: "%.0f", percent)
+        return digits + "%"
     }
 
     /// Shared with ResultView's money fields — see `MoneyInput`.

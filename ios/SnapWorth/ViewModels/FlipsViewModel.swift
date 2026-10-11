@@ -51,7 +51,7 @@ final class FlipsViewModel {
     }
 
     /// Filtered + sorted list for the ledger table.
-    func visibleItems(_ all: [ScanResult]) -> [ScanResult] {
+    func visibleItems(_ all: [ScanResult], locale: Locale = .current) -> [ScanResult] {
         let tracked = trackedItems(all)
         let filtered: [ScanResult]
         switch filter {
@@ -60,16 +60,29 @@ final class FlipsViewModel {
         case .listed: filtered = tracked.filter { $0.status == .listed }
         case .sold:   filtered = tracked.filter { $0.status == .sold }
         }
-        return sorted(filtered)
+        return sorted(filtered, locale: locale)
     }
 
-    private func sorted(_ items: [ScanResult]) -> [ScanResult] {
+    private func sorted(_ items: [ScanResult], locale: Locale) -> [ScanResult] {
         switch sort {
         case .date:
             return items.sorted { effectiveDate($0) > effectiveDate($1) }
         case .profit:
+            // Profits compare only within a currency: 5,000 forints is not a
+            // bigger flip than 40 lei. So the priced flips are grouped by
+            // currency, the phone's own first and the rest by code (the order
+            // a mixed total prints in, `SaleCurrency.ordered`), and ranked
+            // within each. A ledger kept in one currency sorts as before.
+            let home = SaleCurrency.regionDefault(locale: locale)
             return items.sorted { a, b in
-                rankNilLast(a.realizedProfit, b.realizedProfit, tieBreak: { effectiveDate(a) > effectiveDate(b) })
+                if a.realizedProfit != nil, b.realizedProfit != nil {
+                    let (x, y) = (SaleCurrency.of(a, locale: locale), SaleCurrency.of(b, locale: locale))
+                    if x != y {
+                        if (x == home) != (y == home) { return x == home }
+                        return x < y
+                    }
+                }
+                return rankNilLast(a.realizedProfit, b.realizedProfit, tieBreak: { effectiveDate(a) > effectiveDate(b) })
             }
         case .roi:
             return items.sorted { a, b in
@@ -132,23 +145,40 @@ final class FlipsViewModel {
         /// Everything sold in scope, priced or not.
         var itemsSold: Int = 0
         /// The subset `realizedProfit` is actually the profit *of*. Smaller
-        /// than `itemsSold` by exactly the sales with no paid price.
+        /// than `itemsSold` by exactly the sales missing a sold price or a
+        /// paid price.
         var itemsPriced: Int = 0
+        /// The sales with no sold price: marked sold before the price was
+        /// typed. Part of the gap between `itemsSold` and `itemsPriced`; the
+        /// rest have a sold price and no paid price.
+        var itemsMissingSale: Int = 0
 
         /// Whether the headline figure covers every sale it sits above.
         var profitCoversEverySale: Bool { itemsPriced == itemsSold }
 
-        /// How the sold count should read under a profit total, given that
-        /// some of those sales may not be in it.
+        /// How the sold count should read under the header's profit total,
+        /// given that some of those sales may not be in it: "3 items sold · 1
+        /// needs a sale price · 1 needs a paid price". (The month card shows
+        /// only `itemsPriced`; see `renderMonthCard`.)
         ///
-        /// Split out so the header and the shareable month card cannot drift:
-        /// they render the same two numbers and there is nowhere else the gap
-        /// can show.
+        /// The two gaps are named apart. Every sale outside the total was
+        /// reported as needing a paid price, including one whose paid price
+        /// was already there and whose sold price was not. A sale missing both
+        /// is counted as needing the sale price, the field beside the status.
         var soldLabel: String {
             let sales = String(localized: "\(itemsSold) items sold")
             guard !profitCoversEverySale else { return sales }
-            let gap = String(localized: "\(itemsSold - itemsPriced) needs a paid price")
-            return String(localized: "\(sales) · \(gap)")
+            let needsPaid = itemsSold - itemsPriced - itemsMissingSale
+            var label = sales
+            if itemsMissingSale > 0 {
+                let gap = String(localized: "\(itemsMissingSale) needs a sale price")
+                label = String(localized: "\(label) · \(gap)")
+            }
+            if needsPaid > 0 {
+                let gap = String(localized: "\(needsPaid) needs a paid price")
+                label = String(localized: "\(label) · \(gap)")
+            }
+            return label
         }
         var totalInvested = LedgerMath.Amounts()
         var averageROI: Decimal?          // fraction, e.g. 0.42: no currency
@@ -190,7 +220,8 @@ final class FlipsViewModel {
 
         // Two counts, because they are two different facts.
         //
-        // `realizedProfit` is nil without a paid price, and dropping those rows
+        // `realizedProfit` is nil without a paid price or without a sold price
+        // (`itemsMissingSale` says which), and dropping those rows
         // from the sum rather than guessing a cost basis is deliberate and
         // tested. Pairing that sum with a count taken over the *larger* set was
         // not: one uncosted sale rendered as "+$0" above "1 item sold", which
@@ -199,11 +230,12 @@ final class FlipsViewModel {
         // understates real profit with nothing on screen to say so.
         //
         // In the list the gap is already visible (the row shows "—" and says
-        // "Profit unknown — add what you paid"). The header and the share card
-        // show only totals, so they need the count to carry it.
+        // "Profit unknown — add what you paid", or what it sold for). The header
+        // and the share card show only totals, so they need the count to carry it.
         let sales = LedgerMath.sales(scopedSold, locale: locale)
         s.itemsSold = sales.count
         s.itemsPriced = sales.priced
+        s.itemsMissingSale = scopedSold.filter { $0.soldPrice == nil }.count
         s.realizedProfit = sales.profit
 
         let rois = scopedSold.compactMap(\.roi)
@@ -273,14 +305,23 @@ final class FlipsViewModel {
 
     // ── Share "my month" ────────────────────────────────────────────────────────
 
-    /// True when the current month has at least one sold item — the only case a
-    /// month card should render (never a sad/empty card).
+    /// True when the current month has at least one sold item, priced or not.
+    /// The month card needs a priced one (`canShareMonth`): never a sad or
+    /// empty card.
     func hasSalesThisMonth(_ all: [ScanResult], now: Date = Date()) -> Bool {
         !LedgerMath.soldInMonth(all, containing: now).isEmpty
     }
 
+    /// True when the month card has something to show: a sale this month
+    /// with a profit (`LedgerMath.sales`' `priced`), since the card carries
+    /// only priced sales. "Share this month" was offered on any sale, and on
+    /// a month of unpriced ones tapping it did nothing at all.
+    func canShareMonth(_ all: [ScanResult], now: Date = Date()) -> Bool {
+        LedgerMath.soldInMonth(all, containing: now).contains { $0.realizedProfit != nil }
+    }
+
     func renderMonthCard(_ all: [ScanResult]) -> UIImage? {
-        guard hasSalesThisMonth(all) else { return nil }
+        guard canShareMonth(all) else { return nil }
         let s = summary(all, scope: .month)
         // The card carries the *priced* count, not every sale.
         //
@@ -338,10 +379,15 @@ final class FlipsViewModel {
         // month; on 31 December, into the wrong tax year, while the app's own
         // month card counted it correctly.
         //
-        // Same construction as `fileStamp()`, so the two cannot drift.
+        // Same construction as `fileStamp()`, so the two cannot drift. The
+        // local day comes from the formatter's default time zone; the year is
+        // the Gregorian one, because "yyyy-MM-dd" is ISO. This set
+        // `Calendar.current`, which undid the POSIX locale's Gregorian
+        // calendar: on a Buddhist-calendar phone (Thailand) a 2026 sale
+        // exported as "2569-10-08", and on a Japanese one as "0008-10-08".
         let day = DateFormatter()
         day.locale = Locale(identifier: "en_US_POSIX")
-        day.calendar = Calendar.current
+        day.calendar = Calendar(identifier: .gregorian)
         day.dateFormat = "yyyy-MM-dd"
 
         var rows = ["Date,Item,Paid,Sold,Fees,Profit,ROI,Currency"]
@@ -381,6 +427,7 @@ final class FlipsViewModel {
     private static func fileStamp() -> String {
         let f = DateFormatter()
         f.locale = Locale(identifier: "en_US_POSIX")
+        f.calendar = Calendar(identifier: .gregorian)
         f.dateFormat = "yyyy-MM-dd"
         return f.string(from: Date())
     }
@@ -411,9 +458,14 @@ final class FlipsViewModel {
         SaleCurrency.signed(amounts)
     }
 
+    /// "+42%". Never traps: `Int(Double)` does outside Int's range, and a row
+    /// saved before `MoneyInput.ceiling` can hold a pasted 22-digit "price",
+    /// which crashed My Flips on every open. Such a figure prints in full.
     func roiPercent(_ fraction: Decimal) -> String {
-        let value = Int((NSDecimalNumber(decimal: fraction).doubleValue * 100).rounded())
-        return (value > 0 ? "+" : "") + "\(value)%"
+        let percent = (NSDecimalNumber(decimal: fraction).doubleValue * 100).rounded()
+        guard percent.isFinite else { return "—" }
+        let digits = Int(exactly: percent).map { "\($0)" } ?? String(format: "%.0f", percent)
+        return (percent > 0 ? "+" : "") + digits + "%"
     }
 
     // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -556,8 +608,9 @@ enum FlipsArchive {
         // model's number.
         let modelLikely = detail?.likely ?? detail?.expected
         let likely = modelLikely ?? (r.valueLow + r.valueHigh) / 2
-        // The currency the amounts were typed in (#224). `currency` only when
-        // the user chose it; otherwise the region currency the ledger showed,
+        // The currency the amounts were typed in (#224). `currency` when one
+        // is stored; otherwise the currency the ledger showed (`SaleCurrency.of`:
+        // dollars for a flip saved with amounts before currencies existed),
         // as `currency_assumed`, which the intake tags for the reviewer. This
         // wrote "USD" for every flip after the ledger had started printing lei
         // (AUDIT-2026-10-07, M1).
@@ -649,11 +702,12 @@ enum FlipsArchive {
         return zip
     }
 
-    /// A local-calendar day, as the CSV writes it (see `FlipsViewModel.csv`).
+    /// A local day with a Gregorian year, as the CSV writes it (see
+    /// `FlipsViewModel.csv`): `sold_date`, `listed_date` and the folder name.
     private static let day: DateFormatter = {
         let f = DateFormatter()
         f.locale = Locale(identifier: "en_US_POSIX")
-        f.calendar = Calendar.current
+        f.calendar = Calendar(identifier: .gregorian)
         f.dateFormat = "yyyy-MM-dd"
         return f
     }()

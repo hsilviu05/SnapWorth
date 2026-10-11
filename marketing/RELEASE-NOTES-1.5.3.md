@@ -183,8 +183,19 @@ open an issue for the failure that names the build its fix needs.
 - [ ] With the phone's region set to Romania, a new sold flip defaults to
       **RON**. Germany gives **EUR**, the US **USD**, and a region outside
       the server's list gives **USD**.
-- [ ] Paid, sold, fees and profit all show the chosen symbol, and a flip
-      from 22 (no currency stored) still reads as before.
+- [ ] Paid, sold, fees and profit all show the chosen symbol.
+- [ ] A flip from 22 that has a paid or sold price (no currency stored)
+      reads in **dollars**, "$20", as it did in 22, whatever the region; its
+      Currency menu shows USD. One from 22 with no amounts offers the
+      region's currency, like a new find.
+- [ ] Region Romania: type a paid price on a new find, then set the region
+      to Germany. The find still reads lei, in the sheet and in My Flips:
+      the currency is stored with the first amount (or when it is marked
+      sold), not looked up again on every read.
+- [ ] A Thrift Flip saved to My Flips reads in dollars there, whatever the
+      region, as the Thrift Flip screen did.
+- [ ] Dollars print "$80" in every region, as the estimates do (not "80
+      USD" or "80 $"); in Canada or Australia, "US$80".
 
 ### Currency across flips ([#320](https://github.com/hsilviu05/SnapWorth/pull/320))
 
@@ -197,12 +208,32 @@ and use the real widget:
       never one summed figure. The best flip is chosen within a currency.
 - [ ] The Profit widget, removed and re-added first, prints both currencies,
       and is red only when both are a loss.
+- [ ] On a sale made this month, move the sold date into last month, then
+      switch the currency: the widget follows each change within a second or
+      two, with no scan or relaunch. After the currency switch, Share →
+      Result card prints the paid price in the new currency.
 - [ ] The month share card and a sold result's share card print the paid
       price in its own currency; a "2x find" badge appears only when both
       figures are dollars.
+- [ ] Paid 10.40, sold 10: the sheet, the My Flips row and the header read
+      "−$0.40", never "−$0". Whole amounts still read "$80". The share
+      cards keep whole units, and paid 0.50 is "Free" on the result card
+      and "Free find" on both guess-story cards.
+- [ ] With Settings → General → Language & Region → Calendar set to
+      Buddhist, the CSV's Date column and the photo export's `sold_date`
+      read 2026, like the file name (they read 2569).
+- [ ] Paste a long number (a tracking number) into Sold for: the field
+      keeps its last good value, and My Flips still opens.
 - [ ] Export CSV: the last column is Currency. The photo export's JSON has
       `currency` for a flip that chose one.
 - [ ] VoiceOver reads a lei profit as lei, not dollars.
+- [ ] Type a paid price, tap Sold, close the sheet without a sold price: My
+      Flips' header reads "1 needs a sale price" (not "a paid price"),
+      VoiceOver on the row says "add what it sold for", and the Profit
+      widget says "1 sold · add the prices". With no priced sale this month,
+      ⋯ offers no "Share this month".
+- [ ] In RON, the caption under "What did you pay?" reads "Adds what you
+      paid to the share card"; in USD it still promises the find multiple.
 
 ### ResultView walkthrough (#229 acceptance)
 

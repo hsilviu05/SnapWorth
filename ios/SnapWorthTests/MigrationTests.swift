@@ -665,7 +665,7 @@ final class PortfolioInsightsTests: XCTestCase {
         // Sold: paid 20, sold 100, fees 10 -> realised 70. It must not also be
         // counted as value still held.
         let i = HistoryViewModel.insights(for: [item(.sold, paid: 20, sold: 100, fees: 10)])
-        XCTAssertEqual(i.realized, LedgerMath.Amounts([SaleCurrency.regionDefault(): 70]))
+        XCTAssertEqual(i.realized, LedgerMath.Amounts([SaleCurrency.unstated: 70]))
         XCTAssertEqual(i.unrealized, 0, "a sold item is no longer held")
     }
 

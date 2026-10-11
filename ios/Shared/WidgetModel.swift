@@ -263,7 +263,13 @@ extension WidgetHaulData {
     /// negatives. The app spells the same figure "−$420"
     /// (`FlipsViewModel.signedMoney`), and one number must not read two ways
     /// on two surfaces — so this uses the same U+2212 minus.
+    ///
+    /// Never traps. `Int(Double)` does outside Int's range, and a month's
+    /// profit has no ceiling on a row saved before the app capped its money
+    /// fields (`MoneyInput.ceiling`): a pasted 22-digit "price" crashed the
+    /// widget extension on every timeline.
     static func compactMoney(_ value: Double) -> String {
+        guard value.isFinite else { return "—" }
         let dollars = value.rounded()
         let sign = dollars < 0 ? "−" : ""
         let magnitude = abs(dollars)
@@ -273,7 +279,7 @@ extension WidgetHaulData {
         guard thousands >= 10 else {
             return "\(sign)$\(String(format: "%.1f", thousands))K"
         }
-        return "\(sign)$\(Int(thousands.rounded()))K"
+        return "\(sign)$\(String(format: "%.0f", thousands.rounded()))K"
     }
 
     /// `compactMoney` in a ledger currency (#224). Dollars keep the "$1.2K"
@@ -284,13 +290,15 @@ extension WidgetHaulData {
     static func compactMoney(_ value: Double, code: String,
                              locale: Locale = .current) -> String {
         guard code != "USD" else { return compactMoney(value) }
+        guard value.isFinite else { return "—" }
         let whole = value.rounded()
         let f = NumberFormatter()
         f.numberStyle = .currency
         f.locale = locale
         f.currencyCode = code
         f.maximumFractionDigits = 0
-        let money = f.string(from: NSNumber(value: abs(whole))) ?? "\(Int(abs(whole))) \(code)"
+        let money = f.string(from: NSNumber(value: abs(whole)))
+            ?? "\(String(format: "%.0f", abs(whole))) \(code)"
         return whole < 0 ? "−\(money)" : money
     }
 

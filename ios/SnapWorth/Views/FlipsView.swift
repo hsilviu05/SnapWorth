@@ -344,6 +344,11 @@ struct FlipsView: View {
                 parts.append(profit < 0
                              ? String(localized: "Loss of \(money)")
                              : String(localized: "Profit of \(money)"))
+            } else if item.soldPrice == nil {
+                // Asked first when both are missing: it is the field beside
+                // the status. This said "add what you paid" when the paid
+                // price was already there.
+                parts.append(String(localized: "Profit unknown — add what it sold for"))
             } else {
                 parts.append(String(localized: "Profit unknown — add what you paid"))
             }
@@ -467,7 +472,7 @@ struct FlipsView: View {
                     Picker("Sort", selection: $vm.sort) {
                         ForEach(FlipsViewModel.SortOrder.allCases) { Text($0.label).tag($0) }
                     }
-                    if vm.hasSalesThisMonth(allResults) {
+                    if vm.canShareMonth(allResults) {
                         Button { shareMonth() } label: {
                             Label("Share this month", systemImage: "square.and.arrow.up")
                         }

@@ -627,7 +627,7 @@
       "comment": "How many of the sales above have no cost basis entered.",
       "en": {
         "one": "%lld needs a paid price",
-        "other": "%lld needs a paid price"
+        "other": "%lld need a paid price"
       },
       "ro": {
         "one": "unul fără prețul plătit",
@@ -643,6 +643,27 @@
         "other": "%lld ohne Einkaufspreis"
       },
       "zh-Hans": "%lld 件没填入手价"
+    },
+    "%lld needs a sale price": {
+      "comment": "How many of the sales above have no sold price entered (marked sold before the price was typed). Placed beside \"%lld needs a paid price\".",
+      "en": {
+        "one": "%lld needs a sale price",
+        "other": "%lld need a sale price"
+      },
+      "ro": {
+        "one": "unul fără prețul de vânzare",
+        "few": "%lld fără prețul de vânzare",
+        "other": "%lld fără prețul de vânzare"
+      },
+      "es": {
+        "one": "%lld sin precio de venta",
+        "other": "%lld sin precio de venta"
+      },
+      "de": {
+        "one": "%lld ohne Verkaufspreis",
+        "other": "%lld ohne Verkaufspreis"
+      },
+      "zh-Hans": "%lld 件没填卖出价"
     },
     "%lld out of %lld": {
       "comment": "Rare-find easter egg (RareFind.swift). The joke is hype and rarity only — keep it that way in translation. A score read aloud: “11 out of 10”. On screen it is printed 11/10.",
@@ -1056,6 +1077,14 @@
       "es": "Añadir la etiqueta",
       "de": "Etikett hinzufügen",
       "zh-Hans": "拍标签"
+    },
+    "Adds what you paid to the share card": {
+      "comment": "Caption under 'What did you pay?' when the flip's currency is not US dollars: the share card prints the paid price, but a find multiple only in dollars.",
+      "en": "Adds what you paid to the share card",
+      "ro": "Adaugă pe card cât ai dat",
+      "es": "Añade a la tarjeta lo que pagaste",
+      "de": "Zeigt auf der Karte, was du bezahlt hast",
+      "zh-Hans": "在分享卡片上显示你的入手价"
     },
     "Adds your find multiple to the share card": {
       "comment": "The multiple is resale value ÷ what you paid.",
@@ -3441,6 +3470,14 @@
       "de": "Gewinn diesen Monat",
       "zh-Hans": "本月利润"
     },
+    "Profit unknown — add what it sold for": {
+      "comment": "VoiceOver, a sold flip in My Flips with no sold price.",
+      "en": "Profit unknown — add what it sold for",
+      "ro": "Profit necunoscut — adaugă cu cât s-a vândut",
+      "es": "Ganancia desconocida: añade por cuánto se vendió",
+      "de": "Gewinn unbekannt – trag ein, wofür es verkauft wurde",
+      "zh-Hans": "利润未知，填上卖出价"
+    },
     "Profit unknown — add what you paid": {
       "en": "Profit unknown — add what you paid",
       "ro": "Profit necunoscut — adaugă cât ai dat",
@@ -4852,6 +4889,14 @@
       "es": "Activa un aviso para cuando vuelvas a tener tu escaneo gratis",
       "de": "Schaltet eine Erinnerung ein, sobald dein Gratis-Scan wieder da ist",
       "zh-Hans": "开启提醒，免费扫描恢复后通知你"
+    },
+    "Unknown — add what it sold for to calculate it": {
+      "comment": "VoiceOver value of the result sheet's Profit row when the sold price is missing.",
+      "en": "Unknown — add what it sold for to calculate it",
+      "ro": "Necunoscut — adaugă cu cât s-a vândut ca să îl calculăm",
+      "es": "Desconocida: añade por cuánto se vendió para calcularla",
+      "de": "Unbekannt – trag ein, wofür es verkauft wurde",
+      "zh-Hans": "未知，填上卖出价才能算"
     },
     "Unknown — add what you paid to calculate it": {
       "en": "Unknown — add what you paid to calculate it",
