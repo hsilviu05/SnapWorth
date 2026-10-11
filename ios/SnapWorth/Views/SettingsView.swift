@@ -265,6 +265,12 @@ struct SettingsView: View {
         .sheet(isPresented: $showInvite) {
             InviteFriendView(status: referral)
         }
+        // A deep link to another tab: a sheet left up here would cover it.
+        // See `SnapWorthApp.open(_:center:)`.
+        .onReceive(NotificationCenter.default.publisher(for: .snapDismissForRoute)) { _ in
+            showPaywall = false
+            showInvite = false
+        }
         .task { referral = await ReferralAPIClient.shared.status() }
         .alert(vm.noticeTitle, isPresented: $vm.showNotice) {
             Button("OK", role: .cancel) {}

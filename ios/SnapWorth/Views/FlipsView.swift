@@ -50,6 +50,13 @@ struct FlipsView: View {
                 ActivityShareSheet(items: items, onComplete: shareOnComplete)
             }
         }
+        // A deep link to another tab: a sheet left up here would cover it.
+        // See `SnapWorthApp.open(_:center:)`.
+        .onReceive(NotificationCenter.default.publisher(for: .snapDismissForRoute)) { _ in
+            selectedItem = nil
+            showPaywall = false
+            showShare = false
+        }
         .overlay {
             if exportingArchive {
                 ProgressView("Preparing your export…")

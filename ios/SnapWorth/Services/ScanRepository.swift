@@ -150,6 +150,12 @@ final class ScanRepository {
         // behind, each stayed on the server for its 400 days with no flip
         // left to un-mark.
         sharing.forget(outcomeIDs, all: true)
+        // The weekly digest too. Its rungs are four dated requests whose text
+        // is fixed when scheduled ("Your 12 finds are worth $340.") and only
+        // the next foreground rebuilds them — this runs in the foreground — so
+        // up to four Sundays described the library just wiped. An empty
+        // library clears the ladder and schedules nothing.
+        Task { await NotificationManager.shared.schedulePortfolioDigest(results: []) }
         WidgetDataStore.writeHaul(results: [])
         // And the run, which is computed from the same array. Every other
         // mutation goes through `scheduleWidgetSync`, which updates both; this

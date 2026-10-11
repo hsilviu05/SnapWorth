@@ -5431,7 +5431,7 @@
       "zh-Hans": "%@的回顾做好了"
     },
     "Your %lld finds are worth": {
-      "comment": "The amount is appended after this, in both languages.",
+      "comment": "Weekly notification. The amount is appended after this, so every translation must end where an amount can follow (German cannot end on 'wert').",
       "en": {
         "one": "Your %lld find is worth",
         "other": "Your %lld finds are worth"
@@ -5446,8 +5446,8 @@
         "other": "Tus %lld hallazgos valen"
       },
       "de": {
-        "one": "Dein %lld Fund ist wert",
-        "other": "Deine %lld Funde sind wert"
+        "one": "Dein Fund hat einen Wert von",
+        "other": "Deine %lld Funde haben einen Wert von"
       },
       "zh-Hans": "你的 %lld 件好物价值"
     },
