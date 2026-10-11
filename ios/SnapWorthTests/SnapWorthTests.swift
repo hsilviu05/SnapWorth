@@ -3605,6 +3605,7 @@ final class HaulHarness {
     private(set) var refreshCount = 0
     private(set) var summaryCount = 0
     private(set) var deleted: [UUID] = []
+    private(set) var widgetRefreshes = 0
     private var sessions: [HaulSession] = []
 
     init(scanMode: HaulCallGate<ScanAPIResponse>.Mode = .manual) {
@@ -3641,7 +3642,8 @@ final class HaulHarness {
             sleep: { duration in try await sleeper.sleep(duration) },
             now: { clock.now },
             defaults: defaults,
-            store: store))
+            store: store,
+            refreshWidget: { [self] in self.widgetRefreshes += 1 }))
         sessions.append(session)
         return session
     }
@@ -4363,6 +4365,8 @@ final class HaulSessionTests: XCTestCase {
 
         XCTAssertEqual(session.hold, .quota("You've used today's free scan."))
         XCTAssertEqual(FreeScanCounter.serverRemaining, 0, "the server said there is nothing left")
+        XCTAssertGreaterThan(h.widgetRefreshes, 0,
+                             "a 402 saves nothing, so the widget kept offering the refused scan")
         XCTAssertEqual(h.spy.named("free_scan_limit_hit").count, 1, "once per episode, not per photo")
         XCTAssertTrue(h.spy.named("scan_failed").isEmpty, "a 402 is not a failed scan")
         XCTAssertEqual(session.hold?.upgradeTrigger(forDrafts: false), .scanLimit,

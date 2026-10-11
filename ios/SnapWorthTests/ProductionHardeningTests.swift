@@ -558,6 +558,26 @@ final class PaymentRequiredMappingTests: XCTestCase {
             XCTAssertFalse(FreeScanCounter.hasRemaining, path.rawValue)
         }
     }
+
+    /// And reach the widget. Its "Scans left" reads the blob, which only a
+    /// library change, a launch or an entitlement change rewrote, and a 402
+    /// saves nothing. The blob lives in the App Group and is written after a
+    /// debounce, so the call is held by its source.
+    func test_bothScanEntryPointsRepublishTheWidgetWhenTheServerRefuses() throws {
+        for path in ["ViewModels/ScanViewModel.swift", "ViewModels/ThriftFlipViewModel.swift"] {
+            let file = try String(contentsOf: URL(fileURLWithPath: #filePath)
+                .deletingLastPathComponent()
+                .deletingLastPathComponent()
+                .appendingPathComponent("SnapWorth/\(path)"), encoding: .utf8)
+            guard let zeroed = file.range(of: "FreeScanCounter.serverRemaining = 0") else {
+                XCTFail("\(path): the 402 branch moved")
+                continue
+            }
+            let after = String(file[zeroed.upperBound...].prefix(600))
+            XCTAssertTrue(after.contains("repository.refreshWidget()"),
+                          "\(path) leaves the widget offering the refused scan")
+        }
+    }
 }
 
 // MARK: - App Attest key recovery (I-1)
