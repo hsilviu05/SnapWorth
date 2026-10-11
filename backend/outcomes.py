@@ -45,8 +45,8 @@ read-modify-write lists: a global sequence for the export
 (`outcome-by:<tag>:seq`, `outcome-by:<tag>:<n>`). A deleted record leaves its
 slot pointing at nothing, which the export and the deletion skip. Records and
 indexes keep for `RECORD_TTL`. Every send, an edit included, writes a fresh
-deletion pointer and renews the per-contributor counter, so the deletion
-index lives as long as the newest record it has to find.
+deletion pointer and export slot and renews the per-contributor counter, so
+both indexes live as long as the newest record they have to find.
 
 Durable records need Redis persistence (AOF), which is RUNBOOK §11's and the
 Railway config issue's; until it is on, a Redis restart loses what arrived
@@ -286,15 +286,19 @@ async def store(outcome: Outcome, subject: str) -> bool:
     await cache.expire(_by_seq_key(tag), RECORD_TTL, required=True)
     await cache.set(_by_key(tag, m), contribution_id, ttl=RECORD_TTL, required=True)
     # Set-if-absent, so two first sends of one sale cannot both index it.
-    if not await cache.add(key, body, ttl=RECORD_TTL, required=True):
+    created = await cache.add(key, body, ttl=RECORD_TTL, required=True)
+    if not created:
         existing = await cache.get(key, required=True)
         if existing and json.loads(existing).get("contributor") != tag:
             raise OutcomeError(403, "That sale was shared from another install.")
         await cache.set(key, body, ttl=RECORD_TTL, required=True)
-        return False
+    # An export slot on every send too, for the same reason: the slot from the
+    # first send expired while an edit kept the record alive, and the export
+    # stopped finding it. The export emits a record once however many slots
+    # point at it.
     n = await cache.incr("outcome-seq", required=True)
     await cache.set(_slot_key(n), contribution_id, ttl=RECORD_TTL, required=True)
-    return True
+    return created
 
 
 async def delete(req: Deletion) -> int:

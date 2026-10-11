@@ -344,6 +344,19 @@ def test_an_edited_record_stays_deletable_after_its_first_pointer_expires(clock)
     assert stored(body["contribution_id"]) is None
 
 
+def test_an_edited_record_stays_in_the_export_after_its_first_slot_expires(clock):
+    """The export slot was written on the first send only, so an edit renewed
+    the record for 400 days while the slot that found it expired."""
+    body = outcome()
+    share(body)
+    clock[0] += 350 * DAY
+    share({**body, "sold_price": 42.0})
+    clock[0] += 51 * DAY
+    rows = [json.loads(line) for line in run(outcomes.export_jsonl()).splitlines()]
+    assert [(r["contribution_id"], r["sold_price"]) for r in rows] == [
+        (body["contribution_id"].lower(), 42.0)]
+
+
 def test_an_edit_does_not_count_twice_in_delete_all():
     body = outcome()
     share(body)
