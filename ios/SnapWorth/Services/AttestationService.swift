@@ -319,7 +319,18 @@ actor AttestationService {
         // (or a fail-closed 0 the server could not substantiate) leaves the
         // local count in charge rather than pinning the user at zero.
         if decoded.tier != "pro", let remaining = decoded.freeScansRemaining {
+            let before = FreeScanCounter.remaining
             FreeScanCounter.serverRemaining = remaining
+            // The Scans-left widget reads its blob, not this counter, and
+            // this actor has no model context to rewrite it with. Without the
+            // post, a launch whose mint found the allowance withheld left the
+            // widget offering scans the server would refuse, until the next
+            // scan or delete wrote the blob.
+            if FreeScanCounter.remaining != before {
+                await MainActor.run {
+                    NotificationCenter.default.post(name: .snapFreeScansChanged, object: nil)
+                }
+            }
         }
 
         // Kept so a support email can quote it. Only overwritten when the
