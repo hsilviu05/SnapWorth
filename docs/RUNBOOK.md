@@ -1665,9 +1665,20 @@ carry, and the access path consults it after verifying a proof.
 `expires_at` in the tombstone is the **revoked term's** expiry, not the
 revocation date. `originalTransactionId` is stable across renewals *and*
 re-subscriptions, so a tombstone keyed on the id alone would permanently deny
-someone who later paid again. A later term always expires later, so the access
-path treats a proof as dead only when its expiry is at or before the
-tombstone's.
+someone who later paid again. So the access path treats a proof as dead only
+when it was **bought at or before `revoked_at`** and expires at or before the
+tombstone's `expires_at`. Both halves are needed. A renewal of the same
+product expires later, which the expiry catches. But monthly and yearly are
+one subscription group at one level, so a monthly bought after a refunded
+yearly keeps the id and expires about eleven months *earlier*: only its
+purchase date (Apple's `purchaseDate`, after the revocation) tells it from
+the refunded term. A pre-refund transaction Apple redelivers was bought before
+the refund, so it stays dead.
+
+A second refund on the same subscription merges into the tombstone rather
+than replacing it: the later `expires_at` and the later `revoked_at` are kept,
+and a non-expiring one wins. Apple sends one REFUND per refunded transaction in
+no promised order. The `/subs` row's `refund` mark follows the same two rules.
 
 ### If a refunded user still has Pro
 
@@ -1686,7 +1697,10 @@ tombstone's.
    memory and Apple got a 200, so a refund that arrived during an earlier
    outage may have no tombstone and no retry coming. Use step 4 for it.
 4. To revoke by hand, write the tombstone yourself:
-   `redis-cli SET entrevoked:{otid} '{"revoked_at":<epoch>,"expires_at":<term expiry epoch>}' EX 34560000`
+   `redis-cli SET entrevoked:{otid} '{"revoked_at":<epoch>,"expires_at":<term expiry epoch>}' EX 34560000`.
+   `revoked_at` is when the refund happened, not when you type this: a term
+   bought after it is spared, so a later value would deny a re-subscription.
+   If a tombstone is already there, keep the later of the two expiries.
 5. Access goes away at the user's next request, or immediately if you also
    `DEL ent:{subject}` — which needs the subject, so usually it is the former.
 

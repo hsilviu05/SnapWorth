@@ -280,6 +280,11 @@ class Entitlement:
     # revocationDate. Only ever populated on the reporting path — the access
     # path turns a revoked transaction into `FREE` before it gets this far.
     revoked_at: int | None = None
+    # When Apple charged for *this* transaction (epoch seconds), from
+    # purchaseDate: a renewal's or a re-subscription's own date, unlike
+    # original_purchase_at. A term bought after a refund cannot be the term
+    # refunded, which is what `bought_after_revocation` reads it for.
+    purchased_at: int | None = None
 
     @property
     def is_active(self) -> bool:
@@ -303,6 +308,7 @@ class Entitlement:
             "offer_identifier": self.offer_identifier,
             "price": self.price, "currency": self.currency,
             "revoked_at": self.revoked_at,
+            "purchased_at": self.purchased_at,
         })
 
     @staticmethod
@@ -319,10 +325,33 @@ class Entitlement:
             offer_identifier=d.get("offer_identifier"),
             price=d.get("price"), currency=d.get("currency"),
             revoked_at=d.get("revoked_at"),
+            purchased_at=d.get("purchased_at"),
         )
 
 
-FREE = Entitlement("free", None, None, None, "Production")
+FREE =Entitlement("free", None, None, None, "Production")
+
+
+def bought_after_revocation(ent: Entitlement, tombstone: dict) -> bool:
+    """Whether `ent`'s transaction was bought after the revocation a refund
+    tombstone records, and so cannot be the term that was taken back.
+
+    The tombstone's expiry alone cannot say. Monthly and yearly are one
+    subscription group at one level, so a re-subscription keeps the original
+    transaction id across products: a monthly bought after a refunded yearly
+    expires about eleven months before the yearly would have, and the expiry
+    rule denied it for every one of those months. A pre-refund transaction
+    Apple redelivers was bought before the refund, so this never excuses one.
+    Without a purchase date (an entry cached before it was kept) it answers
+    no, and the expiry decides as before.
+    """
+    revoked_at = tombstone.get("revoked_at")
+    # getattr: the operator's index and /sub hand in what they hold, which
+    # need not be an Entitlement built since this field existed.
+    purchased_at = getattr(ent, "purchased_at", None)
+    return (isinstance(purchased_at, (int, float))
+            and isinstance(revoked_at, (int, float))
+            and purchased_at > revoked_at)
 
 
 def is_bounded(ent: Entitlement) -> bool:
@@ -561,6 +590,9 @@ def entitlement_from_payload(payload: dict, *, environment: str) -> Entitlement:
     revoked_ms = payload.get("revocationDate")
     revoked_at = (int(revoked_ms / 1000)
                   if isinstance(revoked_ms, (int, float)) else None)
+    this_purchase_ms = payload.get("purchaseDate")
+    purchased_at = (int(this_purchase_ms / 1000)
+                    if isinstance(this_purchase_ms, (int, float)) else None)
 
     return Entitlement(
         tier="pro",
@@ -575,6 +607,7 @@ def entitlement_from_payload(payload: dict, *, environment: str) -> Entitlement:
         price=price,
         currency=currency,
         revoked_at=revoked_at,
+        purchased_at=purchased_at,
     )
 
 
@@ -719,9 +752,19 @@ class EntitlementService:
         The tombstone stores the revoked term's own expiry, not just the
         revocation date, because `originalTransactionId` is stable across
         renewals *and* re-subscriptions. Keyed on the id alone, this would
-        permanently deny someone who later paid again. A later term always
-        expires later, so comparing expiries lets the tombstone kill exactly
-        the term that was taken back.
+        permanently deny someone who later paid again. A later renewal of the
+        same product expires later, so comparing expiries kills the term that
+        was taken back; a term *bought* after the revocation is spared
+        whatever it expires (`bought_after_revocation`), because a monthly
+        bought after a refunded yearly keeps the id and expires earlier.
+
+        One tombstone per subscription, so a second refund merges into it
+        rather than replacing it: the later expiry and the later revocation
+        are kept, and a non-expiring one wins. Apple sends a REFUND per
+        refunded transaction in no promised order, and an older term's
+        arriving second used to move the expiry back, off the current term
+        that was also refunded, which `_rederive` then restored from the
+        pre-refund proof.
         """
         otid = ent.original_transaction_id
         if not otid:
@@ -729,12 +772,30 @@ class EntitlementService:
             log.warning("a revocation notification carried no "
                         "original transaction id")
             return False
-        payload = json.dumps({
-            "revoked_at": revoked_at or ent.revoked_at or int(time.time()),
-            # None for a non-expiring purchase, which is then treated as fully
-            # revoked — there is no later term it could be confused with.
-            "expires_at": ent.expires_at,
-        })
+        key = self._tombstone_key(ent)
+        when = revoked_at or ent.revoked_at or int(time.time())
+        # None for a non-expiring purchase, which is then treated as fully
+        # revoked — there is no later term it could be confused with.
+        expires_at = ent.expires_at
+        # `required`, as the write below is: a read that fell back to memory
+        # would find nothing and overwrite the stored tombstone with this one.
+        existing = await self._cache.get(key, required=True)
+        if existing:
+            try:
+                previous = json.loads(existing)
+                previous_expiry = previous.get("expires_at")
+                previous_when = previous.get("revoked_at")
+            except Exception:
+                # Unparseable reads as fully revoked in `_is_revoked`; kept so.
+                previous_expiry, previous_when = None, None
+                expires_at = None
+            if not isinstance(previous_expiry, (int, float)) or expires_at is None:
+                expires_at = None
+            else:
+                expires_at = max(previous_expiry, expires_at)
+            if isinstance(previous_when, (int, float)):
+                when = max(previous_when, when)
+        payload = json.dumps({"revoked_at": when, "expires_at": expires_at})
         # Exceptions propagate. A tombstone that was not written is a
         # subscriber who keeps paid access they were refunded for, so the
         # caller has to know — this is the one write in the entitlement path
@@ -751,8 +812,7 @@ class EntitlementService:
         #
         # At least as long as any proof it has to outlive: a proof's TTL is
         # capped at its own expiry plus grace, so this covers every one.
-        await self._cache.set(self._tombstone_key(ent), payload,
-                              ENTITLEMENT_PROOF_TTL, required=True)
+        await self._cache.set(key, payload, ENTITLEMENT_PROOF_TTL, required=True)
         if ent.environment == SANDBOX_ENVIRONMENT:
             # A bounded entitlement has no proof for the tombstone to stop
             # re-deriving; what keeps it alive is the claim, which `current()`
@@ -806,19 +866,20 @@ class EntitlementService:
         if not raw:
             return Reinstatement.NOT_BLOCKED
         try:
-            revoked_expiry = json.loads(raw).get("expires_at")
+            tombstone = json.loads(raw)
+            revoked_expiry = tombstone.get("expires_at")
         except Exception:
             # Unparseable, but about this subscription, and Apple has just said
             # the refund no longer stands.
-            revoked_expiry = None
+            tombstone, revoked_expiry = {}, None
         if (revoked_expiry is not None and ent.expires_at is not None
                 and revoked_expiry != ent.expires_at):
             log.info("refund reversal is for a different term than the "
                      "tombstone; kept", extra={"product_id": ent.product_id})
-            # The same comparison `_is_revoked` makes.
-            return (Reinstatement.STILL_BLOCKED
-                    if ent.expires_at <= revoked_expiry
-                    else Reinstatement.NOT_BLOCKED)
+            # The same rule `_is_revoked` applies.
+            denies = (not bought_after_revocation(ent, tombstone)
+                      and ent.expires_at <= revoked_expiry)
+            return Reinstatement.STILL_BLOCKED if denies else Reinstatement.NOT_BLOCKED
         await self._cache.delete(key, required=True)
         log.info("refund reversed by Apple; term reinstated",
                  extra={"product_id": ent.product_id})
@@ -851,11 +912,15 @@ class EntitlementService:
         except Exception:
             # Unparseable, but present. A tombstone is a tombstone.
             return True
+        if bought_after_revocation(ent, tombstone):
+            # A re-subscription after the refund, whatever it expires.
+            return False
         revoked_expiry = tombstone.get("expires_at")
         if ent.expires_at is None or revoked_expiry is None:
             return True
-        # A re-subscription reuses the original transaction id and extends the
-        # expiry, so only a term ending at or before the revoked one is dead.
+        # A renewal or re-subscription in the same product reuses the original
+        # transaction id and extends the expiry, so a term bought before the
+        # refund is dead when it ends at or before the revoked one.
         return ent.expires_at <= revoked_expiry
 
     @staticmethod

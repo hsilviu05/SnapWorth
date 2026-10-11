@@ -277,6 +277,10 @@ def _apple_problem(exc: Exception) -> str:
 
 def _block_denies(tombstone: dict, ent) -> bool:
     """Whether a refund block denies `ent`'s term — `_is_revoked`'s rule."""
+    import entitlements
+
+    if entitlements.bought_after_revocation(ent, tombstone):
+        return False
     blocked_until = tombstone.get("expires_at")
     if ent.expires_at is None or not isinstance(blocked_until, (int, float)):
         return True

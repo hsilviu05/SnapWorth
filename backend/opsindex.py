@@ -240,17 +240,37 @@ async def index_subscription(subject: str | None, ent,
     # is exactly what a reversed refund needs: the row said `refund` for a
     # customer paying for that term again, and `/sub` asking Apple could not
     # fix it. A `current` transaction is not a redelivery, so it may.
+    #
+    # Two more of the access path's rules (`EntitlementService.revoke` and
+    # `entitlements.bought_after_revocation`). A second refund merges into the
+    # mark, keeping the later expiry and revocation, so an older term's REFUND
+    # arriving after the current term's cannot move the mark off the current
+    # term. And a term bought after the refund clears it whatever it expires:
+    # monthly and yearly share the original transaction id, and a monthly
+    # bought after a refunded yearly expires months before the yearly would.
     revoked = getattr(ent, "revoked_at", None)
     if revoked is not None:
+        expires = ent.expires_at
+        if entry.get("revoked") is not None and "revoked_expires" in entry:
+            before_expires = entry["revoked_expires"]
+            if before_expires is None or expires is None:
+                expires = None
+            elif float(before_expires) > float(expires):
+                expires = before_expires
+            if float(entry["revoked"]) > float(revoked):
+                revoked = entry["revoked"]
         entry["revoked"] = revoked
-        entry["revoked_expires"] = ent.expires_at
+        entry["revoked_expires"] = expires
     else:
         tombstoned = entry.get("revoked_expires")
-        if (entry.get("revoked") is not None
-                and ent.expires_at is not None
-                and tombstoned is not None
-                and (float(ent.expires_at) >= float(tombstoned) if current
-                     else float(ent.expires_at) > float(tombstoned))):
+        purchased = getattr(ent, "purchased_at", None)
+        if entry.get("revoked") is not None and (
+                (isinstance(purchased, (int, float))
+                 and float(purchased) > float(entry["revoked"]))
+                or (ent.expires_at is not None
+                    and tombstoned is not None
+                    and (float(ent.expires_at) >= float(tombstoned) if current
+                         else float(ent.expires_at) > float(tombstoned)))):
             entry.pop("revoked", None)
             entry.pop("revoked_expires", None)
     doc[otid] = entry
