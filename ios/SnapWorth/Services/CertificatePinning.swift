@@ -255,7 +255,13 @@ extension URLSession {
     /// Shared session for API traffic. Uses pinning when configured.
     static let snapWorthAPI: URLSession = {
         let configuration = URLSessionConfiguration.default
-        configuration.timeoutIntervalForRequest = 30
+        // The same as the resource timeout, so 35s from the start is the one
+        // ceiling. This is an *idle* timer, and nothing arrives while the model
+        // runs: at 30 it fired 30s after the upload ended, before the server's
+        // `CLIENT_DEADLINE_SECONDS` (33s from arrival, main.py), which assumes
+        // the phone listens for the full 35s. A reply the server was still
+        // allowed to produce was cut off, and the scan could still be charged.
+        configuration.timeoutIntervalForRequest = 35
         // Hard ceiling on the whole request. Without it the default is seven
         // days, and because `waitsForConnectivity` is bounded by *this* value
         // (not the request timeout), an offline scan would hang on "Analyzing…"

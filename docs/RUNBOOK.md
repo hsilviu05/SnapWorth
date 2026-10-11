@@ -766,7 +766,9 @@ on its TTL (`POLL_LOCK_TTL`). The numbers are not sized for a hung Redis.
 
 **Why 40 s.** It outlasts every request someone is still waiting for. The app
 stops waiting on the model 33 s after a request arrives
-(`CLIENT_DEADLINE_SECONDS`), and the phone gives up at 35 s. Measured
+(`CLIENT_DEADLINE_SECONDS`), or 28 s after the upload ends
+(`CLIENT_IDLE_SECONDS`, for builds whose idle timer is still 30 s), whichever
+is first, and the phone gives up at 35 s. Measured
 `[MEASURED — production, Railway HTTP logs, 2026-09-20 19:01 → 09-27 18:58 UTC,
 30 deployments]`, edge to edge (`totalDuration`, upload included):
 

@@ -663,8 +663,9 @@ enum EntitlementSyncFailure {
 /// settled, so a re-attestation still in flight is seen (`needsSending`).
 ///
 /// A wrong skip leaves a subscriber the server reads as free, and not much
-/// forces a send. A 402 does (`confirmingSubscription`), as does "Show the
-/// full breakdown"; but while the free allowance lasts nothing is refused,
+/// forces a send. A 402 does (`confirmingSubscription`, and Haul's
+/// confirmation, `HaulSession.Dependencies.refreshEntitlements`), as does
+/// "Show the full breakdown"; but while the free allowance lasts nothing is refused,
 /// so those scans come back stripped of the Pro detail and counted against
 /// it until a refresh finds the memory stale.
 enum EntitlementSyncMemory {

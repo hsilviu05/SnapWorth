@@ -9,6 +9,20 @@ struct PaywallView: View {
     /// Referrals (#97): the entry is hidden unless the server has them on.
     @State private var referralsEnabled = false
     @State private var showRedeemInvite = false
+    /// The service's pricing as this view last read it — what the body draws.
+    ///
+    /// The body used to read `purchaseService.pricing` and `.pricingFailed`
+    /// directly, and an `any PurchaseService` held in a `let` registers no
+    /// dependency on the service's `@Published` properties (the same reason
+    /// `isPro` is threaded down as a value — see `SnapWorthApp`). A fetch
+    /// that landed while the sheet was open was never drawn: a paywall opened
+    /// during the launch fetch stayed on redacted cards, "Loading plans…" and
+    /// a disabled CTA, and one opened after a failed fetch kept "Couldn't load
+    /// plans" over prices a retry had loaded. Seeded at init so a sheet opened
+    /// after the fetch draws its prices on the first frame, and re-read by
+    /// `syncPricing()` after every reload.
+    @State private var shownPricing: [String: PlanPricing]
+    @State private var shownPricingFailed: Bool
     let purchaseService: any PurchaseService
     /// What surfaced this paywall — attributed to `paywall_viewed`,
     /// `paywall_dismissed` and the three purchase events.
@@ -33,6 +47,8 @@ struct PaywallView: View {
         self.purchaseService = purchaseService
         self.trigger = trigger
         self.pitch = pitch
+        _shownPricing = State(initialValue: purchaseService.pricing)
+        _shownPricingFailed = State(initialValue: purchaseService.pricingFailed)
     }
 
     var body: some View {
@@ -177,10 +193,10 @@ struct PaywallView: View {
                     // a *total* failure: one plan missing is enough to strand a
                     // user on it, because the missing one may be the selected
                     // one.
-                    if purchaseService.pricingFailed {
+                    if shownPricingFailed {
                         VStack(spacing: 10) {
                             Text(PaywallCopy.pricingProblem(
-                                hasSomePricing: !purchaseService.pricing.isEmpty))
+                                hasSomePricing: !shownPricing.isEmpty))
                                 .font(.snapCaption)
                                 .foregroundStyle(Color.snapWarmGray)
                                 .multilineTextAlignment(.center)
@@ -189,7 +205,8 @@ struct PaywallView: View {
                                 Task {
                                     isReloadingPricing = true
                                     await purchaseService.reloadProducts()
-                                    vm.reconcileSelection(with: purchaseService.pricing)
+                                    syncPricing()
+                                    vm.reconcileSelection(with: shownPricing)
                                     isReloadingPricing = false
                                 }
                             }
@@ -294,11 +311,15 @@ struct PaywallView: View {
             if !purchaseService.isPricingLoaded || purchaseService.pricing.isEmpty {
                 await purchaseService.reloadProducts()
             }
+            // Unconditionally: a fetch can also land between init and here.
+            // The reload above joins the launch fetch if it is still in
+            // flight, so this runs exactly when its prices arrive.
+            syncPricing()
             // The default selection is yearly. If that is the plan StoreKit
             // didn't return, leaving it selected means a disabled CTA over
             // "Loading plans…" with a perfectly purchasable monthly card
             // sitting right there unselected.
-            vm.reconcileSelection(with: purchaseService.pricing)
+            vm.reconcileSelection(with: shownPricing)
         }
         .onAppear { vm.didAppear(trigger: trigger) }
         .onDisappear { vm.didDisappear(trigger: trigger) }
@@ -331,17 +352,23 @@ struct PaywallView: View {
 
 private extension PaywallView {
     var isPurchasable: Bool {
-        purchaseService.pricing[vm.selectedProductID] != nil
+        shownPricing[vm.selectedProductID] != nil
     }
 
     func pricing(_ productID: String) -> PlanPricing {
-        purchaseService.pricing[productID] ?? .loading(productID)
+        shownPricing[productID] ?? .loading(productID)
     }
 
     /// Whether StoreKit actually returned this plan — not whether the fetch
     /// finished. A partial fetch finishes.
     func isLoaded(_ productID: String) -> Bool {
-        purchaseService.pricing[productID] != nil
+        shownPricing[productID] != nil
+    }
+
+    /// Copies the service's pricing into the state the body draws from.
+    func syncPricing() {
+        shownPricing = purchaseService.pricing
+        shownPricingFailed = purchaseService.pricingFailed
     }
 
     func yearlyDetail(_ plan: PlanPricing) -> String {
