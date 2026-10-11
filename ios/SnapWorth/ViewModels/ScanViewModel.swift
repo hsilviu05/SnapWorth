@@ -298,6 +298,11 @@ final class ScanViewModel {
                 // `hasFreeScanRemaining` let Thrift Flip through on the same
                 // false premise. Thrift Flip's own 402 does the same.
                 FreeScanCounter.serverRemaining = 0
+                // The widget's "Scans left" too. Only a library change, a
+                // launch or an entitlement change rewrote its blob, and a 402
+                // saves nothing, so it went on offering the refused scan in
+                // sage until one of those happened.
+                repository.refreshWidget()
                 Analytics.shared.track(.freeScanLimitHit)
                 paywallTrigger = .scanLimit
                 showPaywall = true

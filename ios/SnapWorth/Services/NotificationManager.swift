@@ -366,14 +366,40 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
         guard let fireDate = Self.ledgerFireDate(from: listedDate) else { return }
         let dayKey = Self.dayKey(fireDate)
 
-        var buckets = ledgerBuckets()
-        var items = buckets[dayKey] ?? []
-        if !items.contains(itemID.uuidString) { items.append(itemID.uuidString) }
-        buckets[dayKey] = items
-        saveLedgerBuckets(buckets)
+        let filed = Self.file(itemID.uuidString, under: dayKey, in: ledgerBuckets())
+        saveLedgerBuckets(filed.buckets)
         setLedgerName(itemID.uuidString, name: itemName)
 
+        for day in filed.vacated { await rescheduleLedgerDay(day) }
         await rescheduleLedgerDay(dayKey)
+    }
+
+    /// `buckets` with `item` under `dayKey` and under no other day, and the
+    /// days it was taken out of, whose requests need rebuilding or removing.
+    ///
+    /// It used to be added without being taken out anywhere. `syncEligible`
+    /// re-files every listed item on each foreground, recomputing the day in
+    /// the current zone, so a time-zone change that moved the listing's local
+    /// date — listed at 23:30 in Bucharest, app opened in Dubai — filed it
+    /// under a second day and both days' requests stayed pending: two "Did X
+    /// sell?" nudges for one item, a day apart, which the one-a-day cap cannot
+    /// catch.
+    ///
+    /// Pure, for the tests.
+    nonisolated static func file(_ item: String, under dayKey: String,
+                                 in buckets: [String: [String]])
+        -> (buckets: [String: [String]], vacated: [String]) {
+        var buckets = buckets
+        var vacated: [String] = []
+        for (day, items) in buckets where day != dayKey && items.contains(item) {
+            let remaining = items.filter { $0 != item }
+            if remaining.isEmpty { buckets.removeValue(forKey: day) } else { buckets[day] = remaining }
+            vacated.append(day)
+        }
+        var items = buckets[dayKey] ?? []
+        if !items.contains(item) { items.append(item) }
+        buckets[dayKey] = items
+        return (buckets, vacated.sorted())
     }
 
     /// Cancel an item's follow-up (marked sold / deleted). Reschedules or removes
@@ -765,8 +791,10 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
 
             // Each count is inflected by itself and the amount is added after: a
             // plural key agrees with one number, and "you added N … your M are
-            // worth X" has two of them and an amount besides. The amount is last
-            // in both languages, so it can be appended rather than interpolated.
+            // worth X" has two of them and an amount besides. The amount is
+            // appended rather than interpolated, so every translation has to end
+            // where an amount can follow. German did not: "Deine 7 Funde sind
+            // wert $340." puts it after the adjective it belongs before.
             let held = String(localized: "Your \(itemCount) finds are worth") + " \(money)."
             guard addedThisWeek > 0 else {
                 // Nothing new: a plain status line rather than manufactured urgency.
@@ -1059,40 +1087,64 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
 
     // MARK: - UNUserNotificationCenterDelegate (deep links)
 
+    // The completion-handler renditions, not the `async` ones, and each
+    // handler is called from the main actor.
+    //
+    // These were `nonisolated async`. The Objective-C thunk for an async
+    // method runs its body in a task with the method's own isolation — none —
+    // and calls UIKit's completion block when the body returns. After the hop
+    // to the main actor for `handleOpen`, the body resumed on the cooperative
+    // pool, so the block for a tapped notification ran off the main thread,
+    // where UIKit's response handling asserts "Call must be made on main
+    // thread". Calling the handler ourselves, inside a main-actor task, puts
+    // it on the main thread by construction. Do not go back to
+    // `nonisolated async` here.
+    //
+    // The category is read out before the hop, so the non-Sendable response
+    // never crosses into the task.
     nonisolated func userNotificationCenter(
         _ center: UNUserNotificationCenter,
-        willPresent notification: UNNotification
-    ) async -> UNNotificationPresentationOptions {
-        [.banner, .sound]
+        willPresent notification: UNNotification,
+        withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
+    ) {
+        Task { @MainActor in
+            completionHandler([.banner, .sound])
+        }
     }
 
     nonisolated func userNotificationCenter(
         _ center: UNUserNotificationCenter,
-        didReceive response: UNNotificationResponse
-    ) async {
+        didReceive response: UNNotificationResponse,
+        withCompletionHandler completionHandler: @escaping () -> Void
+    ) {
         let category = response.notification.request.content.userInfo["category"] as? String
-        await MainActor.run { self.handleOpen(category) }
+        Task { @MainActor in
+            self.handleOpen(category)
+            completionHandler()
+        }
     }
 
     private func handleOpen(_ categoryRaw: String?) {
         guard let categoryRaw, let category = Category(rawValue: categoryRaw) else { return }
         Analytics.shared.track(.notificationOpened(category: categoryRaw))
+        // Through `SnapWorthApp.open`, which first clears anything presented
+        // over the tab bar, so the destination is not left hidden behind it.
         switch category {
         case .recap:
             markRecapViewed()
-            NotificationCenter.default.post(name: .snapOpenFlips, object: nil)
+            SnapWorthApp.open(.snapOpenFlips)
         case .ledger:
-            NotificationCenter.default.post(name: .snapOpenFlips, object: nil)
+            SnapWorthApp.open(.snapOpenFlips)
         case .trial:
-            NotificationCenter.default.post(name: .snapOpenSettings, object: nil)
+            SnapWorthApp.open(.snapOpenSettings)
         case .portfolio:
             // Reuses the widget's existing My Finds route rather than adding a
             // second notification name for the same destination — MainTabView
             // already listens for it.
-            NotificationCenter.default.post(name: .snapWidgetOpenHistory, object: nil)
+            SnapWorthApp.open(.snapWidgetOpenHistory)
         case .freeScan:
             // Straight to the camera: the notification promised a scan.
-            NotificationCenter.default.post(name: .snapWidgetOpenScan, object: nil)
+            SnapWorthApp.open(.snapWidgetOpenScan)
         }
     }
 

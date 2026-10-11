@@ -587,6 +587,9 @@ final class HaulSession {
         var now: () -> Date
         var defaults: UserDefaults
         var store: HaulPhotoStore
+        /// Re-publish the widget blob, for a change no save makes — the
+        /// server's 402 zeroing the free-scan count.
+        var refreshWidget: @MainActor () -> Void = {}
     }
 
     // ── Observed state ───────────────────────────────────────────────────
@@ -721,7 +724,8 @@ final class HaulSession {
             sleep: { try await Task.sleep(for: $0) },
             now: { Date() },
             defaults: .standard,
-            store: .live))
+            store: .live,
+            refreshWidget: { repository.refreshWidget() }))
         shared = session
         // Started now, so it has a reading by the first send.
         _ = HaulPathMonitor.shared
@@ -1474,6 +1478,7 @@ final class HaulSession {
         // refused, so the counter must stop advertising a scan — minus
         // `showPaywall`.
         FreeScanCounter.serverRemaining = 0
+        deps.refreshWidget()
         if !limitHitReported {
             limitHitReported = true
             Analytics.shared.track(.freeScanLimitHit)

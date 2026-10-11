@@ -558,6 +558,26 @@ final class PaymentRequiredMappingTests: XCTestCase {
             XCTAssertFalse(FreeScanCounter.hasRemaining, path.rawValue)
         }
     }
+
+    /// And reach the widget. Its "Scans left" reads the blob, which only a
+    /// library change, a launch or an entitlement change rewrote, and a 402
+    /// saves nothing. The blob lives in the App Group and is written after a
+    /// debounce, so the call is held by its source.
+    func test_bothScanEntryPointsRepublishTheWidgetWhenTheServerRefuses() throws {
+        for path in ["ViewModels/ScanViewModel.swift", "ViewModels/ThriftFlipViewModel.swift"] {
+            let file = try String(contentsOf: URL(fileURLWithPath: #filePath)
+                .deletingLastPathComponent()
+                .deletingLastPathComponent()
+                .appendingPathComponent("SnapWorth/\(path)"), encoding: .utf8)
+            guard let zeroed = file.range(of: "FreeScanCounter.serverRemaining = 0") else {
+                XCTFail("\(path): the 402 branch moved")
+                continue
+            }
+            let after = String(file[zeroed.upperBound...].prefix(600))
+            XCTAssertTrue(after.contains("repository.refreshWidget()"),
+                          "\(path) leaves the widget offering the refused scan")
+        }
+    }
 }
 
 // MARK: - App Attest key recovery (I-1)
@@ -9189,6 +9209,43 @@ final class WidgetURLRoutingTests: XCTestCase {
         XCTAssertNil(SnapWorthApp.route(url("snapworth://elsewhere"), onboarded: true))
         XCTAssertNil(SnapWorthApp.route(url("https://snapworth.app/scan"), onboarded: true))
     }
+
+    // `MainTabView` answers a route by changing the tab and nothing else, so a
+    // sheet or cover presented over the tab bar stayed in front of the tab
+    // the user had tapped a notification or widget to reach.
+
+    /// The observer block is `@Sendable`, so it cannot append to a captured
+    /// `var`. Posting is synchronous, on this thread, so nothing races.
+    private final class Seen: @unchecked Sendable {
+        var names: [Notification.Name] = []
+    }
+
+    private func posted(by name: Notification.Name) -> [Notification.Name] {
+        let center = NotificationCenter()
+        let seen = Seen()
+        let watched: [Notification.Name] = [.snapDismissForRoute, .snapWidgetOpenScan,
+                                            .snapWidgetOpenHistory, .snapOpenFlips, .snapOpenSettings]
+        let tokens = watched.map { watchedName in
+            center.addObserver(forName: watchedName, object: nil, queue: nil) { note in
+                seen.names.append(note.name)
+            }
+        }
+        SnapWorthApp.open(name, center: center)
+        for token in tokens { center.removeObserver(token) }
+        return seen.names
+    }
+
+    func test_routesToAnotherTabClearPresentationsFirst() {
+        for name: Notification.Name in [.snapWidgetOpenHistory, .snapOpenFlips, .snapOpenSettings] {
+            XCTAssertEqual(posted(by: name), [.snapDismissForRoute, name], name.rawValue)
+        }
+    }
+
+    func test_theScanRouteDismissesNothingExtra() {
+        // ScanView and HaulView clear their own presentations for it, and the
+        // Haul cover, being a camera, stays.
+        XCTAssertEqual(posted(by: .snapWidgetOpenScan), [.snapWidgetOpenScan])
+    }
 }
 
 // ── "Open SnapWorth to refresh" has to refresh ───────────────────────────────
@@ -10458,5 +10515,86 @@ final class LedgerCurrencyTests: XCTestCase {
         XCTAssertEqual(LedgerAmountSpeech.value("", code: "RON"), "Not set")
         XCTAssertEqual(LedgerAmountSpeech.value("abc", code: "RON"), "abc",
                        "text that does not parse is read as typed")
+    }
+}
+
+// ── A ledger follow-up lives under one day ───────────────────────────────────
+//
+// `syncEligible` re-files every listed item on each foreground, recomputing
+// its day in the current zone. Listed at 23:30 on 11 Sep in Bucharest, the
+// item is due on the 25th; opened in Dubai, the same instant is 00:30 on the
+// 12th and due on the 26th. It was added to the new day and never taken out
+// of the old, so both days' requests stayed pending.
+
+final class LedgerBucketTests: XCTestCase {
+
+    private let item = "A"
+
+    func test_refilingUnderANewDayLeavesTheOldOne() {
+        let filed = NotificationManager.file(item, under: "20260926",
+                                             in: ["20260925": [item]])
+        XCTAssertEqual(filed.buckets, ["20260926": [item]])
+        XCTAssertEqual(filed.vacated, ["20260925"], "its request has to be removed")
+    }
+
+    func test_anOldDayKeepsItsOtherItems() {
+        let filed = NotificationManager.file(item, under: "20260926",
+                                             in: ["20260925": ["B", item, "C"]])
+        XCTAssertEqual(filed.buckets, ["20260925": ["B", "C"], "20260926": [item]])
+        XCTAssertEqual(filed.vacated, ["20260925"], "rebuilt without it")
+    }
+
+    func test_theSameDayAgainChangesNothing() {
+        // The ordinary foreground: same zone, same day.
+        let buckets = ["20260925": ["B", item]]
+        let filed = NotificationManager.file(item, under: "20260925", in: buckets)
+        XCTAssertEqual(filed.buckets, buckets)
+        XCTAssertEqual(filed.vacated, [])
+    }
+
+    func test_aNewItemJoinsTheDay() {
+        let filed = NotificationManager.file(item, under: "20260925", in: ["20260925": ["B"]])
+        XCTAssertEqual(filed.buckets, ["20260925": ["B", item]])
+        XCTAssertEqual(filed.vacated, [])
+    }
+}
+
+// ── Clearing history clears the weekly digest ────────────────────────────────
+//
+// Each rung's text is fixed when it is scheduled, and only a foreground
+// rebuilt the ladder. Clearing history happens in the foreground, so up to
+// four Sundays said "Your 12 finds are worth $340." about a wiped library.
+// The notification centre cannot be inspected from a test, so the call is
+// held by its source.
+
+final class ClearHistoryDigestTests: XCTestCase {
+
+    func test_deleteAllClearsThePortfolioLadder() throws {
+        let repo = try String(contentsOf: URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("SnapWorth/Services/ScanRepository.swift"), encoding: .utf8)
+        guard let start = repo.range(of: "func deleteAll(") else {
+            return XCTFail("deleteAll moved")
+        }
+        let body = String(repo[start.upperBound...].prefix(2_000))
+        XCTAssertTrue(body.contains("schedulePortfolioDigest(results: [])"))
+    }
+}
+
+// ── "Copy message and address" copies the address ────────────────────────────
+//
+// The mail-unavailable fallback's button copied the message alone, so a user
+// pasting into another mail app had no recipient and had to come back to read
+// it off the card.
+
+@MainActor
+final class FeedbackClipboardTests: XCTestCase {
+
+    func test_theAddressComesFirstOnALineOfItsOwn() {
+        let text = FeedbackView.clipboardText(body: "It crashed.\n\nApp 1.5.3 (23)")
+        XCTAssertEqual(text.components(separatedBy: "\n").first, Config.supportEmail,
+                       "first, so it can be cut into the To field")
+        XCTAssertTrue(text.hasSuffix("It crashed.\n\nApp 1.5.3 (23)"), "and the message, whole")
     }
 }

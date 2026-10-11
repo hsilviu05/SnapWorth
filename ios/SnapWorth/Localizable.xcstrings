@@ -25545,7 +25545,7 @@
       }
     },
     "Your %lld finds are worth" : {
-      "comment" : "The amount is appended after this, in both languages.",
+      "comment" : "Weekly notification. The amount is appended after this, so every translation must end where an amount can follow (German cannot end on 'wert').",
       "extractionState" : "manual",
       "localizations" : {
         "de" : {
@@ -25554,13 +25554,13 @@
               "one" : {
                 "stringUnit" : {
                   "state" : "translated",
-                  "value" : "Dein %lld Fund ist wert"
+                  "value" : "Dein Fund hat einen Wert von"
                 }
               },
               "other" : {
                 "stringUnit" : {
                   "state" : "translated",
-                  "value" : "Deine %lld Funde sind wert"
+                  "value" : "Deine %lld Funde haben einen Wert von"
                 }
               }
             }

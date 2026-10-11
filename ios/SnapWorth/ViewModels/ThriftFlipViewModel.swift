@@ -145,8 +145,11 @@ final class ThriftFlipViewModel {
             if appError.isPaywall {
                 // And the same reconciliation. The server has said there is
                 // nothing left today; without this the Scan tab and the widget
-                // went on advertising a free scan it had already refused.
+                // went on advertising a free scan it had already refused. The
+                // counter alone fixed only the Scan tab: the widget reads its
+                // blob, which a 402 — saving nothing — never rewrote.
                 FreeScanCounter.serverRemaining = 0
+                repository.refreshWidget()
                 Analytics.shared.track(.freeScanLimitHit)
                 showPaywall = true
                 return
