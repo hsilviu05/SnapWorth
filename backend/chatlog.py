@@ -90,6 +90,27 @@ async def remember_message(cache: ResilientCache, message_id: int,
         log.debug("message id note failed: %s", type(exc).__name__)
 
 
+def _archived(raw: str | None, now: int) -> list[list]:
+    """The archive's entries still inside ARCHIVE_TTL, oldest first.
+
+    By each entry's own time. The key's TTL is renewed by every /clear, so it
+    bounded nothing: an archive cleared into every few weeks kept its first
+    entries (/user and /sub answers among them) for as long as the cap took
+    to push them out, months at a few scans a day, under a footer saying
+    "Kept 30 days"."""
+    kept: list[list] = []
+    for entry in (json.loads(raw) if raw else []):
+        if not (isinstance(entry, list) and len(entry) == 2):
+            continue
+        try:
+            at = int(entry[0])
+        except (TypeError, ValueError):
+            continue
+        if now - at < ARCHIVE_TTL:
+            kept.append(entry)
+    return kept
+
+
 async def archive(cache: ResilientCache, entries: list[list]) -> int | None:
     """Keep the text of the bot's messages that are about to be deleted.
 
@@ -102,8 +123,7 @@ async def archive(cache: ResilientCache, entries: list[list]) -> int | None:
         # `required` for the reason `remember_message` gives: an archive read
         # as empty is an archive about to be replaced by this one batch.
         raw = await cache.get(ARCHIVE_KEY, required=True)
-        kept = [a for a in (json.loads(raw) if raw else []) if isinstance(a, list) and len(a) == 2]
-        kept += texts
+        kept = _archived(raw, int(time.time())) + texts
         await cache.set(ARCHIVE_KEY, json.dumps(kept[-ARCHIVE_CAP:]), ARCHIVE_TTL)
     except Exception as exc:
         log.debug("archive write failed: %s", type(exc).__name__)
@@ -259,7 +279,7 @@ async def history_text(cache: ResilientCache, argument: str) -> str:
         count = HISTORY_DEFAULT
     try:
         raw = await cache.get(ARCHIVE_KEY)
-        entries = [a for a in (json.loads(raw) if raw else []) if isinstance(a, list) and len(a) == 2]
+        entries = _archived(raw, int(time.time()))
     except Exception:
         entries = []
     if not entries:

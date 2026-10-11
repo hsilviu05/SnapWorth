@@ -2868,8 +2868,9 @@ class TestHistoryAndArchive:
 
     @pytest.mark.asyncio
     async def test_history_count_argument_and_cap(self, cache, enabled_notify):
+        start = int(time.time()) - 3600
         await cache.set(chatlog.ARCHIVE_KEY, json.dumps(
-            [[1_756_900_000 + i, f"<b>message {i}</b>"] for i in range(40)]), 600)
+            [[start + i, f"<b>message {i}</b>"] for i in range(40)]), 600)
         assert "last 3 of 40" in await notify.handle_command("/history 3")
         assert "last 25 of 40" in await notify.handle_command("/history 999")
         assert "last 8 of 40" in await notify.handle_command("/history nonsense")
@@ -2877,11 +2878,31 @@ class TestHistoryAndArchive:
 
     @pytest.mark.asyncio
     async def test_archive_is_capped_and_old_entries_roll_off(self, cache, enabled_notify):
+        now = int(time.time())
         await cache.set(chatlog.ARCHIVE_KEY, json.dumps(
-            [[1, "old"]] * chatlog.ARCHIVE_CAP), 600)
-        await chatlog.archive(notify._cache, [[9, 2, "new"]])
+            [[now - 3600, "old"]] * chatlog.ARCHIVE_CAP), 600)
+        await chatlog.archive(notify._cache, [[9, now, "new"]])
         kept = json.loads(await cache.get(chatlog.ARCHIVE_KEY))
-        assert len(kept) == chatlog.ARCHIVE_CAP and kept[-1] == [2, "new"]
+        assert len(kept) == chatlog.ARCHIVE_CAP and kept[-1] == [now, "new"]
+
+    @pytest.mark.asyncio
+    async def test_the_archive_keeps_30_days_by_each_entrys_own_time(
+            self, cache, enabled_notify):
+        """Every /clear renewed the key's 30-day TTL, and nothing looked at an
+        entry's age, so a day-1 /sub answer was still in /history on day 80,
+        under a footer saying "Kept 30 days"."""
+        now = int(time.time())
+        await cache.set(chatlog.ARCHIVE_KEY, json.dumps([
+            [now - chatlog.ARCHIVE_TTL - 60, "a /sub answer from last month"],
+            [now - 86_400, "yesterday's alert"]]), chatlog.ARCHIVE_TTL)
+
+        text = await notify.handle_command("/history")
+        assert "last month" not in text
+        assert "last 1 of 1 kept messages" in text
+
+        await chatlog.archive(notify._cache, [[9, now, "today's alert"]])
+        kept = json.loads(await cache.get(chatlog.ARCHIVE_KEY))
+        assert [a[1] for a in kept] == ["yesterday's alert", "today's alert"]
 
     @pytest.mark.asyncio
     async def test_clear_forwards_to_an_archive_chat_when_configured(self, cache, monkeypatch):
