@@ -2123,8 +2123,13 @@ final class ListingAnalyticsOrderingTests: XCTestCase {
     /// eBay's Ask and Floor, behind an "Open eBay" button. A failure that
     /// lands late is dropped too: a retry banner under a chip whose own draft
     /// is fine is noise.
+    ///
+    /// A re-read (the tag, or the full breakdown) moves on too: it replaces
+    /// the name and the range and leaves the condition, so a listing requested
+    /// while it ran used to land with the old name and the old Ask and Floor
+    /// under the new estimate.
     func test_aStaleListingResponseIsDroppedNotInstalled() async throws {
-        enum MoveOn: String, CaseIterable { case marketplace, condition }
+        enum MoveOn: String, CaseIterable { case marketplace, condition, reread }
         for moveOn in MoveOn.allCases {
             for succeeds in [true, false] {
                 let label = "\(moveOn.rawValue), \(succeeds ? "success" : "failure")"
@@ -2146,6 +2151,10 @@ final class ListingAnalyticsOrderingTests: XCTestCase {
                 switch moveOn {
                 case .marketplace: vm.selectMarketplace(.vinted)
                 case .condition: find.condition = find.condition == .new ? .used : .new
+                case .reread:
+                    let condition = find.condition
+                    find.applySharpened(HaulFixtures.response("Patagonia Retro-X Fleece", low: 70, high: 120))
+                    XCTAssertEqual(find.condition, condition, "\(label): a re-read keeps the condition")
                 }
                 if succeeds {
                     gate.succeedOldest(HaulFixtures.listing(.ebay))
@@ -6969,7 +6978,7 @@ final class SubscriberPaywallTests: XCTestCase {
         await tagRead.rescanWithTag(UIImage(), photo: UIImage(), result: Self.thinFind(),
                                     purchaseService: tagStore) { applied.append("tag") }
         XCTAssertNil(tagRead.tagError)
-        XCTAssertEqual(tagStore.resyncCalls, 1)
+        XCTAssertEqual(tagStore.resyncCalls, 2, "once before the scan, like the full breakdown, and once for the 402")
 
         let fullStore = ResyncStub(subscribed: true, resync: .confirmed)
         let fullRead = ResultViewModel()
@@ -7125,17 +7134,24 @@ final class ResultRereadTests: XCTestCase {
     }
 
     func test_theTagReReadSendsBothPhotosAndAppliesTheAnswer() async throws {
+        let store = ResyncStub(subscribed: true, resync: .confirmed)
         let vm = ResultViewModel()
         let answer = try response("scan-response.json")
         var sentTag = false
-        vm.scanner = { _, tag in sentTag = tag != nil; return answer }
+        var resyncsSeenAtScan = -1
+        vm.scanner = { _, tag in
+            sentTag = tag != nil
+            resyncsSeenAtScan = store.resyncCalls
+            return answer
+        }
         let find = SubscriberPaywallTests.thinFind()
         var applied = 0
         await vm.rescanWithTag(UIImage(), photo: UIImage(), result: find,
-                               purchaseService: MockPurchaseService(forcedSubscribed: true)) {
+                               purchaseService: store) {
             applied += 1
         }
         XCTAssertTrue(sentTag)
+        XCTAssertEqual(resyncsSeenAtScan, 1, "the server agrees before the scan is made")
         XCTAssertEqual(applied, 1)
         XCTAssertEqual(find.itemName, answer.itemName)
         XCTAssertNotNil(vm.tagSuccess)
@@ -7148,12 +7164,55 @@ final class ResultRereadTests: XCTestCase {
         vm.scanner = { _, _ in throw AppError.network }
         let find = SubscriberPaywallTests.thinFind()
         await vm.rescanWithTag(UIImage(), photo: UIImage(), result: find,
-                               purchaseService: MockPurchaseService(forcedSubscribed: true)) {
+                               purchaseService: ResyncStub(subscribed: true, resync: .confirmed)) {
             XCTFail("applied")
         }
         XCTAssertEqual(find.valueLow, 45)
         XCTAssertEqual(vm.tagError, AppError.network.errorDescription)
         XCTAssertNil(vm.tagSuccess)
+    }
+
+    /// A server that read the device as free answered anyway: it dropped the
+    /// tag, spent a free scan on the item photo alone and stripped the
+    /// detail. That is not a re-read with the tag, and it must not replace
+    /// the estimate under "Estimate updated".
+    func test_aFreeTierAnswerToTheTagReReadLeavesTheFindAlone() async throws {
+        let store = ResyncStub(subscribed: true, resync: .confirmed)
+        let vm = ResultViewModel()
+        let free = try response("scan-response-free.json")
+        XCTAssertNotNil(free.freeScansRemaining, "the fixture is a free answer")
+        vm.scanner = { _, _ in free }
+        let find = SubscriberPaywallTests.thinFind()
+        await vm.rescanWithTag(UIImage(), photo: UIImage(), result: find,
+                               purchaseService: store) { XCTFail("applied") }
+        XCTAssertEqual(find.itemName, "Patagonia Better Sweater")
+        XCTAssertEqual(find.valueLow, 45)
+        XCTAssertNil(vm.tagSuccess)
+        XCTAssertNotNil(vm.tagError)
+        XCTAssertFalse(vm.isRescanning)
+    }
+
+    /// Asked first, like the full breakdown: a server that cannot be reached,
+    /// or will not confirm, is not sent a scan it would answer as free.
+    func test_theTagReReadScansNothingUntilTheServerAgrees() async {
+        let offline = ResyncStub(subscribed: true, resync: .unreachable(reason: "offline", error: .network))
+        let refused = ResyncStub(subscribed: true, resync: .failed(reason: "refused"))
+        var scans = 0
+        for store in [offline, refused] {
+            let vm = ResultViewModel()
+            vm.scanner = { _, _ in scans += 1; throw AppError.network }
+            await vm.rescanWithTag(UIImage(), photo: UIImage(),
+                                   result: SubscriberPaywallTests.thinFind(),
+                                   purchaseService: store) { XCTFail("applied") }
+            if store === offline {
+                XCTAssertEqual(vm.tagError, AppError.network.errorDescription)
+                XCTAssertFalse(vm.showSubscriptionUnconfirmed)
+            } else {
+                XCTAssertTrue(vm.showSubscriptionUnconfirmed)
+            }
+            XCTAssertNil(vm.tagSuccess)
+        }
+        XCTAssertEqual(scans, 0)
     }
 }
 

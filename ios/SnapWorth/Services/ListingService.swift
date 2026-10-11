@@ -141,7 +141,7 @@ struct GeneratedListing: Equatable {
 /// `ModelContext` crosses the boundary at all. Reading these seven values takes
 /// microseconds on the caller's side, and after that the actor holds only
 /// value types.
-struct ListingInput: Sendable {
+struct ListingInput: Sendable, Equatable {
     let itemName: String
     let brand: String
     let category: String

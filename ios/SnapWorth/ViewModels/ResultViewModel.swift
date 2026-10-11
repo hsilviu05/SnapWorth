@@ -104,9 +104,45 @@ final class ResultViewModel {
         // A paid model call, like any scan — see `BackgroundScanActivity`.
         let background = BackgroundScanActivity.begin("Tag re-read")
         defer { background.end() }
+        // What `rereadForFullDetail` does, for the same reason. A server that
+        // reads this device as free does not refuse the scan: it drops the
+        // tag (it reads one for Pro only), answers from the item photo alone
+        // off the free allowance, and strips the detail. "Add the tag" is
+        // most often tapped straight from its paywall, when the purchase's
+        // detached sync has usually not landed yet.
+        if !Config.mockScans {
+            switch await purchaseService.resyncEntitlement() {
+            case .confirmed:
+                break
+            case .notSubscribed:
+                tagError = String(localized: "That didn't work. Your estimate is unchanged.")
+                return
+            case .unreachable(let reason, let error):
+                Analytics.shared.track(.entitlementSyncFailed(reason: reason))
+                Haptics.failure()
+                tagError = error.errorDescription
+                    ?? String(localized: "That didn't work. Your estimate is unchanged.")
+                return
+            case .failed(let reason):
+                Analytics.shared.track(.entitlementSyncFailed(reason: reason))
+                showSubscriptionUnconfirmed = true
+                return
+            }
+        }
         do {
             let response = try await purchaseService.confirmingSubscription {
                 try await scanner(photo, tagImage)
+            }
+            // Served on the free tier all the same: the tag was never read,
+            // so this is not the answer the user asked for, and it must not
+            // replace the one they have under "Estimate updated". Only a free
+            // answer carries the allowance left.
+            guard response.freeScansRemaining == nil,
+                  ValuationDetail(response: response)?.lacksProDetail != true else {
+                Haptics.failure()
+                Analytics.shared.track(.tagPhotoAdded(succeeded: false))
+                tagError = String(localized: "That didn't work. Your estimate is unchanged.")
+                return
             }
             result.applySharpened(response)
             onApplied()
@@ -337,9 +373,10 @@ final class ResultViewModel {
         // thread while the main thread was free to mutate the same object —
         // see `ListingInput`.
         let input = ListingInput(result: result, condition: result.condition)
-        // The request is identified by what it was written for, the same way
-        // `input.condition` identifies the price it quotes. Neither chip is
-        // disabled while this runs — only the Generate button is — and both
+        // The request is identified by what it was written for: the
+        // marketplace, and the whole of `input` — the item and the price it
+        // quotes. Neither chip is disabled while this runs — only the
+        // Generate button is — and neither is a re-read, and all of them
         // clear the listing on the way out, `selectMarketplace` here and
         // `valuationDidChange` in the view. So the user could tap Vinted, see
         // the eBay draft correctly disappear, and then watch it reinstate
@@ -347,6 +384,12 @@ final class ResultViewModel {
         // Vinted chip, at eBay's Ask and Floor, behind an "Open eBay" button.
         // The backend tailors both voice and price per marketplace, so this is
         // not a cosmetic mismatch.
+        //
+        // The condition alone used to stand for the valuation, which a re-read
+        // (`rescanWithTag`, `rereadForFullDetail`) does not change: it
+        // replaces the name and the range and keeps the condition. A listing
+        // requested while one was running landed after it and was installed
+        // with the old name and the old Ask and Floor, under the new estimate.
         let requested = selectedMarketplace
 
         do {
@@ -362,7 +405,7 @@ final class ResultViewModel {
             // the new selection — and a listing nobody is shown is not a
             // generated listing, so the event below is skipped with it.
             guard requested == selectedMarketplace,
-                  input.condition == result.condition else { return }
+                  input == ListingInput(result: result, condition: result.condition) else { return }
             generatedListing = listing
             // Fired on success, not on attempt. Previously this ran before the
             // network call, so every timeout and failure counted as a generated
@@ -374,7 +417,7 @@ final class ResultViewModel {
             // user has already navigated away from is noise, and it would sit
             // under a chip whose own draft is perfectly fine.
             guard requested == selectedMarketplace,
-                  input.condition == result.condition else { return }
+                  input == ListingInput(result: result, condition: result.condition) else { return }
             generatedListing = nil
             if AppError.from(error) == .subscriptionUnconfirmed {
                 // Its own alert, with Restore and support; the Generate
