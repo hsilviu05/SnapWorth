@@ -30,7 +30,6 @@ from cryptography import x509
 from cryptography.exceptions import InvalidSignature
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import ec
-from cryptography.hazmat.primitives.asymmetric.utils import Prehashed
 
 log = logging.getLogger("snapworth.appattest")
 
@@ -292,13 +291,18 @@ def verify_assertion(
         raise AttestationError("Assertion counter did not advance.")
 
     client_data_hash = hashlib.sha256(challenge).digest()
-    digest = hashlib.sha256(auth_data + client_data_hash).digest()
+    # Apple's nonce. The Secure Enclave signs it as a *message* with
+    # ECDSA-SHA256, so the value under the signature is SHA256(nonce), and the
+    # check hashes it once more. Verifying it as a prehashed digest (as this
+    # did until 2026-10-11) rejects every genuine assertion: each refresh then
+    # failed, and the app re-attested as a new device (AUDIT-2026-10-11).
+    nonce = hashlib.sha256(auth_data + client_data_hash).digest()
 
     try:
         key = serialization.load_pem_public_key(public_key_pem)
         if not isinstance(key, ec.EllipticCurvePublicKey):
             raise AttestationError("Unexpected assertion key type.")
-        key.verify(signature, digest, ec.ECDSA(Prehashed(hashes.SHA256())))
+        key.verify(signature, nonce, ec.ECDSA(hashes.SHA256()))
     except InvalidSignature:
         raise AttestationError("Assertion signature is invalid.") from None
 

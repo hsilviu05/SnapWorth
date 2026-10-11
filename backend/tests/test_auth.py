@@ -267,10 +267,9 @@ class TestAppAttest:
         rp = hashlib.sha256(TEST_APP_ID.encode()).digest()
         auth_data = rp + b"\x00" + struct.pack(">I", 5)
         challenge = b"challenge-value"
-        digest = hashlib.sha256(auth_data + hashlib.sha256(challenge).digest()).digest()
-        from cryptography.hazmat.primitives.asymmetric.utils import Prehashed
+        nonce = hashlib.sha256(auth_data + hashlib.sha256(challenge).digest()).digest()
         from cryptography.hazmat.primitives import hashes as _h
-        sig = key.sign(digest, ec.ECDSA(Prehashed(_h.SHA256())))
+        sig = key.sign(nonce, ec.ECDSA(_h.SHA256()))
         assertion = cbor2.dumps({"signature": sig, "authenticatorData": auth_data})
 
         # Fresh counter (5 > 4) is accepted …
