@@ -2618,7 +2618,7 @@ final class MoneyInputTests: XCTestCase {
         XCTAssertNil(MoneyInput.parse(tracking))
         XCTAssertNil(MoneyInput.decimal(tracking))
         XCTAssertNil(MoneyInput.parse(String(repeating: "9", count: 320)), "parses to infinity")
-        XCTAssertEqual(MoneyInput.parse("100000000"), 100_000_000, "the ceiling itself is accepted")
+        XCTAssertEqual(MoneyInput.parse("100000000"), 100000000, "the ceiling itself is accepted")
         XCTAssertEqual(MoneyInput.decimal("1.234.567"), 1_234_567)
     }
 
