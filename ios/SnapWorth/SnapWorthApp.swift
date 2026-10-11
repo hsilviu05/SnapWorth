@@ -195,7 +195,27 @@ struct SnapWorthApp: App {
 
     private func handleWidgetURL(_ url: URL) {
         guard let name = Self.route(url, onboarded: hasCompletedOnboarding) else { return }
-        NotificationCenter.default.post(name: name, object: nil)
+        Self.open(name)
+    }
+
+    /// Post a deep link that arrived from outside the app — a widget URL or a
+    /// tapped notification.
+    ///
+    /// Every route but the scan one is preceded by `.snapDismissForRoute`.
+    /// `MainTabView` answers a route by changing the selected tab and nothing
+    /// else, and a sheet or cover presented over the tab bar stays in front
+    /// of the new tab: the user tapped "trial ends tomorrow" or the Profit
+    /// widget and the app came forward still showing a scan result, with
+    /// Settings or My Flips selected out of sight underneath. The scan route
+    /// is left out because `ScanView` and `HaulView` already clear their own
+    /// presentations for it, and keep the Haul cover, which is a camera.
+    ///
+    /// In-app navigation posts its route directly; it has nothing to dismiss.
+    static func open(_ name: Notification.Name, center: NotificationCenter = .default) {
+        if name != .snapWidgetOpenScan {
+            center.post(name: .snapDismissForRoute, object: nil)
+        }
+        center.post(name: name, object: nil)
     }
 
     /// Where a `snapworth://` URL goes, and what has to happen on the way.
@@ -295,6 +315,9 @@ enum WidgetSource: String, CaseIterable {
 extension Notification.Name {
     static let snapWidgetOpenScan    = Notification.Name("snapWidgetOpenScan")
     static let snapWidgetOpenHistory = Notification.Name("snapWidgetOpenHistory")
+    /// Posted just before a deep link to another tab, so whatever is presented
+    /// over the tab bar gets out of the way. See `SnapWorthApp.open(_:center:)`.
+    static let snapDismissForRoute   = Notification.Name("snapDismissForRoute")
 }
 
 // ── Root navigator ────────────────────────────────────────────────────────────

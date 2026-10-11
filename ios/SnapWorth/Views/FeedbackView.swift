@@ -2,9 +2,7 @@ import SwiftUI
 import UIKit
 
 struct FeedbackView: View {
-    var initialType: FeedbackType = .featureRequest
-
-    @State private var feedbackType: FeedbackType = .featureRequest
+    @State private var feedbackType: FeedbackType
     @State private var message: String = ""
     @State private var didSend: Bool = false
     @State private var didCopy: Bool = false
@@ -16,6 +14,15 @@ struct FeedbackView: View {
     @State private var copyResetTask: Task<Void, Never>?
 
     private let maxChars = 500
+
+    /// The chip is seeded here, once, when the view is created. It was set in
+    /// `onAppear`, which fires again when the user switches to another tab
+    /// and back with this screen pushed in Settings — so a "Bug Report" chosen
+    /// by hand went back to the row's default, under a message that was kept,
+    /// and the mail went out with the wrong subject, the one support sorts on.
+    init(initialType: FeedbackType = .featureRequest) {
+        _feedbackType = State(initialValue: initialType)
+    }
 
     /// What VoiceOver is told about the message field.
     ///
@@ -213,7 +220,6 @@ struct FeedbackView: View {
         .scrollDismissesKeyboard(.interactively)
         .snapAnimation(.spring(duration: 0.3), value: didSend)
         .snapAnimation(.spring(duration: 0.3), value: mailUnavailable)
-        .onAppear { feedbackType = initialType }
         .onDisappear {
             sendResetTask?.cancel()
             copyResetTask?.cancel()
@@ -241,7 +247,7 @@ struct FeedbackView: View {
                 .fixedSize(horizontal: false, vertical: true)
 
             Button {
-                UIPasteboard.general.string = composedBody()
+                UIPasteboard.general.string = Self.clipboardText(body: composedBody())
                 Haptics.success()
                 didCopy = true
                 copyResetTask?.cancel()
@@ -283,6 +289,16 @@ struct FeedbackView: View {
     private func composedBody() -> String {
         let text = message.trimmingCharacters(in: .whitespacesAndNewlines)
         return "\(text)\n\n\(SupportMail.diagnostics)"
+    }
+
+    /// What "Copy message and address" puts on the clipboard: the address on
+    /// a line of its own, first, so it can be cut into the To field, then the
+    /// message. The button copied `composedBody()` alone, so the user pasted
+    /// into another mail app and had to come back here to read the address
+    /// off the card. `composedBody()` stays as it is — it is also the
+    /// `mailto:` body, where the address is already the recipient.
+    static func clipboardText(body: String) -> String {
+        "\(Config.supportEmail)\n\n\(body)"
     }
 
     private func sendFeedback() {

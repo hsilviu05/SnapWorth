@@ -3603,8 +3603,12 @@ final class HaulHarness {
     /// What `NWPathMonitor` would report. Satisfied unless a test says not.
     var path = HaulNetworkPath(isSatisfied: true, satisfiedCount: 0)
     private(set) var refreshCount = 0
+    /// Run by each `refreshEntitlements` once it is counted: what StoreKit
+    /// found when the session asked it again.
+    var onRefresh: @MainActor () -> Void = {}
     private(set) var summaryCount = 0
     private(set) var deleted: [UUID] = []
+    private(set) var widgetRefreshes = 0
     private var sessions: [HaulSession] = []
 
     init(scanMode: HaulCallGate<ScanAPIResponse>.Mode = .manual) {
@@ -3634,14 +3638,18 @@ final class HaulHarness {
             deleteFind: { [self] result in self.deleted.append(result.id) },
             generate: { _, _ in try await drafts.call() },
             isEntitled: { [self] in self.entitled },
-            refreshEntitlements: { [self] in self.refreshCount += 1 },
+            refreshEntitlements: { [self] in
+                self.refreshCount += 1
+                self.onRefresh()
+            },
             networkPath: { [self] in self.path },
             beginBackgroundTask: { name in background.begin(name) },
             summaryReached: { [self] _ in self.summaryCount += 1 },
             sleep: { duration in try await sleeper.sleep(duration) },
             now: { clock.now },
             defaults: defaults,
-            store: store))
+            store: store,
+            refreshWidget: { [self] in self.widgetRefreshes += 1 }))
         sessions.append(session)
         return session
     }
@@ -3842,6 +3850,23 @@ final class HaulDispositionTests: XCTestCase {
 
     func test_anExpiredSessionHalts() {
         XCTAssertEqual(disposition(.sessionExpired), .halt)
+    }
+
+    /// A 5xx from `/auth/challenge` or `/auth/refresh` at the token's re-mint:
+    /// nothing was uploaded, and every photo behind it would meet the same
+    /// outage, so it pauses the queue like `/scan`'s own 503 rather than
+    /// failing the strip one photo at a time.
+    func test_aTokenMintOutageBacksOffLikeA503() {
+        XCTAssertEqual(AppError.from(AttestationError.unavailable), .verificationUnavailable)
+        XCTAssertEqual(AppError.from(AttestationError.challengeFailed), .verificationUnavailable)
+        XCTAssertEqual(disposition(.verificationUnavailable, streak: 0), .offline(15))
+        XCTAssertEqual(disposition(.verificationUnavailable, streak: 2), .offline(60))
+        XCTAssertEqual(disposition(.verificationUnavailable, streak: 3), .halt)
+    }
+
+    func test_aDeviceWithoutAppAttestHalts() {
+        XCTAssertEqual(AppError.from(AttestationError.unsupportedDevice), .deviceUnsupported)
+        XCTAssertEqual(disposition(.deviceUnsupported), .halt)
     }
 
     func test_aTimeoutFailsThePhotoRatherThanResending() {
@@ -4363,6 +4388,8 @@ final class HaulSessionTests: XCTestCase {
 
         XCTAssertEqual(session.hold, .quota("You've used today's free scan."))
         XCTAssertEqual(FreeScanCounter.serverRemaining, 0, "the server said there is nothing left")
+        XCTAssertGreaterThan(h.widgetRefreshes, 0,
+                             "a 402 saves nothing, so the widget kept offering the refused scan")
         XCTAssertEqual(h.spy.named("free_scan_limit_hit").count, 1, "once per episode, not per photo")
         XCTAssertTrue(h.spy.named("scan_failed").isEmpty, "a 402 is not a failed scan")
         XCTAssertEqual(session.hold?.upgradeTrigger(forDrafts: false), .scanLimit,
@@ -4409,6 +4436,69 @@ final class HaulSessionTests: XCTestCase {
                       "a subscriber the server has not caught up with is not at the limit")
         XCTAssertEqual(FreeScanCounter.serverRemaining, before)
         XCTAssertEqual(session.failedCount, 0)
+    }
+
+    /// A subscription that expired with the app in the foreground raises no
+    /// `Transaction.updates`, so the 402 arrives while the cached entitlement
+    /// still reads Pro, and the confirmation's refresh is what finds the
+    /// lapse. The banner has to end at Upgrade: a confirmation hold left in
+    /// place sends nothing, so no response could ever replace it.
+    func test_aLapseFoundByTheConfirmationEndsAtUpgrade() async {
+        let h = HaulHarness()
+        defer { h.tearDown() }
+        let session = h.makeSession()
+        session.open()
+        session.add(HaulFixtures.photo())
+        await haulWait("sent") { h.scans.waiting == 1 }
+
+        h.onRefresh = { [weak h] in h?.entitled = false }
+        h.scans.failOldest(ScanAPIError.serverError(402, "You've used today's free scan."))
+        await haulWait("confirming") { h.sleeper.waiting == 1 }
+        XCTAssertEqual(session.hold, .confirmingSubscription)
+
+        h.sleeper.resumeAll()
+        await haulWait("upgrade") { session.hold == .notEntitled }
+        await haulSettle()
+        XCTAssertEqual(session.hold?.upgradeTrigger(forDrafts: false), .haul)
+        XCTAssertEqual(h.scans.calls, 1, "nothing is sent to a lapsed subscription")
+        XCTAssertEqual(session.failedCount, 0)
+
+        // A renewal arrives through `Transaction.updates`, which never calls
+        // `resumeAfterPurchase`: the gate lifts by itself, onto a queue that
+        // is not still held.
+        h.onRefresh = {}
+        h.entitled = true
+        session.pump()
+        XCTAssertNil(session.hold)
+        await haulWait("sent again") { h.scans.waiting == 1 }
+        XCTAssertEqual(h.scans.calls, 2)
+    }
+
+    /// The same lapse, found by "Try again" on the unconfirmed banner.
+    func test_aLapseFoundByTryAgainEndsAtUpgrade() async {
+        let h = HaulHarness()
+        defer { h.tearDown() }
+        let session = h.makeSession()
+        session.open()
+        session.add(HaulFixtures.photo())
+        let refusal = ScanAPIError.serverError(402, "You've used today's free scan.")
+
+        for _ in 0..<2 {
+            await haulWait("sent") { h.scans.waiting == 1 }
+            h.scans.failOldest(refusal)
+            await haulWait("confirming") { h.sleeper.waiting == 1 }
+            h.sleeper.resumeAll()
+        }
+        await haulWait("third send") { h.scans.waiting == 1 }
+        h.scans.failOldest(refusal)
+        await haulWait("unconfirmed") { session.hold == .subscriptionUnconfirmed }
+
+        h.onRefresh = { [weak h] in h?.entitled = false }
+        session.resumeHeld()
+        await haulWait("upgrade") { session.hold == .notEntitled }
+        await haulSettle()
+        XCTAssertEqual(session.hold?.upgradeTrigger(forDrafts: false), .haul)
+        XCTAssertEqual(h.scans.calls, 3, "Try again sends nothing to a lapsed subscription")
     }
 
     func test_lapsedEntitlementSendsNothing() async {

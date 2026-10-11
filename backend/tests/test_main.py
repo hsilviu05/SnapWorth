@@ -354,6 +354,21 @@ class TestLegalEndpoints:
         assert ("It never sends the photo, the item's name, your notes, the price "
                 "you paid, or your device identifier.") in body
 
+    def test_privacy_describes_shared_sales_as_the_app_sends_and_deletes_them(self):
+        """It said a shared sale carried "the marketplace", which no build has
+        sent, and that un-marking deletes a record, which the app did only
+        while sharing was on. The app now deletes on un-marking, on deleting
+        the find, and on clearing history, with sharing on or off, and
+        "Delete my shared sales" turns sharing off. The in-app copy pins the
+        same sentences (`PrivacyPolicyDisclosureTests`)."""
+        body = _prose(client.get("/privacy").text)
+        assert "the price it sold for and its currency;" in body
+        assert "marketplace" not in body
+        assert ("Un-marking a sale, or deleting the item or your scan history from "
+                "the app, deletes its record, even after you turn sharing off.") in body
+        assert ("Delete my shared sales in Settings deletes every record your "
+                "install sent and turns sharing off.") in body
+
     def test_web_and_in_app_policies_carry_the_same_date(self):
         """Two copies of one document. When the text changes, both dates move,
         or a reader of either copy cannot tell it changed.

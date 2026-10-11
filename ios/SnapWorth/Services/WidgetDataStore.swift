@@ -19,9 +19,9 @@ enum WidgetDataStore {
     /// count a month the app does not.
     ///
     /// `flips` counts only the sales that could be priced — `realizedProfit`
-    /// is nil without a paid price — because "$214 from 6 flips" has to be
-    /// true of the same six. `sold` counts every sale. They differ by exactly
-    /// the sales nobody entered a cost basis for, and collapsing that
+    /// is nil without a paid price or a sold price — because "$214 from 6
+    /// flips" has to be true of the same six. `sold` counts every sale. They
+    /// differ by exactly the sales missing one of those, and collapsing that
     /// difference into one nil is what let the widget print "No flips sold yet
     /// this month" beside a Flips screen reading "2 items sold".
     ///

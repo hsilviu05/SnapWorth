@@ -558,6 +558,26 @@ final class PaymentRequiredMappingTests: XCTestCase {
             XCTAssertFalse(FreeScanCounter.hasRemaining, path.rawValue)
         }
     }
+
+    /// And reach the widget. Its "Scans left" reads the blob, which only a
+    /// library change, a launch or an entitlement change rewrote, and a 402
+    /// saves nothing. The blob lives in the App Group and is written after a
+    /// debounce, so the call is held by its source.
+    func test_bothScanEntryPointsRepublishTheWidgetWhenTheServerRefuses() throws {
+        for path in ["ViewModels/ScanViewModel.swift", "ViewModels/ThriftFlipViewModel.swift"] {
+            let file = try String(contentsOf: URL(fileURLWithPath: #filePath)
+                .deletingLastPathComponent()
+                .deletingLastPathComponent()
+                .appendingPathComponent("SnapWorth/\(path)"), encoding: .utf8)
+            guard let zeroed = file.range(of: "FreeScanCounter.serverRemaining = 0") else {
+                XCTFail("\(path): the 402 branch moved")
+                continue
+            }
+            let after = String(file[zeroed.upperBound...].prefix(600))
+            XCTAssertTrue(after.contains("repository.refreshWidget()"),
+                          "\(path) leaves the widget offering the refused scan")
+        }
+    }
 }
 
 // MARK: - App Attest key recovery (I-1)
@@ -694,6 +714,32 @@ final class PrivacyPolicyDisclosureTests: XCTestCase {
         XCTAssertTrue(policy.contains("Records are kept for up to 400 days."))
         XCTAssertTrue(policy.contains(
             "It never sends the photo, the item's name, your notes, the price you paid, or your device identifier."))
+    }
+
+    func test_theDocumentTitleIsLookedUp() throws {
+        // A `String` title is shown as it is: "Privacy Policy" in every
+        // language, above a translated "Last updated". A key is looked up.
+        let source = try String(
+            contentsOf: URL(fileURLWithPath: #filePath)
+                .deletingLastPathComponent()
+                .deletingLastPathComponent()
+                .appendingPathComponent("SnapWorth/Views/LegalView.swift"),
+            encoding: .utf8)
+        XCTAssertTrue(source.contains("let title: LocalizedStringKey"))
+        XCTAssertFalse(source.contains("let title: String"))
+    }
+
+    func test_sharedSalesAreDescribedAsTheAppSendsAndDeletesThem() {
+        // It named "the marketplace", which `SaleOutcomePayload` has no field
+        // for, and promised un-marking deletes while the app did so only with
+        // sharing on. backend/tests/test_main.py pins the same sentences.
+        XCTAssertTrue(policy.contains("the price it sold for and its currency;"))
+        XCTAssertFalse(policy.contains("marketplace"))
+        XCTAssertFalse(SaleOutcomePayload.CodingKeys.allCases.map(\.rawValue).contains("marketplace"))
+        XCTAssertTrue(policy.contains(
+            "Un-marking a sale, or deleting the item or your scan history from the app, deletes its record, even after you turn sharing off."))
+        XCTAssertTrue(policy.contains(
+            "Delete my shared sales in Settings deletes every record your install sent and turns sharing off."))
     }
 
     func test_analyticsAndDeviceCheckCollectionAreDisclosed() {
@@ -2123,8 +2169,13 @@ final class ListingAnalyticsOrderingTests: XCTestCase {
     /// eBay's Ask and Floor, behind an "Open eBay" button. A failure that
     /// lands late is dropped too: a retry banner under a chip whose own draft
     /// is fine is noise.
+    ///
+    /// A re-read (the tag, or the full breakdown) moves on too: it replaces
+    /// the name and the range and leaves the condition, so a listing requested
+    /// while it ran used to land with the old name and the old Ask and Floor
+    /// under the new estimate.
     func test_aStaleListingResponseIsDroppedNotInstalled() async throws {
-        enum MoveOn: String, CaseIterable { case marketplace, condition }
+        enum MoveOn: String, CaseIterable { case marketplace, condition, reread }
         for moveOn in MoveOn.allCases {
             for succeeds in [true, false] {
                 let label = "\(moveOn.rawValue), \(succeeds ? "success" : "failure")"
@@ -2146,6 +2197,10 @@ final class ListingAnalyticsOrderingTests: XCTestCase {
                 switch moveOn {
                 case .marketplace: vm.selectMarketplace(.vinted)
                 case .condition: find.condition = find.condition == .new ? .used : .new
+                case .reread:
+                    let condition = find.condition
+                    find.applySharpened(HaulFixtures.response("Patagonia Retro-X Fleece", low: 70, high: 120))
+                    XCTAssertEqual(find.condition, condition, "\(label): a re-read keeps the condition")
                 }
                 if succeeds {
                     gate.succeedOldest(HaulFixtures.listing(.ebay))
@@ -2609,6 +2664,35 @@ final class MoneyInputTests: XCTestCase {
     func test_decimalVariantMatches() {
         XCTAssertEqual(MoneyInput.decimal("12,50"), Decimal(string: "12.50"))
         XCTAssertNil(MoneyInput.decimal(""))
+    }
+
+    /// A pasted tracking number kept its digits and became a 9.4e21 sold
+    /// price, and My Flips trapped on its ROI every time it opened.
+    func test_anAmountAboveTheCeilingIsRefused() {
+        let tracking = "9400 1118 9922 3197 4284 90"
+        XCTAssertNil(MoneyInput.parse(tracking))
+        XCTAssertNil(MoneyInput.decimal(tracking))
+        XCTAssertNil(MoneyInput.parse(String(repeating: "9", count: 320)), "parses to infinity")
+        XCTAssertEqual(MoneyInput.parse("100000000"), 100000000, "the ceiling itself is accepted")
+        XCTAssertEqual(MoneyInput.decimal("1.234.567"), 1_234_567)
+    }
+
+    /// A row saved before the ceiling still has to draw.
+    @MainActor
+    func test_aHugeSavedAmountDrawsInsteadOfTrapping() {
+        let roi = FlipsViewModel().roiPercent(Decimal(string: "4.7e20")!)
+        XCTAssertTrue(roi.hasPrefix("+") && roi.hasSuffix("%"), roi)
+        XCTAssertEqual(FlipsViewModel().roiPercent(Decimal(string: "0.42")!), "+42%")
+        XCTAssertTrue(ThriftFlipViewModel.percent(Decimal(string: "-4.7e20")!).hasSuffix("%"))
+        XCTAssertTrue(WidgetHaulData.compactMoney(9.4e21).hasSuffix("K"))
+        XCTAssertEqual(WidgetHaulData.compactMoney(.infinity), "—")
+
+        let r = ScanResult(itemName: "Item", brand: "B", category: "clothing",
+                           conditionNotes: "Good", valueLow: 40, valueHigh: 60,
+                           confidence: "High", soldListingsCount: 0,
+                           listingTitle: "T", listingDescription: "D",
+                           paidPrice: 20, statusRaw: "sold", soldPrice: .infinity)
+        XCTAssertNil(r.realizedProfit, "Decimal(Double.infinity) is a precondition failure")
     }
 
     /// The guess field stripped the comma rather than folding it, so "12,50"
@@ -5306,7 +5390,7 @@ final class WidgetEntitlementTests: XCTestCase {
     }
 
     /// A sale nobody priced still reads as nil, for everyone. The widget's
-    /// three states — a figure, "N sold · add what you paid", and "No flips
+    /// three states — a figure, "N sold · add the prices", and "No flips
     /// sold yet this month" — now turn on the ledger alone and never on tier.
     func test_anUnpricedSaleIsStillNilAndStillCounted() throws {
         let item = soldItem(paid: 20, sold: 120, soldDate: .now)
@@ -5654,9 +5738,10 @@ final class FlipsArchiveTests: XCTestCase {
         XCTAssertEqual(Set(bare.keys), expected)
         XCTAssertTrue(bare["listed_date"] is NSNull)
         XCTAssertTrue(bare["photo_source"] is NSNull)
-        // No currency was chosen, so the one the ledger showed is assumed.
+        // No currency is stored, so the one the ledger showed is assumed:
+        // dollars, for amounts saved without one.
         XCTAssertTrue(bare["currency"] is NSNull)
-        XCTAssertEqual(bare["currency_assumed"] as? String, SaleCurrency.regionDefault())
+        XCTAssertEqual(bare["currency_assumed"] as? String, "USD")
         XCTAssertEqual(bare["sold_date"] as? String, "2026-09-14")
     }
 
@@ -6969,7 +7054,7 @@ final class SubscriberPaywallTests: XCTestCase {
         await tagRead.rescanWithTag(UIImage(), photo: UIImage(), result: Self.thinFind(),
                                     purchaseService: tagStore) { applied.append("tag") }
         XCTAssertNil(tagRead.tagError)
-        XCTAssertEqual(tagStore.resyncCalls, 1)
+        XCTAssertEqual(tagStore.resyncCalls, 2, "once before the scan, like the full breakdown, and once for the 402")
 
         let fullStore = ResyncStub(subscribed: true, resync: .confirmed)
         let fullRead = ResultViewModel()
@@ -7125,17 +7210,24 @@ final class ResultRereadTests: XCTestCase {
     }
 
     func test_theTagReReadSendsBothPhotosAndAppliesTheAnswer() async throws {
+        let store = ResyncStub(subscribed: true, resync: .confirmed)
         let vm = ResultViewModel()
         let answer = try response("scan-response.json")
         var sentTag = false
-        vm.scanner = { _, tag in sentTag = tag != nil; return answer }
+        var resyncsSeenAtScan = -1
+        vm.scanner = { _, tag in
+            sentTag = tag != nil
+            resyncsSeenAtScan = store.resyncCalls
+            return answer
+        }
         let find = SubscriberPaywallTests.thinFind()
         var applied = 0
         await vm.rescanWithTag(UIImage(), photo: UIImage(), result: find,
-                               purchaseService: MockPurchaseService(forcedSubscribed: true)) {
+                               purchaseService: store) {
             applied += 1
         }
         XCTAssertTrue(sentTag)
+        XCTAssertEqual(resyncsSeenAtScan, 1, "the server agrees before the scan is made")
         XCTAssertEqual(applied, 1)
         XCTAssertEqual(find.itemName, answer.itemName)
         XCTAssertNotNil(vm.tagSuccess)
@@ -7148,12 +7240,55 @@ final class ResultRereadTests: XCTestCase {
         vm.scanner = { _, _ in throw AppError.network }
         let find = SubscriberPaywallTests.thinFind()
         await vm.rescanWithTag(UIImage(), photo: UIImage(), result: find,
-                               purchaseService: MockPurchaseService(forcedSubscribed: true)) {
+                               purchaseService: ResyncStub(subscribed: true, resync: .confirmed)) {
             XCTFail("applied")
         }
         XCTAssertEqual(find.valueLow, 45)
         XCTAssertEqual(vm.tagError, AppError.network.errorDescription)
         XCTAssertNil(vm.tagSuccess)
+    }
+
+    /// A server that read the device as free answered anyway: it dropped the
+    /// tag, spent a free scan on the item photo alone and stripped the
+    /// detail. That is not a re-read with the tag, and it must not replace
+    /// the estimate under "Estimate updated".
+    func test_aFreeTierAnswerToTheTagReReadLeavesTheFindAlone() async throws {
+        let store = ResyncStub(subscribed: true, resync: .confirmed)
+        let vm = ResultViewModel()
+        let free = try response("scan-response-free.json")
+        XCTAssertNotNil(free.freeScansRemaining, "the fixture is a free answer")
+        vm.scanner = { _, _ in free }
+        let find = SubscriberPaywallTests.thinFind()
+        await vm.rescanWithTag(UIImage(), photo: UIImage(), result: find,
+                               purchaseService: store) { XCTFail("applied") }
+        XCTAssertEqual(find.itemName, "Patagonia Better Sweater")
+        XCTAssertEqual(find.valueLow, 45)
+        XCTAssertNil(vm.tagSuccess)
+        XCTAssertNotNil(vm.tagError)
+        XCTAssertFalse(vm.isRescanning)
+    }
+
+    /// Asked first, like the full breakdown: a server that cannot be reached,
+    /// or will not confirm, is not sent a scan it would answer as free.
+    func test_theTagReReadScansNothingUntilTheServerAgrees() async {
+        let offline = ResyncStub(subscribed: true, resync: .unreachable(reason: "offline", error: .network))
+        let refused = ResyncStub(subscribed: true, resync: .failed(reason: "refused"))
+        var scans = 0
+        for store in [offline, refused] {
+            let vm = ResultViewModel()
+            vm.scanner = { _, _ in scans += 1; throw AppError.network }
+            await vm.rescanWithTag(UIImage(), photo: UIImage(),
+                                   result: SubscriberPaywallTests.thinFind(),
+                                   purchaseService: store) { XCTFail("applied") }
+            if store === offline {
+                XCTAssertEqual(vm.tagError, AppError.network.errorDescription)
+                XCTAssertFalse(vm.showSubscriptionUnconfirmed)
+            } else {
+                XCTAssertTrue(vm.showSubscriptionUnconfirmed)
+            }
+            XCTAssertNil(vm.tagSuccess)
+        }
+        XCTAssertEqual(scans, 0)
     }
 }
 
@@ -7942,7 +8077,7 @@ final class FlipsSummaryCountTests: XCTestCase {
 
         XCTAssertEqual(s.itemsSold, 2)
         XCTAssertEqual(s.itemsPriced, 2)
-        XCTAssertEqual(s.realizedProfit, LedgerMath.Amounts([SaleCurrency.regionDefault(): 50]))
+        XCTAssertEqual(s.realizedProfit, LedgerMath.Amounts(["USD": 50]))
         XCTAssertTrue(s.profitCoversEverySale)
         XCTAssertEqual(s.soldLabel, "2 items sold")
     }
@@ -7953,7 +8088,7 @@ final class FlipsSummaryCountTests: XCTestCase {
         let s = viewModel().summary([sold(paid: 10, price: 40), sold(paid: nil, price: 60)],
                            scope: .allTime)
 
-        XCTAssertEqual(s.realizedProfit, LedgerMath.Amounts([SaleCurrency.regionDefault(): 30]))
+        XCTAssertEqual(s.realizedProfit, LedgerMath.Amounts(["USD": 30]))
         XCTAssertEqual(s.soldLabel, "2 items sold · 1 needs a paid price")
     }
 
@@ -7961,6 +8096,45 @@ final class FlipsSummaryCountTests: XCTestCase {
         let s = viewModel().summary([], scope: .allTime)
         XCTAssertEqual(s.soldLabel, "0 items sold")
         XCTAssertTrue(s.profitCoversEverySale, "nothing is missing from nothing")
+    }
+
+    func test_twoUncostedSalesAgreeWithTheirVerb() {
+        // "2 needs a paid price": the English plural had the same form twice.
+        let s = viewModel().summary([sold(paid: 10, price: 40), sold(paid: nil, price: 60),
+                                     sold(paid: nil, price: 25)], scope: .allTime)
+        XCTAssertEqual(s.soldLabel, "3 items sold · 2 need a paid price")
+    }
+
+    func test_aSaleWithNoSoldPriceSaysSo() {
+        // Paid $8, tapped Sold, closed the sheet: the header asked for the
+        // paid price that was already there.
+        let noSale = sold(paid: 8, price: 0)
+        noSale.soldPrice = nil
+        let s = viewModel().summary([noSale], scope: .allTime)
+        XCTAssertEqual(s.itemsMissingSale, 1)
+        XCTAssertEqual(s.soldLabel, "1 item sold · 1 needs a sale price")
+
+        let both = viewModel().summary([sold(paid: 10, price: 40), noSale,
+                                        sold(paid: nil, price: 25)], scope: .allTime)
+        XCTAssertEqual(both.soldLabel, "3 items sold · 1 needs a sale price · 1 needs a paid price")
+    }
+
+    func test_theMonthIsOfferedForSharingOnlyWhenTheCardHasSomethingToShow() {
+        // An unpriced sale is a sale this month, but the card carries only
+        // priced ones: "Share this month" was offered and did nothing.
+        let vm = viewModel()
+        let unpriced = [sold(paid: nil, price: 40, daysAgo: 0)]
+        XCTAssertTrue(vm.hasSalesThisMonth(unpriced))
+        XCTAssertFalse(vm.canShareMonth(unpriced))
+        XCTAssertNil(vm.renderMonthCard(unpriced))
+        XCTAssertTrue(vm.canShareMonth(unpriced + [sold(paid: 10, price: 40, daysAgo: 0)]))
+    }
+
+    func test_thePaidCaptionPromisesAMultipleOnlyInDollars() {
+        XCTAssertEqual(PaidPriceCard.caption(for: "USD"),
+                       "Adds your find multiple to the share card")
+        XCTAssertEqual(PaidPriceCard.caption(for: "RON"), "Adds what you paid to the share card",
+                       "outside dollars the card prints the price, never a multiple")
     }
 }
 
@@ -8017,6 +8191,25 @@ final class ThriftFlipLedgerFeesTests: XCTestCase {
         XCTAssertEqual(expected, 12.025, accuracy: storageRounding, "sanity: $7.025 + $5")
         XCTAssertEqual(try XCTUnwrap(saved.feesEstimate), expected, accuracy: storageRounding)
         XCTAssertEqual(saved.paidPrice, 10)
+    }
+
+    /// Everything on the Thrift Flip screen is in dollars. The row it saved
+    /// had no currency, which read as the region default, so on a Romanian
+    /// phone My Flips printed the $10 just typed as "10 lei".
+    func test_aThriftFlipIsSavedInDollars() throws {
+        defer { AppLaunchState.reset() }
+        AppLaunchState.reset()
+
+        let vm = viewModel(shelf: "10", resale: "50", shipping: "5")
+        XCTAssertTrue(vm.saveToLedger(repository: try repository()))
+        let saved = try XCTUnwrap(vm.scanResult)
+        XCTAssertEqual(saved.saleCurrency, "USD")
+        XCTAssertEqual(SaleCurrency.of(saved, locale: Locale(identifier: "ro_RO")), "USD")
+
+        let chosen = viewModel(shelf: "10", resale: "50", shipping: "5")
+        chosen.scanResult?.saleCurrency = "EUR"
+        XCTAssertTrue(chosen.saveToLedger(repository: try repository()))
+        XCTAssertEqual(chosen.scanResult?.saleCurrency, "EUR", "a stored currency is kept")
     }
 
     func test_theLedgerProfitNowMatchesTheVerdict() throws {
@@ -9189,6 +9382,43 @@ final class WidgetURLRoutingTests: XCTestCase {
         XCTAssertNil(SnapWorthApp.route(url("snapworth://elsewhere"), onboarded: true))
         XCTAssertNil(SnapWorthApp.route(url("https://snapworth.app/scan"), onboarded: true))
     }
+
+    // `MainTabView` answers a route by changing the tab and nothing else, so a
+    // sheet or cover presented over the tab bar stayed in front of the tab
+    // the user had tapped a notification or widget to reach.
+
+    /// The observer block is `@Sendable`, so it cannot append to a captured
+    /// `var`. Posting is synchronous, on this thread, so nothing races.
+    private final class Seen: @unchecked Sendable {
+        var names: [Notification.Name] = []
+    }
+
+    private func posted(by name: Notification.Name) -> [Notification.Name] {
+        let center = NotificationCenter()
+        let seen = Seen()
+        let watched: [Notification.Name] = [.snapDismissForRoute, .snapWidgetOpenScan,
+                                            .snapWidgetOpenHistory, .snapOpenFlips, .snapOpenSettings]
+        let tokens = watched.map { watchedName in
+            center.addObserver(forName: watchedName, object: nil, queue: nil) { note in
+                seen.names.append(note.name)
+            }
+        }
+        SnapWorthApp.open(name, center: center)
+        for token in tokens { center.removeObserver(token) }
+        return seen.names
+    }
+
+    func test_routesToAnotherTabClearPresentationsFirst() {
+        for name: Notification.Name in [.snapWidgetOpenHistory, .snapOpenFlips, .snapOpenSettings] {
+            XCTAssertEqual(posted(by: name), [.snapDismissForRoute, name], name.rawValue)
+        }
+    }
+
+    func test_theScanRouteDismissesNothingExtra() {
+        // ScanView and HaulView clear their own presentations for it, and the
+        // Haul cover, being a camera, stays.
+        XCTAssertEqual(posted(by: .snapWidgetOpenScan), [.snapWidgetOpenScan])
+    }
 }
 
 // ── "Open SnapWorth to refresh" has to refresh ───────────────────────────────
@@ -9586,7 +9816,7 @@ final class LedgerMathTests: XCTestCase {
     func test_theBarsCountEverySaleOnce() {
         let rows = [item(.sold, soldOn: date(10, 1, hour: 0), paid: 10, price: 40)]
         let buckets = FlipsViewModel().monthlyBuckets(rows, now: date(10, 20), calendar: cal)
-        let home = SaleCurrency.regionDefault()
+        let home = SaleCurrency.unstated
         XCTAssertEqual(buckets.map { $0.profit.amount(in: home) }.reduce(0, +), 30,
                        "one $30 sale drawn as two bars")
         XCTAssertEqual(buckets.last?.profit.amount(in: home), 30)
@@ -9608,7 +9838,7 @@ final class LedgerMathTests: XCTestCase {
         XCTAssertEqual(header.itemsSold, widget.sold)
         XCTAssertEqual(header.itemsPriced, widget.flips)
         XCTAssertEqual(NSDecimalNumber(
-                           decimal: header.realizedProfit.amount(in: SaleCurrency.regionDefault())
+                           decimal: header.realizedProfit.amount(in: SaleCurrency.unstated)
                        ).doubleValue, widget.profit, accuracy: 0.001)
         XCTAssertEqual(header.itemsSold, 2)
         XCTAssertTrue(vm.hasSalesThisMonth(rows, now: now))
@@ -9621,7 +9851,7 @@ final class LedgerMathTests: XCTestCase {
                                       item(.sold, soldOn: date(9, 4), paid: nil, price: 25),
                                       item(.owned), item(.listed)])
         XCTAssertEqual(sales, LedgerMath.Sales(
-            profit: LedgerMath.Amounts([SaleCurrency.regionDefault(): 57]), priced: 1, count: 2))
+            profit: LedgerMath.Amounts([SaleCurrency.unstated: 57]), priced: 1, count: 2))
     }
 
     func test_aSaleWithNoDateIsInNoMonthButStillSold() {
@@ -10239,7 +10469,10 @@ final class SaleSharingTests: XCTestCase {
         XCTAssertNil(find.outcomeID)
     }
 
-    func test_aFailedSendIsTriedAgainNextTime() async {
+    func test_aFailedSendIsTriedAgainNextTime_underTheSameID() async throws {
+        // The id is stored before the first send. Minted per attempt, a send
+        // that reached the server with its response lost left a record the
+        // retry did not replace: one sale, two records.
         let sharing = service(enabled: true)
         var fail = true
         sharing.send = { [unowned self] request in
@@ -10248,18 +10481,148 @@ final class SaleSharingTests: XCTestCase {
         }
         let find = soldFind()
         await sharing.sync(find)
-        XCTAssertNil(find.outcomeID)
+        let id = try XCTUnwrap(find.outcomeID)
         fail = false
         await sharing.sync(find)
-        XCTAssertNotNil(find.outcomeID)
+        XCTAssertEqual(find.outcomeID, id)
         XCTAssertEqual(sent.count, 1)
+        guard case .share(let payload) = sent.last else { return XCTFail("expected a share") }
+        XCTAssertEqual(payload.contributionID, id)
     }
 
-    func test_deleteAllSendsTheInstallsToken() async throws {
+    func test_aCloseDuringASendRunsAfterIt_underTheSameID() async throws {
+        // Two closes in quick succession overlapped: each minted an id, and an
+        // edit could land before the send it followed.
         let sharing = service(enabled: true)
-        await sharing.sync(soldFind())
+        let find = soldFind()
+        var closedAgain = false
+        sharing.send = { [unowned self, unowned sharing] request in
+            sent.append(request)
+            if !closedAgain {
+                closedAgain = true
+                find.soldPrice = 42
+                await sharing.sync(find)
+            }
+        }
+        await sharing.sync(find)
+        XCTAssertEqual(sent.count, 2)
+        guard case .share(let first) = sent.first, case .share(let second) = sent.last else {
+            return XCTFail("expected two shares")
+        }
+        XCTAssertEqual(first.contributionID, second.contributionID, "one record, replaced")
+        XCTAssertEqual(first.soldPrice, 35)
+        XCTAssertEqual(second.soldPrice, 42, "the edit is sent last")
+        XCTAssertEqual(find.outcomeID, first.contributionID)
+    }
+
+    func test_unmarkingDeletesTheRecordEvenWithSharingOff() async throws {
+        // Both policies say un-marking deletes; the delete sat behind the
+        // "off" guard, so turning sharing off first kept the record.
+        let sharing = service(enabled: true)
+        let find = soldFind()
+        await sharing.sync(find)
+        let id = try XCTUnwrap(find.outcomeID)
+        sharing.isEnabled = false
+        find.status = .listed
+        await sharing.sync(find)
+        XCTAssertEqual(sent.count, 2)
+        XCTAssertEqual(sent.last, .delete(contributionID: id, token: sharing.contributorToken))
+        XCTAssertNil(find.outcomeID)
+    }
+
+    func test_deleteAllSendsTheInstallsToken_andTurnsSharingOff() async throws {
+        let sharing = service(enabled: true)
+        let find = soldFind()
+        await sharing.sync(find)
+        let token = sharing.contributorToken
         try await sharing.deleteAll()
-        XCTAssertEqual(sent.last, .delete(contributionID: nil, token: sharing.contributorToken))
+        XCTAssertEqual(sent.last, .delete(contributionID: nil, token: token))
+        XCTAssertFalse(sharing.isEnabled, "deleting everything withdraws consent")
+        XCTAssertFalse(sharing.hasShared, "nothing is left for the token to delete")
+        XCTAssertFalse(sharing.needsConsent(for: find), "and the card does not ask again")
+
+        // Left on, the next close re-sent the sale that was just deleted.
+        let count = sent.count
+        await sharing.sync(find)
+        XCTAssertEqual(sent.count, count, "a deleted sale is not sent again")
+
+        sharing.isEnabled = true
+        find.soldPrice = 50
+        await sharing.sync(find)
+        XCTAssertEqual(sent.count, count, "nor once sharing is back on")
+        let next = soldFind()
+        await sharing.sync(next)
+        guard case .share(let shared) = sent.last else { return XCTFail("a new sale is shared") }
+        XCTAssertEqual(shared.contributionID, next.outcomeID)
+        XCTAssertNotEqual(shared.contributorToken, token)
+    }
+
+    func test_deleteAllWithdrawsASaleWhoseFirstSendFailed() async throws {
+        // It may have reached the server: it is withdrawn with the rest.
+        let sharing = service(enabled: true)
+        sharing.send = { [unowned self] request in
+            if case .share = request { throw URLError(.timedOut) }
+            sent.append(request)
+        }
+        let find = soldFind()
+        await sharing.sync(find)
+        XCTAssertNotNil(find.outcomeID)
+        let token = sharing.contributorToken
+        try await sharing.deleteAll()
+        sharing.isEnabled = true
+        sharing.send = { [unowned self] request in sent.append(request) }
+        await sharing.sync(find)
+        XCTAssertEqual(sent, [.delete(contributionID: nil, token: token)])
+    }
+
+    func test_aDeletedFlipsRecordIsDeleted_andRetriedAfterAFailure() async throws {
+        let sharing = service(enabled: true)
+        let find = soldFind()
+        await sharing.sync(find)
+        let id = try XCTUnwrap(find.outcomeID)
+        sharing.isEnabled = false               // on or off, as un-marking
+        var fail = true
+        sharing.send = { [unowned self] request in
+            if fail { throw URLError(.notConnectedToInternet) }
+            sent.append(request)
+        }
+        let offline = try XCTUnwrap(sharing.forget([id]))
+        await offline.value
+        XCTAssertEqual(sent.count, 1, "offline: nothing went")
+
+        fail = false
+        await sharing.sync(soldFind(price: nil))  // the next close of any sheet
+        XCTAssertEqual(sent.last, .delete(contributionID: id, token: sharing.contributorToken))
+        let count = sent.count
+        await sharing.sync(soldFind(price: nil))
+        XCTAssertEqual(sent.count, count, "sent once")
+    }
+
+    func test_deletingAFlipOrClearingHistoryDeletesItsSharedSale() async throws {
+        let sharing = service(enabled: true)
+        let container = try ModelContainer(for: ScanResult.self,
+                                           configurations: ModelConfiguration(isStoredInMemoryOnly: true))
+        let context = ModelContext(container)
+        let repository = ScanRepository(context: context, sharing: sharing)
+        let one = soldFind(), two = soldFind(), unshared = soldFind()
+        for find in [one, two, unshared] { context.insert(find) }
+        try context.save()
+        await sharing.sync(one)
+        await sharing.sync(two)
+        let first = try XCTUnwrap(one.outcomeID)
+        let token = sharing.contributorToken
+
+        try repository.delete(one)
+        await sharing.flushDeletions()
+        XCTAssertTrue(sent.contains(.delete(contributionID: first, token: token)))
+
+        let store = HaulPhotoStore(directory: FileManager.default.temporaryDirectory
+            .appendingPathComponent("sale-clear-\(UUID().uuidString)", isDirectory: true))
+        defer { store.removeAll() }
+        try repository.deleteAll([two, unshared], pendingPhotos: store)
+        await sharing.flushDeletions()
+        XCTAssertTrue(sent.contains(.delete(contributionID: nil, token: token)),
+                      "a cleared history deletes every record in one request")
     }
 
     func test_theConsentCardIsShownOnceForASoldPrice() {
@@ -10318,8 +10681,9 @@ final class LedgerCurrencyTests: XCTestCase {
 
     @MainActor
     func test_aLedgerKeptInLeiTotalsInLei() {
-        // The audit's case: a phone set to Romania, no currency picked.
-        let flip = sold(paid: 20, price: 100, currency: nil)
+        // The audit's case: a phone set to Romania, no currency picked — so
+        // the default, RON, was stored when the amounts were typed.
+        let flip = sold(paid: 20, price: 100, currency: "RON")
         let s = FlipsViewModel().summary([flip], scope: .allTime, locale: ro)
         XCTAssertEqual(s.realizedProfit, LedgerMath.Amounts(["RON": 80]))
         let header = SaleCurrency.signed(s.realizedProfit, locale: ro)
@@ -10348,6 +10712,95 @@ final class LedgerCurrencyTests: XCTestCase {
         XCTAssertEqual(SaleCurrency.format(LedgerMath.Amounts(), locale: us), "$0",
                        "an empty total is zero in the phone's currency")
         XCTAssertEqual(SaleCurrency.signed(LedgerMath.Amounts(["USD": 214]), locale: us), "+$214")
+    }
+
+    // ── A flip saved before currencies, and one saved after ─────────────────
+
+    @MainActor
+    func test_anAmountSavedWithNoCurrencyIsDollars() {
+        // Up to build 22 every ledger field sat beside a fixed "$". Read as
+        // the region default, a Romanian user's $20 became 20 lei on update.
+        let legacy = sold(paid: 20, price: 100, currency: nil)
+        XCTAssertEqual(SaleCurrency.of(legacy, locale: ro), "USD")
+        let s = FlipsViewModel().summary([legacy], scope: .allTime, locale: ro)
+        XCTAssertEqual(s.realizedProfit, LedgerMath.Amounts(["USD": 80]))
+        XCTAssertEqual(SaleCurrency.signed(s.realizedProfit, locale: ro), "+$80")
+    }
+
+    func test_aNewFlipStoresTheCurrencyItShows() {
+        let fresh = ScanResult(itemName: "Item", brand: "B", category: "clothing",
+                               conditionNotes: "Good", valueLow: 40, valueHigh: 60,
+                               confidence: "High", soldListingsCount: 0,
+                               listingTitle: "T", listingDescription: "D")
+        XCTAssertEqual(SaleCurrency.of(fresh, locale: ro), "RON",
+                       "with no amounts, the fields offer the region's currency")
+        SaleCurrency.pin(fresh, locale: ro)
+        fresh.paidPrice = 20
+        XCTAssertEqual(fresh.saleCurrency, "RON")
+        XCTAssertEqual(SaleCurrency.of(fresh, locale: Locale(identifier: "en_GB")), "RON",
+                       "a later change of region does not relabel it")
+
+        let legacy = sold(paid: 20, price: 100, currency: nil)
+        SaleCurrency.pin(legacy, locale: ro)
+        XCTAssertEqual(legacy.saleCurrency, "USD", "an old flip keeps the dollars it showed")
+        let chosen = sold(paid: 20, price: 100, currency: "EUR")
+        SaleCurrency.pin(chosen, locale: ro)
+        XCTAssertEqual(chosen.saleCurrency, "EUR")
+    }
+
+    func test_dollarsAreWrittenAsTheEstimateIsInEveryLocale() {
+        // The phone's locale wrote "80 USD", "80 $" or "US$80" beside a
+        // "$45–$90" estimate.
+        for id in ["ro_RO", "de_DE", "en_GB", "zh_Hans_CN"] {
+            let locale = Locale(identifier: id)
+            XCTAssertEqual(SaleCurrency.format(80, code: "USD", locale: locale), "$80", id)
+            XCTAssertEqual(SaleCurrency.symbol("USD", locale: locale), "$", id)
+        }
+        // Where the phone's own currency is a "$" too, US dollars say so.
+        XCTAssertNotEqual(SaleCurrency.format(80, code: "USD", locale: Locale(identifier: "en_CA")),
+                          "$80")
+    }
+
+    func test_anAmountUnderAUnitPrintsItsCents() {
+        // Paid 10.40, sold 10: the sheet showed a loss arrow beside "−$0".
+        let loss = Decimal(10.0) - Decimal(10.4)
+        XCTAssertEqual(SaleCurrency.signed(loss, code: "USD", locale: us), "−$0.40")
+        XCTAssertEqual(SaleCurrency.signed(0.49, code: "USD", locale: us), "+$0.49")
+        XCTAssertEqual(SaleCurrency.format(10.4, code: "USD", locale: us), "$10.40")
+        XCTAssertEqual(SaleCurrency.signed(LedgerMath.Amounts(["USD": loss]), locale: us), "−$0.40")
+        XCTAssertEqual(SaleCurrency.signed(-0.004, code: "USD", locale: us), "+$0",
+                       "nothing that prints as zero reads as a loss")
+        XCTAssertEqual(SaleCurrency.formatWhole(10.4, code: "USD", locale: us), "$10",
+                       "the share cards keep whole units")
+    }
+
+    @MainActor
+    func test_theGuessCardsCallAPriceThatPrintsAsZeroFree() {
+        // 0.50 paid printed "Paid $0" on both story cards, while the result
+        // card for the same find said "Free →".
+        let flip = sold(paid: 0.5, price: 10, currency: "USD")
+        XCTAssertEqual(GuessShareCardView(result: flip, photo: nil, style: .guess).paidLabel,
+                       "Free find")
+        flip.paidPrice = 8
+        XCTAssertEqual(GuessShareCardView(result: flip, photo: nil, style: .reveal).paidLabel,
+                       "Paid $8")
+        flip.paidPrice = nil
+        XCTAssertNil(GuessShareCardView(result: flip, photo: nil, style: .guess).paidLabel)
+    }
+
+    @MainActor
+    func test_theProfitSortRanksWithinACurrency() {
+        let forints = sold(paid: 1_000, price: 6_000, currency: "HUF")
+        let best = sold(paid: 10, price: 50, currency: "RON")
+        let other = sold(paid: 10, price: 40, currency: "RON")
+        let unpriced = sold(paid: nil, price: 40, currency: "RON")
+        let vm = FlipsViewModel()
+        vm.sort = .profit
+        let order = vm.visibleItems([forints, unpriced, other, best], locale: ro)
+        XCTAssertTrue(order[0] === best)
+        XCTAssertTrue(order[1] === other)
+        XCTAssertTrue(order[2] === forints, "5,000 forints is not ranked against 40 lei")
+        XCTAssertTrue(order[3] === unpriced)
     }
 
     func test_aTotalIsALossOnlyWhenEveryCurrencyIs() {
@@ -10458,5 +10911,86 @@ final class LedgerCurrencyTests: XCTestCase {
         XCTAssertEqual(LedgerAmountSpeech.value("", code: "RON"), "Not set")
         XCTAssertEqual(LedgerAmountSpeech.value("abc", code: "RON"), "abc",
                        "text that does not parse is read as typed")
+    }
+}
+
+// ── A ledger follow-up lives under one day ───────────────────────────────────
+//
+// `syncEligible` re-files every listed item on each foreground, recomputing
+// its day in the current zone. Listed at 23:30 on 11 Sep in Bucharest, the
+// item is due on the 25th; opened in Dubai, the same instant is 00:30 on the
+// 12th and due on the 26th. It was added to the new day and never taken out
+// of the old, so both days' requests stayed pending.
+
+final class LedgerBucketTests: XCTestCase {
+
+    private let item = "A"
+
+    func test_refilingUnderANewDayLeavesTheOldOne() {
+        let filed = NotificationManager.file(item, under: "20260926",
+                                             in: ["20260925": [item]])
+        XCTAssertEqual(filed.buckets, ["20260926": [item]])
+        XCTAssertEqual(filed.vacated, ["20260925"], "its request has to be removed")
+    }
+
+    func test_anOldDayKeepsItsOtherItems() {
+        let filed = NotificationManager.file(item, under: "20260926",
+                                             in: ["20260925": ["B", item, "C"]])
+        XCTAssertEqual(filed.buckets, ["20260925": ["B", "C"], "20260926": [item]])
+        XCTAssertEqual(filed.vacated, ["20260925"], "rebuilt without it")
+    }
+
+    func test_theSameDayAgainChangesNothing() {
+        // The ordinary foreground: same zone, same day.
+        let buckets = ["20260925": ["B", item]]
+        let filed = NotificationManager.file(item, under: "20260925", in: buckets)
+        XCTAssertEqual(filed.buckets, buckets)
+        XCTAssertEqual(filed.vacated, [])
+    }
+
+    func test_aNewItemJoinsTheDay() {
+        let filed = NotificationManager.file(item, under: "20260925", in: ["20260925": ["B"]])
+        XCTAssertEqual(filed.buckets, ["20260925": ["B", item]])
+        XCTAssertEqual(filed.vacated, [])
+    }
+}
+
+// ── Clearing history clears the weekly digest ────────────────────────────────
+//
+// Each rung's text is fixed when it is scheduled, and only a foreground
+// rebuilt the ladder. Clearing history happens in the foreground, so up to
+// four Sundays said "Your 12 finds are worth $340." about a wiped library.
+// The notification centre cannot be inspected from a test, so the call is
+// held by its source.
+
+final class ClearHistoryDigestTests: XCTestCase {
+
+    func test_deleteAllClearsThePortfolioLadder() throws {
+        let repo = try String(contentsOf: URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("SnapWorth/Services/ScanRepository.swift"), encoding: .utf8)
+        guard let start = repo.range(of: "func deleteAll(") else {
+            return XCTFail("deleteAll moved")
+        }
+        let body = String(repo[start.upperBound...].prefix(2_000))
+        XCTAssertTrue(body.contains("schedulePortfolioDigest(results: [])"))
+    }
+}
+
+// ── "Copy message and address" copies the address ────────────────────────────
+//
+// The mail-unavailable fallback's button copied the message alone, so a user
+// pasting into another mail app had no recipient and had to come back to read
+// it off the card.
+
+@MainActor
+final class FeedbackClipboardTests: XCTestCase {
+
+    func test_theAddressComesFirstOnALineOfItsOwn() {
+        let text = FeedbackView.clipboardText(body: "It crashed.\n\nApp 1.5.3 (23)")
+        XCTAssertEqual(text.components(separatedBy: "\n").first, Config.supportEmail,
+                       "first, so it can be cut into the To field")
+        XCTAssertTrue(text.hasSuffix("It crashed.\n\nApp 1.5.3 (23)"), "and the message, whole")
     }
 }

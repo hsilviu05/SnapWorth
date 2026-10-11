@@ -12,6 +12,9 @@ struct ScanView: View {
     @State private var showResult = false
     @State private var showNotifPriming = false
     @State private var showThriftFlip = false
+    /// The result sheet was closed by a deep link to another tab — see the
+    /// `.snapDismissForRoute` handler.
+    @State private var dismissedForRoute = false
 
     /// Haul mode (#93). The session is the process's one — see
     /// `HaulSession.live` — created on first appearance and held here so the
@@ -473,10 +476,36 @@ struct ScanView: View {
             vm.reset()
             cameraManager.capturedImage = nil
         }
+        // A deep link to another tab — a notification, or the Profit, Haul or
+        // Recent finds widget. `MainTabView` only changes the selection, and a
+        // sheet or cover presented here stays in front of whatever tab is
+        // selected underneath, so the user landed on the result sheet, the
+        // paywall or Thrift Flip with My Flips or Settings invisible behind it.
+        .onReceive(NotificationCenter.default.publisher(for: .snapDismissForRoute)) { _ in
+            // The result sheet's `onDismiss` would otherwise follow the user to
+            // the new tab with the first-result paywall or the notification
+            // prompt. Only when the sheet is up: otherwise `onDismiss` never
+            // runs to clear the flag.
+            if showResult { dismissedForRoute = true }
+            showResult = false
+            showThriftFlip = false
+            showNotifPriming = false
+            vm.showPaywall = false
+            // `showHaul` is left alone. Closing the Haul cover either ends the
+            // haul (`finishHaul`, which drops its drafts) or stops its camera
+            // under a capture still being processed; neither is something a
+            // notification tap should do to a running haul.
+        }
         .sheet(isPresented: $showResult, onDismiss: {
             // Runs whether the user taps "Done" or swipes down
             vm.reset()
             cameraManager.capturedImage = nil
+
+            // Closed by a deep link to another tab: nothing more to show here.
+            if dismissedForRoute {
+                dismissedForRoute = false
+                return
+            }
 
             // Value-first paywall: the user has now seen a real result. If this is
             // their first one and they're not subscribed, surface the intro paywall

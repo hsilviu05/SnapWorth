@@ -1123,8 +1123,19 @@ class TestModelCallDeadline:
     def test_the_deadline_counts_from_arrival(self):
         from types import SimpleNamespace
 
-        request = SimpleNamespace(state=SimpleNamespace(arrived=100.0))
+        # A slow upload: the overall timeout ends the wait first.
+        request = SimpleNamespace(state=SimpleNamespace(arrived=100.0, body_done=110.0))
         assert main._client_deadline(request) == 100.0 + main.CLIENT_DEADLINE_SECONDS  # type: ignore[arg-type]
+
+    def test_the_deadline_is_capped_by_the_idle_timer_after_the_upload(self):
+        """Builds with a 30s idle timer stop listening 30s after the last byte
+        they sent, which for a quick upload is before arrival + 33s."""
+        from types import SimpleNamespace
+
+        assert main.CLIENT_IDLE_SECONDS < 30
+        request = SimpleNamespace(state=SimpleNamespace(arrived=100.0, body_done=101.0))
+        assert main._client_deadline(request) == 101.0 + main.CLIENT_IDLE_SECONDS  # type: ignore[arg-type]
+        assert main._client_deadline(request) < 100.0 + main.CLIENT_DEADLINE_SECONDS  # type: ignore[arg-type]
 
     def test_scan_and_listing_pass_a_deadline_from_arrival(self):
         """Arrival is recorded by the metrics middleware, before the upload is
@@ -1137,10 +1148,12 @@ class TestModelCallDeadline:
 
         seen: list[float] = []
         arrivals: list[object] = []
+        uploads: list[object] = []
         real = main._client_deadline
 
         def recording(request):
             arrivals.append(getattr(request.state, "arrived", None))
+            uploads.append(getattr(request.state, "body_done", None))
             return real(request)
 
         async def fake(contents, *, label, max_tokens=None, record_health=True,
@@ -1155,8 +1168,11 @@ class TestModelCallDeadline:
             assert _post_listing().status_code == 200
         assert len(seen) == 2
         assert all(isinstance(a, float) for a in arrivals), "middleware did not record arrival"
+        assert all(isinstance(u, float) for u in uploads), "middleware did not record the upload's end"
+        assert all(u >= a for a, u in zip(arrivals, uploads))  # type: ignore[operator]
+        budget = min(main.CLIENT_DEADLINE_SECONDS, main.CLIENT_IDLE_SECONDS)
         for left in seen:
-            assert main.CLIENT_DEADLINE_SECONDS - 5 < left <= main.CLIENT_DEADLINE_SECONDS
+            assert budget - 5 < left <= budget
 
 
 class TestModelHealth:

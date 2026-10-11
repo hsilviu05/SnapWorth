@@ -627,7 +627,7 @@
       "comment": "How many of the sales above have no cost basis entered.",
       "en": {
         "one": "%lld needs a paid price",
-        "other": "%lld needs a paid price"
+        "other": "%lld need a paid price"
       },
       "ro": {
         "one": "unul fără prețul plătit",
@@ -643,6 +643,27 @@
         "other": "%lld ohne Einkaufspreis"
       },
       "zh-Hans": "%lld 件没填入手价"
+    },
+    "%lld needs a sale price": {
+      "comment": "How many of the sales above have no sold price entered (marked sold before the price was typed). Placed beside \"%lld needs a paid price\".",
+      "en": {
+        "one": "%lld needs a sale price",
+        "other": "%lld need a sale price"
+      },
+      "ro": {
+        "one": "unul fără prețul de vânzare",
+        "few": "%lld fără prețul de vânzare",
+        "other": "%lld fără prețul de vânzare"
+      },
+      "es": {
+        "one": "%lld sin precio de venta",
+        "other": "%lld sin precio de venta"
+      },
+      "de": {
+        "one": "%lld ohne Verkaufspreis",
+        "other": "%lld ohne Verkaufspreis"
+      },
+      "zh-Hans": "%lld 件没填卖出价"
     },
     "%lld out of %lld": {
       "comment": "Rare-find easter egg (RareFind.swift). The joke is hype and rarity only — keep it that way in translation. A score read aloud: “11 out of 10”. On screen it is printed 11/10.",
@@ -1056,6 +1077,14 @@
       "es": "Añadir la etiqueta",
       "de": "Etikett hinzufügen",
       "zh-Hans": "拍标签"
+    },
+    "Adds what you paid to the share card": {
+      "comment": "Caption under 'What did you pay?' when the flip's currency is not US dollars: the share card prints the paid price, but a find multiple only in dollars.",
+      "en": "Adds what you paid to the share card",
+      "ro": "Adaugă pe card cât ai dat",
+      "es": "Añade a la tarjeta lo que pagaste",
+      "de": "Zeigt auf der Karte, was du bezahlt hast",
+      "zh-Hans": "在分享卡片上显示你的入手价"
     },
     "Adds your find multiple to the share card": {
       "comment": "The multiple is resale value ÷ what you paid.",
@@ -2147,13 +2176,13 @@
       "de": "Alle Funde,\nan einem Ort.",
       "zh-Hans": "所有好物，\n都在一处。"
     },
-    "Every sale price you've shared from this iPhone is deleted from SnapWorth's server.": {
-      "comment": "Confirmation message before deleting shared sale outcomes.",
-      "en": "Every sale price you've shared from this iPhone is deleted from SnapWorth's server.",
-      "ro": "Fiecare preț de vânzare trimis de pe acest iPhone este șters de pe serverul SnapWorth.",
-      "es": "Se eliminan del servidor de SnapWorth todos los precios de venta que compartiste desde este iPhone.",
-      "de": "Jeder Verkaufspreis, den du von diesem iPhone geteilt hast, wird vom Server von SnapWorth gelöscht.",
-      "zh-Hans": "你从这台 iPhone 分享的所有售价都会从 SnapWorth 的服务器上删除。"
+    "Every sale price you've shared from this iPhone is deleted from SnapWorth's server, and sharing is turned off.": {
+      "comment": "Confirmation message before deleting shared sale outcomes. Deleting them also turns the Share sale prices setting off.",
+      "en": "Every sale price you've shared from this iPhone is deleted from SnapWorth's server, and sharing is turned off.",
+      "ro": "Fiecare preț de vânzare trimis de pe acest iPhone este șters de pe serverul SnapWorth, iar trimiterea prețurilor de vânzare se dezactivează.",
+      "es": "Se eliminan del servidor de SnapWorth todos los precios de venta que compartiste desde este iPhone y se desactiva la opción de compartir.",
+      "de": "Jeder Verkaufspreis, den du von diesem iPhone geteilt hast, wird vom Server von SnapWorth gelöscht, und das Teilen wird ausgeschaltet.",
+      "zh-Hans": "你从这台 iPhone 分享的所有售价都会从 SnapWorth 的服务器上删除，分享功能也会关闭。"
     },
     "Expected": {
       "en": "Expected",
@@ -3440,6 +3469,14 @@
       "es": "Ganancia de este mes",
       "de": "Gewinn diesen Monat",
       "zh-Hans": "本月利润"
+    },
+    "Profit unknown — add what it sold for": {
+      "comment": "VoiceOver, a sold flip in My Flips with no sold price.",
+      "en": "Profit unknown — add what it sold for",
+      "ro": "Profit necunoscut — adaugă cu cât s-a vândut",
+      "es": "Ganancia desconocida: añade por cuánto se vendió",
+      "de": "Gewinn unbekannt – trag ein, wofür es verkauft wurde",
+      "zh-Hans": "利润未知，填上卖出价"
     },
     "Profit unknown — add what you paid": {
       "en": "Profit unknown — add what you paid",
@@ -4853,6 +4890,14 @@
       "de": "Schaltet eine Erinnerung ein, sobald dein Gratis-Scan wieder da ist",
       "zh-Hans": "开启提醒，免费扫描恢复后通知你"
     },
+    "Unknown — add what it sold for to calculate it": {
+      "comment": "VoiceOver value of the result sheet's Profit row when the sold price is missing.",
+      "en": "Unknown — add what it sold for to calculate it",
+      "ro": "Necunoscut — adaugă cu cât s-a vândut ca să îl calculăm",
+      "es": "Desconocida: añade por cuánto se vendió para calcularla",
+      "de": "Unbekannt – trag ein, wofür es verkauft wurde",
+      "zh-Hans": "未知，填上卖出价才能算"
+    },
     "Unknown — add what you paid to calculate it": {
       "en": "Unknown — add what you paid to calculate it",
       "ro": "Necunoscut — adaugă cât ai dat ca să îl calculăm",
@@ -5386,7 +5431,7 @@
       "zh-Hans": "%@的回顾做好了"
     },
     "Your %lld finds are worth": {
-      "comment": "The amount is appended after this, in both languages.",
+      "comment": "Weekly notification. The amount is appended after this, so every translation must end where an amount can follow (German cannot end on 'wert').",
       "en": {
         "one": "Your %lld find is worth",
         "other": "Your %lld finds are worth"
@@ -5401,8 +5446,8 @@
         "other": "Tus %lld hallazgos valen"
       },
       "de": {
-        "one": "Dein %lld Fund ist wert",
-        "other": "Deine %lld Funde sind wert"
+        "one": "Dein Fund hat einen Wert von",
+        "other": "Deine %lld Funde haben einen Wert von"
       },
       "zh-Hans": "你的 %lld 件好物价值"
     },
@@ -5492,13 +5537,13 @@
       "de": "Deine Scans landen in deiner Sammlung, damit du siehst, wie sich der Wert mit der Zeit summiert.",
       "zh-Hans": "扫描都会存进你的收藏，让你看着这些藏着的价值一点点累积起来。"
     },
-    "Your shared sales were deleted.": {
-      "comment": "After deleting shared sale outcomes succeeded.",
-      "en": "Your shared sales were deleted.",
-      "ro": "Vânzările trimise au fost șterse.",
-      "es": "Se eliminaron tus ventas compartidas.",
-      "de": "Deine geteilten Verkäufe wurden gelöscht.",
-      "zh-Hans": "你分享的售出记录已删除。"
+    "Your shared sales were deleted, and sharing is turned off.": {
+      "comment": "After deleting shared sale outcomes succeeded. Deleting them also turns the Share sale prices setting off.",
+      "en": "Your shared sales were deleted, and sharing is turned off.",
+      "ro": "Vânzările trimise au fost șterse, iar trimiterea prețurilor de vânzare este dezactivată.",
+      "es": "Se eliminaron tus ventas compartidas y se desactivó la opción de compartir.",
+      "de": "Deine geteilten Verkäufe wurden gelöscht, und das Teilen ist ausgeschaltet.",
+      "zh-Hans": "你分享的售出记录已删除，分享功能也已关闭。"
     },
     "Your subscription has been restored.": {
       "en": "Your subscription has been restored.",

@@ -44,9 +44,13 @@ enum ScanPersistenceError: Error, CaseIterable {
 @MainActor
 final class ScanRepository {
     private let context: ModelContext
+    /// Told when a deleted flip had a shared sale. A parameter only so a test
+    /// can pass one with a fake send.
+    private let sharing: SaleSharing
 
-    init(context: ModelContext) {
+    init(context: ModelContext, sharing: SaleSharing? = nil) {
         self.context = context
+        self.sharing = sharing ?? .shared
     }
 
     // ── Why every failure path rolls back ────────────────────────────────────
@@ -105,6 +109,7 @@ final class ScanRepository {
 
     func delete(_ result: ScanResult) throws {
         let id = result.id
+        let outcomeID = result.outcomeID
         context.delete(result)
         do {
             try context.save()
@@ -117,6 +122,8 @@ final class ScanRepository {
         }
         // No orphaned ledger follow-up for a deleted item.
         Task { await NotificationManager.shared.cancelLedgerFollowUp(itemID: id) }
+        // Nor a shared sale: deleting a sold flip un-marks it for good.
+        if let outcomeID { sharing.forget([outcomeID]) }
         scheduleWidgetSync()
     }
 
@@ -124,6 +131,7 @@ final class ScanRepository {
     ///   valued yet. A parameter only so a test can pass a temporary directory.
     func deleteAll(_ results: [ScanResult],
                    pendingPhotos: HaulPhotoStore = .live) throws {
+        let outcomeIDs = results.compactMap(\.outcomeID)
         results.forEach { context.delete($0) }
         do {
             try context.save()
@@ -137,6 +145,17 @@ final class ScanRepository {
         // flight is not recalled: it lands, and saves, a moment later.
         HaulSession.discardAllPending(store: pendingPhotos)
         NotificationManager.shared.cancelAllLedger()
+        // Their shared sales, in one request for every record of this install:
+        // `results` is the whole library (Settings → Clear history). Left
+        // behind, each stayed on the server for its 400 days with no flip
+        // left to un-mark.
+        sharing.forget(outcomeIDs, all: true)
+        // The weekly digest too. Its rungs are four dated requests whose text
+        // is fixed when scheduled ("Your 12 finds are worth $340.") and only
+        // the next foreground rebuilds them — this runs in the foreground — so
+        // up to four Sundays described the library just wiped. An empty
+        // library clears the ladder and schedules nothing.
+        Task { await NotificationManager.shared.schedulePortfolioDigest(results: []) }
         WidgetDataStore.writeHaul(results: [])
         // And the run, which is computed from the same array. Every other
         // mutation goes through `scheduleWidgetSync`, which updates both; this

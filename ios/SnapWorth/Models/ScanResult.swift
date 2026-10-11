@@ -38,11 +38,14 @@ final class ScanResult {
     // ── Shared sale outcomes (#224) ───────────────────────────────────────
     // Both optional and additive, like the ledger fields above.
     /// The currency this flip's paid, sold and fee amounts were typed in, as an
-    /// ISO 4217 code. Nil on every flip saved before it, which reads as the
-    /// phone's region default (`SaleCurrency.of`).
+    /// ISO 4217 code. Nil on every flip saved before it: one with amounts
+    /// reads as dollars, which is what those were typed beside, and one
+    /// without as the phone's region default (`SaleCurrency.of`), stored
+    /// once an amount is entered (`SaleCurrency.pin`).
     var saleCurrency: String?
-    /// The id this flip's shared sale is stored under on the server, set the
-    /// first time it is shared and cleared when the record is deleted.
+    /// The id this flip's shared sale is stored under on the server, set
+    /// before it is first sent (so a retry replaces rather than adds) and
+    /// cleared when the record is deleted.
     var outcomeID: String?
 
     /// User-selected resale condition. Optional → additive lightweight migration:
@@ -541,6 +544,10 @@ final class ScanResult {
     /// — we never guess profit from a missing cost basis.
     var realizedProfit: Decimal? {
         guard status == .sold, let sold = soldPrice, let paid = paidPrice else { return nil }
+        // `Decimal(Double.infinity)` is a precondition failure, and this runs
+        // at launch (the widget seed). About 309 pasted digits parsed to
+        // infinity before `MoneyInput.ceiling`; a row saved then has no profit.
+        guard sold.isFinite, paid.isFinite, (feesEstimate ?? 0).isFinite else { return nil }
         return Decimal(sold) - Decimal(paid) - Decimal(feesEstimate ?? 0)
     }
 

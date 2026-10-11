@@ -760,6 +760,10 @@ class LimitRequestBody:
                                 extra={"path": path, "received_bytes": received,
                                        "max_bytes": limit})
                     raise RequestBodyTooLarge()
+                if not message.get("more_body", False):
+                    # The last byte of the upload: when the phone's idle timer
+                    # last restarted. See `_client_deadline`.
+                    scope.setdefault("state", {})["body_done"] = time.monotonic()
             return message
 
         async def send_tracked(message: Message) -> None:
@@ -1648,7 +1652,7 @@ def privacy():
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Privacy Policy — SnapWorth</title><style>{_STYLE}</style></head><body>
 <h1>Privacy Policy</h1>
-<p>Last updated: October 6, 2026</p>
+<p>Last updated: October 11, 2026</p>
 <p>SnapWorth ("we", "our", or "us") operates the SnapWorth mobile application.
 This page informs you of our policies regarding the collection, use, and
 disclosure of personal data when you use our Service.</p>
@@ -1687,14 +1691,15 @@ and rewards stay within the yearly limit.</p>
 Privacy; it is off by default), the app sends our server a record for each flip
 you mark as sold: the estimate SnapWorth gave when you scanned it, with its
 confidence, the item's category and condition, and whether a brand was
-identified; the price it sold for, its currency and the marketplace; the scan
-and sale dates; the App Store country; and the app version. It never sends the
+identified; the price it sold for and its currency; the scan and sale dates;
+the App Store country; and the app version. It never sends the
 photo, the item's name, your notes, the price you paid, or your device
 identifier. Each record carries a random identifier made for that sale and a
 random token made for your install, used only to delete your records; we keep a
 keyed hash of the token, not the token. Records are kept for up to 400 days.
-Un-marking a sale deletes its record, and Delete my shared sales in Settings
-deletes every record your install sent.</p>
+Un-marking a sale, or deleting the item or your scan history from the app,
+deletes its record, even after you turn sharing off. Delete my shared sales in
+Settings deletes every record your install sent and turns sharing off.</p>
 <p>We collect anonymous usage analytics to understand how the app is used and
 improve it. Using TelemetryDeck, we record in-app events &mdash; such as opening
 the app, starting a scan, viewing the paywall, and completing a purchase &mdash;
@@ -2205,8 +2210,9 @@ async def scan(
         await refund_quota(principal, quota_status)
         raise
 
-    # The iOS client gives up at 35s (CertificatePinning.swift). Past that
-    # nothing we produce can reach it, so charging for it is charging for
+    # The iOS client gives up at 35s, or 30s after its upload on the builds
+    # that still have a 30s idle timer (`_client_deadline`). Past that nothing we produce can
+    # reach it, so charging for it is charging for
     # something the user will never see — and they will scan again.
     if await request.is_disconnected():
         await refund_quota(principal, quota_status)
@@ -2651,12 +2657,20 @@ _RETRY_BASE_DELAY = float(os.environ.get("GEMINI_RETRY_BASE_DELAY", "0.5"))
 # (`timeoutIntervalForResource` in CertificatePinning.swift); 33s from arrival
 # leaves the response time to travel back.
 #
+# Every build released before the idle timer (`timeoutIntervalForRequest`)
+# was raised to match also gives up after 30s of silence, and nothing is sent
+# while the model runs, so for those the wait ends 30s after the upload's last
+# byte: before the 33s above whenever the upload took under about 3s, which is
+# the usual case. CLIENT_IDLE_SECONDS bounds that, with the same 2s for the
+# reply to travel. It can be raised once those builds have aged out.
+#
 # The SDK's timeout (aiconfig.REQUEST_TIMEOUT_MS, 25s) is per attempt, and
 # there are two attempts, each with the full timeout and a backoff between
 # them — so a first attempt that timed out was followed by a second that ran
 # to about 50s, billed for a result the phone had stopped waiting for 15s
 # earlier. `_generate_with_retry` now bounds each attempt by what is left.
 CLIENT_DEADLINE_SECONDS = float(os.environ.get("CLIENT_DEADLINE_SECONDS", "33"))
+CLIENT_IDLE_SECONDS = float(os.environ.get("CLIENT_IDLE_SECONDS", "28"))
 
 # A retry is not started with less than this left. A judgement, not a
 # measurement: a vision call that has to think and write ~1k tokens of JSON
@@ -2678,10 +2692,16 @@ class _DeadlinePassed(aiconfig.ModelUnavailable):
 def _client_deadline(request: Request) -> float:
     """When the app stops waiting for this request, as a `time.monotonic()`
     instant: CLIENT_DEADLINE_SECONDS after it arrived, which the metrics
-    middleware records before the upload is read."""
+    middleware records before the upload is read, or CLIENT_IDLE_SECONDS
+    after the upload's last byte, which `LimitRequestBody` records, whichever
+    comes first. Called after the body has been read, so the time now stands
+    in for the second when it was not recorded."""
+    now = time.monotonic()
     arrived = getattr(request.state, "arrived", None)
-    start = arrived if isinstance(arrived, float) else time.monotonic()
-    return start + CLIENT_DEADLINE_SECONDS
+    start = arrived if isinstance(arrived, float) else now
+    body_done = getattr(request.state, "body_done", None)
+    idle_from = body_done if isinstance(body_done, float) else now
+    return min(start + CLIENT_DEADLINE_SECONDS, idle_from + CLIENT_IDLE_SECONDS)
 
 
 # Substrings identifying failures that will not succeed on retry. Retrying these
