@@ -24,7 +24,7 @@ struct PrivacyPolicyView: View {
 /// Change this and `backend/main.py`'s `/privacy` together.
 /// `PrivacyPolicyDisclosureTests` fails if a processor goes missing.
 enum PrivacyPolicy {
-    static let updated = "October 6, 2026"
+    static let updated = "October 11, 2026"
 
     /// Every third party that receives user data, by the name a reader would
     /// recognise. The test asserts each appears in `sections`.
@@ -46,7 +46,7 @@ enum PrivacyPolicy {
 
             Once Invite a friend is available in the app, our server makes and keeps an invite code for your device, whether or not you open it, and, when someone claims an invite, a record linking the two devices: their identifiers, the code, when it was claimed, and the Apple offer codes handed out. These are kept for up to 400 days, so that each invite is rewarded once and rewards stay within the yearly limit.
 
-            If you turn on Share sale prices to improve estimates (Settings → Privacy; it is off by default), the app sends our server a record for each flip you mark as sold: the estimate SnapWorth gave when you scanned it, with its confidence, the item's category and condition, and whether a brand was identified; the price it sold for, its currency and the marketplace; the scan and sale dates; the App Store country; and the app version. It never sends the photo, the item's name, your notes, the price you paid, or your device identifier. Each record carries a random identifier made for that sale and a random token made for your install, used only to delete your records; we keep a keyed hash of the token, not the token. Records are kept for up to 400 days. Un-marking a sale deletes its record, and Delete my shared sales in Settings deletes every record your install sent.
+            If you turn on Share sale prices to improve estimates (Settings → Privacy; it is off by default), the app sends our server a record for each flip you mark as sold: the estimate SnapWorth gave when you scanned it, with its confidence, the item's category and condition, and whether a brand was identified; the price it sold for and its currency; the scan and sale dates; the App Store country; and the app version. It never sends the photo, the item's name, your notes, the price you paid, or your device identifier. Each record carries a random identifier made for that sale and a random token made for your install, used only to delete your records; we keep a keyed hash of the token, not the token. Records are kept for up to 400 days. Un-marking a sale, or deleting the item or your scan history from the app, deletes its record, even after you turn sharing off. Delete my shared sales in Settings deletes every record your install sent and turns sharing off.
 
             We collect anonymous usage analytics to understand how the app is used and improve it. Using TelemetryDeck, we record in-app events — such as opening the app, starting a scan, viewing the paywall, and completing a purchase — along with your device model, operating system version, app version, locale, time zone, screen size, and device orientation. The analytics SDK also reports how your accessibility settings are configured — such as Reduce Motion, Bold Text, Increase Contrast and your preferred text size — and counts of how often and on how many separate days you have opened the app. A one-way salted hash is used as an anonymous identifier. This data contains no photos, item names, prices, or advertising identifiers (IDFA), is not linked to your identity, and is never used to track you across other apps or websites. You can turn analytics off at any time in Settings.
             """),
@@ -131,7 +131,10 @@ struct TermsOfServiceView: View {
 // MARK: - Shared layout
 
 private struct LegalDocumentView<Content: View>: View {
-    let title: String
+    /// A key, not a `String`: `.navigationTitle` shows a `String` as it is,
+    /// so the large title read "Privacy Policy" in every language, above a
+    /// translated "Last updated".
+    let title: LocalizedStringKey
     let updated: String
     @ViewBuilder let content: Content
 

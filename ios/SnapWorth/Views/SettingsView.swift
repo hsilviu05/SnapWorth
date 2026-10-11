@@ -23,6 +23,12 @@ struct SettingsView: View {
     @AppStorage(Analytics.enabledKey) private var analyticsEnabled = true
     @AppStorage(SaleSharing.enabledKey) private var shareSalePrices = false
     @AppStorage(SaleSharing.askedKey) private var askedAboutSales = false
+    /// The install's sharing token, which exists once anything has been
+    /// shared and goes when it is all deleted. Read through `@AppStorage`
+    /// rather than `SaleSharing.shared.hasShared`, a plain computed property
+    /// SwiftUI cannot observe: the row stayed hidden after a first share
+    /// until something else redrew Settings, and stayed after a delete.
+    @AppStorage(SaleSharing.tokenKey) private var sharingToken: String?
     @State private var showDeleteSharedAlert = false
     @State private var sharedSalesMessage: String?
     @AppStorage(Haptics.preferenceKey) private var hapticsEnabled = true
@@ -219,7 +225,7 @@ struct SettingsView: View {
                     .onChange(of: shareSalePrices) { _, _ in askedAboutSales = true }
                     .accessibilityLabel("Share sale prices to improve estimates")
 
-                    if SaleSharing.shared.hasShared {
+                    if sharingToken != nil {
                         SettingsRow(icon: "trash", label: "Delete my shared sales", destructive: true) {
                             showDeleteSharedAlert = true
                         }
@@ -276,7 +282,7 @@ struct SettingsView: View {
                 Task {
                     do {
                         try await SaleSharing.shared.deleteAll()
-                        sharedSalesMessage = String(localized: "Your shared sales were deleted.")
+                        sharedSalesMessage = String(localized: "Your shared sales were deleted, and sharing is turned off.")
                     } catch {
                         sharedSalesMessage = String(localized: "Couldn't delete them right now. Try again later.")
                     }
@@ -284,7 +290,7 @@ struct SettingsView: View {
             }
             Button("Cancel", role: .cancel) {}
         } message: {
-            Text("Every sale price you've shared from this iPhone is deleted from SnapWorth's server.")
+            Text("Every sale price you've shared from this iPhone is deleted from SnapWorth's server, and sharing is turned off.")
         }
         .alert(sharedSalesMessage ?? "", isPresented: Binding(
             get: { sharedSalesMessage != nil },

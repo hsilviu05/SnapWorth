@@ -716,6 +716,32 @@ final class PrivacyPolicyDisclosureTests: XCTestCase {
             "It never sends the photo, the item's name, your notes, the price you paid, or your device identifier."))
     }
 
+    func test_theDocumentTitleIsLookedUp() throws {
+        // A `String` title is shown as it is: "Privacy Policy" in every
+        // language, above a translated "Last updated". A key is looked up.
+        let source = try String(
+            contentsOf: URL(fileURLWithPath: #filePath)
+                .deletingLastPathComponent()
+                .deletingLastPathComponent()
+                .appendingPathComponent("SnapWorth/Views/LegalView.swift"),
+            encoding: .utf8)
+        XCTAssertTrue(source.contains("let title: LocalizedStringKey"))
+        XCTAssertFalse(source.contains("let title: String"))
+    }
+
+    func test_sharedSalesAreDescribedAsTheAppSendsAndDeletesThem() {
+        // It named "the marketplace", which `SaleOutcomePayload` has no field
+        // for, and promised un-marking deletes while the app did so only with
+        // sharing on. backend/tests/test_main.py pins the same sentences.
+        XCTAssertTrue(policy.contains("the price it sold for and its currency;"))
+        XCTAssertFalse(policy.contains("marketplace"))
+        XCTAssertFalse(SaleOutcomePayload.CodingKeys.allCases.map(\.rawValue).contains("marketplace"))
+        XCTAssertTrue(policy.contains(
+            "Un-marking a sale, or deleting the item or your scan history from the app, deletes its record, even after you turn sharing off."))
+        XCTAssertTrue(policy.contains(
+            "Delete my shared sales in Settings deletes every record your install sent and turns sharing off."))
+    }
+
     func test_analyticsAndDeviceCheckCollectionAreDisclosed() {
         // Both are collected by the shipped app; neither was mentioned.
         XCTAssertTrue(policy.contains("TelemetryDeck"))
@@ -10443,7 +10469,10 @@ final class SaleSharingTests: XCTestCase {
         XCTAssertNil(find.outcomeID)
     }
 
-    func test_aFailedSendIsTriedAgainNextTime() async {
+    func test_aFailedSendIsTriedAgainNextTime_underTheSameID() async throws {
+        // The id is stored before the first send. Minted per attempt, a send
+        // that reached the server with its response lost left a record the
+        // retry did not replace: one sale, two records.
         let sharing = service(enabled: true)
         var fail = true
         sharing.send = { [unowned self] request in
@@ -10452,18 +10481,148 @@ final class SaleSharingTests: XCTestCase {
         }
         let find = soldFind()
         await sharing.sync(find)
-        XCTAssertNil(find.outcomeID)
+        let id = try XCTUnwrap(find.outcomeID)
         fail = false
         await sharing.sync(find)
-        XCTAssertNotNil(find.outcomeID)
+        XCTAssertEqual(find.outcomeID, id)
         XCTAssertEqual(sent.count, 1)
+        guard case .share(let payload) = sent.last else { return XCTFail("expected a share") }
+        XCTAssertEqual(payload.contributionID, id)
     }
 
-    func test_deleteAllSendsTheInstallsToken() async throws {
+    func test_aCloseDuringASendRunsAfterIt_underTheSameID() async throws {
+        // Two closes in quick succession overlapped: each minted an id, and an
+        // edit could land before the send it followed.
         let sharing = service(enabled: true)
-        await sharing.sync(soldFind())
+        let find = soldFind()
+        var closedAgain = false
+        sharing.send = { [unowned self, unowned sharing] request in
+            sent.append(request)
+            if !closedAgain {
+                closedAgain = true
+                find.soldPrice = 42
+                await sharing.sync(find)
+            }
+        }
+        await sharing.sync(find)
+        XCTAssertEqual(sent.count, 2)
+        guard case .share(let first) = sent.first, case .share(let second) = sent.last else {
+            return XCTFail("expected two shares")
+        }
+        XCTAssertEqual(first.contributionID, second.contributionID, "one record, replaced")
+        XCTAssertEqual(first.soldPrice, 35)
+        XCTAssertEqual(second.soldPrice, 42, "the edit is sent last")
+        XCTAssertEqual(find.outcomeID, first.contributionID)
+    }
+
+    func test_unmarkingDeletesTheRecordEvenWithSharingOff() async throws {
+        // Both policies say un-marking deletes; the delete sat behind the
+        // "off" guard, so turning sharing off first kept the record.
+        let sharing = service(enabled: true)
+        let find = soldFind()
+        await sharing.sync(find)
+        let id = try XCTUnwrap(find.outcomeID)
+        sharing.isEnabled = false
+        find.status = .listed
+        await sharing.sync(find)
+        XCTAssertEqual(sent.count, 2)
+        XCTAssertEqual(sent.last, .delete(contributionID: id, token: sharing.contributorToken))
+        XCTAssertNil(find.outcomeID)
+    }
+
+    func test_deleteAllSendsTheInstallsToken_andTurnsSharingOff() async throws {
+        let sharing = service(enabled: true)
+        let find = soldFind()
+        await sharing.sync(find)
+        let token = sharing.contributorToken
         try await sharing.deleteAll()
-        XCTAssertEqual(sent.last, .delete(contributionID: nil, token: sharing.contributorToken))
+        XCTAssertEqual(sent.last, .delete(contributionID: nil, token: token))
+        XCTAssertFalse(sharing.isEnabled, "deleting everything withdraws consent")
+        XCTAssertFalse(sharing.hasShared, "nothing is left for the token to delete")
+        XCTAssertFalse(sharing.needsConsent(for: find), "and the card does not ask again")
+
+        // Left on, the next close re-sent the sale that was just deleted.
+        let count = sent.count
+        await sharing.sync(find)
+        XCTAssertEqual(sent.count, count, "a deleted sale is not sent again")
+
+        sharing.isEnabled = true
+        find.soldPrice = 50
+        await sharing.sync(find)
+        XCTAssertEqual(sent.count, count, "nor once sharing is back on")
+        let next = soldFind()
+        await sharing.sync(next)
+        guard case .share(let shared) = sent.last else { return XCTFail("a new sale is shared") }
+        XCTAssertEqual(shared.contributionID, next.outcomeID)
+        XCTAssertNotEqual(shared.contributorToken, token)
+    }
+
+    func test_deleteAllWithdrawsASaleWhoseFirstSendFailed() async throws {
+        // It may have reached the server: it is withdrawn with the rest.
+        let sharing = service(enabled: true)
+        sharing.send = { [unowned self] request in
+            if case .share = request { throw URLError(.timedOut) }
+            sent.append(request)
+        }
+        let find = soldFind()
+        await sharing.sync(find)
+        XCTAssertNotNil(find.outcomeID)
+        let token = sharing.contributorToken
+        try await sharing.deleteAll()
+        sharing.isEnabled = true
+        sharing.send = { [unowned self] request in sent.append(request) }
+        await sharing.sync(find)
+        XCTAssertEqual(sent, [.delete(contributionID: nil, token: token)])
+    }
+
+    func test_aDeletedFlipsRecordIsDeleted_andRetriedAfterAFailure() async throws {
+        let sharing = service(enabled: true)
+        let find = soldFind()
+        await sharing.sync(find)
+        let id = try XCTUnwrap(find.outcomeID)
+        sharing.isEnabled = false               // on or off, as un-marking
+        var fail = true
+        sharing.send = { [unowned self] request in
+            if fail { throw URLError(.notConnectedToInternet) }
+            sent.append(request)
+        }
+        let offline = try XCTUnwrap(sharing.forget([id]))
+        await offline.value
+        XCTAssertEqual(sent.count, 1, "offline: nothing went")
+
+        fail = false
+        await sharing.sync(soldFind(price: nil))  // the next close of any sheet
+        XCTAssertEqual(sent.last, .delete(contributionID: id, token: sharing.contributorToken))
+        let count = sent.count
+        await sharing.sync(soldFind(price: nil))
+        XCTAssertEqual(sent.count, count, "sent once")
+    }
+
+    func test_deletingAFlipOrClearingHistoryDeletesItsSharedSale() async throws {
+        let sharing = service(enabled: true)
+        let container = try ModelContainer(for: ScanResult.self,
+                                           configurations: ModelConfiguration(isStoredInMemoryOnly: true))
+        let context = ModelContext(container)
+        let repository = ScanRepository(context: context, sharing: sharing)
+        let one = soldFind(), two = soldFind(), unshared = soldFind()
+        for find in [one, two, unshared] { context.insert(find) }
+        try context.save()
+        await sharing.sync(one)
+        await sharing.sync(two)
+        let first = try XCTUnwrap(one.outcomeID)
+        let token = sharing.contributorToken
+
+        try repository.delete(one)
+        await sharing.flushDeletions()
+        XCTAssertTrue(sent.contains(.delete(contributionID: first, token: token)))
+
+        let store = HaulPhotoStore(directory: FileManager.default.temporaryDirectory
+            .appendingPathComponent("sale-clear-\(UUID().uuidString)", isDirectory: true))
+        defer { store.removeAll() }
+        try repository.deleteAll([two, unshared], pendingPhotos: store)
+        await sharing.flushDeletions()
+        XCTAssertTrue(sent.contains(.delete(contributionID: nil, token: token)),
+                      "a cleared history deletes every record in one request")
     }
 
     func test_theConsentCardIsShownOnceForASoldPrice() {
