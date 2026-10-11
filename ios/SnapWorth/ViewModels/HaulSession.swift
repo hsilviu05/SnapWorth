@@ -574,6 +574,12 @@ final class HaulSession {
         var deleteFind: @MainActor (ScanResult) throws -> Void
         var generate: @Sendable (ListingInput, Marketplace) async throws -> GeneratedListing
         var isEntitled: @MainActor () -> Bool
+        /// The 402 confirmation: re-reads StoreKit and, if it still shows a
+        /// subscription, sends it to the server and waits for the answer. It
+        /// must force that send. The routine refresh skips it while
+        /// `EntitlementSyncMemory` is fresh, which is exactly when a server
+        /// that has lost the entitlement refuses, so both retries and Try
+        /// again re-sent nothing and ended on "couldn't confirm".
         var refreshEntitlements: @MainActor () async -> Void
         var networkPath: @MainActor () -> HaulNetworkPath
         /// Returns `end`, which is idempotent.
@@ -694,7 +700,7 @@ final class HaulSession {
                 try await ListingAPIClient.shared.generate(input, marketplace: marketplace)
             },
             isEntitled: { purchaseService.isSubscribed },
-            refreshEntitlements: { await purchaseService.refreshEntitlements() },
+            refreshEntitlements: { _ = await purchaseService.resyncEntitlement() },
             networkPath: { HaulPathMonitor.shared.current },
             beginBackgroundTask: { name in
                 let task = HaulBackgroundTask(name: name)
@@ -1510,9 +1516,17 @@ final class HaulSession {
     /// let go: a halt that arrived meanwhile — from the other request in
     /// flight — is the user's to lift, and sending under its banner would
     /// spend a request on what it just said to stop for.
+    ///
+    /// The refresh may have found the subscription gone: an expiry raises no
+    /// `Transaction.updates`, so the 402 can arrive while the cached
+    /// entitlement still reads Pro. The hold is then cleared for `pump`'s
+    /// gate to replace with `.notEntitled` and its Upgrade button. Left in
+    /// place, nothing would be sent, so no response could ever replace it,
+    /// and the banner spun on "Confirming your subscription…" for good.
     private func releaseConfirmation(_ lane: Lane) {
         guard holdValue(lane) == .confirmingSubscription else { return }
         withQueue(lane) { $0.unhold(); $0.beginProbing() }
+        if !deps.isEntitled() { setHold(lane, nil) }
         pump()
     }
 
@@ -1677,10 +1691,18 @@ extension HaulSession {
     /// * **A dropped connection** (`HaulReach.droppedMidRequest`) fails the
     ///   photo, like a timeout: the upload may have landed and been charged.
     /// * **503** backs off like no connection, twice more — a 503 may use a
-    ///   slot — and then halts: three in a row is an outage.
+    ///   slot — and then halts: three in a row is an outage. So does **a
+    ///   token mint the service could not complete** (`verificationUnavailable`:
+    ///   a 5xx from `/auth/challenge` or `/auth/refresh`, which the token's
+    ///   hourly re-mint meets): nothing was uploaded, and every photo behind
+    ///   it would fail the same way. It used to fall through to a plain
+    ///   failure, which the breaker never compares, so an outage at the
+    ///   re-mint turned the whole strip red one photo at a time.
     /// * **An expired session** halts: the client already re-minted once, so
     ///   every photo would fail the same way. So does **an unsupported build**
-    ///   (`updateRequired`): only an update changes the answer.
+    ///   (`updateRequired`): only an update changes the answer. And so does
+    ///   **a device App Attest does not run on** (`deviceUnsupported`): only
+    ///   different hardware does.
     /// * **A timeout** fails the photo and offers Try again. At 35 s the
     ///   server has usually finished and charged the slot and the model call;
     ///   a silent re-send doubles that.
@@ -1706,11 +1728,11 @@ extension HaulSession {
             return .offline(offlineBackoff(streak: offlineStreak))
         case .timeout where reach == .neverConnected:
             return .offline(offlineBackoff(streak: offlineStreak))
-        case .serverUnavailable:
+        case .serverUnavailable, .verificationUnavailable:
             return offlineStreak < 3 ? .offline(offlineBackoff(streak: offlineStreak)) : .halt
-        // The server no longer serves this build: every photo would get the
-        // same answer, and each would cost an upload to hear it.
-        case .sessionExpired, .updateRequired:
+        // The server no longer serves this build, or this device: every photo
+        // would get the same answer, and each would cost an upload to hear it.
+        case .sessionExpired, .updateRequired, .deviceUnsupported:
             return .halt
         case .imageEncodingFailed:
             return .fail
