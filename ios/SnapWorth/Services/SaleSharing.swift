@@ -294,6 +294,9 @@ final class SaleSharing {
     static let askedKey = "shareSalePrices.asked"
     static let tokenKey = "shareSalePrices.contributorToken"
     static let sentKey = "shareSalePrices.sentFingerprints"
+    static let withdrawnKey = "shareSalePrices.withdrawnIDs"
+    static let pendingKey = "shareSalePrices.pendingDeletions"
+    static let pendingAllKey = "shareSalePrices.pendingDeleteAll"
 
     var defaults: UserDefaults = .standard
     /// The network call; `SaleOutcomesClient` in the app, a fake in tests.
@@ -314,6 +317,8 @@ final class SaleSharing {
     }
 
     /// Whether this install has a token, so may have records to delete.
+    /// Settings reads the same key through `@AppStorage(tokenKey)`, so its
+    /// row follows a first share and a delete.
     var hasShared: Bool { defaults.string(forKey: Self.tokenKey) != nil }
 
     /// A random per-install token, used only to delete this install's records.
@@ -334,42 +339,153 @@ final class SaleSharing {
         !isEnabled && !hasAsked && result.status == .sold && (result.soldPrice ?? 0) > 0
     }
 
-    /// When a result sheet closes. Off: nothing at all. On: a sold flip with a
-    /// price is sent (an edit replaces the same record, an unchanged one is
-    /// not re-sent); a flip that was shared and is no longer sold is deleted.
-    /// A failure is left for the next close; nothing here interrupts the user.
+    /// Flips with a sync running, and those closed again while it ran.
+    private var syncing: Set<ObjectIdentifier> = []
+    private var resync: Set<ObjectIdentifier> = []
+
+    /// When a result sheet closes. On: a sold flip with a price is sent (an
+    /// edit replaces the same record, an unchanged one is not re-sent). On or
+    /// off: a flip that was shared and is no longer sold has its record
+    /// deleted, because deleting is not sharing. A failure is left for the
+    /// next close; nothing here interrupts the user.
+    ///
+    /// One flip runs one sync at a time. Two closes in quick succession used
+    /// to overlap: each minted its own id, so one sale became two records,
+    /// and an edit could land before the older send it followed and then be
+    /// overwritten by it. A close during a sync now runs once more after it,
+    /// with the flip as it is then.
     func sync(_ result: ScanResult) async {
-        guard isEnabled else { return }
-        if let id = result.outcomeID ?? (result.status == .sold ? UUID().uuidString : nil),
-           let payload = SaleOutcomePayload.make(
-               for: result, contributionID: id, token: contributorToken,
-               build: build, storefront: await storefront()) {
-            let fingerprint = Self.fingerprint(payload)
-            guard sent[id] != fingerprint else { return }
-            do {
-                try await send(.share(payload))
-                result.outcomeID = id
-                sent[id] = fingerprint
-            } catch {}
-        } else if let id = result.outcomeID {
+        let key = ObjectIdentifier(result)
+        guard !syncing.contains(key) else {
+            resync.insert(key)
+            return
+        }
+        syncing.insert(key)
+        defer { syncing.remove(key) }
+        repeat {
+            resync.remove(key)
+            await syncOnce(result)
+        } while resync.contains(key)
+    }
+
+    private func syncOnce(_ result: ScanResult) async {
+        await flushDeletions()
+        // Deleted with "Delete my shared sales": never sent again.
+        if let id = result.outcomeID, withdrawn.contains(id) { return }
+        // The same test as `SaleOutcomePayload.make`'s nil.
+        guard result.status == .sold, (result.soldPrice ?? 0) > 0 else {
+            // Un-marking deletes the record whether or not sharing is still
+            // on, as both policies say: turning sharing off stops sending, not
+            // deleting.
+            guard let id = result.outcomeID else { return }
+            guard hasShared else {
+                result.outcomeID = nil      // no token, so nothing it could delete
+                return
+            }
             do {
                 try await send(.delete(contributionID: id, token: contributorToken))
                 result.outcomeID = nil
                 sent[id] = nil
             } catch {}
+            return
         }
+        guard isEnabled else { return }
+        // Stored before the first send, so a send that fails, or lands with
+        // its response lost, is retried under the same id and the server
+        // replaces it rather than keeping a second record of the sale. The
+        // empty fingerprint marks the id as possibly on the server, which is
+        // what `deleteAll` withdraws.
+        let id: String
+        if let existing = result.outcomeID {
+            id = existing
+        } else {
+            id = UUID().uuidString
+            result.outcomeID = id
+            sent[id] = ""
+        }
+        guard let payload = SaleOutcomePayload.make(
+            for: result, contributionID: id, token: contributorToken,
+            build: build, storefront: await storefront()) else { return }
+        let fingerprint = Self.fingerprint(payload)
+        guard sent[id] != fingerprint else { return }
+        do {
+            try await send(.share(payload))
+            sent[id] = fingerprint
+        } catch {}
     }
 
     /// "Delete my shared sales": every record this install made.
+    ///
+    /// It also turns sharing off. Left on, the next close of any of those
+    /// flips found no fingerprint for its id and sent it again: the user was
+    /// told their sales were deleted, and each one they looked at was back on
+    /// the server. The ids are kept as withdrawn, so turning sharing back on
+    /// shares new sales and never these, and the token goes with the records,
+    /// since nothing is left for it to delete.
     func deleteAll() async throws {
         guard hasShared else { return }
         try await send(.delete(contributionID: nil, token: contributorToken))
-        defaults.removeObject(forKey: Self.sentKey)
+        isEnabled = false
+        hasAsked = true
+        withdrawn.formUnion(sent.keys)
+        for key in [Self.sentKey, Self.pendingKey, Self.pendingAllKey, Self.tokenKey] {
+            defaults.removeObject(forKey: key)
+        }
+    }
+
+    /// Flips were deleted from the library: their shared records go too, now,
+    /// or at the next sync if this send fails. `all` is a cleared history:
+    /// one request for every record of this install rather than one per
+    /// flip. On or off, as un-marking is. Returns the send, for a test.
+    @discardableResult
+    func forget(_ outcomeIDs: [String], all: Bool = false) -> Task<Void, Never>? {
+        let withdrawn = self.withdrawn
+        let ids = outcomeIDs.filter { !withdrawn.contains($0) }
+        guard hasShared, !ids.isEmpty else { return nil }
+        if all {
+            defaults.set(true, forKey: Self.pendingAllKey)
+        } else {
+            pending.formUnion(ids)
+        }
+        for id in ids { sent[id] = nil }
+        return Task { await self.flushDeletions() }
+    }
+
+    /// Sends the deletions `forget` queued, stopping at the first failure;
+    /// the rest wait for the next sync.
+    func flushDeletions() async {
+        guard hasShared else { return }
+        if defaults.bool(forKey: Self.pendingAllKey) {
+            do {
+                try await send(.delete(contributionID: nil, token: contributorToken))
+            } catch { return }
+            defaults.removeObject(forKey: Self.pendingAllKey)
+            defaults.removeObject(forKey: Self.pendingKey)
+            return
+        }
+        for id in pending.sorted() {
+            do {
+                try await send(.delete(contributionID: id, token: contributorToken))
+            } catch { return }
+            pending.remove(id)
+        }
     }
 
     private var sent: [String: String] {
         get { defaults.dictionary(forKey: Self.sentKey) as? [String: String] ?? [:] }
         set { defaults.set(newValue, forKey: Self.sentKey) }
+    }
+
+    /// Ids deleted by "Delete my shared sales", never to be sent again.
+    private var withdrawn: Set<String> {
+        get { Set(defaults.stringArray(forKey: Self.withdrawnKey) ?? []) }
+        set { defaults.set(newValue.sorted(), forKey: Self.withdrawnKey) }
+    }
+
+    /// Records of deleted flips whose own delete has not gone through yet.
+    private var pending: Set<String> {
+        get { Set(defaults.stringArray(forKey: Self.pendingKey) ?? []) }
+        set { defaults.set(newValue.sorted(), forKey: Self.pendingKey) }
     }
 
     /// What was last sent for a record, to skip re-sending an unchanged one.

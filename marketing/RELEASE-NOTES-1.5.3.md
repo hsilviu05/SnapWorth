@@ -175,6 +175,14 @@ open an issue for the failure that names the build its fix needs.
 - [ ] Un-marking the sale deletes its record. *Delete my shared sales*
       asks for confirmation, then reports the result, and the field report
       drops those records.
+- [ ] After *Delete my shared sales*, the toggle is **off** and the row is
+      gone. Opening and closing one of those sold flips sends nothing, even
+      after turning sharing back on; a newly sold flip is shared.
+- [ ] With sharing turned **off**, un-marking a shared sale still deletes its
+      record. So does deleting a shared flip from My Finds, and Settings →
+      Clear history deletes them all.
+- [ ] Open Settings, then share a first sale from My Flips: back on the
+      Settings tab, *Delete my shared sales* is there with no relaunch.
 - [ ] Airplane mode: a send fails quietly and goes through at the next close
       once online.
 

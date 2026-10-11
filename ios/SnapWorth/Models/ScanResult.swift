@@ -43,8 +43,9 @@ final class ScanResult {
     /// without as the phone's region default (`SaleCurrency.of`), stored
     /// once an amount is entered (`SaleCurrency.pin`).
     var saleCurrency: String?
-    /// The id this flip's shared sale is stored under on the server, set the
-    /// first time it is shared and cleared when the record is deleted.
+    /// The id this flip's shared sale is stored under on the server, set
+    /// before it is first sent (so a retry replaces rather than adds) and
+    /// cleared when the record is deleted.
     var outcomeID: String?
 
     /// User-selected resale condition. Optional → additive lightweight migration:

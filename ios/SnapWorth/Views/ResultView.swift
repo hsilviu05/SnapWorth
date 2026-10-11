@@ -273,8 +273,9 @@ struct ResultView: View {
                 }
             }
         }
-        // Shared sale outcomes (#224): once, as the sheet closes, when the
-        // user has opted in. Off, `sync` does nothing at all.
+        // Shared sale outcomes (#224): once, as the sheet closes. Off, `sync`
+        // sends nothing, except the delete of a record whose sale was
+        // un-marked.
         .onDisappear {
             let result = result
             Task { await SaleSharing.shared.sync(result) }

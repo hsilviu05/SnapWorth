@@ -10154,38 +10154,38 @@
         }
       }
     },
-    "Every sale price you've shared from this iPhone is deleted from SnapWorth's server." : {
-      "comment" : "Confirmation message before deleting shared sale outcomes.",
+    "Every sale price you've shared from this iPhone is deleted from SnapWorth's server, and sharing is turned off." : {
+      "comment" : "Confirmation message before deleting shared sale outcomes. Deleting them also turns the Share sale prices setting off.",
       "extractionState" : "manual",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Jeder Verkaufspreis, den du von diesem iPhone geteilt hast, wird vom Server von SnapWorth gelöscht."
+            "value" : "Jeder Verkaufspreis, den du von diesem iPhone geteilt hast, wird vom Server von SnapWorth gelöscht, und das Teilen wird ausgeschaltet."
           }
         },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Every sale price you've shared from this iPhone is deleted from SnapWorth's server."
+            "value" : "Every sale price you've shared from this iPhone is deleted from SnapWorth's server, and sharing is turned off."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Se eliminan del servidor de SnapWorth todos los precios de venta que compartiste desde este iPhone."
+            "value" : "Se eliminan del servidor de SnapWorth todos los precios de venta que compartiste desde este iPhone y se desactiva la opción de compartir."
           }
         },
         "ro" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Fiecare preț de vânzare trimis de pe acest iPhone este șters de pe serverul SnapWorth."
+            "value" : "Fiecare preț de vânzare trimis de pe acest iPhone este șters de pe serverul SnapWorth, iar trimiterea prețurilor de vânzare se dezactivează."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "你从这台 iPhone 分享的所有售价都会从 SnapWorth 的服务器上删除。"
+            "value" : "你从这台 iPhone 分享的所有售价都会从 SnapWorth 的服务器上删除，分享功能也会关闭。"
           }
         }
       }
@@ -26254,38 +26254,38 @@
         }
       }
     },
-    "Your shared sales were deleted." : {
-      "comment" : "After deleting shared sale outcomes succeeded.",
+    "Your shared sales were deleted, and sharing is turned off." : {
+      "comment" : "After deleting shared sale outcomes succeeded. Deleting them also turns the Share sale prices setting off.",
       "extractionState" : "manual",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Deine geteilten Verkäufe wurden gelöscht."
+            "value" : "Deine geteilten Verkäufe wurden gelöscht, und das Teilen ist ausgeschaltet."
           }
         },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Your shared sales were deleted."
+            "value" : "Your shared sales were deleted, and sharing is turned off."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Se eliminaron tus ventas compartidas."
+            "value" : "Se eliminaron tus ventas compartidas y se desactivó la opción de compartir."
           }
         },
         "ro" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Vânzările trimise au fost șterse."
+            "value" : "Vânzările trimise au fost șterse, iar trimiterea prețurilor de vânzare este dezactivată."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "你分享的售出记录已删除。"
+            "value" : "你分享的售出记录已删除，分享功能也已关闭。"
           }
         }
       }

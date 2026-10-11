@@ -2176,13 +2176,13 @@
       "de": "Alle Funde,\nan einem Ort.",
       "zh-Hans": "所有好物，\n都在一处。"
     },
-    "Every sale price you've shared from this iPhone is deleted from SnapWorth's server.": {
-      "comment": "Confirmation message before deleting shared sale outcomes.",
-      "en": "Every sale price you've shared from this iPhone is deleted from SnapWorth's server.",
-      "ro": "Fiecare preț de vânzare trimis de pe acest iPhone este șters de pe serverul SnapWorth.",
-      "es": "Se eliminan del servidor de SnapWorth todos los precios de venta que compartiste desde este iPhone.",
-      "de": "Jeder Verkaufspreis, den du von diesem iPhone geteilt hast, wird vom Server von SnapWorth gelöscht.",
-      "zh-Hans": "你从这台 iPhone 分享的所有售价都会从 SnapWorth 的服务器上删除。"
+    "Every sale price you've shared from this iPhone is deleted from SnapWorth's server, and sharing is turned off.": {
+      "comment": "Confirmation message before deleting shared sale outcomes. Deleting them also turns the Share sale prices setting off.",
+      "en": "Every sale price you've shared from this iPhone is deleted from SnapWorth's server, and sharing is turned off.",
+      "ro": "Fiecare preț de vânzare trimis de pe acest iPhone este șters de pe serverul SnapWorth, iar trimiterea prețurilor de vânzare se dezactivează.",
+      "es": "Se eliminan del servidor de SnapWorth todos los precios de venta que compartiste desde este iPhone y se desactiva la opción de compartir.",
+      "de": "Jeder Verkaufspreis, den du von diesem iPhone geteilt hast, wird vom Server von SnapWorth gelöscht, und das Teilen wird ausgeschaltet.",
+      "zh-Hans": "你从这台 iPhone 分享的所有售价都会从 SnapWorth 的服务器上删除，分享功能也会关闭。"
     },
     "Expected": {
       "en": "Expected",
@@ -5537,13 +5537,13 @@
       "de": "Deine Scans landen in deiner Sammlung, damit du siehst, wie sich der Wert mit der Zeit summiert.",
       "zh-Hans": "扫描都会存进你的收藏，让你看着这些藏着的价值一点点累积起来。"
     },
-    "Your shared sales were deleted.": {
-      "comment": "After deleting shared sale outcomes succeeded.",
-      "en": "Your shared sales were deleted.",
-      "ro": "Vânzările trimise au fost șterse.",
-      "es": "Se eliminaron tus ventas compartidas.",
-      "de": "Deine geteilten Verkäufe wurden gelöscht.",
-      "zh-Hans": "你分享的售出记录已删除。"
+    "Your shared sales were deleted, and sharing is turned off.": {
+      "comment": "After deleting shared sale outcomes succeeded. Deleting them also turns the Share sale prices setting off.",
+      "en": "Your shared sales were deleted, and sharing is turned off.",
+      "ro": "Vânzările trimise au fost șterse, iar trimiterea prețurilor de vânzare este dezactivată.",
+      "es": "Se eliminaron tus ventas compartidas y se desactivó la opción de compartir.",
+      "de": "Deine geteilten Verkäufe wurden gelöscht, und das Teilen ist ausgeschaltet.",
+      "zh-Hans": "你分享的售出记录已删除，分享功能也已关闭。"
     },
     "Your subscription has been restored.": {
       "en": "Your subscription has been restored.",
