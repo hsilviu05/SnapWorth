@@ -27,7 +27,7 @@ from datetime import datetime, timezone
 
 import cbor2
 from cryptography import x509
-from cryptography.exceptions import InvalidSignature
+from cryptography.exceptions import InvalidSignature, UnsupportedAlgorithm
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import ec
 
@@ -118,7 +118,12 @@ def _verify_chain(certs: list[x509.Certificate]) -> x509.Certificate:
                 child.tbs_certificate_bytes,
                 ec.ECDSA(algorithm),
             )
-        except InvalidSignature:
+        # UnsupportedAlgorithm and ValueError too: `signature_hash_algorithm`
+        # raises the first for a signature OID cryptography does not know,
+        # `public_key()` either for a key it cannot load, and the certificates
+        # are the caller's. Uncaught, each was a 500 before any signature had
+        # been checked. AttestationError is neither, so its messages pass.
+        except (InvalidSignature, UnsupportedAlgorithm, ValueError):
             raise AttestationError(f"Attestation chain is not signed by Apple ({label}).") from None
     return leaf
 
