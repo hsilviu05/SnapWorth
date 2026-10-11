@@ -1648,7 +1648,7 @@ def privacy():
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Privacy Policy — SnapWorth</title><style>{_STYLE}</style></head><body>
 <h1>Privacy Policy</h1>
-<p>Last updated: October 6, 2026</p>
+<p>Last updated: October 11, 2026</p>
 <p>SnapWorth ("we", "our", or "us") operates the SnapWorth mobile application.
 This page informs you of our policies regarding the collection, use, and
 disclosure of personal data when you use our Service.</p>
@@ -1687,14 +1687,15 @@ and rewards stay within the yearly limit.</p>
 Privacy; it is off by default), the app sends our server a record for each flip
 you mark as sold: the estimate SnapWorth gave when you scanned it, with its
 confidence, the item's category and condition, and whether a brand was
-identified; the price it sold for, its currency and the marketplace; the scan
-and sale dates; the App Store country; and the app version. It never sends the
+identified; the price it sold for and its currency; the scan and sale dates;
+the App Store country; and the app version. It never sends the
 photo, the item's name, your notes, the price you paid, or your device
 identifier. Each record carries a random identifier made for that sale and a
 random token made for your install, used only to delete your records; we keep a
 keyed hash of the token, not the token. Records are kept for up to 400 days.
-Un-marking a sale deletes its record, and Delete my shared sales in Settings
-deletes every record your install sent.</p>
+Un-marking a sale, or deleting the item or your scan history from the app,
+deletes its record, even after you turn sharing off. Delete my shared sales in
+Settings deletes every record your install sent and turns sharing off.</p>
 <p>We collect anonymous usage analytics to understand how the app is used and
 improve it. Using TelemetryDeck, we record in-app events &mdash; such as opening
 the app, starting a scan, viewing the paywall, and completing a purchase &mdash;

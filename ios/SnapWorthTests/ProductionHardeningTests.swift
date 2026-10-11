@@ -696,6 +696,32 @@ final class PrivacyPolicyDisclosureTests: XCTestCase {
             "It never sends the photo, the item's name, your notes, the price you paid, or your device identifier."))
     }
 
+    func test_theDocumentTitleIsLookedUp() throws {
+        // A `String` title is shown as it is: "Privacy Policy" in every
+        // language, above a translated "Last updated". A key is looked up.
+        let source = try String(
+            contentsOf: URL(fileURLWithPath: #filePath)
+                .deletingLastPathComponent()
+                .deletingLastPathComponent()
+                .appendingPathComponent("SnapWorth/Views/LegalView.swift"),
+            encoding: .utf8)
+        XCTAssertTrue(source.contains("let title: LocalizedStringKey"))
+        XCTAssertFalse(source.contains("let title: String"))
+    }
+
+    func test_sharedSalesAreDescribedAsTheAppSendsAndDeletesThem() {
+        // It named "the marketplace", which `SaleOutcomePayload` has no field
+        // for, and promised un-marking deletes while the app did so only with
+        // sharing on. backend/tests/test_main.py pins the same sentences.
+        XCTAssertTrue(policy.contains("the price it sold for and its currency;"))
+        XCTAssertFalse(policy.contains("marketplace"))
+        XCTAssertFalse(SaleOutcomePayload.CodingKeys.allCases.map(\.rawValue).contains("marketplace"))
+        XCTAssertTrue(policy.contains(
+            "Un-marking a sale, or deleting the item or your scan history from the app, deletes its record, even after you turn sharing off."))
+        XCTAssertTrue(policy.contains(
+            "Delete my shared sales in Settings deletes every record your install sent and turns sharing off."))
+    }
+
     func test_analyticsAndDeviceCheckCollectionAreDisclosed() {
         // Both are collected by the shipped app; neither was mentioned.
         XCTAssertTrue(policy.contains("TelemetryDeck"))

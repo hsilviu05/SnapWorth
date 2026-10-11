@@ -281,9 +281,12 @@ image on another screen.
 
 ### Privacy policy (#306)
 
-- [ ] Settings → Privacy Policy reads "Last updated: October 6, 2026" and
+- [ ] Settings → Privacy Policy reads "Last updated: October 11, 2026" and
       has the *Share sale prices to improve estimates* paragraph, the same as
-      `https://api.snapworth.eu/privacy`.
+      `https://api.snapworth.eu/privacy`. It no longer names the marketplace,
+      which no build sends.
+- [ ] Settings → Privacy Policy and Terms of Service: the large title is in
+      the app's language (Romanian: „Politica de confidențialitate").
 
 ---
 
