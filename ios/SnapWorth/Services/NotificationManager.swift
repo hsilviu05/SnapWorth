@@ -366,14 +366,40 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
         guard let fireDate = Self.ledgerFireDate(from: listedDate) else { return }
         let dayKey = Self.dayKey(fireDate)
 
-        var buckets = ledgerBuckets()
-        var items = buckets[dayKey] ?? []
-        if !items.contains(itemID.uuidString) { items.append(itemID.uuidString) }
-        buckets[dayKey] = items
-        saveLedgerBuckets(buckets)
+        let filed = Self.file(itemID.uuidString, under: dayKey, in: ledgerBuckets())
+        saveLedgerBuckets(filed.buckets)
         setLedgerName(itemID.uuidString, name: itemName)
 
+        for day in filed.vacated { await rescheduleLedgerDay(day) }
         await rescheduleLedgerDay(dayKey)
+    }
+
+    /// `buckets` with `item` under `dayKey` and under no other day, and the
+    /// days it was taken out of, whose requests need rebuilding or removing.
+    ///
+    /// It used to be added without being taken out anywhere. `syncEligible`
+    /// re-files every listed item on each foreground, recomputing the day in
+    /// the current zone, so a time-zone change that moved the listing's local
+    /// date — listed at 23:30 in Bucharest, app opened in Dubai — filed it
+    /// under a second day and both days' requests stayed pending: two "Did X
+    /// sell?" nudges for one item, a day apart, which the one-a-day cap cannot
+    /// catch.
+    ///
+    /// Pure, for the tests.
+    nonisolated static func file(_ item: String, under dayKey: String,
+                                 in buckets: [String: [String]])
+        -> (buckets: [String: [String]], vacated: [String]) {
+        var buckets = buckets
+        var vacated: [String] = []
+        for (day, items) in buckets where day != dayKey && items.contains(item) {
+            let remaining = items.filter { $0 != item }
+            if remaining.isEmpty { buckets.removeValue(forKey: day) } else { buckets[day] = remaining }
+            vacated.append(day)
+        }
+        var items = buckets[dayKey] ?? []
+        if !items.contains(item) { items.append(item) }
+        buckets[dayKey] = items
+        return (buckets, vacated.sorted())
     }
 
     /// Cancel an item's follow-up (marked sold / deleted). Reschedules or removes
@@ -765,8 +791,10 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
 
             // Each count is inflected by itself and the amount is added after: a
             // plural key agrees with one number, and "you added N … your M are
-            // worth X" has two of them and an amount besides. The amount is last
-            // in both languages, so it can be appended rather than interpolated.
+            // worth X" has two of them and an amount besides. The amount is
+            // appended rather than interpolated, so every translation has to end
+            // where an amount can follow. German did not: "Deine 7 Funde sind
+            // wert $340." puts it after the adjective it belongs before.
             let held = String(localized: "Your \(itemCount) finds are worth") + " \(money)."
             guard addedThisWeek > 0 else {
                 // Nothing new: a plain status line rather than manufactured urgency.

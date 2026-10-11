@@ -10497,3 +10497,67 @@ final class LedgerCurrencyTests: XCTestCase {
                        "text that does not parse is read as typed")
     }
 }
+
+// ── A ledger follow-up lives under one day ───────────────────────────────────
+//
+// `syncEligible` re-files every listed item on each foreground, recomputing
+// its day in the current zone. Listed at 23:30 on 11 Sep in Bucharest, the
+// item is due on the 25th; opened in Dubai, the same instant is 00:30 on the
+// 12th and due on the 26th. It was added to the new day and never taken out
+// of the old, so both days' requests stayed pending.
+
+final class LedgerBucketTests: XCTestCase {
+
+    private let item = "A"
+
+    func test_refilingUnderANewDayLeavesTheOldOne() {
+        let filed = NotificationManager.file(item, under: "20260926",
+                                             in: ["20260925": [item]])
+        XCTAssertEqual(filed.buckets, ["20260926": [item]])
+        XCTAssertEqual(filed.vacated, ["20260925"], "its request has to be removed")
+    }
+
+    func test_anOldDayKeepsItsOtherItems() {
+        let filed = NotificationManager.file(item, under: "20260926",
+                                             in: ["20260925": ["B", item, "C"]])
+        XCTAssertEqual(filed.buckets, ["20260925": ["B", "C"], "20260926": [item]])
+        XCTAssertEqual(filed.vacated, ["20260925"], "rebuilt without it")
+    }
+
+    func test_theSameDayAgainChangesNothing() {
+        // The ordinary foreground: same zone, same day.
+        let buckets = ["20260925": ["B", item]]
+        let filed = NotificationManager.file(item, under: "20260925", in: buckets)
+        XCTAssertEqual(filed.buckets, buckets)
+        XCTAssertEqual(filed.vacated, [])
+    }
+
+    func test_aNewItemJoinsTheDay() {
+        let filed = NotificationManager.file(item, under: "20260925", in: ["20260925": ["B"]])
+        XCTAssertEqual(filed.buckets, ["20260925": ["B", item]])
+        XCTAssertEqual(filed.vacated, [])
+    }
+}
+
+// ── Clearing history clears the weekly digest ────────────────────────────────
+//
+// Each rung's text is fixed when it is scheduled, and only a foreground
+// rebuilt the ladder. Clearing history happens in the foreground, so up to
+// four Sundays said "Your 12 finds are worth $340." about a wiped library.
+// The notification centre cannot be inspected from a test, so the call is
+// held by its source.
+
+final class ClearHistoryDigestTests: XCTestCase {
+
+    func test_deleteAllClearsThePortfolioLadder() throws {
+        let repo = try String(contentsOf: URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("SnapWorth/Services/ScanRepository.swift"), encoding: .utf8)
+        guard let start = repo.range(of: "func deleteAll(") else {
+            return XCTFail("deleteAll moved")
+        }
+        let body = String(repo[start.upperBound...].prefix(2_000))
+        XCTAssertTrue(body.contains("schedulePortfolioDigest(results: [])"))
+    }
+}
