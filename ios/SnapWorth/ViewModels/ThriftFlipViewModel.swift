@@ -328,6 +328,11 @@ final class ThriftFlipViewModel {
         // the same rule, so a correction after the save cannot write a
         // different kind of number than the save did.
         result.feesEstimate = Self.ledgerFees(from: calculation)
+        // In dollars, as everything on this screen is: its fields' "$", the
+        // resale price seeded from the dollar estimate, the fee table. Left
+        // nil it was read as the region default (#224), and My Flips printed
+        // the $8 just typed as "8 lei". Kept if a currency is already stored.
+        if result.saleCurrency == nil { result.saleCurrency = "USD" }
         result.status = .owned
         do {
             try repository.save(result)
@@ -389,6 +394,7 @@ final class ThriftFlipViewModel {
               let purchase = Self.decimal(shelfPriceText)
         else { return }
         result.paidPrice = NSDecimalNumber(decimal: purchase).doubleValue
+        if result.saleCurrency == nil { result.saleCurrency = "USD" }
         if let fees = Self.ledgerFees(from: calculation) {
             result.feesEstimate = fees
         }

@@ -51,7 +51,7 @@ final class FlipsViewModel {
     }
 
     /// Filtered + sorted list for the ledger table.
-    func visibleItems(_ all: [ScanResult]) -> [ScanResult] {
+    func visibleItems(_ all: [ScanResult], locale: Locale = .current) -> [ScanResult] {
         let tracked = trackedItems(all)
         let filtered: [ScanResult]
         switch filter {
@@ -60,16 +60,29 @@ final class FlipsViewModel {
         case .listed: filtered = tracked.filter { $0.status == .listed }
         case .sold:   filtered = tracked.filter { $0.status == .sold }
         }
-        return sorted(filtered)
+        return sorted(filtered, locale: locale)
     }
 
-    private func sorted(_ items: [ScanResult]) -> [ScanResult] {
+    private func sorted(_ items: [ScanResult], locale: Locale) -> [ScanResult] {
         switch sort {
         case .date:
             return items.sorted { effectiveDate($0) > effectiveDate($1) }
         case .profit:
+            // Profits compare only within a currency: 5,000 forints is not a
+            // bigger flip than 40 lei. So the priced flips are grouped by
+            // currency, the phone's own first and the rest by code (the order
+            // a mixed total prints in, `SaleCurrency.ordered`), and ranked
+            // within each. A ledger kept in one currency sorts as before.
+            let home = SaleCurrency.regionDefault(locale: locale)
             return items.sorted { a, b in
-                rankNilLast(a.realizedProfit, b.realizedProfit, tieBreak: { effectiveDate(a) > effectiveDate(b) })
+                if a.realizedProfit != nil, b.realizedProfit != nil {
+                    let (x, y) = (SaleCurrency.of(a, locale: locale), SaleCurrency.of(b, locale: locale))
+                    if x != y {
+                        if (x == home) != (y == home) { return x == home }
+                        return x < y
+                    }
+                }
+                return rankNilLast(a.realizedProfit, b.realizedProfit, tieBreak: { effectiveDate(a) > effectiveDate(b) })
             }
         case .roi:
             return items.sorted { a, b in
@@ -556,8 +569,9 @@ enum FlipsArchive {
         // model's number.
         let modelLikely = detail?.likely ?? detail?.expected
         let likely = modelLikely ?? (r.valueLow + r.valueHigh) / 2
-        // The currency the amounts were typed in (#224). `currency` only when
-        // the user chose it; otherwise the region currency the ledger showed,
+        // The currency the amounts were typed in (#224). `currency` when one
+        // is stored; otherwise the currency the ledger showed (`SaleCurrency.of`:
+        // dollars for a flip saved with amounts before currencies existed),
         // as `currency_assumed`, which the intake tags for the reviewer. This
         // wrote "USD" for every flip after the ledger had started printing lei
         // (AUDIT-2026-10-07, M1).

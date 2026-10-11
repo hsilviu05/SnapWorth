@@ -183,8 +183,19 @@ open an issue for the failure that names the build its fix needs.
 - [ ] With the phone's region set to Romania, a new sold flip defaults to
       **RON**. Germany gives **EUR**, the US **USD**, and a region outside
       the server's list gives **USD**.
-- [ ] Paid, sold, fees and profit all show the chosen symbol, and a flip
-      from 22 (no currency stored) still reads as before.
+- [ ] Paid, sold, fees and profit all show the chosen symbol.
+- [ ] A flip from 22 that has a paid or sold price (no currency stored)
+      reads in **dollars**, "$20", as it did in 22, whatever the region; its
+      Currency menu shows USD. One from 22 with no amounts offers the
+      region's currency, like a new find.
+- [ ] Region Romania: type a paid price on a new find, then set the region
+      to Germany. The find still reads lei, in the sheet and in My Flips:
+      the currency is stored with the first amount (or when it is marked
+      sold), not looked up again on every read.
+- [ ] A Thrift Flip saved to My Flips reads in dollars there, whatever the
+      region, as the Thrift Flip screen did.
+- [ ] Dollars print "$80" in every region, as the estimates do (not "80
+      USD" or "80 $"); in Canada or Australia, "US$80".
 
 ### Currency across flips ([#320](https://github.com/hsilviu05/SnapWorth/pull/320))
 

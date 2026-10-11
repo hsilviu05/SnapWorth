@@ -316,18 +316,25 @@ struct ResultView: View {
         // `MoneyInput`. Clearing the field still clears the stored value; a
         // half-typed or unparseable one now leaves the last good value alone
         // instead of writing nil on the way through.
+        //
+        // `SaleCurrency.pin` first, before the amount lands: the currency the
+        // field was showing becomes this flip's, so a later change of region
+        // cannot relabel it (and an amount with no currency reads as dollars).
         .onChange(of: paidPriceText) { _, newValue in
+            SaleCurrency.pin(result)
             if newValue.isEmpty { result.paidPrice = nil }
             else if let parsed = MoneyInput.parse(newValue) { result.paidPrice = parsed }
             vm.scheduleShareCardUpdate(result: result, photo: photo)
             ledgerDidChange()
         }
         .onChange(of: soldPriceText) { _, newValue in
+            SaleCurrency.pin(result)
             if newValue.isEmpty { result.soldPrice = nil }
             else if let parsed = MoneyInput.parse(newValue) { result.soldPrice = parsed }
             ledgerDidChange()
         }
         .onChange(of: feesText) { _, newValue in
+            SaleCurrency.pin(result)
             if newValue.isEmpty { result.feesEstimate = nil }
             else if let parsed = MoneyInput.parse(newValue) { result.feesEstimate = parsed }
             ledgerDidChange()

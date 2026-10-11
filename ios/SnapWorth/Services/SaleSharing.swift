@@ -22,10 +22,42 @@ enum SaleCurrency {
         return "USD"
     }
 
-    /// The currency a flip's amounts are in: chosen, or the region default.
+    /// The currency of an amount saved with none: US dollars.
+    ///
+    /// Up to build 22 every ledger field sat beside a fixed "$" and every
+    /// figure was printed as dollars, so that is what those amounts were typed
+    /// as. Reading them as the region default (#224) relabelled a Romanian
+    /// user's "$20 paid" as "20 lei" on the first launch of 23, with nothing
+    /// changed but the symbol.
+    static let unstated = "USD"
+
+    /// The currency a flip's amounts are in: the one stored with them, else
+    /// dollars when it has amounts (`unstated`), else the region default —
+    /// the currency its empty fields offer, which `pin` stores as soon as an
+    /// amount or a sale is entered.
+    ///
+    /// Read-time rather than a launch migration that writes "USD" into old
+    /// rows: nothing in the store changes, nothing has to run before the
+    /// first read (the widget seed, a sale share), and a flip saved before
+    /// currencies still exports as `currency_assumed`, which the gold-set
+    /// intake tags for review, instead of as a currency somebody chose.
     static func of(_ result: ScanResult, locale: Locale = .current) -> String {
-        result.saleCurrency.flatMap { all.contains($0) ? $0 : nil }
-            ?? regionDefault(locale: locale)
+        if let code = result.saleCurrency, all.contains(code) { return code }
+        let hasAmount = result.paidPrice != nil || result.soldPrice != nil
+            || result.feesEstimate != nil
+        return hasAmount ? unstated : regionDefault(locale: locale)
+    }
+
+    /// Stores the currency a flip shows, if it has none yet. Called before an
+    /// amount is written and when a find is marked sold: the moment the
+    /// region default beside the field becomes the currency of a figure.
+    ///
+    /// Left nil, the amounts followed the phone's region on every read, so a
+    /// user who moved from Germany to the UK saw every flip relabelled £ with
+    /// the same numbers, and a shared sale was re-sent under the new code.
+    static func pin(_ result: ScanResult, locale: Locale = .current) {
+        guard result.saleCurrency == nil else { return }
+        result.saleCurrency = of(result, locale: locale)
     }
 
     /// "$", "lei", "€" — the symbol the ledger shows beside an amount.
@@ -86,10 +118,27 @@ enum SaleCurrency {
     private static func formatter(_ code: String, locale: Locale) -> NumberFormatter {
         let f = NumberFormatter()
         f.numberStyle = .currency
-        f.locale = locale
+        f.locale = code == "USD" ? dollarLocale(locale) : locale
         f.currencyCode = code
         f.maximumFractionDigits = 0
         return f
+    }
+
+    /// The locale US dollars are written in: en_US, "$80", as the estimate
+    /// beside them (`snapCurrency`) and every ledger figure up to build 22
+    /// were. The phone's own locale wrote "80 USD" in Romania, "80 $" in
+    /// Germany and "US$80" in the UK. Except where the phone's currency is a
+    /// "$" too — Canada, Australia, Mexico — and "US$80" is what tells the
+    /// two apart.
+    private static func dollarLocale(_ locale: Locale) -> Locale {
+        let home = regionDefault(locale: locale)
+        let us = Locale(identifier: "en_US")
+        guard home != "USD" else { return us }
+        let f = NumberFormatter()
+        f.numberStyle = .currency
+        f.locale = locale
+        f.currencyCode = home
+        return f.currencySymbol == "$" ? locale : us
     }
 }
 

@@ -38,8 +38,10 @@ final class ScanResult {
     // ── Shared sale outcomes (#224) ───────────────────────────────────────
     // Both optional and additive, like the ledger fields above.
     /// The currency this flip's paid, sold and fee amounts were typed in, as an
-    /// ISO 4217 code. Nil on every flip saved before it, which reads as the
-    /// phone's region default (`SaleCurrency.of`).
+    /// ISO 4217 code. Nil on every flip saved before it: one with amounts
+    /// reads as dollars, which is what those were typed beside, and one
+    /// without as the phone's region default (`SaleCurrency.of`), stored
+    /// once an amount is entered (`SaleCurrency.pin`).
     var saleCurrency: String?
     /// The id this flip's shared sale is stored under on the server, set the
     /// first time it is shared and cleared when the record is deleted.

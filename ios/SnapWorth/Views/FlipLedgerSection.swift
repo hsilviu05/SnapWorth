@@ -203,6 +203,8 @@ struct FlipStatusCard: View {
         switch status {
         case .sold:
             if result.soldDate == nil { result.soldDate = Date() }
+            // The Currency menu appears now, showing the default; store it.
+            SaleCurrency.pin(result)
             if previous != .sold { Analytics.shared.track(.ledgerItemMarkedSold) }
             // No longer needs a "did it sell?" nudge.
             let id = result.id
@@ -234,7 +236,9 @@ struct FlipStatusCard: View {
     }
 
     /// Which currency this flip's amounts are in (#224). Defaults to the
-    /// phone's region; a sale shared from here keeps it, never relabelled USD.
+    /// phone's region, or to dollars on a flip saved with amounts before
+    /// currencies existed (`SaleCurrency.of`), and is stored once an amount
+    /// or the sale is (`SaleCurrency.pin`); a sale shared from here keeps it.
     private var currencyMenu: some View {
         HStack {
             Text("Currency")

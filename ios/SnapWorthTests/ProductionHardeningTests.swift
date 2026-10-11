@@ -5654,9 +5654,10 @@ final class FlipsArchiveTests: XCTestCase {
         XCTAssertEqual(Set(bare.keys), expected)
         XCTAssertTrue(bare["listed_date"] is NSNull)
         XCTAssertTrue(bare["photo_source"] is NSNull)
-        // No currency was chosen, so the one the ledger showed is assumed.
+        // No currency is stored, so the one the ledger showed is assumed:
+        // dollars, for amounts saved without one.
         XCTAssertTrue(bare["currency"] is NSNull)
-        XCTAssertEqual(bare["currency_assumed"] as? String, SaleCurrency.regionDefault())
+        XCTAssertEqual(bare["currency_assumed"] as? String, "USD")
         XCTAssertEqual(bare["sold_date"] as? String, "2026-09-14")
     }
 
@@ -7942,7 +7943,7 @@ final class FlipsSummaryCountTests: XCTestCase {
 
         XCTAssertEqual(s.itemsSold, 2)
         XCTAssertEqual(s.itemsPriced, 2)
-        XCTAssertEqual(s.realizedProfit, LedgerMath.Amounts([SaleCurrency.regionDefault(): 50]))
+        XCTAssertEqual(s.realizedProfit, LedgerMath.Amounts(["USD": 50]))
         XCTAssertTrue(s.profitCoversEverySale)
         XCTAssertEqual(s.soldLabel, "2 items sold")
     }
@@ -7953,7 +7954,7 @@ final class FlipsSummaryCountTests: XCTestCase {
         let s = viewModel().summary([sold(paid: 10, price: 40), sold(paid: nil, price: 60)],
                            scope: .allTime)
 
-        XCTAssertEqual(s.realizedProfit, LedgerMath.Amounts([SaleCurrency.regionDefault(): 30]))
+        XCTAssertEqual(s.realizedProfit, LedgerMath.Amounts(["USD": 30]))
         XCTAssertEqual(s.soldLabel, "2 items sold · 1 needs a paid price")
     }
 
@@ -8017,6 +8018,25 @@ final class ThriftFlipLedgerFeesTests: XCTestCase {
         XCTAssertEqual(expected, 12.025, accuracy: storageRounding, "sanity: $7.025 + $5")
         XCTAssertEqual(try XCTUnwrap(saved.feesEstimate), expected, accuracy: storageRounding)
         XCTAssertEqual(saved.paidPrice, 10)
+    }
+
+    /// Everything on the Thrift Flip screen is in dollars. The row it saved
+    /// had no currency, which read as the region default, so on a Romanian
+    /// phone My Flips printed the $10 just typed as "10 lei".
+    func test_aThriftFlipIsSavedInDollars() throws {
+        defer { AppLaunchState.reset() }
+        AppLaunchState.reset()
+
+        let vm = viewModel(shelf: "10", resale: "50", shipping: "5")
+        XCTAssertTrue(vm.saveToLedger(repository: try repository()))
+        let saved = try XCTUnwrap(vm.scanResult)
+        XCTAssertEqual(saved.saleCurrency, "USD")
+        XCTAssertEqual(SaleCurrency.of(saved, locale: Locale(identifier: "ro_RO")), "USD")
+
+        let chosen = viewModel(shelf: "10", resale: "50", shipping: "5")
+        chosen.scanResult?.saleCurrency = "EUR"
+        XCTAssertTrue(chosen.saveToLedger(repository: try repository()))
+        XCTAssertEqual(chosen.scanResult?.saleCurrency, "EUR", "a stored currency is kept")
     }
 
     func test_theLedgerProfitNowMatchesTheVerdict() throws {
@@ -9586,7 +9606,7 @@ final class LedgerMathTests: XCTestCase {
     func test_theBarsCountEverySaleOnce() {
         let rows = [item(.sold, soldOn: date(10, 1, hour: 0), paid: 10, price: 40)]
         let buckets = FlipsViewModel().monthlyBuckets(rows, now: date(10, 20), calendar: cal)
-        let home = SaleCurrency.regionDefault()
+        let home = SaleCurrency.unstated
         XCTAssertEqual(buckets.map { $0.profit.amount(in: home) }.reduce(0, +), 30,
                        "one $30 sale drawn as two bars")
         XCTAssertEqual(buckets.last?.profit.amount(in: home), 30)
@@ -9608,7 +9628,7 @@ final class LedgerMathTests: XCTestCase {
         XCTAssertEqual(header.itemsSold, widget.sold)
         XCTAssertEqual(header.itemsPriced, widget.flips)
         XCTAssertEqual(NSDecimalNumber(
-                           decimal: header.realizedProfit.amount(in: SaleCurrency.regionDefault())
+                           decimal: header.realizedProfit.amount(in: SaleCurrency.unstated)
                        ).doubleValue, widget.profit, accuracy: 0.001)
         XCTAssertEqual(header.itemsSold, 2)
         XCTAssertTrue(vm.hasSalesThisMonth(rows, now: now))
@@ -9621,7 +9641,7 @@ final class LedgerMathTests: XCTestCase {
                                       item(.sold, soldOn: date(9, 4), paid: nil, price: 25),
                                       item(.owned), item(.listed)])
         XCTAssertEqual(sales, LedgerMath.Sales(
-            profit: LedgerMath.Amounts([SaleCurrency.regionDefault(): 57]), priced: 1, count: 2))
+            profit: LedgerMath.Amounts([SaleCurrency.unstated: 57]), priced: 1, count: 2))
     }
 
     func test_aSaleWithNoDateIsInNoMonthButStillSold() {
@@ -10318,8 +10338,9 @@ final class LedgerCurrencyTests: XCTestCase {
 
     @MainActor
     func test_aLedgerKeptInLeiTotalsInLei() {
-        // The audit's case: a phone set to Romania, no currency picked.
-        let flip = sold(paid: 20, price: 100, currency: nil)
+        // The audit's case: a phone set to Romania, no currency picked — so
+        // the default, RON, was stored when the amounts were typed.
+        let flip = sold(paid: 20, price: 100, currency: "RON")
         let s = FlipsViewModel().summary([flip], scope: .allTime, locale: ro)
         XCTAssertEqual(s.realizedProfit, LedgerMath.Amounts(["RON": 80]))
         let header = SaleCurrency.signed(s.realizedProfit, locale: ro)
@@ -10348,6 +10369,68 @@ final class LedgerCurrencyTests: XCTestCase {
         XCTAssertEqual(SaleCurrency.format(LedgerMath.Amounts(), locale: us), "$0",
                        "an empty total is zero in the phone's currency")
         XCTAssertEqual(SaleCurrency.signed(LedgerMath.Amounts(["USD": 214]), locale: us), "+$214")
+    }
+
+    // ── A flip saved before currencies, and one saved after ─────────────────
+
+    @MainActor
+    func test_anAmountSavedWithNoCurrencyIsDollars() {
+        // Up to build 22 every ledger field sat beside a fixed "$". Read as
+        // the region default, a Romanian user's $20 became 20 lei on update.
+        let legacy = sold(paid: 20, price: 100, currency: nil)
+        XCTAssertEqual(SaleCurrency.of(legacy, locale: ro), "USD")
+        let s = FlipsViewModel().summary([legacy], scope: .allTime, locale: ro)
+        XCTAssertEqual(s.realizedProfit, LedgerMath.Amounts(["USD": 80]))
+        XCTAssertEqual(SaleCurrency.signed(s.realizedProfit, locale: ro), "+$80")
+    }
+
+    func test_aNewFlipStoresTheCurrencyItShows() {
+        let fresh = ScanResult(itemName: "Item", brand: "B", category: "clothing",
+                               conditionNotes: "Good", valueLow: 40, valueHigh: 60,
+                               confidence: "High", soldListingsCount: 0,
+                               listingTitle: "T", listingDescription: "D")
+        XCTAssertEqual(SaleCurrency.of(fresh, locale: ro), "RON",
+                       "with no amounts, the fields offer the region's currency")
+        SaleCurrency.pin(fresh, locale: ro)
+        fresh.paidPrice = 20
+        XCTAssertEqual(fresh.saleCurrency, "RON")
+        XCTAssertEqual(SaleCurrency.of(fresh, locale: Locale(identifier: "en_GB")), "RON",
+                       "a later change of region does not relabel it")
+
+        let legacy = sold(paid: 20, price: 100, currency: nil)
+        SaleCurrency.pin(legacy, locale: ro)
+        XCTAssertEqual(legacy.saleCurrency, "USD", "an old flip keeps the dollars it showed")
+        let chosen = sold(paid: 20, price: 100, currency: "EUR")
+        SaleCurrency.pin(chosen, locale: ro)
+        XCTAssertEqual(chosen.saleCurrency, "EUR")
+    }
+
+    func test_dollarsAreWrittenAsTheEstimateIsInEveryLocale() {
+        // The phone's locale wrote "80 USD", "80 $" or "US$80" beside a
+        // "$45–$90" estimate.
+        for id in ["ro_RO", "de_DE", "en_GB", "zh_Hans_CN"] {
+            let locale = Locale(identifier: id)
+            XCTAssertEqual(SaleCurrency.format(80, code: "USD", locale: locale), "$80", id)
+            XCTAssertEqual(SaleCurrency.symbol("USD", locale: locale), "$", id)
+        }
+        // Where the phone's own currency is a "$" too, US dollars say so.
+        XCTAssertNotEqual(SaleCurrency.format(80, code: "USD", locale: Locale(identifier: "en_CA")),
+                          "$80")
+    }
+
+    @MainActor
+    func test_theProfitSortRanksWithinACurrency() {
+        let forints = sold(paid: 1_000, price: 6_000, currency: "HUF")
+        let best = sold(paid: 10, price: 50, currency: "RON")
+        let other = sold(paid: 10, price: 40, currency: "RON")
+        let unpriced = sold(paid: nil, price: 40, currency: "RON")
+        let vm = FlipsViewModel()
+        vm.sort = .profit
+        let order = vm.visibleItems([forints, unpriced, other, best], locale: ro)
+        XCTAssertTrue(order[0] === best)
+        XCTAssertTrue(order[1] === other)
+        XCTAssertTrue(order[2] === forints, "5,000 forints is not ranked against 40 lei")
+        XCTAssertTrue(order[3] === unpriced)
     }
 
     func test_aTotalIsALossOnlyWhenEveryCurrencyIs() {
