@@ -145,23 +145,40 @@ final class FlipsViewModel {
         /// Everything sold in scope, priced or not.
         var itemsSold: Int = 0
         /// The subset `realizedProfit` is actually the profit *of*. Smaller
-        /// than `itemsSold` by exactly the sales with no paid price.
+        /// than `itemsSold` by exactly the sales missing a sold price or a
+        /// paid price.
         var itemsPriced: Int = 0
+        /// The sales with no sold price: marked sold before the price was
+        /// typed. Part of the gap between `itemsSold` and `itemsPriced`; the
+        /// rest have a sold price and no paid price.
+        var itemsMissingSale: Int = 0
 
         /// Whether the headline figure covers every sale it sits above.
         var profitCoversEverySale: Bool { itemsPriced == itemsSold }
 
-        /// How the sold count should read under a profit total, given that
-        /// some of those sales may not be in it.
+        /// How the sold count should read under the header's profit total,
+        /// given that some of those sales may not be in it: "3 items sold · 1
+        /// needs a sale price · 1 needs a paid price". (The month card shows
+        /// only `itemsPriced`; see `renderMonthCard`.)
         ///
-        /// Split out so the header and the shareable month card cannot drift:
-        /// they render the same two numbers and there is nowhere else the gap
-        /// can show.
+        /// The two gaps are named apart. Every sale outside the total was
+        /// reported as needing a paid price, including one whose paid price
+        /// was already there and whose sold price was not. A sale missing both
+        /// is counted as needing the sale price, the field beside the status.
         var soldLabel: String {
             let sales = String(localized: "\(itemsSold) items sold")
             guard !profitCoversEverySale else { return sales }
-            let gap = String(localized: "\(itemsSold - itemsPriced) needs a paid price")
-            return String(localized: "\(sales) · \(gap)")
+            let needsPaid = itemsSold - itemsPriced - itemsMissingSale
+            var label = sales
+            if itemsMissingSale > 0 {
+                let gap = String(localized: "\(itemsMissingSale) needs a sale price")
+                label = String(localized: "\(label) · \(gap)")
+            }
+            if needsPaid > 0 {
+                let gap = String(localized: "\(needsPaid) needs a paid price")
+                label = String(localized: "\(label) · \(gap)")
+            }
+            return label
         }
         var totalInvested = LedgerMath.Amounts()
         var averageROI: Decimal?          // fraction, e.g. 0.42: no currency
@@ -203,7 +220,8 @@ final class FlipsViewModel {
 
         // Two counts, because they are two different facts.
         //
-        // `realizedProfit` is nil without a paid price, and dropping those rows
+        // `realizedProfit` is nil without a paid price or without a sold price
+        // (`itemsMissingSale` says which), and dropping those rows
         // from the sum rather than guessing a cost basis is deliberate and
         // tested. Pairing that sum with a count taken over the *larger* set was
         // not: one uncosted sale rendered as "+$0" above "1 item sold", which
@@ -212,11 +230,12 @@ final class FlipsViewModel {
         // understates real profit with nothing on screen to say so.
         //
         // In the list the gap is already visible (the row shows "—" and says
-        // "Profit unknown — add what you paid"). The header and the share card
-        // show only totals, so they need the count to carry it.
+        // "Profit unknown — add what you paid", or what it sold for). The header
+        // and the share card show only totals, so they need the count to carry it.
         let sales = LedgerMath.sales(scopedSold, locale: locale)
         s.itemsSold = sales.count
         s.itemsPriced = sales.priced
+        s.itemsMissingSale = scopedSold.filter { $0.soldPrice == nil }.count
         s.realizedProfit = sales.profit
 
         let rois = scopedSold.compactMap(\.roi)
@@ -286,14 +305,23 @@ final class FlipsViewModel {
 
     // ── Share "my month" ────────────────────────────────────────────────────────
 
-    /// True when the current month has at least one sold item — the only case a
-    /// month card should render (never a sad/empty card).
+    /// True when the current month has at least one sold item, priced or not.
+    /// The month card needs a priced one (`canShareMonth`): never a sad or
+    /// empty card.
     func hasSalesThisMonth(_ all: [ScanResult], now: Date = Date()) -> Bool {
         !LedgerMath.soldInMonth(all, containing: now).isEmpty
     }
 
+    /// True when the month card has something to show: a sale this month
+    /// with a profit (`LedgerMath.sales`' `priced`), since the card carries
+    /// only priced sales. "Share this month" was offered on any sale, and on
+    /// a month of unpriced ones tapping it did nothing at all.
+    func canShareMonth(_ all: [ScanResult], now: Date = Date()) -> Bool {
+        LedgerMath.soldInMonth(all, containing: now).contains { $0.realizedProfit != nil }
+    }
+
     func renderMonthCard(_ all: [ScanResult]) -> UIImage? {
-        guard hasSalesThisMonth(all) else { return nil }
+        guard canShareMonth(all) else { return nil }
         let s = summary(all, scope: .month)
         // The card carries the *priced* count, not every sale.
         //

@@ -316,7 +316,8 @@ struct MonthProfitView: View {
     private var profit: Double? { haul.monthProfit(at: now) }
     private var flips: Int { haul.monthFlips(at: now) }
     /// Everything sold, cost basis or not. `flips` counts only what could be
-    /// priced, so these differ exactly when a sale has no paid price.
+    /// priced, so these differ exactly when a sale has no paid price or no
+    /// sold price.
     private var sold: Int { haul.monthSold(at: now) }
 
     /// In the currency each sale was typed in (`monthProfitText`): this
@@ -330,14 +331,18 @@ struct MonthProfitView: View {
 
     /// Three states, not two. A nil profit used to mean only one thing here —
     /// "nothing sold" — and it means two: nothing sold, or things sold that
-    /// nobody entered a paid price for. `paidPrice` is optional and the app
+    /// nobody entered a paid (or sold) price for. `paidPrice` is optional and the app
     /// advertises one benefit for filling it in, so the second is the common
     /// case, and the widget was flatly contradicting the Flips screen on the
     /// same data: "No flips sold yet this month" beside "2 items sold".
+    ///
+    /// "Add the prices", not "add what you paid": a sale can be missing its
+    /// sold price instead (marked sold before the price was typed), and the
+    /// blob carries only the two counts, not which price is missing.
     private var caption: String {
         guard profit != nil else {
             return sold > 0
-                ? String(localized: "\(sold) sold · add what you paid")
+                ? String(localized: "\(sold) sold · add the prices")
                 : String(localized: "No flips sold yet this month")
         }
         return String(localized: "from \(flips) flips")
@@ -347,7 +352,7 @@ struct MonthProfitView: View {
         guard profit != nil else {
             guard sold > 0 else { return String(localized: "No flips sold yet this month") }
             let count = String(localized: "\(sold) flips sold this month")
-            return String(localized: "\(count), profit unknown until you add what you paid")
+            return String(localized: "\(count), profit unknown until you add the prices")
         }
         let from = String(localized: "from \(flips) flips")
         return String(localized: "\(value) profit this month \(from)")

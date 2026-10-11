@@ -5306,7 +5306,7 @@ final class WidgetEntitlementTests: XCTestCase {
     }
 
     /// A sale nobody priced still reads as nil, for everyone. The widget's
-    /// three states — a figure, "N sold · add what you paid", and "No flips
+    /// three states — a figure, "N sold · add the prices", and "No flips
     /// sold yet this month" — now turn on the ledger alone and never on tier.
     func test_anUnpricedSaleIsStillNilAndStillCounted() throws {
         let item = soldItem(paid: 20, sold: 120, soldDate: .now)
@@ -7962,6 +7962,45 @@ final class FlipsSummaryCountTests: XCTestCase {
         let s = viewModel().summary([], scope: .allTime)
         XCTAssertEqual(s.soldLabel, "0 items sold")
         XCTAssertTrue(s.profitCoversEverySale, "nothing is missing from nothing")
+    }
+
+    func test_twoUncostedSalesAgreeWithTheirVerb() {
+        // "2 needs a paid price": the English plural had the same form twice.
+        let s = viewModel().summary([sold(paid: 10, price: 40), sold(paid: nil, price: 60),
+                                     sold(paid: nil, price: 25)], scope: .allTime)
+        XCTAssertEqual(s.soldLabel, "3 items sold · 2 need a paid price")
+    }
+
+    func test_aSaleWithNoSoldPriceSaysSo() {
+        // Paid $8, tapped Sold, closed the sheet: the header asked for the
+        // paid price that was already there.
+        let noSale = sold(paid: 8, price: 0)
+        noSale.soldPrice = nil
+        let s = viewModel().summary([noSale], scope: .allTime)
+        XCTAssertEqual(s.itemsMissingSale, 1)
+        XCTAssertEqual(s.soldLabel, "1 item sold · 1 needs a sale price")
+
+        let both = viewModel().summary([sold(paid: 10, price: 40), noSale,
+                                        sold(paid: nil, price: 25)], scope: .allTime)
+        XCTAssertEqual(both.soldLabel, "3 items sold · 1 needs a sale price · 1 needs a paid price")
+    }
+
+    func test_theMonthIsOfferedForSharingOnlyWhenTheCardHasSomethingToShow() {
+        // An unpriced sale is a sale this month, but the card carries only
+        // priced ones: "Share this month" was offered and did nothing.
+        let vm = viewModel()
+        let unpriced = [sold(paid: nil, price: 40, daysAgo: 0)]
+        XCTAssertTrue(vm.hasSalesThisMonth(unpriced))
+        XCTAssertFalse(vm.canShareMonth(unpriced))
+        XCTAssertNil(vm.renderMonthCard(unpriced))
+        XCTAssertTrue(vm.canShareMonth(unpriced + [sold(paid: 10, price: 40, daysAgo: 0)]))
+    }
+
+    func test_thePaidCaptionPromisesAMultipleOnlyInDollars() {
+        XCTAssertEqual(PaidPriceCard.caption(for: "USD"),
+                       "Adds your find multiple to the share card")
+        XCTAssertEqual(PaidPriceCard.caption(for: "RON"), "Adds what you paid to the share card",
+                       "outside dollars the card prints the price, never a multiple")
     }
 }
 

@@ -73,12 +73,12 @@
       "de": "%@, %@",
       "zh-Hans": "%@, %@"
     },
-    "%@, profit unknown until you add what you paid": {
-      "en": "%@, profit unknown until you add what you paid",
-      "ro": "%@, profitul rămâne necunoscut până adaugi cât ai dat",
-      "es": "%@, la ganancia no se sabe hasta que añadas lo que pagaste",
-      "de": "%@, der Gewinn bleibt unbekannt, bis du einträgst, was du bezahlt hast",
-      "zh-Hans": "%@，填上入手价才能算出利润"
+    "%@, profit unknown until you add the prices": {
+      "en": "%@, profit unknown until you add the prices",
+      "ro": "%@, profitul rămâne necunoscut până adaugi prețurile",
+      "es": "%@, la ganancia no se sabe hasta que añadas los precios",
+      "de": "%@, der Gewinn bleibt unbekannt, bis du die Preise einträgst",
+      "zh-Hans": "%@，填上价格才能算出利润"
     },
     "%@. Last known — open SnapWorth to refresh.": {
       "en": "%@. Last known — open SnapWorth to refresh.",
@@ -197,25 +197,25 @@
       },
       "zh-Hans": "%lld 件"
     },
-    "%lld sold · add what you paid": {
+    "%lld sold · add the prices": {
       "en": {
-        "one": "%lld sold · add what you paid",
-        "other": "%lld sold · add what you paid"
+        "one": "%lld sold · add the prices",
+        "other": "%lld sold · add the prices"
       },
       "ro": {
-        "one": "unul vândut · adaugă cât ai dat",
-        "few": "%lld vândute · adaugă cât ai dat",
-        "other": "%lld de vândute · adaugă cât ai dat"
+        "one": "unul vândut · adaugă prețurile",
+        "few": "%lld vândute · adaugă prețurile",
+        "other": "%lld de vândute · adaugă prețurile"
       },
       "es": {
-        "one": "%lld vendido · añade lo que pagaste",
-        "other": "%lld vendidos · añade lo que pagaste"
+        "one": "%lld vendido · añade los precios",
+        "other": "%lld vendidos · añade los precios"
       },
       "de": {
-        "one": "%lld verkauft · trag ein, was du bezahlt hast",
-        "other": "%lld verkauft · trag ein, was du bezahlt hast"
+        "one": "%lld verkauft · trag die Preise ein",
+        "other": "%lld verkauft · trag die Preise ein"
       },
-      "zh-Hans": "已售 %lld 件 · 填上入手价"
+      "zh-Hans": "已售 %lld 件 · 填上价格"
     },
     "Back tomorrow, or go Pro": {
       "en": "Back tomorrow, or go Pro",

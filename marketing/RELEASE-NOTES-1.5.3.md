@@ -222,6 +222,13 @@ and use the real widget:
 - [ ] Export CSV: the last column is Currency. The photo export's JSON has
       `currency` for a flip that chose one.
 - [ ] VoiceOver reads a lei profit as lei, not dollars.
+- [ ] Type a paid price, tap Sold, close the sheet without a sold price: My
+      Flips' header reads "1 needs a sale price" (not "a paid price"),
+      VoiceOver on the row says "add what it sold for", and the Profit
+      widget says "1 sold · add the prices". With no priced sale this month,
+      ⋯ offers no "Share this month".
+- [ ] In RON, the caption under "What did you pay?" reads "Adds what you
+      paid to the share card"; in USD it still promises the find multiple.
 
 ### ResultView walkthrough (#229 acceptance)
 

@@ -89,17 +89,17 @@ enum LedgerMath {
 
     /// What a set of finds sold for, in the terms every sales total uses.
     struct Sales: Equatable {
-        /// Realised profit, summed over the sales with a paid price, per
-        /// currency (`Amounts`).
+        /// Realised profit, summed over the sales with a paid and a sold
+        /// price, per currency (`Amounts`).
         ///
-        /// `realizedProfit` is nil without one, and a sale with no cost basis
+        /// `realizedProfit` is nil without both, and a sale with no cost basis
         /// has no knowable profit: counting it as zero would understate the
         /// figure, and guessing a basis would invent it.
         var profit = Amounts()
         /// How many sales `profit` is the profit *of*.
         var priced: Int = 0
         /// Every sale, priced or not. Larger than `priced` by exactly the
-        /// sales nobody entered a paid price for — the gap "$214 from 6
+        /// sales missing a paid price or a sold price — the gap "$214 from 6
         /// flips" and "2 items sold" must each be honest about.
         var count: Int = 0
     }
