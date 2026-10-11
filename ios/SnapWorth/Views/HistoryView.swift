@@ -275,6 +275,12 @@ struct HistoryView: View {
             Self.resultView(for: result, purchaseService: purchaseService) { selectedResult = nil }
                 .presentationDragIndicator(.visible)
         }
+        // A deep link to another tab: a sheet left up here would cover it.
+        // See `SnapWorthApp.open(_:center:)`.
+        .onReceive(NotificationCenter.default.publisher(for: .snapDismissForRoute)) { _ in
+            showPaywall = false
+            selectedResult = nil
+        }
         .confirmationDialog(
             "Delete this find?",
             isPresented: Binding(

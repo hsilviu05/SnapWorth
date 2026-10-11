@@ -1059,40 +1059,64 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
 
     // MARK: - UNUserNotificationCenterDelegate (deep links)
 
+    // The completion-handler renditions, not the `async` ones, and each
+    // handler is called from the main actor.
+    //
+    // These were `nonisolated async`. The Objective-C thunk for an async
+    // method runs its body in a task with the method's own isolation — none —
+    // and calls UIKit's completion block when the body returns. After the hop
+    // to the main actor for `handleOpen`, the body resumed on the cooperative
+    // pool, so the block for a tapped notification ran off the main thread,
+    // where UIKit's response handling asserts "Call must be made on main
+    // thread". Calling the handler ourselves, inside a main-actor task, puts
+    // it on the main thread by construction. Do not go back to
+    // `nonisolated async` here.
+    //
+    // The category is read out before the hop, so the non-Sendable response
+    // never crosses into the task.
     nonisolated func userNotificationCenter(
         _ center: UNUserNotificationCenter,
-        willPresent notification: UNNotification
-    ) async -> UNNotificationPresentationOptions {
-        [.banner, .sound]
+        willPresent notification: UNNotification,
+        withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
+    ) {
+        Task { @MainActor in
+            completionHandler([.banner, .sound])
+        }
     }
 
     nonisolated func userNotificationCenter(
         _ center: UNUserNotificationCenter,
-        didReceive response: UNNotificationResponse
-    ) async {
+        didReceive response: UNNotificationResponse,
+        withCompletionHandler completionHandler: @escaping () -> Void
+    ) {
         let category = response.notification.request.content.userInfo["category"] as? String
-        await MainActor.run { self.handleOpen(category) }
+        Task { @MainActor in
+            self.handleOpen(category)
+            completionHandler()
+        }
     }
 
     private func handleOpen(_ categoryRaw: String?) {
         guard let categoryRaw, let category = Category(rawValue: categoryRaw) else { return }
         Analytics.shared.track(.notificationOpened(category: categoryRaw))
+        // Through `SnapWorthApp.open`, which first clears anything presented
+        // over the tab bar, so the destination is not left hidden behind it.
         switch category {
         case .recap:
             markRecapViewed()
-            NotificationCenter.default.post(name: .snapOpenFlips, object: nil)
+            SnapWorthApp.open(.snapOpenFlips)
         case .ledger:
-            NotificationCenter.default.post(name: .snapOpenFlips, object: nil)
+            SnapWorthApp.open(.snapOpenFlips)
         case .trial:
-            NotificationCenter.default.post(name: .snapOpenSettings, object: nil)
+            SnapWorthApp.open(.snapOpenSettings)
         case .portfolio:
             // Reuses the widget's existing My Finds route rather than adding a
             // second notification name for the same destination — MainTabView
             // already listens for it.
-            NotificationCenter.default.post(name: .snapWidgetOpenHistory, object: nil)
+            SnapWorthApp.open(.snapWidgetOpenHistory)
         case .freeScan:
             // Straight to the camera: the notification promised a scan.
-            NotificationCenter.default.post(name: .snapWidgetOpenScan, object: nil)
+            SnapWorthApp.open(.snapWidgetOpenScan)
         }
     }
 

@@ -9189,6 +9189,43 @@ final class WidgetURLRoutingTests: XCTestCase {
         XCTAssertNil(SnapWorthApp.route(url("snapworth://elsewhere"), onboarded: true))
         XCTAssertNil(SnapWorthApp.route(url("https://snapworth.app/scan"), onboarded: true))
     }
+
+    // `MainTabView` answers a route by changing the tab and nothing else, so a
+    // sheet or cover presented over the tab bar stayed in front of the tab
+    // the user had tapped a notification or widget to reach.
+
+    /// The observer block is `@Sendable`, so it cannot append to a captured
+    /// `var`. Posting is synchronous, on this thread, so nothing races.
+    private final class Seen: @unchecked Sendable {
+        var names: [Notification.Name] = []
+    }
+
+    private func posted(by name: Notification.Name) -> [Notification.Name] {
+        let center = NotificationCenter()
+        let seen = Seen()
+        let watched: [Notification.Name] = [.snapDismissForRoute, .snapWidgetOpenScan,
+                                            .snapWidgetOpenHistory, .snapOpenFlips, .snapOpenSettings]
+        let tokens = watched.map { watchedName in
+            center.addObserver(forName: watchedName, object: nil, queue: nil) { note in
+                seen.names.append(note.name)
+            }
+        }
+        SnapWorthApp.open(name, center: center)
+        for token in tokens { center.removeObserver(token) }
+        return seen.names
+    }
+
+    func test_routesToAnotherTabClearPresentationsFirst() {
+        for name: Notification.Name in [.snapWidgetOpenHistory, .snapOpenFlips, .snapOpenSettings] {
+            XCTAssertEqual(posted(by: name), [.snapDismissForRoute, name], name.rawValue)
+        }
+    }
+
+    func test_theScanRouteDismissesNothingExtra() {
+        // ScanView and HaulView clear their own presentations for it, and the
+        // Haul cover, being a camera, stays.
+        XCTAssertEqual(posted(by: .snapWidgetOpenScan), [.snapWidgetOpenScan])
+    }
 }
 
 // ── "Open SnapWorth to refresh" has to refresh ───────────────────────────────
