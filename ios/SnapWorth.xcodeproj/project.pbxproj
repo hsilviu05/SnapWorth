@@ -29,6 +29,9 @@
 		FEED000000000000000093B2 /* HaulView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FEED000000000000000093A2 /* HaulView.swift */; };
 		FEED000000000000000000B3 /* MarketplaceFees.swift in Sources */ = {isa = PBXBuildFile; fileRef = FEED000000000000000000A3 /* MarketplaceFees.swift */; };
 		1ED6E4000000000000000001 /* LedgerMath.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1ED6E4000000000000000002 /* LedgerMath.swift */; };
+		90A0C0DE0000000000000001 /* LegitCheck.swift in Sources */ = {isa = PBXBuildFile; fileRef = 90A0C0DE0000000000000002 /* LegitCheck.swift */; };
+		90A0C0DE0000000000000003 /* LegitCheckView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 90A0C0DE0000000000000004 /* LegitCheckView.swift */; };
+		90A0C0DE0000000000000005 /* LegitCheckTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 90A0C0DE0000000000000006 /* LegitCheckTests.swift */; };
 		FEED000000000000000000B2 /* PriceTagOCR.swift in Sources */ = {isa = PBXBuildFile; fileRef = FEED000000000000000000A2 /* PriceTagOCR.swift */; };
 		EA57E0000000000000000B01 /* RareFind.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA57E0000000000000000A01 /* RareFind.swift */; };
 		EA57E0000000000000000B02 /* RareFindViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA57E0000000000000000A02 /* RareFindViews.swift */; };
@@ -155,6 +158,9 @@
 		FEED000000000000000093A2 /* HaulView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HaulView.swift; sourceTree = "<group>"; };
 		FEED000000000000000000A3 /* MarketplaceFees.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarketplaceFees.swift; sourceTree = "<group>"; };
 		1ED6E4000000000000000002 /* LedgerMath.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LedgerMath.swift; sourceTree = "<group>"; };
+		90A0C0DE0000000000000002 /* LegitCheck.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LegitCheck.swift; sourceTree = "<group>"; };
+		90A0C0DE0000000000000004 /* LegitCheckView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LegitCheckView.swift; sourceTree = "<group>"; };
+		90A0C0DE0000000000000006 /* LegitCheckTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LegitCheckTests.swift; sourceTree = "<group>"; };
 		FEED000000000000000000A2 /* PriceTagOCR.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PriceTagOCR.swift; sourceTree = "<group>"; };
 		EA57E0000000000000000A01 /* RareFind.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RareFind.swift; sourceTree = "<group>"; };
 		EA57E0000000000000000A02 /* RareFindViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RareFindViews.swift; sourceTree = "<group>"; };
@@ -339,6 +345,7 @@
 				AA0000000000000000000110 /* AppError.swift */,
 				FEED000000000000000000A3 /* MarketplaceFees.swift */,
 				1ED6E4000000000000000002 /* LedgerMath.swift */,
+				90A0C0DE0000000000000002 /* LegitCheck.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -410,6 +417,7 @@
 				AA0000000000000000229A0A /* FlipLedgerSection.swift */,
 				AA0000000000000000229A08 /* SnapSellSection.swift */,
 				AA0000000000000000229A06 /* TagCameraSheet.swift */,
+				90A0C0DE0000000000000004 /* LegitCheckView.swift */,
 				AA0000000000000000229A04 /* ValuationDetailView.swift */,
 				AA0000000000000000229A02 /* FullDetailOffer.swift */,
 				AA00000000000000000000E8 /* HistoryView.swift */,
@@ -455,6 +463,7 @@
 			children = (
 				AA0000000000000000000102 /* SnapWorthTests.swift */,
 				BB0000000000000000000A02 /* ProductionHardeningTests.swift */,
+				90A0C0DE0000000000000006 /* LegitCheckTests.swift */,
 				BB0000000000000000000F02 /* MigrationTests.swift */,
 				EA57E0000000000000000A03 /* RareFindTests.swift */,
 				FEED000000000000000091A2 /* ListingPhotos */,
@@ -681,6 +690,7 @@
 				FEED000000000000000093B2 /* HaulView.swift in Sources */,
 				FEED000000000000000000B3 /* MarketplaceFees.swift in Sources */,
 				1ED6E4000000000000000001 /* LedgerMath.swift in Sources */,
+				90A0C0DE0000000000000001 /* LegitCheck.swift in Sources */,
 				FEED000000000000000000B2 /* PriceTagOCR.swift in Sources */,
 				EA57E0000000000000000B01 /* RareFind.swift in Sources */,
 				FEED000000000000000097B1 /* ReferralService.swift in Sources */,
@@ -709,6 +719,7 @@
 				AA0000000000000000229A09 /* FlipLedgerSection.swift in Sources */,
 				AA0000000000000000229A07 /* SnapSellSection.swift in Sources */,
 				AA0000000000000000229A05 /* TagCameraSheet.swift in Sources */,
+				90A0C0DE0000000000000003 /* LegitCheckView.swift in Sources */,
 				AA0000000000000000229A03 /* ValuationDetailView.swift in Sources */,
 				AA0000000000000000229A01 /* FullDetailOffer.swift in Sources */,
 				AA00000000000000000000E9 /* HistoryView.swift in Sources */,
@@ -729,6 +740,7 @@
 			files = (
 				AA0000000000000000000100 /* SnapWorthTests.swift in Sources */,
 				BB0000000000000000000A01 /* ProductionHardeningTests.swift in Sources */,
+				90A0C0DE0000000000000005 /* LegitCheckTests.swift in Sources */,
 				BB0000000000000000000F01 /* MigrationTests.swift in Sources */,
 				EA57E0000000000000000B03 /* RareFindTests.swift in Sources */,
 			);

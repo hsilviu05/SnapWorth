@@ -1,0 +1,9 @@
+{
+  "verdict": "some_concerns",
+  "reasons": [
+    "The inside label's font is evenly spaced, like the brand's labels from this era.",
+    "The logo's stitching is uneven, with a loose thread under the second letter."
+  ],
+  "unclear_photos": [],
+  "prompt_version": "legit-v1"
+}

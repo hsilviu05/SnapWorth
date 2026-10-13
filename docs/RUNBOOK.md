@@ -488,7 +488,7 @@ availability one.
    fires. Change `client_ip` for the new shape first, then run the owner
    probe through the proxy.
 3. The IP bucket is one for every route with a limit — `/scan`, `/listing`,
-   `/trends`, `/auth/entitlement`, and the unauthenticated `/auth` routes and
+   `/legit`, `/trends`, `/auth/entitlement`, and the unauthenticated `/auth` routes and
    `/apple/notifications` — so from one address they stop together. The
    per-device buckets are one per route, per hour (`ratelimit.py`):
 
@@ -497,6 +497,7 @@ availability one.
    | `/scan`, free | `rl:dev:<subject>` | 20 | `RATE_MAX_REQUESTS` |
    | `/scan`, Pro | `rl:dev:<subject>` | 60 — the fair-use ceiling on "Unlimited scans" | `PRO_SCAN_RATE_MAX_REQUESTS` |
    | `/listing` (Pro only) | `rl:listing:<subject>` | 60, the IP cap; never below it (below) | `LISTING_RATE_MAX_REQUESTS` |
+   | `/legit` (Pro only, #90) | `rl:legit:<subject>` | 20 — up to four photos a call; the app words its own 429 | `LEGIT_RATE_MAX_REQUESTS` |
    | `/trends` | `rl:trends:<subject>` | 60 — no model call; a loop-breaker | `TRENDS_RATE_MAX_REQUESTS` |
    | `/auth/entitlement` | `rl:ent:<subject>` | 60 | `ENTITLEMENT_RATE_MAX_REQUESTS` |
 

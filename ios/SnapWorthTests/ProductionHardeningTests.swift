@@ -1761,6 +1761,7 @@ final class ScanPersistenceFailureTests: XCTestCase {
             portfolioValueRaw: 41, valueHistoryData: Data([4, 5]), valuationDetailData: Data([6]))
         original.saleCurrency = "RON"
         original.outcomeID = "outcome-1"
+        original.legitCheckData = Data([7])
 
         let copy = original.detachedCopy()
 
@@ -1793,6 +1794,7 @@ final class ScanPersistenceFailureTests: XCTestCase {
             "portfolioValueRaw": { $0.portfolioValueRaw == $1.portfolioValueRaw },
             "valueHistoryData": { $0.valueHistoryData == $1.valueHistoryData },
             "valuationDetailData": { $0.valuationDetailData == $1.valuationDetailData },
+            "legitCheckData": { $0.legitCheckData == $1.legitCheckData },
         ]
         let entity = try XCTUnwrap(Schema([ScanResult.self]).entitiesByName["ScanResult"])
         XCTAssertEqual(Set(carried.keys), Set(entity.storedProperties.map(\.name)),
@@ -10100,7 +10102,7 @@ final class ErrorContractTests: XCTestCase {
         switch name {
         case "scan-402-quota.json":
             return (.quotaExceeded(f.detail), .quotaExceeded(ServerErrorCode.quotaExhausted.message))
-        case "listing-402-pro.json":
+        case "listing-402-pro.json", "legit-402-pro.json":
             return (.proRequired(f.detail), .proRequired(ServerErrorCode.proRequired.message))
         case "scan-422-unusable-photo.json":
             return (.unusablePhoto(f.detail), .unusablePhoto(ServerErrorCode.photoUnusable.message))

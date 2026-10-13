@@ -68,6 +68,8 @@ AI_NO_PRICE = "ai_no_price"
 QUOTA_UNAVAILABLE = "quota_unavailable"
 #: `/listing` was asked for a marketplace it does not know (400).
 UNSUPPORTED_MARKETPLACE = "unsupported_marketplace"
+#: `/legit` was sent fewer than two photos, or a field it does not know (400).
+LEGIT_PHOTOS_INVALID = "legit_photos_invalid"
 
 # The upload itself (400). `imagevalidation.ImageValidationError.code`.
 IMAGE_EMPTY = "image_empty"

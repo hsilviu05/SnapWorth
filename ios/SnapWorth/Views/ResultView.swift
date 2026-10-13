@@ -46,6 +46,7 @@ struct ResultView: View {
     @State private var showShareSheet = false
     @State private var showShareChoice = false
     @State private var showTagCamera = false
+    @State private var showLegitCheck = false
     /// What the share sheet carries: the result card, or the guess story pair.
     @State private var shareItems: [Any] = []
     @State private var showPaywall = false
@@ -145,6 +146,18 @@ struct ResultView: View {
                             addTagCard
                                 .padding(.horizontal, 20)
                                 .padding(.bottom, 8)
+
+                            // On every result, fresh or reopened: a read
+                            // rewrites nothing, it adds a note. Inside the
+                            // cover's branch only for the layout, whose gaps
+                            // below are worked out for these cards.
+                            if LegitCheckCard.isOffered(for: result) {
+                                LegitCheckCard(result: result, isPro: isPro,
+                                               onStart: { showLegitCheck = true },
+                                               onPaywall: openPaywall)
+                                    .padding(.horizontal, 20)
+                                    .padding(.bottom, 8)
+                            }
                         }
 
                         conditionCard
@@ -353,6 +366,16 @@ struct ResultView: View {
                 showTagCamera = false
                 if let image { rescan(withTag: image) }
             }
+        }
+        .fullScreenCover(isPresented: $showLegitCheck) {
+            LegitCheckFlow(result: result, onRead: { read in
+                // Kept on the find as soon as it arrives, so closing the
+                // sheet at once does not lose it. The share card does not
+                // read it (`ScanResult.legitCheckData`), so nothing there
+                // needs re-rendering.
+                result.legitCheckData = read.encoded()
+                try? modelContext.save()
+            }, onClose: { showLegitCheck = false })
         }
         .sheet(isPresented: $showShareSheet) {
             if !shareItems.isEmpty {

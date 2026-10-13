@@ -24,7 +24,7 @@ struct PrivacyPolicyView: View {
 /// Change this and `backend/main.py`'s `/privacy` together.
 /// `PrivacyPolicyDisclosureTests` fails if a processor goes missing.
 enum PrivacyPolicy {
-    static let updated = "October 11, 2026"
+    static let updated = "October 13, 2026"
 
     /// Every third party that receives user data, by the name a reader would
     /// recognise. The test asserts each appears in `sections`.
@@ -36,7 +36,7 @@ enum PrivacyPolicy {
             SnapWorth ("we", "our", or "us") operates the SnapWorth mobile application. This page informs you of our policies regarding the collection, use, and disclosure of personal data when you use our Service.
             """),
         (heading: "Information We Collect", text: """
-            We collect photos you submit for valuation. Photos are sent to our server, processed by an AI model to identify the item and estimate resale value, and are not stored after the response is returned.
+            We collect photos you submit for valuation or for a legit check. Photos are sent to our server, processed by an AI model to identify the item and estimate resale value, or to look for the usual signs of a replica, and are not stored after the response is returned.
 
             We collect an anonymous device identifier (UUID) for rate limiting and to limit how many devices can use one subscription. This ID is not linked to your identity, except that if you subscribe it is kept with Apple's record of your purchase, described below.
 
@@ -51,10 +51,10 @@ enum PrivacyPolicy {
             We collect anonymous usage analytics to understand how the app is used and improve it. Using TelemetryDeck, we record in-app events — such as opening the app, starting a scan, viewing the paywall, and completing a purchase — along with your device model, operating system version, app version, locale, time zone, screen size, and device orientation. The analytics SDK also reports how your accessibility settings are configured — such as Reduce Motion, Bold Text, Increase Contrast and your preferred text size — and counts of how often and on how many separate days you have opened the app. A one-way salted hash is used as an anonymous identifier. This data contains no photos, item names, prices, or advertising identifiers (IDFA), is not linked to your identity, and is never used to track you across other apps or websites. You can turn analytics off at any time in Settings.
             """),
         (heading: "How We Use Your Information", text: """
-            Photos are used only to generate the valuation response you requested. Analytics data is used only in aggregate to understand usage and improve the app. Shared sale records are used only to measure how far our estimates are from real sale prices, and to improve them. We do not sell, rent, or share your photos, device identifier, or analytics data with third parties, except for the service providers below and as required by law.
+            Photos are used only to generate the valuation or legit check you requested. Analytics data is used only in aggregate to understand usage and improve the app. Shared sale records are used only to measure how far our estimates are from real sale prices, and to improve them. We do not sell, rent, or share your photos, device identifier, or analytics data with third parties, except for the service providers below and as required by law.
             """),
         (heading: "Service Providers", text: """
-            Google (Gemini API). Photos you submit are transmitted to Google's Gemini API, which identifies the item and estimates its resale value. Google processes them under its API terms of service and does not use them to train its models. Photos are not retained by us after the response is returned.
+            Google (Gemini API). Photos you submit are transmitted to Google's Gemini API, which identifies the item and estimates its resale value, or reads a legit check's close-ups. Google processes them under its API terms of service and does not use them to train its models. Photos are not retained by us after the response is returned.
 
             Apple (DeviceCheck). Receives the device token described above, and stores two bits against your hardware so a reinstall does not reset the free allowance.
 

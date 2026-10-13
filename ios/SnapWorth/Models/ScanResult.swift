@@ -89,6 +89,19 @@ final class ScanResult {
     /// see `storedFacts`, which is what the price path uses instead.
     var valuationDetail: ValuationDetail? { ValuationDetail.decode(valuationDetailData) }
 
+    // ── Legit check (#90) ──────────────────────────────────────────────────────
+    /// The latest `LegitRead`, JSON-encoded: a note on the find, shown on its
+    /// result sheet. Optional and additive like the blobs above; nil for every
+    /// find never checked.
+    ///
+    /// Never on the share card, whatever the verdict. A read is an observation
+    /// about a few close-ups, and a card that carried "No signs of a replica
+    /// found" beside a price would travel as a certificate. `ShareCardView`
+    /// does not read it, and must not start.
+    var legitCheckData: Data?
+
+    var legitRead: LegitRead? { LegitRead.decode(legitCheckData) }
+
     /// The two things the price path needs from the detail blob — the grade
     /// the model returned and its likely price — memoised by the bytes they
     /// came from.
@@ -275,9 +288,11 @@ final class ScanResult {
             valueHistoryData: valueHistoryData,
             valuationDetailData: valuationDetailData
         )
-        // Not init parameters: both are set once a find is sold or shared.
+        // Not init parameters: both are set once a find is sold or shared,
+        // and the legit read once one is checked.
         copy.saleCurrency = saleCurrency
         copy.outcomeID = outcomeID
+        copy.legitCheckData = legitCheckData
         return copy
     }
 

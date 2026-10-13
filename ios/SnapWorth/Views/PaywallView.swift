@@ -538,6 +538,10 @@ enum PaywallCopy {
                 text: String(localized: "Why it's worth that — four price points and what drives them")),
         Benefit(icon: "cart.fill", text: String(localized: "Snap → Sell marketplace listings")),
         Benefit(icon: "tag.fill", text: String(localized: "Read the care tag for a sharper estimate")),
+        // "Signs of a replica", never "authenticate": it is a read of photos,
+        // not a certificate (`LegitVerdict`).
+        Benefit(icon: "magnifyingglass",
+                text: String(localized: "Legit check — guided close-ups, read for the usual signs of a replica")),
         // History, not the value: the portfolio total is on everyone's
         // History tab. Only its trend (`.portfolioTrend`) and `.trends` are Pro.
         Benefit(icon: "chart.pie.fill", text: String(localized: "Portfolio value history and thrift trends")),
@@ -594,6 +598,9 @@ enum PaywallCopy {
             return Pitch(headline: String(localized: "Turn finds into listings"), leadIcon: "cart.fill")
         case .addTag:
             return Pitch(headline: String(localized: "Read the care tag"), leadIcon: "tag.fill")
+        case .legitCheck:
+            return Pitch(headline: String(localized: "Check it before you buy"),
+                         leadIcon: "magnifyingglass")
         case .portfolioTrend:
             return Pitch(headline: String(localized: "See your value over time"),
                          leadIcon: "chart.pie.fill")

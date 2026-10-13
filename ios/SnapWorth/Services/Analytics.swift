@@ -144,6 +144,11 @@ enum AnalyticsEvent {
     /// The haul card left through the share sheet. Only a completed share.
     case haulShared
 
+    // ── Legit check (#90) ────────────────────────────────────────────
+    /// A check came back. `verdict` is the closed set only
+    /// (`LegitVerdict`) — never a reason, the brand or the item.
+    case legitCheckCompleted(verdict: LegitVerdict)
+
     // ── My Flips ledger ──────────────────────────────────────────────
     case ledgerItemMarkedSold
     /// The step before a sale, which the funnel could not see: only `sold`
@@ -243,6 +248,7 @@ enum AnalyticsEvent {
         case .rareFindEasterEggShown: return "rare_find_easter_egg_shown"
         case .haulCompleted:        return "haul_completed"
         case .haulShared:           return "haul_shared"
+        case .legitCheckCompleted:  return "legit_check_completed"
         case .ledgerItemMarkedSold: return "ledger_item_marked_sold"
         case .ledgerItemMarkedListed: return "ledger_item_marked_listed"
         case .ledgerDashboardViewed:return "ledger_dashboard_viewed"
@@ -318,6 +324,8 @@ enum AnalyticsEvent {
             return ["count": count, "kinds": kinds]
         case let .thriftFlipCalculated(verdict):
             return ["verdict": verdict]
+        case let .legitCheckCompleted(verdict):
+            return ["verdict": verdict.rawValue]
         case let .haulCompleted(bucket, revisedFrom):
             guard let revisedFrom else { return ["items": bucket] }
             return ["items": bucket, "revised_from": revisedFrom]
@@ -421,6 +429,8 @@ enum PaywallTrigger: String, CaseIterable {
     /// (#93). A quota 402 inside a haul is `.scanLimit`, and drafting from
     /// the haul summary is `.snapSell` — each the funnel it already belongs to.
     case haul = "haul"
+    /// The Legit check card on a result (#90).
+    case legitCheck = "legit_check"
 }
 
 // ═══════════════════════════════════════════════════════════════════
