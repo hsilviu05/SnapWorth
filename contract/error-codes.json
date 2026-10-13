@@ -19,6 +19,7 @@
   "image_unreadable",
   "invalid_request",
   "key_unknown",
+  "legit_photos_invalid",
   "not_resalable",
   "payload_too_large",
   "photo_unusable",

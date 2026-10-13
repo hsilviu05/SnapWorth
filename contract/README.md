@@ -6,8 +6,10 @@ Responses the server really sends, read by both test suites.
 |---|---|
 | `scan-response.json` | A `/scan` 200 for a Pro user: every v1 field plus the full v2 valuation payload |
 | `scan-response-free.json` | The same scan for a free user — the common case. The Pro-only detail is blanked (`null` or `[]`), never removed, and `free_scans_remaining` is what is left after the day's scan |
+| `legit-response.json` | A `/legit` 200 (#90): a closed `verdict`, the `reasons` behind it, the `unclear_photos` it could not judge |
 | `errors/scan-402-quota.json` | The free allowance is spent (`quota_exhausted`). Carries `X-Quota-Resets-At`, which the app reads for the spent state's "Next free scan at …" |
 | `errors/listing-402-pro.json` | `/listing` refusing a free caller (`pro_required`) |
+| `errors/legit-402-pro.json` | `/legit` refusing a free caller, in `/listing`'s words (`pro_required`) |
 | `errors/scan-422-unusable-photo.json` | A safety block: the server looked at the photo and could not use it (`photo_unusable`) |
 | `errors/scan-422-not-resalable.json` | The model priced the photo at zero on purpose; `detail` carries its reason (`not_resalable`) |
 | `errors/scan-426-update-required.json` | Below the operator's minimum build, for a build that sent `X-SnapWorth-Build` (`update_required`) |

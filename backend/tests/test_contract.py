@@ -36,6 +36,7 @@ from cache import InMemoryCache, ResilientCache
 from tests.conftest import build_deps
 from tests.images import padded_image_bytes
 from tests.test_ai_pipeline import V2_PAYLOAD, _client, _scan_with
+from tests.test_legit import post_legit
 from tests.test_main import _post_listing
 
 CONTRACT = pathlib.Path(__file__).resolve().parents[2] / "contract"
@@ -157,6 +158,16 @@ class TestSuccessBodies:
         assert fixture["confidence_reason_codes"]
         assert len(fixture["confidence_reason_codes"]) == len(fixture["confidence_reasons"])
 
+    def test_the_legit_body(self):
+        """`legit-response.json`: a Legit check's read (#90). The app decodes
+        it strictly and words `verdict` from a closed table."""
+        import legit
+        r, _ = post_legit("contract-legit")
+        assert r.status_code == 200
+        fixture = _check("legit-response.json", r.json())
+        assert fixture["verdict"] in legit.VERDICTS
+        assert fixture["reasons"]
+
     def test_the_free_body(self):
         """The common case. Most of the detail is blanked (`_strip_pro_detail`)
         but no key is removed. Served under the production allowance, so
@@ -221,6 +232,14 @@ class TestErrorBodies:
         assert fixture["body"]["code"] == apierrors.PRO_REQUIRED
         assert "pro feature" in fixture["body"]["detail"].lower(), (
             "installed builds tell this 402 from a spent allowance by these words")
+
+    def test_the_legit_402(self):
+        """`/legit` refuses a free caller as `/listing` does, words and all."""
+        r, _ = post_legit("contract-legit-free", pro=False)
+        assert r.status_code == 402
+        fixture = _check_error("errors/legit-402-pro.json", _error(r))
+        assert fixture["body"]["code"] == apierrors.PRO_REQUIRED
+        assert "pro feature" in fixture["body"]["detail"].lower()
 
     def test_the_unusable_photo_422(self):
         with patch("main._generate_with_retry",

@@ -22,7 +22,7 @@ from typing import Any
 from pathlib import Path
 
 from dotenv import load_dotenv
-from fastapi import FastAPI, File, Header, HTTPException, Request, UploadFile
+from fastapi import FastAPI, File, Form, Header, HTTPException, Request, UploadFile
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi import Response
@@ -42,6 +42,7 @@ import devicecheck
 import entitlements
 import imagequality
 import imagevalidation
+import legit as legit_module
 import levers
 import metrics
 import notify
@@ -70,6 +71,7 @@ from observability import RequestContextMiddleware, configure_production_logging
 from quota import FREE_SCANS_PER_DAY, ScanQuota
 from ratelimit import (
     IP_RATE_MAX_REQUESTS,
+    LEGIT_RATE_MAX_REQUESTS,
     LISTING_RATE_MAX_REQUESTS,
     PRO_SCAN_RATE_MAX_REQUESTS,
     RATE_MAX_REQUESTS,
@@ -655,10 +657,16 @@ MAX_NOTIFICATION_BODY_BYTES = 256 * 1024
 _NOTIFICATION_PATHS = frozenset({"/apple/notifications", "/apple/notifications/sandbox"})
 
 
+#: The routes that take photos. `/legit` carries up to four, each capped at
+#: `MAX_UPLOAD_BYTES` as it is read; the app sends them downscaled to well
+#: under a megabyte, so the shared 20 MB bound is not what limits it.
+_UPLOAD_PATHS = frozenset({"/scan", "/legit"})
+
+
 def _body_limit(path: str) -> int:
     """The most a request to `path` may carry. Read per request, so tests and
     the `MAX_REQUEST_BYTES` override see the current values."""
-    if path == "/scan":
+    if path in _UPLOAD_PATHS:
         return MAX_REQUEST_BYTES
     if path in _NOTIFICATION_PATHS:
         return MAX_NOTIFICATION_BODY_BYTES
@@ -913,6 +921,7 @@ def _client_ip(request: Request) -> str:
 #: was when it was the only bucket, so a deploy neither resets nor re-keys it.
 #: Sizes and the reason each route has its own are in `ratelimit`.
 LISTING_BUCKET = "listing"
+LEGIT_BUCKET = "legit"
 TRENDS_BUCKET = "trends"
 
 
@@ -3207,6 +3216,126 @@ async def listing(
         "device": auditlog.pseudonymise(principal.subject), "marketplace": marketplace})
     return result
 
+
+
+class LegitResponse(BaseModel):
+    """A legit check's read (#90). `verdict` is one of `legit.VERDICTS`;
+    `reasons` are observations about the photos, never a certificate;
+    `unclear_photos` names the slots too unclear to judge."""
+    verdict: str
+    reasons: list[str]
+    unclear_photos: list[str]
+    prompt_version: str
+
+
+@app.post("/legit", response_model=LegitResponse,
+          dependencies=[Depends(_refuse_outdated_build)])
+async def legit(
+    request: Request,
+    logo: UploadFile | None = File(default=None),
+    tag: UploadFile | None = File(default=None),
+    stitching: UploadFile | None = File(default=None),
+    hardware: UploadFile | None = File(default=None),
+    # What the item scan identified. Optional, because a check is still a
+    # check without it, but the model compares against a brand it is told.
+    brand: str | None = Form(default=None, max_length=promptsafety.MAX_BRAND),
+    item_name: str | None = Form(default=None, max_length=promptsafety.MAX_ITEM_NAME),
+    category: str | None = Form(default=None, max_length=promptsafety.MAX_CATEGORY),
+    principal: Principal = Depends(require_auth),
+) -> LegitResponse:
+    """Legit check: 2-4 guided close-ups → a read on whether they show the
+    usual signs of a replica, with the observations behind it.
+
+    An observation about photos, never a certification — the wording rule
+    lives in `prompts.LEGIT_PROMPT_V1` and is enforced in `legit.validate`.
+    No price comes back, nothing is stored server-side, and it costs no free
+    allowance: it is Pro-only, like `/listing`, and refused with the same 402.
+    """
+    # Before any photo is read: the photos are what a free caller would be
+    # spending, and the decision is the server's (see `/listing`).
+    if not principal.is_pro:
+        auditlog.record(AuditEvent.LEGIT_DENIED, principal.subject,
+                        outcome="denied", reason="not_pro")
+        raise APIError(402, apierrors.PRO_REQUIRED,
+                       "Legit check is a SnapWorth Pro feature.")
+
+    uploads = {"logo": logo, "tag": tag, "stitching": stitching, "hardware": hardware}
+    photos: list[tuple[str, bytes, str]] = []
+    for slot in legit_module.PHOTO_SLOTS:
+        upload = uploads[slot]
+        if upload is None:
+            continue
+        data = await _read_capped(upload)
+        if not data:
+            continue
+        try:
+            kind = imagevalidation.validate(
+                data, upload.content_type or "application/octet-stream")
+        except imagevalidation.ImageValidationError as exc:
+            # Unlike /scan's tag photo, a bad one fails the check: every
+            # photo here is one the person was asked for, and judging three
+            # of four without saying so would read as judging all four.
+            metrics.upload_rejected.inc(reason="validation")
+            auditlog.record(AuditEvent.UPLOAD_REJECTED, principal.subject,
+                            outcome="denied", reason=str(exc))
+            raise APIError(400, exc.code, str(exc)) from None
+        metrics.upload_bytes.observe(len(data))
+        photos.append((slot, data, kind))
+
+    if len(photos) < legit_module.MIN_PHOTOS:
+        raise APIError(400, apierrors.LEGIT_PHOTOS_INVALID,
+                       "A legit check needs at least two photos.")
+
+    await _enforce_limits(principal.subject, _client_ip(request),
+                          bucket=LEGIT_BUCKET, limit=LEGIT_RATE_MAX_REQUESTS)
+    await _refuse_if_paused(principal.subject)
+    sent = [slot for slot, _, _ in photos]
+    auditlog.record(AuditEvent.LEGIT_AUTHORISED, principal.subject,
+                    tier=principal.tier, photos=len(photos))
+
+    prompt = prompts.legit_prompt(
+        sent, item=legit_module.item_context(brand, item_name, category))
+    contents: list = [prompt] + [
+        {"mime_type": kind, "data": base64.standard_b64encode(data).decode()}
+        for _, data, kind in photos]
+    deadline = _client_deadline(request)
+    try:
+        raw, _usage = await _generate_with_retry(
+            contents, label="legit", deadline=deadline, tier=principal.tier)
+    except aiconfig.ModelBlocked as exc:
+        log.info("legit check blocked by safety filter", extra={"reason": str(exc)})
+        auditlog.record(AuditEvent.SCAN_BLOCKED, principal.subject,
+                        outcome="denied", reason=str(exc))
+        await _note_safety_block(principal.subject)
+        raise APIError(422, apierrors.PHOTO_UNUSABLE,
+                       "These photos couldn't be checked. Try clear close-ups "
+                       "of one item.") from None
+    except aiconfig.ModelUnavailable as exc:
+        log.error("legit check model failed: %s", exc)
+        raise APIError(502, apierrors.AI_UNAVAILABLE,
+                       "The AI service is temporarily unavailable. "
+                       "Please try again.") from None
+
+    try:
+        data = _extract_json(raw)
+    except (json.JSONDecodeError, ValueError):
+        parsed = await _retry_as_json(raw, deadline=deadline, tier=principal.tier,
+                                      label="reformat")
+        if parsed is None:
+            # Length only: the reply is the model's read of someone's item.
+            log.error("legit check unparseable after reformat",
+                      extra={"raw_len": len(raw)})
+            raise APIError(502, apierrors.AI_UNREADABLE,
+                           "The AI response couldn't be read. "
+                           "Please try again.") from None
+        data = parsed
+
+    read = legit_module.validate(data, sent)
+    # The verdict and the count, never the reasons: they describe the item.
+    log.info("legit ok", extra={
+        "device": auditlog.pseudonymise(principal.subject),
+        "verdict": read["verdict"], "photos": len(photos)})
+    return LegitResponse(**read, prompt_version=prompts.LEGIT_PROMPT_VERSION)
 
 def _safe_float(value: object) -> float:
     try:
