@@ -3445,7 +3445,8 @@ async def rack(
     log.info("rack ok", extra={
         "device": auditlog.pseudonymise(principal.subject),
         "candidates": len(candidates)})
-    return RackResponse(candidates=candidates, prompt_version=prompts.RACK_PROMPT_VERSION)
+    return RackResponse(candidates=[RackCandidate(**c) for c in candidates],
+                        prompt_version=prompts.RACK_PROMPT_VERSION)
 
 def _safe_float(value: object) -> float:
     try:
