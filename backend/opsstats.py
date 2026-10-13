@@ -86,6 +86,14 @@ def count_scan(tier: str) -> None:
     spawn(bump("scans_pro" if tier == "pro" else "scans_free"))
 
 
+def count_rack_scan() -> None:
+    """Tally one rack scan (#89), beside the `count_scan` it also is: the
+    digest says how many of the day's Pro scans were racks."""
+    if _cache is None:
+        return
+    spawn(bump("scans_rack"))
+
+
 async def read_stat(day: str, name: str) -> int:
     if _cache is None:
         return 0

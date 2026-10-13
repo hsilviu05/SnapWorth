@@ -50,6 +50,7 @@ import opsspend
 import opsstats
 import promptsafety
 import prompts
+import rack as rack_module
 import ratelimit
 import appstorenotify
 import referral
@@ -659,8 +660,9 @@ _NOTIFICATION_PATHS = frozenset({"/apple/notifications", "/apple/notifications/s
 
 #: The routes that take photos. `/legit` carries up to four, each capped at
 #: `MAX_UPLOAD_BYTES` as it is read; the app sends them downscaled to well
-#: under a megabyte, so the shared 20 MB bound is not what limits it.
-_UPLOAD_PATHS = frozenset({"/scan", "/legit"})
+#: under a megabyte, so the shared 20 MB bound is not what limits it. `/rack`
+#: takes one, like `/scan`.
+_UPLOAD_PATHS = frozenset({"/scan", "/legit", "/rack"})
 
 
 def _body_limit(path: str) -> int:
@@ -3338,6 +3340,112 @@ async def legit(
         "device": auditlog.pseudonymise(principal.subject),
         "verdict": read["verdict"], "photos": len(photos)})
     return LegitResponse(**read, prompt_version=prompts.LEGIT_PROMPT_VERSION)
+
+class RackBox(BaseModel):
+    """Where a candidate is, as fractions of the photo from its top left."""
+    x: float = Field(ge=0, le=1)
+    y: float = Field(ge=0, le=1)
+    width: float = Field(gt=0, le=1)
+    height: float = Field(gt=0, le=1)
+
+
+class RackCandidate(BaseModel):
+    rank: int
+    box: RackBox
+    position: str
+    name: str
+    brand: str
+    category: str
+    low_usd: float = Field(ge=0)
+    high_usd: float = Field(ge=0)
+    why: str
+
+
+class RackResponse(BaseModel):
+    """A rack scan's read (#89): up to three candidates, best first, or none."""
+    candidates: list[RackCandidate]
+    prompt_version: str
+
+
+@app.post("/rack", response_model=RackResponse,
+          dependencies=[Depends(_refuse_outdated_build)])
+async def rack(
+    request: Request,
+    file: UploadFile = File(...),
+    principal: Principal = Depends(require_auth),
+) -> RackResponse:
+    """Rack scan: one photo of a rail, shelf or bin → at most three items
+    worth picking up, each with a box, a rough range and why it stands out.
+
+    Pro-only, refused like `/listing` before the photo is read. Validated and
+    rate-limited as `/scan` is — same checks, same bucket — because it is a
+    scan of a different shape, and it is counted as one Pro scan.
+    """
+    if not principal.is_pro:
+        auditlog.record(AuditEvent.RACK_DENIED, principal.subject,
+                        outcome="denied", reason="not_pro")
+        raise APIError(402, apierrors.PRO_REQUIRED,
+                       "Rack scan is a SnapWorth Pro feature.")
+
+    image_bytes = await _read_capped(file)
+    metrics.upload_bytes.observe(len(image_bytes))
+    try:
+        content_type = imagevalidation.validate(
+            image_bytes, file.content_type or "application/octet-stream")
+    except imagevalidation.ImageValidationError as exc:
+        metrics.upload_rejected.inc(reason="validation")
+        auditlog.record(AuditEvent.UPLOAD_REJECTED, principal.subject,
+                        outcome="denied", reason=str(exc))
+        raise APIError(400, exc.code, str(exc)) from None
+
+    await _enforce_limits(principal.subject, _client_ip(request),
+                          limit=_scan_rate_limit(principal))
+    await _refuse_if_paused(principal.subject)
+    auditlog.record(AuditEvent.RACK_AUTHORISED, principal.subject, tier=principal.tier)
+
+    contents: list = [prompts.RACK_PROMPT_V1,
+                      {"mime_type": content_type,
+                       "data": base64.standard_b64encode(image_bytes).decode()}]
+    deadline = _client_deadline(request)
+    try:
+        raw, _usage = await _generate_with_retry(
+            contents, label="rack", deadline=deadline, tier=principal.tier)
+    except aiconfig.ModelBlocked as exc:
+        log.info("rack scan blocked by safety filter", extra={"reason": str(exc)})
+        auditlog.record(AuditEvent.SCAN_BLOCKED, principal.subject,
+                        outcome="denied", reason=str(exc))
+        await _note_safety_block(principal.subject)
+        raise APIError(422, apierrors.PHOTO_UNUSABLE,
+                       "This photo couldn't be analysed. Try a photo of a rack, "
+                       "shelf or bin.") from None
+    except aiconfig.ModelUnavailable as exc:
+        log.error("rack scan model failed: %s", exc)
+        raise APIError(502, apierrors.AI_UNAVAILABLE,
+                       "The AI service is temporarily unavailable. "
+                       "Please try again.") from None
+
+    try:
+        data = _extract_json(raw)
+    except (json.JSONDecodeError, ValueError):
+        parsed = await _retry_as_json(raw, deadline=deadline, tier=principal.tier,
+                                      label="reformat")
+        if parsed is None:
+            log.error("rack scan unparseable after reformat", extra={"raw_len": len(raw)})
+            raise APIError(502, apierrors.AI_UNREADABLE,
+                           "The AI response couldn't be read. "
+                           "Please try again.") from None
+        data = parsed
+
+    candidates = rack_module.validate(data)
+    # One Pro scan in every count that reads scans, and its own tally so the
+    # bot can say how many of them were racks. Not `notify.scan_completed`:
+    # that posts a find to the feed and /trends, and a rack is not one find.
+    opsstats.count_scan(principal.tier)
+    opsstats.count_rack_scan()
+    log.info("rack ok", extra={
+        "device": auditlog.pseudonymise(principal.subject),
+        "candidates": len(candidates)})
+    return RackResponse(candidates=candidates, prompt_version=prompts.RACK_PROMPT_VERSION)
 
 def _safe_float(value: object) -> float:
     try:

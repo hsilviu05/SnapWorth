@@ -40,3 +40,8 @@ backend/BUILD_COMMIT
 # Gold-set photos, receipts and screenshots (#213): the private store is
 # mounted here. The repo is public; only labels live in git.
 backend/eval/data/images/
+
+# Rack scan's test photos and their marked-up runs (#89): shop photos, which
+# can show other people. Only the review file lives in git.
+backend/eval/data/rack/images/
+backend/eval/data/rack/runs/

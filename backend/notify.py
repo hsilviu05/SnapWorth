@@ -1321,13 +1321,16 @@ async def _digest_text(when: datetime) -> str:
     failed = await opsstats.read_stat(day, "scans_failed")
     why = await _failure_breakdown(day) if failed else ""
     blocked = await opsstats.read_stat(day, "scans_blocked")
+    racks = await opsstats.read_stat(day, "scans_rack")
     trials, conversions, direct = await opsstats.sub_counts([day])
     users = await opsstats.read_stat(day, "active_users")
     limits = await opsstats.read_stat(day, "limit_hits")
     lines = [
         f"📊 <b>SnapWorth — {when.strftime('%Y-%m-%d')}</b>",
         f"Active users: {users}",
-        f"Scans: {free + pro} ok ({free} free · {pro} Pro) · {failed} failed"
+        # Racks are Pro scans already counted in `pro`; the note says how many.
+        f"Scans: {free + pro} ok ({free} free · {pro} Pro"
+        + (f", {racks} of them racks" if racks else "") + f") · {failed} failed"
         + (f" ({why})" if why else "")
         + (f" · {blocked} blocked by the safety filter" if blocked else ""),
         # The line the free-scan experiment is read on. Against the day's
