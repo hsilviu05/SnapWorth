@@ -665,6 +665,14 @@
       },
       "zh-Hans": "%lld 件没填卖出价"
     },
+    "%lld of %lld photos taken": {
+      "comment": "VoiceOver: progress through the legit check camera.",
+      "en": "%lld of %lld photos taken",
+      "ro": "%1$lld din %2$lld fotografii făcute",
+      "es": "%1$lld de %2$lld fotos tomadas",
+      "de": "%1$lld von %2$lld Fotos aufgenommen",
+      "zh-Hans": "已拍 %1$lld 张，共 %2$lld 张"
+    },
     "%lld out of %lld": {
       "comment": "Rare-find easter egg (RareFind.swift). The joke is hype and rarity only — keep it that way in translation. A score read aloud: “11 out of 10”. On screen it is printed 11/10.",
       "en": "%lld out of %lld",
@@ -1005,6 +1013,22 @@
       "de": "Eine saubere Beschreibung für %@, mit einem Preis, der verkauft, und einer klugen Verhandlungsgrenze…",
       "zh-Hans": "为 %@ 量身写好的描述，定价好卖，还带一个合理的底价…"
     },
+    "A seam, or the stitching around the logo, close enough to see each stitch.": {
+      "comment": "Legit check step instruction.",
+      "en": "A seam, or the stitching around the logo, close enough to see each stitch.",
+      "ro": "O cusătură sau cusăturile din jurul logoului, destul de aproape cât să se vadă fiecare împunsătură.",
+      "es": "Una costura, o las puntadas alrededor del logo, lo bastante cerca para ver cada puntada.",
+      "de": "Eine Naht oder die Stiche um das Logo, nah genug, um jeden Stich zu sehen.",
+      "zh-Hans": "一条接缝或标志周围的缝线，近到能看清每一针。"
+    },
+    "A zipper pull, snap or button, with any engraving facing the camera.": {
+      "comment": "Legit check step instruction.",
+      "en": "A zipper pull, snap or button, with any engraving facing the camera.",
+      "ro": "Un cursor de fermoar, o capsă sau un nasture, cu orice gravură îndreptată spre cameră.",
+      "es": "Un tirador de cremallera, un broche o un botón, con cualquier grabado hacia la cámara.",
+      "de": "Ein Zipper, Druckknopf oder Knopf, mit einer eventuellen Gravur zur Kamera.",
+      "zh-Hans": "拉链头、按扣或纽扣，让上面的刻字朝向镜头。"
+    },
     "AI estimate": {
       "en": "AI estimate",
       "ro": "estimare AI",
@@ -1163,6 +1187,14 @@
       "es": "Casi está…",
       "de": "Fast fertig…",
       "zh-Hans": "快好了…"
+    },
+    "An observation about these photos, not a certification of authenticity.": {
+      "comment": "Legit check: shown under every read. Legal wording; keep 'not a certification'.",
+      "en": "An observation about these photos, not a certification of authenticity.",
+      "ro": "O observație despre aceste fotografii, nu o certificare a autenticității.",
+      "es": "Una observación sobre estas fotos, no una certificación de autenticidad.",
+      "de": "Eine Beobachtung zu diesen Fotos, keine Echtheitszertifizierung.",
+      "zh-Hans": "这是对这些照片的观察，并非真伪认证。"
     },
     "Analyzing item": {
       "en": "Analyzing item",
@@ -1427,12 +1459,44 @@
       "de": "Ändert die Reihenfolge deiner Funde",
       "zh-Hans": "改变好物的排序"
     },
+    "Check again": {
+      "comment": "Legit check: button to run another check on a find that has one.",
+      "en": "Check again",
+      "ro": "Verifică din nou",
+      "es": "Comprobar de nuevo",
+      "de": "Erneut prüfen",
+      "zh-Hans": "再次检查"
+    },
+    "Check it before you buy": {
+      "comment": "Paywall headline when it opened from the Legit check card.",
+      "en": "Check it before you buy",
+      "ro": "Verifică înainte să cumperi",
+      "es": "Compruébalo antes de comprar",
+      "de": "Prüfe es vor dem Kauf",
+      "zh-Hans": "买之前先检查"
+    },
+    "Check now": {
+      "comment": "Legit check camera: send the photos taken so far.",
+      "en": "Check now",
+      "ro": "Verifică acum",
+      "es": "Comprobar ahora",
+      "de": "Jetzt prüfen",
+      "zh-Hans": "立即检查"
+    },
     "Check resale profit after fees before you buy": {
       "en": "Check resale profit after fees before you buy",
       "ro": "Vezi profitul după comisioane înainte să cumperi",
       "es": "Mira la ganancia tras comisiones antes de comprar",
       "de": "Sieh den Gewinn nach Gebühren, bevor du kaufst",
       "zh-Hans": "买之前先看看扣掉手续费还剩多少"
+    },
+    "Checked %@": {
+      "comment": "Legit check: when the read was made; %@ is a date.",
+      "en": "Checked %@",
+      "ro": "Verificat la %@",
+      "es": "Comprobado el %@",
+      "de": "Geprüft am %@",
+      "zh-Hans": "检查于 %@"
     },
     "Checking the collar for provenance…": {
       "comment": "Rare-find easter egg (RareFind.swift). The joke is hype and rarity only — keep it that way in translation.",
@@ -1441,6 +1505,14 @@
       "es": "Revisando la procedencia del cuello…",
       "de": "Kragen wird auf Herkunft geprüft…",
       "zh-Hans": "正在查验领口来历…"
+    },
+    "Checking the details…": {
+      "comment": "Legit check: while the photos are read.",
+      "en": "Checking the details…",
+      "ro": "Verificăm detaliile…",
+      "es": "Comprobando los detalles…",
+      "de": "Details werden geprüft…",
+      "zh-Hans": "正在检查细节…"
     },
     "Checking…": {
       "en": "Checking…",
@@ -1478,6 +1550,14 @@
       "es": "Elegir la foto de la etiqueta de la galería",
       "de": "Etikettfoto aus der Mediathek wählen",
       "zh-Hans": "从相册选择标签照片"
+    },
+    "Choose this photo from your library": {
+      "comment": "VoiceOver: the library button in the legit check camera.",
+      "en": "Choose this photo from your library",
+      "ro": "Alege această fotografie din bibliotecă",
+      "es": "Elegir esta foto de tu fototeca",
+      "de": "Dieses Foto aus der Mediathek wählen",
+      "zh-Hans": "从照片图库中选择这张照片"
     },
     "Classified.": {
       "comment": "Rare-find easter egg (RareFind.swift). The joke is hype and rarity only — keep it that way in translation. Replaces the figure once the ticker lands.",
@@ -1833,6 +1913,14 @@
       "es": "No empezó: revisa las Actividades en vivo en Ajustes",
       "de": "Nicht gestartet – prüf die Live-Aktivitäten in den Einstellungen",
       "zh-Hans": "没能开始，去“设置”里看看实时活动"
+    },
+    "Couldn't tell from these photos": {
+      "comment": "Legit check verdict (#90). An observation about photos, never a certification: must not say the item is authentic, genuine or fake.",
+      "en": "Couldn't tell from these photos",
+      "ro": "Nu se poate spune din aceste fotografii",
+      "es": "No se puede saber con estas fotos",
+      "de": "Anhand dieser Fotos nicht erkennbar",
+      "zh-Hans": "无法从这些照片中判断"
     },
     "Couldn't value this photo": {
       "en": "Couldn't value this photo",
@@ -2265,6 +2353,14 @@
       "de": "Füll das Bild mit dem Etikett",
       "zh-Hans": "让标签占满画面"
     },
+    "Fill the frame with the logo or wordmark. Sharp edges matter more than the whole item.": {
+      "comment": "Legit check step instruction.",
+      "en": "Fill the frame with the logo or wordmark. Sharp edges matter more than the whole item.",
+      "ro": "Umple cadrul cu logoul sau inscripția. Contează marginile clare, nu întregul articol.",
+      "es": "Llena el encuadre con el logo o el nombre de la marca. Importan más los bordes nítidos que el artículo entero.",
+      "de": "Fülle den Rahmen mit dem Logo oder Schriftzug. Scharfe Kanten zählen mehr als der ganze Artikel.",
+      "zh-Hans": "让标志或字标填满取景框。清晰的边缘比拍下整件物品更重要。"
+    },
     "Filter": {
       "en": "Filter",
       "ro": "Filtru",
@@ -2625,6 +2721,14 @@
       "de": "In-App-Käufe sind noch nicht eingerichtet.",
       "zh-Hans": "内购还没配置好。"
     },
+    "Inside label": {
+      "comment": "Legit check step title.",
+      "en": "Inside label",
+      "ro": "Eticheta interioară",
+      "es": "Etiqueta interior",
+      "de": "Innenetikett",
+      "zh-Hans": "内侧标签"
+    },
     "Insure it before you wear it.": {
       "comment": "Rare-find easter egg (RareFind.swift). The joke is hype and rarity only — keep it that way in translation.",
       "en": "Insure it before you wear it.",
@@ -2751,6 +2855,22 @@
       "de": "Aus weniger wurden schon Legenden.",
       "zh-Hans": "比这更普通的都成了传奇。"
     },
+    "Legit check": {
+      "comment": "Name of the feature (#90): a card on a result and the title of its read.",
+      "en": "Legit check",
+      "ro": "Verificare originalitate",
+      "es": "Comprobación de originalidad",
+      "de": "Echtheits-Check",
+      "zh-Hans": "真伪检查"
+    },
+    "Legit check — guided close-ups, read for the usual signs of a replica": {
+      "comment": "Paywall benefit row (#90).",
+      "en": "Legit check — guided close-ups, read for the usual signs of a replica",
+      "ro": "Verificare originalitate — prim-planuri ghidate, analizate pentru semnele obișnuite ale unei replici",
+      "es": "Comprobación de originalidad: primeros planos guiados, revisados en busca de las señales habituales de una réplica",
+      "de": "Echtheits-Check — geführte Nahaufnahmen, geprüft auf die üblichen Anzeichen einer Replik",
+      "zh-Hans": "真伪检查——按引导拍摄特写，查找仿品的常见迹象"
+    },
     "Lets you remove finds from your closet": {
       "en": "Lets you remove finds from your closet",
       "ro": "Îți permite să ștergi găselnițe din colecție",
@@ -2802,6 +2922,14 @@
       "es": "Cargando planes…",
       "de": "Abos werden geladen…",
       "zh-Hans": "正在加载方案…"
+    },
+    "Logo close-up": {
+      "comment": "Legit check step title.",
+      "en": "Logo close-up",
+      "ro": "Prim-plan cu logoul",
+      "es": "Primer plano del logo",
+      "de": "Logo in Nahaufnahme",
+      "zh-Hans": "标志特写"
     },
     "Loss of %@": {
       "en": "Loss of %@",
@@ -3071,6 +3199,14 @@
       "de": "Keine Treffer für „%@“",
       "zh-Hans": "没有找到“%@”"
     },
+    "No signs of a replica found": {
+      "comment": "Legit check verdict (#90). An observation about photos, never a certification: must not say the item is authentic, genuine or fake.",
+      "en": "No signs of a replica found",
+      "ro": "Niciun semn de replică găsit",
+      "es": "No se encontraron señales de réplica",
+      "de": "Keine Anzeichen einer Replik gefunden",
+      "zh-Hans": "未发现仿品迹象"
+    },
     "None of these reminders can arrive until you do.": {
       "comment": "Under 'Allow notifications': until permission is given, none of the reminders listed below can be delivered.",
       "en": "None of these reminders can arrive until you do.",
@@ -3183,6 +3319,14 @@
       "es": "En los escaneos nuevos, Pro muestra cuatro niveles de precio, qué sube el valor y cómo afinar la estimación. Este hallazgo conserva el resumen con el que se guardó.",
       "de": "Bei neuen Scans zeigt Pro vier Preispunkte, was den Wert treibt, und wie du die Schätzung schärfst. Dieser Fund behält die Zusammenfassung, mit der er gespeichert wurde.",
       "zh-Hans": "新扫描时，Pro 会显示四个价格档位、什么在抬高价值，以及怎样让估价更准。这件好物保留的是保存时的摘要。"
+    },
+    "One or more details differ from what genuine items usually show. Look closer before you pay.": {
+      "comment": "Legit check: under 'Some details look off'.",
+      "en": "One or more details differ from what genuine items usually show. Look closer before you pay.",
+      "ro": "Unul sau mai multe detalii diferă de ceea ce arată de obicei articolele originale. Uită-te mai atent înainte să plătești.",
+      "es": "Uno o más detalles difieren de lo que suelen mostrar los artículos originales. Míralo con más atención antes de pagar.",
+      "de": "Ein oder mehrere Details weichen von dem ab, was Originalartikel üblicherweise zeigen. Sieh genauer hin, bevor du bezahlst.",
+      "zh-Hans": "有一处或多处细节与正品通常的样子不同。付款前请仔细查看。"
     },
     "One snap.\nA ready listing.": {
       "en": "One snap.\nA ready listing.",
@@ -3366,6 +3510,14 @@
       "es": "Fotografía la etiqueta de cuidado, la de talla o el sello de la suela y volveremos a leer el artículo con las dos fotos.",
       "de": "Fotografier das Pflegeetikett, das Größenetikett oder die Sohlenprägung, und wir lesen den Artikel mit beiden Fotos neu.",
       "zh-Hans": "拍一下洗标、尺码标或鞋底钢印，我们会用两张照片重新识别这件物品。"
+    },
+    "Photograph the logo, the inside label, the stitching and the hardware, and we'll look for the usual signs of a replica.": {
+      "comment": "Legit check card on a result.",
+      "en": "Photograph the logo, the inside label, the stitching and the hardware, and we'll look for the usual signs of a replica.",
+      "ro": "Fotografiază logoul, eticheta interioară, cusăturile și accesoriile metalice, iar noi vom căuta semnele obișnuite ale unei replici.",
+      "es": "Fotografía el logo, la etiqueta interior, las costuras y los herrajes, y buscaremos las señales habituales de una réplica.",
+      "de": "Fotografiere Logo, Innenetikett, Nähte und Beschläge, und wir suchen nach den üblichen Anzeichen einer Replik.",
+      "zh-Hans": "拍下标志、内侧标签、缝线和五金件，我们会查找仿品的常见迹象。"
     },
     "Photos in this haul": {
       "comment": "VoiceOver label for Haul's strip of photos.",
@@ -4000,6 +4152,14 @@
       "de": "Einstellungen",
       "zh-Hans": "设置"
     },
+    "Several details are typical of replicas.": {
+      "comment": "Legit check: under 'Shows signs of a replica'.",
+      "en": "Several details are typical of replicas.",
+      "ro": "Mai multe detalii sunt tipice pentru replici.",
+      "es": "Varios detalles son típicos de las réplicas.",
+      "de": "Mehrere Details sind typisch für Repliken.",
+      "zh-Hans": "多处细节是仿品的典型特征。"
+    },
     "Share": {
       "en": "Share",
       "ro": "Distribuie",
@@ -4138,6 +4298,14 @@
       "de": "Zeigt, wie sich deine Sammlung über die Zeit verändert hat. Erfordert SnapWorth Pro.",
       "zh-Hans": "显示你的收藏这段时间的变化。需要 SnapWorth Pro。"
     },
+    "Shows signs of a replica": {
+      "comment": "Legit check verdict (#90). An observation about photos, never a certification: must not say the item is authentic, genuine or fake.",
+      "en": "Shows signs of a replica",
+      "ro": "Prezintă semne de replică",
+      "es": "Muestra señales de réplica",
+      "de": "Zeigt Anzeichen einer Replik",
+      "zh-Hans": "显示出仿品迹象"
+    },
     "Sightings in the wild": {
       "comment": "Rare-find easter egg (RareFind.swift). The joke is hype and rarity only — keep it that way in translation.",
       "en": "Sightings in the wild",
@@ -4160,6 +4328,14 @@
       "es": "Saltar",
       "de": "Überspringen",
       "zh-Hans": "跳过"
+    },
+    "Skip and check": {
+      "comment": "Legit check camera, last step: skip this photo and send the others.",
+      "en": "Skip and check",
+      "ro": "Sari peste și verifică",
+      "es": "Omitir y comprobar",
+      "de": "Überspringen und prüfen",
+      "zh-Hans": "跳过并检查"
     },
     "Skip it": {
       "en": "Skip it",
@@ -4337,6 +4513,14 @@
       "de": "Verkauft für",
       "zh-Hans": "售出价"
     },
+    "Some details look off": {
+      "comment": "Legit check verdict (#90). An observation about photos, never a certification: must not say the item is authentic, genuine or fake.",
+      "en": "Some details look off",
+      "ro": "Unele detalii par în neregulă",
+      "es": "Algunos detalles no cuadran",
+      "de": "Einige Details wirken ungewöhnlich",
+      "zh-Hans": "部分细节看起来不对"
+    },
     "Something went wrong. Please try again.": {
       "en": "Something went wrong. Please try again.",
       "ro": "Ceva n-a mers. Încearcă din nou.",
@@ -4380,6 +4564,14 @@
       "de": "Gratis testen",
       "zh-Hans": "开始免费试用"
     },
+    "Start a legit check": {
+      "comment": "Legit check card button.",
+      "en": "Start a legit check",
+      "ro": "Începe verificarea",
+      "es": "Empezar la comprobación",
+      "de": "Check starten",
+      "zh-Hans": "开始检查"
+    },
     "Start a run": {
       "en": "Start a run",
       "ro": "Pornește o tură",
@@ -4416,6 +4608,22 @@
       "es": "No pierdas de vista tus reventas",
       "de": "Behalt deine Flips im Blick",
       "zh-Hans": "别让转卖的事落下"
+    },
+    "Step %lld of %lld": {
+      "comment": "Legit check camera: which of the four photos this is.",
+      "en": "Step %lld of %lld",
+      "ro": "Pasul %1$lld din %2$lld",
+      "es": "Paso %1$lld de %2$lld",
+      "de": "Schritt %1$lld von %2$lld",
+      "zh-Hans": "第 %1$lld 步，共 %2$lld 步"
+    },
+    "Stitching": {
+      "comment": "Legit check step title.",
+      "en": "Stitching",
+      "ro": "Cusăturile",
+      "es": "Costuras",
+      "de": "Nähte",
+      "zh-Hans": "缝线"
     },
     "Stop drafting": {
       "en": "Stop drafting",
@@ -4511,6 +4719,14 @@
       "de": "Foto vom Etikett aufnehmen",
       "zh-Hans": "拍下标签"
     },
+    "Take this photo": {
+      "comment": "VoiceOver: the shutter in the legit check camera.",
+      "en": "Take this photo",
+      "ro": "Fă această fotografie",
+      "es": "Hacer esta foto",
+      "de": "Dieses Foto aufnehmen",
+      "zh-Hans": "拍摄这张照片"
+    },
     "Terms of Service": {
       "en": "Terms of Service",
       "ro": "Termeni și condiții",
@@ -4594,6 +4810,22 @@
       "de": "Der Taschenrechner hat gekündigt.",
       "zh-Hans": "计算器罢工了。"
     },
+    "The care or size label, flat and in focus, so the small print is readable.": {
+      "comment": "Legit check step instruction.",
+      "en": "The care or size label, flat and in focus, so the small print is readable.",
+      "ro": "Eticheta de întreținere sau de mărime, întinsă și clară, ca textul mic să se poată citi.",
+      "es": "La etiqueta de cuidado o de talla, lisa y enfocada, para que se lea la letra pequeña.",
+      "de": "Das Pflege- oder Größenetikett, glatt und scharf, damit das Kleingedruckte lesbar ist.",
+      "zh-Hans": "洗标或尺码标签，铺平并对好焦，让小字清晰可读。"
+    },
+    "The details we could see match how this brand's genuine items are usually made.": {
+      "comment": "Legit check: under 'No signs of a replica found'.",
+      "en": "The details we could see match how this brand's genuine items are usually made.",
+      "ro": "Detaliile pe care le-am putut vedea corespund felului în care sunt realizate de obicei articolele originale ale acestui brand.",
+      "es": "Los detalles que pudimos ver coinciden con cómo suelen fabricarse los artículos originales de esta marca.",
+      "de": "Die erkennbaren Details entsprechen der üblichen Verarbeitung von Originalartikeln dieser Marke.",
+      "zh-Hans": "我们能看到的细节与该品牌正品的常见做工一致。"
+    },
     "The full breakdown is only available for new scans. This find keeps the summary it was saved with.": {
       "comment": "Under \"Scanned before Pro\": a find reopened from My Finds or My Flips keeps the free part of \"Why this price\"; only a fresh scan offers the full panel.",
       "en": "The full breakdown is only available for new scans. This find keeps the summary it was saved with.",
@@ -4616,6 +4848,14 @@
       "es": "La foto original ya no está disponible para este hallazgo.",
       "de": "Das ursprüngliche Foto ist für diesen Fund nicht mehr da.",
       "zh-Hans": "这件好物的原始照片已经不在了。"
+    },
+    "The photos didn't show enough to judge. Closer, sharper shots in good light help.": {
+      "comment": "Legit check: under 'Couldn't tell from these photos'.",
+      "en": "The photos didn't show enough to judge. Closer, sharper shots in good light help.",
+      "ro": "Fotografiile nu au arătat destul pentru o evaluare. Ajută cadrele mai apropiate și mai clare, în lumină bună.",
+      "es": "Las fotos no mostraban lo suficiente para juzgar. Ayudan las tomas más cercanas y nítidas con buena luz.",
+      "de": "Die Fotos zeigten nicht genug für eine Einschätzung. Nähere, schärfere Aufnahmen bei gutem Licht helfen.",
+      "zh-Hans": "照片显示的信息不足以判断。在光线充足处拍摄更近、更清晰的照片会有帮助。"
     },
     "The rarest thing we have ever scanned. Allegedly.": {
       "comment": "Rare-find easter egg (RareFind.swift). The joke is hype and rarity only — keep it that way in translation.",
@@ -4794,6 +5034,14 @@
       "es": "Demasiados intentos hoy. Inténtalo mañana.",
       "de": "Zu viele Versuche heute. Versuch es morgen wieder.",
       "zh-Hans": "今天尝试次数太多了。明天再试吧。"
+    },
+    "Too unclear to judge: %@": {
+      "comment": "Legit check: %@ is a list of step titles, e.g. 'Inside label and Stitching'.",
+      "en": "Too unclear to judge: %@",
+      "ro": "Prea neclar pentru o evaluare: %@",
+      "es": "Demasiado poco claro para juzgar: %@",
+      "de": "Zu unscharf zum Beurteilen: %@",
+      "zh-Hans": "太模糊，无法判断：%@"
     },
     "Toys": {
       "comment": "An item category (ScanCategory), as a label on its own: a row of 'Trending at the thrift', and the start of that row's VoiceOver sentence.",
@@ -5399,6 +5647,14 @@
       "de": "Du hast das Scan-Limit erreicht.",
       "zh-Hans": "你已经达到扫描上限。"
     },
+    "You've run a lot of legit checks this hour. Try again later.": {
+      "comment": "Legit check: its own hourly limit was reached.",
+      "en": "You've run a lot of legit checks this hour. Try again later.",
+      "ro": "Ai făcut multe verificări în această oră. Încearcă din nou mai târziu.",
+      "es": "Has hecho muchas comprobaciones en esta hora. Inténtalo de nuevo más tarde.",
+      "de": "Du hast in dieser Stunde viele Checks durchgeführt. Versuche es später erneut.",
+      "zh-Hans": "你在这一小时内已进行了很多次检查。请稍后再试。"
+    },
     "You've used today's free scans.": {
       "comment": "An error the server sent with a code this build words itself (backend/apierrors.py). In English the server's own sentence is shown instead. Count-neutral on purpose: the allowance is one scan a day by default, and more on the first day when the first-day allowance is switched on.",
       "en": "You've used today's free scans.",
@@ -5551,6 +5807,14 @@
       "es": "Se ha restaurado tu suscripción.",
       "de": "Dein Abo wurde wiederhergestellt.",
       "zh-Hans": "你的订阅已恢复。"
+    },
+    "Zipper or hardware": {
+      "comment": "Legit check step title.",
+      "en": "Zipper or hardware",
+      "ro": "Fermoar sau accesorii metalice",
+      "es": "Cremallera o herrajes",
+      "de": "Reißverschluss oder Beschläge",
+      "zh-Hans": "拉链或五金件"
     },
     "abundant supply": {
       "comment": "The AI's guess at how many comparable items are for sale. Placed inside 'AI read: %@, %@'.",

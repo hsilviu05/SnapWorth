@@ -759,6 +759,74 @@ actor ScanAPIClient {
         return try await liveScan(image: image, tagImage: tagImage)
     }
 
+    /// Legit check (#90): two to four close-ups, one model call, a read on
+    /// whether they show the usual signs of a replica. `brand`, `itemName`
+    /// and `category` are what the item scan identified; the server fences
+    /// them as data and compares against that brand.
+    func legitCheck(photos: [(LegitPhotoSlot, UIImage)], brand: String, itemName: String,
+                    category: String) async throws -> LegitAPIResponse {
+        if Config.mockScans {
+            try await Task.sleep(for: .seconds(2.2))
+            return LegitAPIResponse(
+                verdict: "some_concerns",
+                reasons: ["The inside label's font is evenly spaced, like the brand's current labels.",
+                          "The logo's stitching is uneven, with a loose thread under the second letter."],
+                unclearPhotos: [], promptVersion: "legit-v1")
+        }
+        // Each at the scan's upload size: the small print on a label and the
+        // engraving on a zip are what this is read for.
+        var encoded: [(LegitPhotoSlot, Data)] = []
+        for (slot, image) in photos {
+            guard let data = await Self.encodeForUpload(image) else {
+                throw ScanAPIError.imageEncodingFailed
+            }
+            encoded.append((slot, data))
+        }
+
+        var request = URLRequest(url: Config.baseURL.appendingPathComponent("legit"))
+        request.httpMethod = "POST"
+        try await request.requireBearerToken()
+        let boundary = "Boundary-\(UUID().uuidString)"
+        request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
+        request.httpBody = Self.legitMultipart(
+            photos: encoded,
+            // Within the server's form limits (`promptsafety.MAX_*`), which
+            // answer anything longer with a 422 for the whole check.
+            fields: [("brand", String(brand.prefix(100))),
+                     ("item_name", String(itemName.prefix(200))),
+                     ("category", String(category.prefix(50)))],
+            boundary: boundary)
+
+        let (data, http) = try await request.sendRetryingAuth(on: session)
+        guard (200..<300).contains(http.statusCode) else {
+            throw ScanAPIError.from(http, data: data)
+        }
+        return try JSONDecoder().decode(LegitAPIResponse.self, from: data)
+    }
+
+    /// `/legit`'s body: one file part per photo, named by its slot, then the
+    /// item's text fields. Internal and static so a test can read it.
+    static func legitMultipart(photos: [(LegitPhotoSlot, Data)], fields: [(String, String)],
+                               boundary: String) -> Data {
+        var body = Data()
+        let crlf = "\r\n"
+        for (slot, payload) in photos {
+            body.append(Data("--\(boundary)\(crlf)".utf8))
+            body.append(Data("Content-Disposition: form-data; name=\"\(slot.rawValue)\"; filename=\"\(slot.rawValue).jpg\"\(crlf)".utf8))
+            body.append(Data("Content-Type: image/jpeg\(crlf)\(crlf)".utf8))
+            body.append(payload)
+            body.append(Data(crlf.utf8))
+        }
+        for (name, value) in fields where !value.isEmpty {
+            body.append(Data("--\(boundary)\(crlf)".utf8))
+            body.append(Data("Content-Disposition: form-data; name=\"\(name)\"\(crlf)\(crlf)".utf8))
+            body.append(Data(value.utf8))
+            body.append(Data(crlf.utf8))
+        }
+        body.append(Data("--\(boundary)--\(crlf)".utf8))
+        return body
+    }
+
     // ── Mock ──────────────────────────────────────────────────────────────────
 
     #if DEBUG

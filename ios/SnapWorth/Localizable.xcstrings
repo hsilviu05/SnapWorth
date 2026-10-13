@@ -3014,6 +3014,42 @@
         }
       }
     },
+    "%lld of %lld photos taken" : {
+      "comment" : "VoiceOver: progress through the legit check camera.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$lld von %2$lld Fotos aufgenommen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld of %lld photos taken"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$lld de %2$lld fotos tomadas"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$lld din %2$lld fotografii făcute"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已拍 %1$lld 张，共 %2$lld 张"
+          }
+        }
+      }
+    },
     "%lld out of %lld" : {
       "comment" : "Rare-find easter egg (RareFind.swift). The joke is hype and rarity only — keep it that way in translation. A score read aloud: “11 out of 10”. On screen it is printed 11/10.",
       "extractionState" : "manual",
@@ -4531,6 +4567,78 @@
         }
       }
     },
+    "A seam, or the stitching around the logo, close enough to see each stitch." : {
+      "comment" : "Legit check step instruction.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Eine Naht oder die Stiche um das Logo, nah genug, um jeden Stich zu sehen."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A seam, or the stitching around the logo, close enough to see each stitch."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Una costura, o las puntadas alrededor del logo, lo bastante cerca para ver cada puntada."
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "O cusătură sau cusăturile din jurul logoului, destul de aproape cât să se vadă fiecare împunsătură."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "一条接缝或标志周围的缝线，近到能看清每一针。"
+          }
+        }
+      }
+    },
+    "A zipper pull, snap or button, with any engraving facing the camera." : {
+      "comment" : "Legit check step instruction.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ein Zipper, Druckknopf oder Knopf, mit einer eventuellen Gravur zur Kamera."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A zipper pull, snap or button, with any engraving facing the camera."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Un tirador de cremallera, un broche o un botón, con cualquier grabado hacia la cámara."
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Un cursor de fermoar, o capsă sau un nasture, cu orice gravură îndreptată spre cameră."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "拉链头、按扣或纽扣，让上面的刻字朝向镜头。"
+          }
+        }
+      }
+    },
     "AI estimate" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -5274,6 +5382,42 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "快好了…"
+          }
+        }
+      }
+    },
+    "An observation about these photos, not a certification of authenticity." : {
+      "comment" : "Legit check: shown under every read. Legal wording; keep 'not a certification'.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Eine Beobachtung zu diesen Fotos, keine Echtheitszertifizierung."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "An observation about these photos, not a certification of authenticity."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Una observación sobre estas fotos, no una certificación de autenticidad."
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "O observație despre aceste fotografii, nu o certificare a autenticității."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这是对这些照片的观察，并非真伪认证。"
           }
         }
       }
@@ -6549,6 +6693,114 @@
         }
       }
     },
+    "Check again" : {
+      "comment" : "Legit check: button to run another check on a find that has one.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Erneut prüfen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Check again"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Comprobar de nuevo"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Verifică din nou"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "再次检查"
+          }
+        }
+      }
+    },
+    "Check it before you buy" : {
+      "comment" : "Paywall headline when it opened from the Legit check card.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Prüfe es vor dem Kauf"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Check it before you buy"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Compruébalo antes de comprar"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Verifică înainte să cumperi"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "买之前先检查"
+          }
+        }
+      }
+    },
+    "Check now" : {
+      "comment" : "Legit check camera: send the photos taken so far.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Jetzt prüfen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Check now"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Comprobar ahora"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Verifică acum"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "立即检查"
+          }
+        }
+      }
+    },
     "Check resale profit after fees before you buy" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -6580,6 +6832,42 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "买之前先看看扣掉手续费还剩多少"
+          }
+        }
+      }
+    },
+    "Checked %@" : {
+      "comment" : "Legit check: when the read was made; %@ is a date.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Geprüft am %@"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Checked %@"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Comprobado el %@"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Verificat la %@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "检查于 %@"
           }
         }
       }
@@ -6616,6 +6904,42 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "正在查验领口来历…"
+          }
+        }
+      }
+    },
+    "Checking the details…" : {
+      "comment" : "Legit check: while the photos are read.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Details werden geprüft…"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Checking the details…"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Comprobando los detalles…"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Verificăm detaliile…"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在检查细节…"
           }
         }
       }
@@ -6793,6 +7117,42 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "从相册选择标签照片"
+          }
+        }
+      }
+    },
+    "Choose this photo from your library" : {
+      "comment" : "VoiceOver: the library button in the legit check camera.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dieses Foto aus der Mediathek wählen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choose this photo from your library"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Elegir esta foto de tu fototeca"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Alege această fotografie din bibliotecă"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "从照片图库中选择这张照片"
           }
         }
       }
@@ -8520,6 +8880,42 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "没能开始，去“设置”里看看实时活动"
+          }
+        }
+      }
+    },
+    "Couldn't tell from these photos" : {
+      "comment" : "Legit check verdict (#90). An observation about photos, never a certification: must not say the item is authentic, genuine or fake.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Anhand dieser Fotos nicht erkennbar"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Couldn't tell from these photos"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No se puede saber con estas fotos"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nu se poate spune din aceste fotografii"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无法从这些照片中判断"
           }
         }
       }
@@ -10579,6 +10975,42 @@
         }
       }
     },
+    "Fill the frame with the logo or wordmark. Sharp edges matter more than the whole item." : {
+      "comment" : "Legit check step instruction.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fülle den Rahmen mit dem Logo oder Schriftzug. Scharfe Kanten zählen mehr als der ganze Artikel."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fill the frame with the logo or wordmark. Sharp edges matter more than the whole item."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Llena el encuadre con el logo o el nombre de la marca. Importan más los bordes nítidos que el artículo entero."
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Umple cadrul cu logoul sau inscripția. Contează marginile clare, nu întregul articol."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "让标志或字标填满取景框。清晰的边缘比拍下整件物品更重要。"
+          }
+        }
+      }
+    },
     "Filter" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -12296,6 +12728,42 @@
         }
       }
     },
+    "Inside label" : {
+      "comment" : "Legit check step title.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Innenetikett"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Inside label"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Etiqueta interior"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Eticheta interioară"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "内侧标签"
+          }
+        }
+      }
+    },
     "Insure it before you wear it." : {
       "comment" : "Rare-find easter egg (RareFind.swift). The joke is hype and rarity only — keep it that way in translation.",
       "extractionState" : "manual",
@@ -12898,6 +13366,78 @@
         }
       }
     },
+    "Legit check" : {
+      "comment" : "Name of the feature (#90): a card on a result and the title of its read.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Echtheits-Check"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Legit check"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Comprobación de originalidad"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Verificare originalitate"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "真伪检查"
+          }
+        }
+      }
+    },
+    "Legit check — guided close-ups, read for the usual signs of a replica" : {
+      "comment" : "Paywall benefit row (#90).",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Echtheits-Check — geführte Nahaufnahmen, geprüft auf die üblichen Anzeichen einer Replik"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Legit check — guided close-ups, read for the usual signs of a replica"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Comprobación de originalidad: primeros planos guiados, revisados en busca de las señales habituales de una réplica"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Verificare originalitate — prim-planuri ghidate, analizate pentru semnele obișnuite ale unei replici"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "真伪检查——按引导拍摄特写，查找仿品的常见迹象"
+          }
+        }
+      }
+    },
     "Lets you remove finds from your closet" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -13142,6 +13682,42 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "正在加载方案…"
+          }
+        }
+      }
+    },
+    "Logo close-up" : {
+      "comment" : "Legit check step title.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Logo in Nahaufnahme"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Logo close-up"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Primer plano del logo"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Prim-plan cu logoul"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "标志特写"
           }
         }
       }
@@ -14422,6 +14998,42 @@
         }
       }
     },
+    "No signs of a replica found" : {
+      "comment" : "Legit check verdict (#90). An observation about photos, never a certification: must not say the item is authentic, genuine or fake.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Keine Anzeichen einer Replik gefunden"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No signs of a replica found"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No se encontraron señales de réplica"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Niciun semn de replică găsit"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未发现仿品迹象"
+          }
+        }
+      }
+    },
     "None of these reminders can arrive until you do." : {
       "comment" : "Under 'Allow notifications': until permission is given, none of the reminders listed below can be delivered.",
       "extractionState" : "manual",
@@ -14951,6 +15563,42 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "新扫描时，Pro 会显示四个价格档位、什么在抬高价值，以及怎样让估价更准。这件好物保留的是保存时的摘要。"
+          }
+        }
+      }
+    },
+    "One or more details differ from what genuine items usually show. Look closer before you pay." : {
+      "comment" : "Legit check: under 'Some details look off'.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ein oder mehrere Details weichen von dem ab, was Originalartikel üblicherweise zeigen. Sieh genauer hin, bevor du bezahlst."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "One or more details differ from what genuine items usually show. Look closer before you pay."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Uno o más detalles difieren de lo que suelen mostrar los artículos originales. Míralo con más atención antes de pagar."
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Unul sau mai multe detalii diferă de ceea ce arată de obicei articolele originale. Uită-te mai atent înainte să plătești."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "有一处或多处细节与正品通常的样子不同。付款前请仔细查看。"
           }
         }
       }
@@ -15834,6 +16482,42 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "拍一下洗标、尺码标或鞋底钢印，我们会用两张照片重新识别这件物品。"
+          }
+        }
+      }
+    },
+    "Photograph the logo, the inside label, the stitching and the hardware, and we'll look for the usual signs of a replica." : {
+      "comment" : "Legit check card on a result.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fotografiere Logo, Innenetikett, Nähte und Beschläge, und wir suchen nach den üblichen Anzeichen einer Replik."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Photograph the logo, the inside label, the stitching and the hardware, and we'll look for the usual signs of a replica."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fotografía el logo, la etiqueta interior, las costuras y los herrajes, y buscaremos las señales habituales de una réplica."
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fotografiază logoul, eticheta interioară, cusăturile și accesoriile metalice, iar noi vom căuta semnele obișnuite ale unei replici."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "拍下标志、内侧标签、缝线和五金件，我们会查找仿品的常见迹象。"
           }
         }
       }
@@ -18879,6 +19563,42 @@
         }
       }
     },
+    "Several details are typical of replicas." : {
+      "comment" : "Legit check: under 'Shows signs of a replica'.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mehrere Details sind typisch für Repliken."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Several details are typical of replicas."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Varios detalles son típicos de las réplicas."
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mai multe detalii sunt tipice pentru replici."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "多处细节是仿品的典型特征。"
+          }
+        }
+      }
+    },
     "Share" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -19549,6 +20269,42 @@
         }
       }
     },
+    "Shows signs of a replica" : {
+      "comment" : "Legit check verdict (#90). An observation about photos, never a certification: must not say the item is authentic, genuine or fake.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zeigt Anzeichen einer Replik"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Shows signs of a replica"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Muestra señales de réplica"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Prezintă semne de replică"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "显示出仿品迹象"
+          }
+        }
+      }
+    },
     "Sightings in the wild" : {
       "comment" : "Rare-find easter egg (RareFind.swift). The joke is hype and rarity only — keep it that way in translation.",
       "extractionState" : "manual",
@@ -19652,6 +20408,42 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "跳过"
+          }
+        }
+      }
+    },
+    "Skip and check" : {
+      "comment" : "Legit check camera, last step: skip this photo and send the others.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Überspringen und prüfen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Skip and check"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Omitir y comprobar"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sari peste și verifică"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "跳过并检查"
           }
         }
       }
@@ -20504,6 +21296,42 @@
         }
       }
     },
+    "Some details look off" : {
+      "comment" : "Legit check verdict (#90). An observation about photos, never a certification: must not say the item is authentic, genuine or fake.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Einige Details wirken ungewöhnlich"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Some details look off"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Algunos detalles no cuadran"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Unele detalii par în neregulă"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "部分细节看起来不对"
+          }
+        }
+      }
+    },
     "Something went wrong. Please try again." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -20750,6 +21578,42 @@
         }
       }
     },
+    "Start a legit check" : {
+      "comment" : "Legit check card button.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Check starten"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Start a legit check"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Empezar la comprobación"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Începe verificarea"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "开始检查"
+          }
+        }
+      }
+    },
     "Start a run" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -20923,6 +21787,78 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "别让转卖的事落下"
+          }
+        }
+      }
+    },
+    "Step %lld of %lld" : {
+      "comment" : "Legit check camera: which of the four photos this is.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Schritt %1$lld von %2$lld"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Step %lld of %lld"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Paso %1$lld de %2$lld"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pasul %1$lld din %2$lld"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "第 %1$lld 步，共 %2$lld 步"
+          }
+        }
+      }
+    },
+    "Stitching" : {
+      "comment" : "Legit check step title.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nähte"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Stitching"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Costuras"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cusăturile"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "缝线"
           }
         }
       }
@@ -21385,6 +22321,42 @@
         }
       }
     },
+    "Take this photo" : {
+      "comment" : "VoiceOver: the shutter in the legit check camera.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dieses Foto aufnehmen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Take this photo"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hacer esta foto"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fă această fotografie"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "拍摄这张照片"
+          }
+        }
+      }
+    },
     "Terms of Service" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -21776,6 +22748,78 @@
         }
       }
     },
+    "The care or size label, flat and in focus, so the small print is readable." : {
+      "comment" : "Legit check step instruction.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Das Pflege- oder Größenetikett, glatt und scharf, damit das Kleingedruckte lesbar ist."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The care or size label, flat and in focus, so the small print is readable."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La etiqueta de cuidado o de talla, lisa y enfocada, para que se lea la letra pequeña."
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Eticheta de întreținere sau de mărime, întinsă și clară, ca textul mic să se poată citi."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "洗标或尺码标签，铺平并对好焦，让小字清晰可读。"
+          }
+        }
+      }
+    },
+    "The details we could see match how this brand's genuine items are usually made." : {
+      "comment" : "Legit check: under 'No signs of a replica found'.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die erkennbaren Details entsprechen der üblichen Verarbeitung von Originalartikeln dieser Marke."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The details we could see match how this brand's genuine items are usually made."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Los detalles que pudimos ver coinciden con cómo suelen fabricarse los artículos originales de esta marca."
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Detaliile pe care le-am putut vedea corespund felului în care sunt realizate de obicei articolele originale ale acestui brand."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "我们能看到的细节与该品牌正品的常见做工一致。"
+          }
+        }
+      }
+    },
     "The full breakdown is only available for new scans. This find keeps the summary it was saved with." : {
       "comment" : "Under \"Scanned before Pro\": a find reopened from My Finds or My Flips keeps the free part of \"Why this price\"; only a fresh scan offers the full panel.",
       "extractionState" : "manual",
@@ -21879,6 +22923,42 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "这件好物的原始照片已经不在了。"
+          }
+        }
+      }
+    },
+    "The photos didn't show enough to judge. Closer, sharper shots in good light help." : {
+      "comment" : "Legit check: under 'Couldn't tell from these photos'.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die Fotos zeigten nicht genug für eine Einschätzung. Nähere, schärfere Aufnahmen bei gutem Licht helfen."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The photos didn't show enough to judge. Closer, sharper shots in good light help."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Las fotos no mostraban lo suficiente para juzgar. Ayudan las tomas más cercanas y nítidas con buena luz."
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fotografiile nu au arătat destul pentru o evaluare. Ajută cadrele mai apropiate și mai clare, în lumină bună."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "照片显示的信息不足以判断。在光线充足处拍摄更近、更清晰的照片会有帮助。"
           }
         }
       }
@@ -22714,6 +23794,42 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "今天尝试次数太多了。明天再试吧。"
+          }
+        }
+      }
+    },
+    "Too unclear to judge: %@" : {
+      "comment" : "Legit check: %@ is a list of step titles, e.g. 'Inside label and Stitching'.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zu unscharf zum Beurteilen: %@"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Too unclear to judge: %@"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Demasiado poco claro para juzgar: %@"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Prea neclar pentru o evaluare: %@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "太模糊，无法判断：%@"
           }
         }
       }
@@ -25599,6 +26715,42 @@
         }
       }
     },
+    "You've run a lot of legit checks this hour. Try again later." : {
+      "comment" : "Legit check: its own hourly limit was reached.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Du hast in dieser Stunde viele Checks durchgeführt. Versuche es später erneut."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You've run a lot of legit checks this hour. Try again later."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Has hecho muchas comprobaciones en esta hora. Inténtalo de nuevo más tarde."
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ai făcut multe verificări în această oră. Încearcă din nou mai târziu."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "你在这一小时内已进行了很多次检查。请稍后再试。"
+          }
+        }
+      }
+    },
     "You've used today's free scans." : {
       "comment" : "An error the server sent with a code this build words itself (backend/apierrors.py). In English the server's own sentence is shown instead. Count-neutral on purpose: the allowance is one scan a day by default, and more on the first day when the first-day allowance is switched on.",
       "extractionState" : "manual",
@@ -26321,6 +27473,42 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "你的订阅已恢复。"
+          }
+        }
+      }
+    },
+    "Zipper or hardware" : {
+      "comment" : "Legit check step title.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reißverschluss oder Beschläge"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zipper or hardware"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cremallera o herrajes"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fermoar sau accesorii metalice"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "拉链或五金件"
           }
         }
       }
