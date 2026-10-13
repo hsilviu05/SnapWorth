@@ -3448,6 +3448,7 @@ async def rack(
     return RackResponse(candidates=[RackCandidate(**c) for c in candidates],
                         prompt_version=prompts.RACK_PROMPT_VERSION)
 
+
 def _safe_float(value: object) -> float:
     try:
         result = float(value)  # type: ignore[arg-type]
