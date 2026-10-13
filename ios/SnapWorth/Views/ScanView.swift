@@ -21,6 +21,9 @@ struct ScanView: View {
     /// entry pill can show what is still waiting from an earlier haul.
     @State private var haul: HaulSession?
     @State private var showHaul = false
+    /// Rack scan (#89), and the item its "Scan this one" sent the user to.
+    @State private var showRack = false
+    @State private var rackTarget: RackCandidate?
 
     /// Value-first paywall: the intro paywall is deferred until the user has
     /// actually seen their first result. Shown once, then never again here.
@@ -72,7 +75,7 @@ struct ScanView: View {
 
     /// Anything presented on top of the camera. See the `onChange` below.
     private var isCameraObscured: Bool {
-        showResult || showThriftFlip || showNotifPriming || vm.showPaywall || showHaul
+        showResult || showThriftFlip || showNotifPriming || vm.showPaywall || showHaul || showRack
     }
 
     var body: some View {
@@ -234,6 +237,11 @@ struct ScanView: View {
                 // buy compliance for the least important of them and make the
                 // set look wrong. That shared ceiling is recorded in the audit
                 // as its own finding rather than half-fixed here.
+                if let rackTarget {
+                    RackTargetBanner(candidate: rackTarget) { self.rackTarget = nil }
+                        .padding(.top, 12)
+                }
+
                 Text("Center the item — tags & logos help")
                     .font(.snapCaption)
                     .foregroundStyle(Color.snapOnCharcoal.opacity(0.9))
@@ -248,14 +256,25 @@ struct ScanView: View {
 
                 Spacer()
 
-                HaulEntryPill(isPro: purchaseService.isSubscribed,
-                              waiting: (haul?.pendingCount ?? 0) + (haul?.failedCount ?? 0),
-                              isDisabled: vm.isAnalyzing || captureInFlight) {
-                    if purchaseService.isSubscribed {
-                        showHaul = true
-                    } else {
-                        vm.paywallTrigger = .haul
-                        vm.showPaywall = true
+                HStack(spacing: 10) {
+                    HaulEntryPill(isPro: purchaseService.isSubscribed,
+                                  waiting: (haul?.pendingCount ?? 0) + (haul?.failedCount ?? 0),
+                                  isDisabled: vm.isAnalyzing || captureInFlight) {
+                        if purchaseService.isSubscribed {
+                            showHaul = true
+                        } else {
+                            vm.paywallTrigger = .haul
+                            vm.showPaywall = true
+                        }
+                    }
+                    RackEntryPill(isPro: purchaseService.isSubscribed,
+                                  isDisabled: vm.isAnalyzing || captureInFlight) {
+                        if purchaseService.isSubscribed {
+                            showRack = true
+                        } else {
+                            vm.paywallTrigger = .rackScan
+                            vm.showPaywall = true
+                        }
                     }
                 }
                 .padding(.bottom, 16)
@@ -539,6 +558,8 @@ struct ScanView: View {
         .fullScreenCover(isPresented: $showThriftFlip) {
             ThriftFlipView(purchaseService: purchaseService)
         }
+        .modifier(RackPresentation(isPresented: $showRack,
+                                   onScanThis: { rackTarget = $0 }))
         .modifier(HaulPresentation(isPresented: $showHaul, session: $haul,
                                    purchaseService: purchaseService,
                                    makeRepository: { ScanRepository(context: modelContext) }))
@@ -655,6 +676,10 @@ struct ScanView: View {
             if purchaseService.isSubscribed { showHaul = true }
             return
         }
+        if vm.paywallTrigger == .rackScan {
+            if purchaseService.isSubscribed { showRack = true }
+            return
+        }
         guard let photo = vm.takePhotoForResume(purchaseService: purchaseService),
               !captureInFlight else { return }
         captureInFlight = true
@@ -666,6 +691,8 @@ struct ScanView: View {
         // Released on every exit, success or failure, so the shutter comes
         // back exactly once per capture.
         defer { captureInFlight = false }
+        // The item the rack pointed at is the one being scanned now.
+        rackTarget = nil
         let repository = ScanRepository(context: modelContext)
         await vm.startScan(image: image, purchaseService: purchaseService, repository: repository,
                            afterPurchase: afterPurchase)

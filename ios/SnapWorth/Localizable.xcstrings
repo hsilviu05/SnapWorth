@@ -2388,6 +2388,96 @@
         }
       }
     },
+    "%lld items worth a closer look." : {
+      "comment" : "Rack scan, announced to VoiceOver: how many items it pinned (1 to 3).",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld Artikel ist einen genaueren Blick wert."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld Artikel sind einen genaueren Blick wert."
+                }
+              }
+            }
+          }
+        },
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld item worth a closer look."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld items worth a closer look."
+                }
+              }
+            }
+          }
+        },
+        "es" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld artículo merece una mirada."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld artículos merecen una mirada."
+                }
+              }
+            }
+          }
+        },
+        "ro" : {
+          "variations" : {
+            "plural" : {
+              "few" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld articole merită o privire mai atentă."
+                }
+              },
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Un articol merită o privire mai atentă."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld de articole merită o privire mai atentă."
+                }
+              }
+            }
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld 件物品值得细看。"
+          }
+        }
+      }
+    },
     "%lld listings" : {
       "comment" : "Inflected on its own and placed into \"Draft %@ for %@?\" — one plural key agrees with one number.",
       "extractionState" : "manual",
@@ -7015,6 +7105,42 @@
         }
       }
     },
+    "Choose a rack photo from your library" : {
+      "comment" : "VoiceOver: the library button in the Rack scan camera.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ein Regalfoto aus der Mediathek wählen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choose a rack photo from your library"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Elegir una foto de un estante de tu fototeca"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Alege o fotografie cu un raft din bibliotecă"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "从照片图库中选择一张货架照片"
+          }
+        }
+      }
+    },
     "Choose from library" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -9487,6 +9613,42 @@
         }
       }
     },
+    "Dismiss" : {
+      "comment" : "VoiceOver: closes a banner.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Schließen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dismiss"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Descartar"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Închide"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "关闭"
+          }
+        }
+      }
+    },
     "Dismisses this offer" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -11081,6 +11243,42 @@
         }
       }
     },
+    "Find the best on the rack" : {
+      "comment" : "Paywall headline when it opened from the Rack button.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Finde das Beste am Regal"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Find the best on the rack"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Encuentra lo mejor del estante"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Găsește ce e mai bun pe raft"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "找出货架上的好东西"
+          }
+        }
+      }
+    },
     "Finish" : {
       "comment" : "Haul: ends capturing and opens the summary.",
       "extractionState" : "manual",
@@ -11113,6 +11311,42 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "结束"
+          }
+        }
+      }
+    },
+    "Fit the whole rail in the frame" : {
+      "comment" : "Rack scan camera instruction.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die ganze Stange ins Bild nehmen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fit the whole rail in the frame"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Encuadra todo el perchero"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Încadrează tot standul"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "将整个衣架放入取景框"
           }
         }
       }
@@ -13722,6 +13956,42 @@
         }
       }
     },
+    "Looking along the rail…" : {
+      "comment" : "Rack scan: while the photo is read.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wir sehen uns die Stange an…"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Looking along the rail…"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Revisando el perchero…"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ne uităm de-a lungul standului…"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在查看衣架…"
+          }
+        }
+      }
+    },
     "Loss of %@" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -15247,6 +15517,42 @@
         }
       }
     },
+    "Nothing stood out in this photo." : {
+      "comment" : "Rack scan: no candidates. An honest empty answer, not an error.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Auf diesem Foto ist nichts aufgefallen."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nothing stood out in this photo."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nada destacaba en esta foto."
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nimic nu iese în evidență în această fotografie."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这张照片里没有特别突出的物品。"
+          }
+        }
+      }
+    },
     "Nothing was shared. Try again in a moment." : {
       "comment" : "Alert message when the My Flips ZIP export could not be written.",
       "extractionState" : "manual",
@@ -15349,6 +15655,42 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "通知已关闭"
+          }
+        }
+      }
+    },
+    "Now scan: %@" : {
+      "comment" : "Scan tab, after Rack scan's 'Scan this one': %@ is the item to photograph next, in the model's English.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Jetzt scannen: %@"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Now scan: %@"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ahora escanea: %@"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Acum scanează: %@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "现在扫描：%@"
           }
         }
       }
@@ -15599,6 +15941,78 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "有一处或多处细节与正品通常的样子不同。付款前请仔细查看。"
+          }
+        }
+      }
+    },
+    "One photo of a rail or shelf, and the items most worth a closer look" : {
+      "comment" : "VoiceOver hint for the Rack button on the Scan tab.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ein Foto einer Kleiderstange oder eines Regals und die Artikel, die einen genaueren Blick wert sind"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "One photo of a rail or shelf, and the items most worth a closer look"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Una foto de un perchero o estante, y los artículos que más merecen una mirada"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "O fotografie a unui stand sau raft și articolele care merită o privire mai atentă"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "拍一张衣架或货架的照片，找出最值得细看的物品"
+          }
+        }
+      }
+    },
+    "One photo of a rail, shelf or bin. We'll point out up to three items worth a closer look." : {
+      "comment" : "Rack scan camera, under its instruction.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ein Foto einer Stange, eines Regals oder einer Kiste. Wir zeigen dir bis zu drei Artikel, die einen genaueren Blick wert sind."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "One photo of a rail, shelf or bin. We'll point out up to three items worth a closer look."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Una foto de un perchero, estante o cesta. Te señalaremos hasta tres artículos que merecen una mirada."
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "O fotografie a unui stand, raft sau coș. Îți arătăm până la trei articole care merită o privire mai atentă."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "拍一张衣架、货架或货箱的照片。我们会指出最多三件值得细看的物品。"
           }
         }
       }
@@ -16558,6 +16972,78 @@
         }
       }
     },
+    "Pick %lld: %@, %@. Rough range %@." : {
+      "comment" : "VoiceOver for a rack candidate: rank, name, where it is on the rail (both the model's English), and a dollar range.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tipp %1$lld: %2$@, %3$@. Grobe Spanne %4$@."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pick %lld: %@, %@. Rough range %@."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Opción %1$lld: %2$@, %3$@. Rango aproximado %4$@."
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Alegerea %1$lld: %2$@, %3$@. Interval aproximativ %4$@."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "推荐 %1$lld：%2$@，%3$@。大致范围 %4$@。"
+          }
+        }
+      }
+    },
+    "Pick %lld: %@. Rough range %@." : {
+      "comment" : "VoiceOver for a rack candidate: rank, the model's name for the item, and a dollar range.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tipp %1$lld: %2$@. Grobe Spanne %3$@."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pick %lld: %@. Rough range %@."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Opción %1$lld: %2$@. Rango aproximado %3$@."
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Alegerea %1$lld: %2$@. Interval aproximativ %3$@."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "推荐 %1$lld：%2$@。大致范围 %3$@。"
+          }
+        }
+      }
+    },
     "Please wait for the current scan to finish" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -17260,6 +17746,186 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "回报率"
+          }
+        }
+      }
+    },
+    "Rack" : {
+      "comment" : "Scan tab: the button into Rack scan (#89), beside Haul. A rail, shelf or bin of items in a shop.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Regal"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rack"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Estante"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Raft"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "货架"
+          }
+        }
+      }
+    },
+    "Rack photo" : {
+      "comment" : "VoiceOver: the rack photo with its pins.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Regalfoto"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rack photo"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Foto del estante"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fotografia raftului"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "货架照片"
+          }
+        }
+      }
+    },
+    "Rack scan" : {
+      "comment" : "Rack scan (#89): the title of its result.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Regal-Scan"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rack scan"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Escaneo de estante"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Scanare raft"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "货架扫描"
+          }
+        }
+      }
+    },
+    "Rack scan — one photo of a rail, and the items most worth a closer look" : {
+      "comment" : "Paywall benefit row (#89).",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Regal-Scan — ein Foto einer Stange und die Artikel, die einen genaueren Blick wert sind"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rack scan — one photo of a rail, and the items most worth a closer look"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Escaneo de estante: una foto de un perchero y los artículos que más merecen una mirada"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Scanare raft — o fotografie a unui stand și articolele care merită o privire mai atentă"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "货架扫描——拍一张衣架照片，找出最值得细看的物品"
+          }
+        }
+      }
+    },
+    "Ranges are rough, judged from a distance. Scan an item for a real estimate." : {
+      "comment" : "Rack scan: under the candidates.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die Spannen sind grob und aus der Entfernung geschätzt. Scanne einen Artikel für eine echte Schätzung."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ranges are rough, judged from a distance. Scan an item for a real estimate."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Los rangos son aproximados, calculados a distancia. Escanea un artículo para una estimación real."
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Intervalele sunt aproximative, estimate de la distanță. Scanează un articol pentru o estimare reală."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "价格范围只是从远处粗略估计的。扫描单件物品可获得准确估价。"
           }
         }
       }
@@ -18887,6 +19553,42 @@
         }
       }
     },
+    "Scan this one" : {
+      "comment" : "Rack scan: button under a candidate. Goes back to the camera to scan that item properly.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Diesen scannen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Scan this one"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Escanear este"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Scanează-l pe acesta"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "扫描这件"
+          }
+        }
+      }
+    },
     "Scan your first thrift item to see its resale value here." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -20301,6 +21003,42 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "显示出仿品迹象"
+          }
+        }
+      }
+    },
+    "Shows this item below" : {
+      "comment" : "VoiceOver hint on a numbered pin in a rack photo.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zeigt diesen Artikel unten"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Shows this item below"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Muestra este artículo abajo"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Afișează acest articol mai jos"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在下方显示此物品"
           }
         }
       }
@@ -22251,6 +22989,42 @@
         }
       }
     },
+    "Take another photo" : {
+      "comment" : "Rack scan: go back to the camera.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Weiteres Foto aufnehmen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Take another photo"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hacer otra foto"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fă altă fotografie"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "再拍一张"
+          }
+        }
+      }
+    },
     "Take photo to scan" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -22317,6 +23091,42 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "拍下标签"
+          }
+        }
+      }
+    },
+    "Take the rack photo" : {
+      "comment" : "VoiceOver: the shutter in the Rack scan camera.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Regalfoto aufnehmen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Take the rack photo"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hacer la foto del estante"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fă fotografia raftului"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "拍摄货架照片"
           }
         }
       }
@@ -24112,6 +24922,42 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "全部重试"
+          }
+        }
+      }
+    },
+    "Try closer, in better light, or a different rail. An empty answer is better than a guess." : {
+      "comment" : "Rack scan: under 'Nothing stood out in this photo.'",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Versuche es näher, bei besserem Licht oder an einer anderen Stange. Keine Antwort ist besser als eine Vermutung."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Try closer, in better light, or a different rail. An empty answer is better than a guess."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Prueba más cerca, con mejor luz o con otro perchero. Una respuesta vacía es mejor que una suposición."
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Încearcă mai aproape, în lumină mai bună, sau alt stand. Un răspuns gol e mai bun decât o presupunere."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "试试靠近一点、换个光线更好的地方，或换一个衣架。没有结果总比瞎猜好。"
           }
         }
       }
@@ -28757,6 +29603,42 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "本月利润"
+          }
+        }
+      }
+    },
+    "rough" : {
+      "comment" : "Beside a rack candidate's dollar range: it was judged from a distance.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "grob"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "rough"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "aproximado"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "aproximativ"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "粗略"
           }
         }
       }
