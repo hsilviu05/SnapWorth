@@ -1661,15 +1661,16 @@ def privacy():
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Privacy Policy — SnapWorth</title><style>{_STYLE}</style></head><body>
 <h1>Privacy Policy</h1>
-<p>Last updated: October 11, 2026</p>
+<p>Last updated: October 13, 2026</p>
 <p>SnapWorth ("we", "our", or "us") operates the SnapWorth mobile application.
 This page informs you of our policies regarding the collection, use, and
 disclosure of personal data when you use our Service.</p>
 
 <h2>Information We Collect</h2>
-<p>We collect photos you submit for valuation. Photos are sent to our server,
-processed by an AI model to identify the item and estimate resale value, and
-are not stored after the response is returned.</p>
+<p>We collect photos you submit for valuation or for a legit check. Photos are
+sent to our server, processed by an AI model to identify the item and estimate
+resale value, or to look for the usual signs of a replica, and are not stored
+after the response is returned.</p>
 <p>We collect an anonymous device identifier (UUID) for rate limiting (20 scans
 per hour) and to limit how many devices can use one subscription. This ID is not
 linked to your identity, except that if you subscribe it is kept with Apple's
@@ -1723,7 +1724,7 @@ your identity, and is never used to track you across other apps or websites. You
 can turn analytics off at any time in the app's Settings.</p>
 
 <h2>How We Use Your Information</h2>
-<p>Photos are used only to generate the valuation response you requested.
+<p>Photos are used only to generate the valuation or legit check you requested.
 Analytics data is used only in aggregate to understand usage and improve the app.
 Shared sale records are used only to measure how far our estimates are from
 real sale prices, and to improve them.
@@ -1732,7 +1733,8 @@ with third parties, except for the service providers below and as required by la
 
 <h2>Service Providers</h2>
 <p><strong>Google (Gemini API).</strong> Photos you submit are transmitted to
-Google's Gemini API, which identifies the item and estimates its resale value.
+Google's Gemini API, which identifies the item and estimates its resale value,
+or reads a legit check's close-ups.
 Google processes them under its API terms of service and does not use them to
 train its models. Photos are not retained by us after the response is returned.</p>
 <p><strong>Apple (DeviceCheck).</strong> Receives the device token described
