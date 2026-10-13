@@ -5217,8 +5217,11 @@ class TestSubCommandOutput:
         assert "Production" in text
         assert "Renews or expires" in text
         # The date keeps its capitalisation — `.capitalize()` would lowercase
-        # the month and render "12 apr 2027".
-        assert "Apr" in text
+        # the month and render "12 apr 2027". The month is whichever one is
+        # 200 days from today: a fixed "Apr" held only while that was April.
+        month = (datetime.now(timezone.utc) + timedelta(days=200)).strftime("%b")
+        assert month in text
+        assert month.lower() not in text
 
     @pytest.mark.asyncio
     async def test_auto_renew_off_is_stated_outright(
