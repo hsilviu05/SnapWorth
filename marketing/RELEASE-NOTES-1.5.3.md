@@ -36,6 +36,12 @@ would start minting codes that its own policy says it doesn't keep.
 | [#313](https://github.com/hsilviu05/SnapWorth/pull/313) | `chore: 1.5.3, build 23`, a lower bound for 23, not the build | No |
 | [#320](https://github.com/hsilviu05/SnapWorth/pull/320) | A flip's money stays in its own currency everywhere it is printed: My Flips rows, header, Invested and monthly bars total per currency instead of adding lei to dollars; the share cards, the Profit widget (blob v5, `monthProfitParts`), the CSV (a last Currency column) and the photo export name it; VoiceOver reads it (audit M1). A one-currency ledger looks as before apart from the symbol | **Yes**, outside the US |
 | [#326](https://github.com/hsilviu05/SnapWorth/pull/326) | `detachedCopy()` keeps a sold flip's `saleCurrency` and `outcomeID` (no caller copies a sold flip yet, so no user has hit it); paywall plan cards are redacted and disabled together; scan, listing and paywall paths take injected requests so their tests run the code (audit L6) | No |
+| [#332](https://github.com/hsilviu05/SnapWorth/pull/332) | Audit 2026-10-11, ledger and currency: a flip's currency is stored with its first amount, and one saved before currencies reads as dollars; amounts print their cents; the widget and share card follow a change of sold date or currency; My Flips names the missing price; money fields refuse a pasted number past any price; exports write the Gregorian year | **Yes**, in My Flips and the Profit widget |
+| [#333](https://github.com/hsilviu05/SnapWorth/pull/333) | Audit 2026-10-11, notifications and widgets: notification taps complete on the main thread and clear what covers the tab; one ledger and digest notification per item, cleared on delete; Feedback copies the address with the message; the Scans left widget republishes when the server refuses a free scan | Small |
+| [#334](https://github.com/hsilviu05/SnapWorth/pull/334) | Audit 2026-10-11, scan, haul and paywall: the phone's 30 s idle timer no longer ends scans the server still runs; the paywall draws prices that arrive while it is open; Haul pauses on a token-mint outage; result re-reads keep a new estimate over a stale listing | Only when one of those bites |
+| [#336](https://github.com/hsilviu05/SnapWorth/pull/336) | Audit 2026-10-11, sale sharing: a deleted shared sale stays deleted and a retried one is never a second record; both privacy policies describe shared sales as the app sends and deletes them | Yes, in Settings → Privacy Policy |
+| [#340](https://github.com/hsilviu05/SnapWorth/pull/340) | The widget blob is rewritten when a token mint moves the free-scan count | No |
+| [#339](https://github.com/hsilviu05/SnapWorth/pull/339) | The weekly digest is rebuilt when one find is deleted | No |
 
 ### Server and website (deployed on merge; already serving 22)
 
@@ -50,6 +56,8 @@ would start minting codes that its own policy says it doesn't keep.
 | [#310](https://github.com/hsilviu05/SnapWorth/pull/310), [#314](https://github.com/hsilviu05/SnapWorth/pull/314) | Confidence calibrator behind `CONFIDENCE_CALIBRATION`, with the in-range event (#226). **Unset in production**, so served scores are unchanged |
 | [#316](https://github.com/hsilviu05/SnapWorth/pull/316), [#317](https://github.com/hsilviu05/SnapWorth/pull/317), [#318](https://github.com/hsilviu05/SnapWorth/pull/318) | notify.py split continued: `/costs`, the levers and `/minbuild`, `/experiment` and `/paywall` (#230), no behaviour change |
 | [#319](https://github.com/hsilviu05/SnapWorth/pull/319) | Audit fixes: App Attest success-path tests, one-use auth challenges (atomic `take`), sale-sharing naming fields normalised to known values, a per-address referral claim cap (dormant while referrals are off) |
+| [#331](https://github.com/hsilviu05/SnapWorth/pull/331) | App Attest verifies assertions over the nonce as signed, so refresh works |
+| [#335](https://github.com/hsilviu05/SnapWorth/pull/335), [#338](https://github.com/hsilviu05/SnapWorth/pull/338) | Audit 2026-10-11, backend: refund tombstones spare a later purchase and merge a second refund; an unknown attestation certificate algorithm is a 401, not a 500; scan logs keep no content; shared-sale deletion keeps finding records, and an edited one stays in the export |
 
 ### Repository only
 
@@ -64,8 +72,8 @@ would start minting codes that its own policy says it doesn't keep.
 
 ### Not in this build
 
-* Anything merged after this file and before the archive is in 23 too. Add
-  it to the tables above when the archive commit is recorded below.
+* Nothing. 23 was archived from `70aa61e` (#339), the head of `main` on
+  2026-10-13, so every merge listed above is in it and nothing after it is.
 
 ---
 
@@ -308,13 +316,13 @@ image on another screen.
       pools, `REFERRAL_FRIEND_OFFER`, the live `/i/<code>` page). Then run
       `/referrals build 23`, and add the referral paragraph below to the
       review notes.
-- [ ] **Archive** with Xcode 27 from a fresh pull of `main`, after the last
+- [x] **Archive** with Xcode 27 from a fresh pull of `main`, after the last
       1.5.3 PR has merged. First confirm the bump is in the checkout:
       `git merge-base --is-ancestor <this PR's merge commit> HEAD && echo ok`.
       An archive from a stale checkout silently reuses 22, and App Store
       Connect rejects it.
 - [ ] Record the archive below, then tag it.
-- [ ] Upload 23 **once**. A rejection that needs a new archive bumps to 24
+- [x] Upload 23 **once**. A rejection that needs a new archive bumps to 24
       first.
 - [ ] What's New pasted in all five locales, from the blocks above.
 - [ ] App Review notes pasted (below).
@@ -330,8 +338,10 @@ The `chore: 1.5.3, build 23` commit is a lower bound for what 23 contains,
 not the build (CLAUDE.md). This record is the build.
 
 - **Archive commit** (`git rev-parse HEAD` in the checkout, at archive time):
-  **TODO(owner)**
-- **Organizer creation date:** **TODO(owner)**
+  `70aa61e5693854539204cb50a24fc64b23f274db` (merge of #339). It contains
+  the bump: `git merge-base --is-ancestor d19f6e2 70aa61e` succeeds.
+- **Organizer creation date:** 2026-10-13. Uploaded to App Store Connect
+  the same day at 14:54 local, from Organizer.
 - **Tag** it:
 
   ```sh
