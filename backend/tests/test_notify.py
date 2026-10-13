@@ -13,6 +13,7 @@ import html
 import json
 import logging
 import os
+import re
 import secrets
 import sys
 import time
@@ -5217,8 +5218,9 @@ class TestSubCommandOutput:
         assert "Production" in text
         assert "Renews or expires" in text
         # The date keeps its capitalisation — `.capitalize()` would lowercase
-        # the month and render "12 apr 2027".
-        assert "Apr" in text
+        # the month and render "12 apr 2027". Matched by shape, not by a named
+        # month: the expiry is 200 days from today, so its month moves.
+        assert re.search(r"Renews or expires \d{2} [A-Z][a-z]{2} \d{4}", text), text
 
     @pytest.mark.asyncio
     async def test_auto_renew_off_is_stated_outright(
