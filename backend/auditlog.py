@@ -65,6 +65,8 @@ class AuditEvent(str, Enum):
     LISTING_DENIED = "listing.denied"
     LEGIT_AUTHORISED = "legit.authorised"
     LEGIT_DENIED = "legit.denied"
+    RACK_AUTHORISED = "rack.authorised"
+    RACK_DENIED = "rack.denied"
     UPLOAD_REJECTED = "upload.rejected"
     INJECTION_NEUTRALISED = "injection.neutralised"
 

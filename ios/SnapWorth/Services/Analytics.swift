@@ -149,6 +149,13 @@ enum AnalyticsEvent {
     /// (`LegitVerdict`) — never a reason, the brand or the item.
     case legitCheckCompleted(verdict: LegitVerdict)
 
+    // ── Rack scan (#89) ──────────────────────────────────────────────
+    /// A rack read came back. `candidates` is how many items it pinned,
+    /// `0` to `3` (`RackGeometry.countBucket`) — never what they were.
+    case rackScanCompleted(candidates: String)
+    /// "Scan this one" under a pinned candidate. `rank` is `1` to `3`.
+    case rackCandidateChosen(rank: String)
+
     // ── My Flips ledger ──────────────────────────────────────────────
     case ledgerItemMarkedSold
     /// The step before a sale, which the funnel could not see: only `sold`
@@ -249,6 +256,8 @@ enum AnalyticsEvent {
         case .haulCompleted:        return "haul_completed"
         case .haulShared:           return "haul_shared"
         case .legitCheckCompleted:  return "legit_check_completed"
+        case .rackScanCompleted:    return "rack_scan_completed"
+        case .rackCandidateChosen:  return "rack_candidate_chosen"
         case .ledgerItemMarkedSold: return "ledger_item_marked_sold"
         case .ledgerItemMarkedListed: return "ledger_item_marked_listed"
         case .ledgerDashboardViewed:return "ledger_dashboard_viewed"
@@ -326,6 +335,10 @@ enum AnalyticsEvent {
             return ["verdict": verdict]
         case let .legitCheckCompleted(verdict):
             return ["verdict": verdict.rawValue]
+        case let .rackScanCompleted(candidates):
+            return ["candidates": candidates]
+        case let .rackCandidateChosen(rank):
+            return ["rank": rank]
         case let .haulCompleted(bucket, revisedFrom):
             guard let revisedFrom else { return ["items": bucket] }
             return ["items": bucket, "revised_from": revisedFrom]
@@ -431,6 +444,8 @@ enum PaywallTrigger: String, CaseIterable {
     case haul = "haul"
     /// The Legit check card on a result (#90).
     case legitCheck = "legit_check"
+    /// The Rack entry on the Scan tab (#89).
+    case rackScan = "rack_scan"
 }
 
 // ═══════════════════════════════════════════════════════════════════

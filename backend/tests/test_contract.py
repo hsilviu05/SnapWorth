@@ -38,6 +38,7 @@ from tests.images import padded_image_bytes
 from tests.test_ai_pipeline import V2_PAYLOAD, _client, _scan_with
 from tests.test_legit import post_legit
 from tests.test_main import _post_listing
+from tests.test_rack import post_rack
 
 CONTRACT = pathlib.Path(__file__).resolve().parents[2] / "contract"
 REGENERATE = os.environ.get("REGENERATE_CONTRACT") == "1"
@@ -168,6 +169,16 @@ class TestSuccessBodies:
         assert fixture["verdict"] in legit.VERDICTS
         assert fixture["reasons"]
 
+    def test_the_rack_body(self):
+        """`rack-response.json`: a rack scan's candidates (#89), boxes as 0-1
+        fractions from the photo's top left, which the app pins."""
+        r, _ = post_rack("contract-rack")
+        assert r.status_code == 200
+        fixture = _check("rack-response.json", r.json())
+        assert fixture["candidates"]
+        for c in fixture["candidates"]:
+            assert 0 <= c["box"]["x"] <= 1 and 0 < c["box"]["width"] <= 1
+
     def test_the_free_body(self):
         """The common case. Most of the detail is blanked (`_strip_pro_detail`)
         but no key is removed. Served under the production allowance, so
@@ -238,6 +249,14 @@ class TestErrorBodies:
         r, _ = post_legit("contract-legit-free", pro=False)
         assert r.status_code == 402
         fixture = _check_error("errors/legit-402-pro.json", _error(r))
+        assert fixture["body"]["code"] == apierrors.PRO_REQUIRED
+        assert "pro feature" in fixture["body"]["detail"].lower()
+
+    def test_the_rack_402(self):
+        """`/rack` refuses a free caller as `/listing` does, words and all."""
+        r, _ = post_rack("contract-rack-free", pro=False)
+        assert r.status_code == 402
+        fixture = _check_error("errors/rack-402-pro.json", _error(r))
         assert fixture["body"]["code"] == apierrors.PRO_REQUIRED
         assert "pro feature" in fixture["body"]["detail"].lower()
 

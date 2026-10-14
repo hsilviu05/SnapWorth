@@ -534,6 +534,8 @@ enum PaywallCopy {
         // never waits for a valuation, and that it keeps every photo.
         Benefit(icon: "square.stack.3d.up.fill",
                 text: String(localized: "Haul mode — snap item after item while each is valued, with a running total")),
+        Benefit(icon: "rectangle.split.3x1.fill",
+                text: String(localized: "Rack scan — one photo of a rail, and the items most worth a closer look")),
         Benefit(icon: "chart.line.uptrend.xyaxis",
                 text: String(localized: "Why it's worth that — four price points and what drives them")),
         Benefit(icon: "cart.fill", text: String(localized: "Snap → Sell marketplace listings")),
@@ -586,6 +588,9 @@ enum PaywallCopy {
         case .haul:
             return Pitch(headline: String(localized: "Scan a whole haul"),
                          leadIcon: "square.stack.3d.up.fill")
+        case .rackScan:
+            return Pitch(headline: String(localized: "Find the best on the rack"),
+                         leadIcon: "rectangle.split.3x1.fill")
         // True where buying shows the find's breakdown: a fresh result,
         // re-read once the purchase lands, or a full panel. Not on a free
         // user's thin find reopened from My Finds or My Flips, which nothing

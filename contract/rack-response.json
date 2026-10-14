@@ -1,0 +1,37 @@
+{
+  "candidates": [
+    {
+      "rank": 1,
+      "box": {
+        "x": 0.05,
+        "y": 0.1,
+        "width": 0.2,
+        "height": 0.5
+      },
+      "position": "second from the left, red plaid",
+      "name": "Pendleton wool board shirt",
+      "brand": "Pendleton",
+      "category": "clothing",
+      "low_usd": 25.0,
+      "high_usd": 60.0,
+      "why": "Wool, a label resellers look for."
+    },
+    {
+      "rank": 2,
+      "box": {
+        "x": 0.4,
+        "y": 0.08,
+        "width": 0.22,
+        "height": 0.57
+      },
+      "position": "middle, tan canvas",
+      "name": "Carhartt Detroit jacket",
+      "brand": "Carhartt",
+      "category": "clothing",
+      "low_usd": 60.0,
+      "high_usd": 140.0,
+      "why": "Wool, a label resellers look for."
+    }
+  ],
+  "prompt_version": "rack-v1"
+}

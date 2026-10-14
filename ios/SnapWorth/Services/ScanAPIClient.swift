@@ -827,6 +827,43 @@ actor ScanAPIClient {
         return body
     }
 
+    /// Rack scan (#89): one photo of a rail, shelf or bin, read for the
+    /// items most worth picking up. Pro-only on the server.
+    func rackScan(image: UIImage) async throws -> RackAPIResponse {
+        if Config.mockScans {
+            try await Task.sleep(for: .seconds(2.2))
+            let json = """
+            {"candidates": [
+              {"rank": 1, "box": {"x": 0.08, "y": 0.18, "width": 0.22, "height": 0.55},
+               "position": "second from the left, red plaid", "name": "Pendleton wool board shirt",
+               "brand": "Pendleton", "category": "clothing", "low_usd": 25, "high_usd": 60,
+               "why": "Wool and a label resellers look for."},
+              {"rank": 2, "box": {"x": 0.52, "y": 0.12, "width": 0.24, "height": 0.62},
+               "position": "middle, tan canvas", "name": "Carhartt Detroit jacket",
+               "brand": "Carhartt", "category": "clothing", "low_usd": 60, "high_usd": 140,
+               "why": "Workwear in this colour sells quickly."}
+            ], "prompt_version": "rack-v1"}
+            """
+            return try JSONDecoder().decode(RackAPIResponse.self, from: Data(json.utf8))
+        }
+        guard let jpegData = await Self.encodeForUpload(image) else {
+            throw ScanAPIError.imageEncodingFailed
+        }
+        var request = URLRequest(url: Config.baseURL.appendingPathComponent("rack"))
+        request.httpMethod = "POST"
+        try await request.requireBearerToken()
+        let boundary = "Boundary-\(UUID().uuidString)"
+        request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
+        // The same body as a scan: one `file` part, and no tag.
+        request.httpBody = buildMultipart(data: jpegData, boundary: boundary)
+
+        let (data, http) = try await request.sendRetryingAuth(on: session)
+        guard (200..<300).contains(http.statusCode) else {
+            throw ScanAPIError.from(http, data: data)
+        }
+        return try JSONDecoder().decode(RackAPIResponse.self, from: data)
+    }
+
     // ── Mock ──────────────────────────────────────────────────────────────────
 
     #if DEBUG

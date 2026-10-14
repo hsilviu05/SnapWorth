@@ -46,7 +46,7 @@ TRIAL_CONVERSIONS = "trial_conversions"
 PAYWALL_TRIGGERS: tuple[str, ...] = (
     "onboarding", "scan_limit", "upgrade_button", "settings", "ledger_history",
     "ledger_export", "snap_sell", "portfolio_trend", "valuation_detail",
-    "trends", "add_tag", "haul", "legit_check",
+    "trends", "add_tag", "haul", "legit_check", "rack_scan",
 )
 
 _cache: ResilientCache | None = None
@@ -84,6 +84,14 @@ def count_scan(tier: str) -> None:
     if _cache is None:
         return
     spawn(bump("scans_pro" if tier == "pro" else "scans_free"))
+
+
+def count_rack_scan() -> None:
+    """Tally one rack scan (#89), beside the `count_scan` it also is: the
+    digest says how many of the day's Pro scans were racks."""
+    if _cache is None:
+        return
+    spawn(bump("scans_rack"))
 
 
 async def read_stat(day: str, name: str) -> int:

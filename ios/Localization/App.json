@@ -522,6 +522,27 @@
       },
       "zh-Hans": "已售出 %lld 件"
     },
+    "%lld items worth a closer look.": {
+      "comment": "Rack scan, announced to VoiceOver: how many items it pinned (1 to 3).",
+      "en": {
+        "one": "%lld item worth a closer look.",
+        "other": "%lld items worth a closer look."
+      },
+      "ro": {
+        "one": "Un articol merită o privire mai atentă.",
+        "few": "%lld articole merită o privire mai atentă.",
+        "other": "%lld de articole merită o privire mai atentă."
+      },
+      "es": {
+        "one": "%lld artículo merece una mirada.",
+        "other": "%lld artículos merecen una mirada."
+      },
+      "de": {
+        "one": "%lld Artikel ist einen genaueren Blick wert.",
+        "other": "%lld Artikel sind einen genaueren Blick wert."
+      },
+      "zh-Hans": "%lld 件物品值得细看。"
+    },
     "%lld listings": {
       "comment": "Inflected on its own and placed into \"Draft %@ for %@?\" — one plural key agrees with one number.",
       "en": {
@@ -1529,6 +1550,14 @@
       "de": "Marktplatz wählen",
       "zh-Hans": "选择平台"
     },
+    "Choose a rack photo from your library": {
+      "comment": "VoiceOver: the library button in the Rack scan camera.",
+      "en": "Choose a rack photo from your library",
+      "ro": "Alege o fotografie cu un raft din bibliotecă",
+      "es": "Elegir una foto de un estante de tu fototeca",
+      "de": "Ein Regalfoto aus der Mediathek wählen",
+      "zh-Hans": "从照片图库中选择一张货架照片"
+    },
     "Choose from library": {
       "en": "Choose from library",
       "ro": "Alege din galerie",
@@ -2041,6 +2070,14 @@
       "de": "Hat sich %@ verkauft? Aktualisier dein Buch, damit der Gewinn stimmt.",
       "zh-Hans": "%@ 卖掉了吗？更新一下账本，利润才算得准。"
     },
+    "Dismiss": {
+      "comment": "VoiceOver: closes a banner.",
+      "en": "Dismiss",
+      "ro": "Închide",
+      "es": "Descartar",
+      "de": "Schließen",
+      "zh-Hans": "关闭"
+    },
     "Dismisses this offer": {
       "en": "Dismisses this offer",
       "ro": "Închide oferta",
@@ -2375,6 +2412,14 @@
       "de": "Filtert nach Artikelname oder Marke",
       "zh-Hans": "按物品名称或品牌筛选"
     },
+    "Find the best on the rack": {
+      "comment": "Paywall headline when it opened from the Rack button.",
+      "en": "Find the best on the rack",
+      "ro": "Găsește ce e mai bun pe raft",
+      "es": "Encuentra lo mejor del estante",
+      "de": "Finde das Beste am Regal",
+      "zh-Hans": "找出货架上的好东西"
+    },
     "Finish": {
       "comment": "Haul: ends capturing and opens the summary.",
       "en": "Finish",
@@ -2382,6 +2427,14 @@
       "es": "Terminar",
       "de": "Abschließen",
       "zh-Hans": "结束"
+    },
+    "Fit the whole rail in the frame": {
+      "comment": "Rack scan camera instruction.",
+      "en": "Fit the whole rail in the frame",
+      "ro": "Încadrează tot standul",
+      "es": "Encuadra todo el perchero",
+      "de": "Die ganze Stange ins Bild nehmen",
+      "zh-Hans": "将整个衣架放入取景框"
     },
     "Flexible, cancel anytime": {
       "en": "Flexible, cancel anytime",
@@ -2931,6 +2984,14 @@
       "de": "Logo in Nahaufnahme",
       "zh-Hans": "标志特写"
     },
+    "Looking along the rail…": {
+      "comment": "Rack scan: while the photo is read.",
+      "en": "Looking along the rail…",
+      "ro": "Ne uităm de-a lungul standului…",
+      "es": "Revisando el perchero…",
+      "de": "Wir sehen uns die Stange an…",
+      "zh-Hans": "正在查看衣架…"
+    },
     "Loss of %@": {
       "en": "Loss of %@",
       "ro": "Pierdere de %@",
@@ -3252,6 +3313,14 @@
       "de": "Bemerkenswerte Funde",
       "zh-Hans": "值得一提的好物"
     },
+    "Nothing stood out in this photo.": {
+      "comment": "Rack scan: no candidates. An honest empty answer, not an error.",
+      "en": "Nothing stood out in this photo.",
+      "ro": "Nimic nu iese în evidență în această fotografie.",
+      "es": "Nada destacaba en esta foto.",
+      "de": "Auf diesem Foto ist nichts aufgefallen.",
+      "zh-Hans": "这张照片里没有特别突出的物品。"
+    },
     "Nothing was shared. Try again in a moment.": {
       "comment": "Alert message when the My Flips ZIP export could not be written.",
       "en": "Nothing was shared. Try again in a moment.",
@@ -3273,6 +3342,14 @@
       "es": "Las notificaciones están desactivadas",
       "de": "Mitteilungen sind aus",
       "zh-Hans": "通知已关闭"
+    },
+    "Now scan: %@": {
+      "comment": "Scan tab, after Rack scan's 'Scan this one': %@ is the item to photograph next, in the model's English.",
+      "en": "Now scan: %@",
+      "ro": "Acum scanează: %@",
+      "es": "Ahora escanea: %@",
+      "de": "Jetzt scannen: %@",
+      "zh-Hans": "现在扫描：%@"
     },
     "OK": {
       "comment": "Alert dismiss button. The wording iOS itself uses for OK in each language.",
@@ -3327,6 +3404,22 @@
       "es": "Uno o más detalles difieren de lo que suelen mostrar los artículos originales. Míralo con más atención antes de pagar.",
       "de": "Ein oder mehrere Details weichen von dem ab, was Originalartikel üblicherweise zeigen. Sieh genauer hin, bevor du bezahlst.",
       "zh-Hans": "有一处或多处细节与正品通常的样子不同。付款前请仔细查看。"
+    },
+    "One photo of a rail or shelf, and the items most worth a closer look": {
+      "comment": "VoiceOver hint for the Rack button on the Scan tab.",
+      "en": "One photo of a rail or shelf, and the items most worth a closer look",
+      "ro": "O fotografie a unui stand sau raft și articolele care merită o privire mai atentă",
+      "es": "Una foto de un perchero o estante, y los artículos que más merecen una mirada",
+      "de": "Ein Foto einer Kleiderstange oder eines Regals und die Artikel, die einen genaueren Blick wert sind",
+      "zh-Hans": "拍一张衣架或货架的照片，找出最值得细看的物品"
+    },
+    "One photo of a rail, shelf or bin. We'll point out up to three items worth a closer look.": {
+      "comment": "Rack scan camera, under its instruction.",
+      "en": "One photo of a rail, shelf or bin. We'll point out up to three items worth a closer look.",
+      "ro": "O fotografie a unui stand, raft sau coș. Îți arătăm până la trei articole care merită o privire mai atentă.",
+      "es": "Una foto de un perchero, estante o cesta. Te señalaremos hasta tres artículos que merecen una mirada.",
+      "de": "Ein Foto einer Stange, eines Regals oder einer Kiste. Wir zeigen dir bis zu drei Artikel, die einen genaueren Blick wert sind.",
+      "zh-Hans": "拍一张衣架、货架或货箱的照片。我们会指出最多三件值得细看的物品。"
     },
     "One snap.\nA ready listing.": {
       "en": "One snap.\nA ready listing.",
@@ -3527,6 +3620,22 @@
       "de": "Fotos in diesem Stapel",
       "zh-Hans": "本批照片"
     },
+    "Pick %lld: %@, %@. Rough range %@.": {
+      "comment": "VoiceOver for a rack candidate: rank, name, where it is on the rail (both the model's English), and a dollar range.",
+      "en": "Pick %lld: %@, %@. Rough range %@.",
+      "ro": "Alegerea %1$lld: %2$@, %3$@. Interval aproximativ %4$@.",
+      "es": "Opción %1$lld: %2$@, %3$@. Rango aproximado %4$@.",
+      "de": "Tipp %1$lld: %2$@, %3$@. Grobe Spanne %4$@.",
+      "zh-Hans": "推荐 %1$lld：%2$@，%3$@。大致范围 %4$@。"
+    },
+    "Pick %lld: %@. Rough range %@.": {
+      "comment": "VoiceOver for a rack candidate: rank, the model's name for the item, and a dollar range.",
+      "en": "Pick %lld: %@. Rough range %@.",
+      "ro": "Alegerea %1$lld: %2$@. Interval aproximativ %3$@.",
+      "es": "Opción %1$lld: %2$@. Rango aproximado %3$@.",
+      "de": "Tipp %1$lld: %2$@. Grobe Spanne %3$@.",
+      "zh-Hans": "推荐 %1$lld：%2$@。大致范围 %3$@。"
+    },
     "Please wait for the current scan to finish": {
       "en": "Please wait for the current scan to finish",
       "ro": "Așteaptă să se termine scanarea curentă",
@@ -3672,6 +3781,46 @@
       "es": "ROI",
       "de": "ROI",
       "zh-Hans": "回报率"
+    },
+    "Rack": {
+      "comment": "Scan tab: the button into Rack scan (#89), beside Haul. A rail, shelf or bin of items in a shop.",
+      "en": "Rack",
+      "ro": "Raft",
+      "es": "Estante",
+      "de": "Regal",
+      "zh-Hans": "货架"
+    },
+    "Rack photo": {
+      "comment": "VoiceOver: the rack photo with its pins.",
+      "en": "Rack photo",
+      "ro": "Fotografia raftului",
+      "es": "Foto del estante",
+      "de": "Regalfoto",
+      "zh-Hans": "货架照片"
+    },
+    "Rack scan": {
+      "comment": "Rack scan (#89): the title of its result.",
+      "en": "Rack scan",
+      "ro": "Scanare raft",
+      "es": "Escaneo de estante",
+      "de": "Regal-Scan",
+      "zh-Hans": "货架扫描"
+    },
+    "Rack scan — one photo of a rail, and the items most worth a closer look": {
+      "comment": "Paywall benefit row (#89).",
+      "en": "Rack scan — one photo of a rail, and the items most worth a closer look",
+      "ro": "Scanare raft — o fotografie a unui stand și articolele care merită o privire mai atentă",
+      "es": "Escaneo de estante: una foto de un perchero y los artículos que más merecen una mirada",
+      "de": "Regal-Scan — ein Foto einer Stange und die Artikel, die einen genaueren Blick wert sind",
+      "zh-Hans": "货架扫描——拍一张衣架照片，找出最值得细看的物品"
+    },
+    "Ranges are rough, judged from a distance. Scan an item for a real estimate.": {
+      "comment": "Rack scan: under the candidates.",
+      "en": "Ranges are rough, judged from a distance. Scan an item for a real estimate.",
+      "ro": "Intervalele sunt aproximative, estimate de la distanță. Scanează un articol pentru o estimare reală.",
+      "es": "Los rangos son aproximados, calculados a distancia. Escanea un artículo para una estimación real.",
+      "de": "Die Spannen sind grob und aus der Entfernung geschätzt. Scanne einen Artikel für eine echte Schätzung.",
+      "zh-Hans": "价格范围只是从远处粗略估计的。扫描单件物品可获得准确估价。"
     },
     "Rarity index climbing…": {
       "comment": "Rare-find easter egg (RareFind.swift). The joke is hype and rarity only — keep it that way in translation.",
@@ -4008,6 +4157,14 @@
       "de": "Scann den Artikel für seinen Wiederverkaufswert, trag den Ladenpreis ein und sieh deinen Gewinn nach Gebühren – bevor du kaufst.",
       "zh-Hans": "扫一下这件物品拿到转卖价，填上店里的价格，就能看到扣掉手续费后赚多少——在你掏钱之前。"
     },
+    "Scan this one": {
+      "comment": "Rack scan: button under a candidate. Goes back to the camera to scan that item properly.",
+      "en": "Scan this one",
+      "ro": "Scanează-l pe acesta",
+      "es": "Escanear este",
+      "de": "Diesen scannen",
+      "zh-Hans": "扫描这件"
+    },
     "Scan your first thrift item to see its resale value here.": {
       "en": "Scan your first thrift item to see its resale value here.",
       "ro": "Scanează primul obiect ca să vezi aici cât valorează la revânzare.",
@@ -4305,6 +4462,14 @@
       "es": "Muestra señales de réplica",
       "de": "Zeigt Anzeichen einer Replik",
       "zh-Hans": "显示出仿品迹象"
+    },
+    "Shows this item below": {
+      "comment": "VoiceOver hint on a numbered pin in a rack photo.",
+      "en": "Shows this item below",
+      "ro": "Afișează acest articol mai jos",
+      "es": "Muestra este artículo abajo",
+      "de": "Zeigt diesen Artikel unten",
+      "zh-Hans": "在下方显示此物品"
     },
     "Sightings in the wild": {
       "comment": "Rare-find easter egg (RareFind.swift). The joke is hype and rarity only — keep it that way in translation.",
@@ -4705,6 +4870,14 @@
       "de": "Wechselt zur Kamera, um deinen ersten Artikel zu scannen",
       "zh-Hans": "切到相机去扫描你的第一件物品"
     },
+    "Take another photo": {
+      "comment": "Rack scan: go back to the camera.",
+      "en": "Take another photo",
+      "ro": "Fă altă fotografie",
+      "es": "Hacer otra foto",
+      "de": "Weiteres Foto aufnehmen",
+      "zh-Hans": "再拍一张"
+    },
     "Take photo to scan": {
       "en": "Take photo to scan",
       "ro": "Fă o poză ca să scanezi",
@@ -4718,6 +4891,14 @@
       "es": "Hacer la foto de la etiqueta",
       "de": "Foto vom Etikett aufnehmen",
       "zh-Hans": "拍下标签"
+    },
+    "Take the rack photo": {
+      "comment": "VoiceOver: the shutter in the Rack scan camera.",
+      "en": "Take the rack photo",
+      "ro": "Fă fotografia raftului",
+      "es": "Hacer la foto del estante",
+      "de": "Regalfoto aufnehmen",
+      "zh-Hans": "拍摄货架照片"
     },
     "Take this photo": {
       "comment": "VoiceOver: the shutter in the legit check camera.",
@@ -5100,6 +5281,14 @@
       "es": "Reintentar todas",
       "de": "Alle erneut versuchen",
       "zh-Hans": "全部重试"
+    },
+    "Try closer, in better light, or a different rail. An empty answer is better than a guess.": {
+      "comment": "Rack scan: under 'Nothing stood out in this photo.'",
+      "en": "Try closer, in better light, or a different rail. An empty answer is better than a guess.",
+      "ro": "Încearcă mai aproape, în lumină mai bună, sau alt stand. Un răspuns gol e mai bun decât o presupunere.",
+      "es": "Prueba más cerca, con mejor luz o con otro perchero. Una respuesta vacía es mejor que una suposición.",
+      "de": "Versuche es näher, bei besserem Licht oder an einer anderen Stange. Keine Antwort ist besser als eine Vermutung.",
+      "zh-Hans": "试试靠近一点、换个光线更好的地方，或换一个衣架。没有结果总比瞎猜好。"
     },
     "Try the rest": {
       "en": "Try the rest",
@@ -6083,6 +6272,14 @@
       "es": "de ganancia este mes",
       "de": "Gewinn diesen Monat",
       "zh-Hans": "本月利润"
+    },
+    "rough": {
+      "comment": "Beside a rack candidate's dollar range: it was judged from a distance.",
+      "en": "rough",
+      "ro": "aproximativ",
+      "es": "aproximado",
+      "de": "grob",
+      "zh-Hans": "粗略"
     },
     "scarce supply": {
       "comment": "The AI's guess at how many comparable items are for sale. Placed inside 'AI read: %@, %@'.",

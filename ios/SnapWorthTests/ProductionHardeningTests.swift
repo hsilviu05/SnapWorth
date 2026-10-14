@@ -10102,7 +10102,7 @@ final class ErrorContractTests: XCTestCase {
         switch name {
         case "scan-402-quota.json":
             return (.quotaExceeded(f.detail), .quotaExceeded(ServerErrorCode.quotaExhausted.message))
-        case "listing-402-pro.json", "legit-402-pro.json":
+        case "listing-402-pro.json", "legit-402-pro.json", "rack-402-pro.json":
             return (.proRequired(f.detail), .proRequired(ServerErrorCode.proRequired.message))
         case "scan-422-unusable-photo.json":
             return (.unusablePhoto(f.detail), .unusablePhoto(ServerErrorCode.photoUnusable.message))
