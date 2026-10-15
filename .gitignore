@@ -45,3 +45,8 @@ backend/eval/data/images/
 # can show other people. Only the review file lives in git.
 backend/eval/data/rack/images/
 backend/eval/data/rack/runs/
+
+# The software factory's job folders (.claude/skills/factory): runtime state
+# written by its agents on every /factory run. 003 is the committed example.
+factory/jobs/*
+!factory/jobs/003-rate-limiting/
