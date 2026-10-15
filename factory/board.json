@@ -1,0 +1,18 @@
+{
+  "jobs": [
+    {
+      "id": "003-rate-limiting",
+      "feature": "Rate limit the TikTok link callback with the standard per-IP bucket, like every other unauthenticated route",
+      "branch": "factory/003-rate-limiting",
+      "worktree": "/home/user/SnapWorth-factory/003-rate-limiting",
+      "stage": "needs-human",
+      "round": 1,
+      "reviews": {
+        "security": "PASS",
+        "ux": "PASS",
+        "ui": "PASS",
+        "code": "PASS"
+      }
+    }
+  ]
+}
