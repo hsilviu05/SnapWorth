@@ -1300,6 +1300,37 @@ Revisit on one of these, not before. The thresholds are judgements
 Do not add a replica to absorb Haul bursts: the rate-limit bucket, not
 concurrency, is what limits a haul (#187, *Known limits*).
 
+### Measured capacity of one process `[MEASURED]` (2026-10-17)
+
+`python3 -m loadtest.run` (`backend/loadtest/README.md`) runs the real app
+with the model faked at production latency, its own Redis, and the
+Dockerfile's uvicorn flags. Each request is a new device from a new address,
+with a 274 KB upload the size the app sends. The test ran on a 4-core Linux
+container, with the load generator on the same machine:
+
+| Scans/s | In flight (peak) | Failed | p50 / p95 s | `/health` max | Peak RSS |
+|---|---|---|---|---|---|
+| 1 | 18 | 0 | 11.7 / 20.3 | 10 ms | 132 MB |
+| 10 | 130 | 0 | 10.9 / 19.2 | 7 ms | 247 MB |
+| 40 | 495 | 0 | 11.1 / 18.8 | 52 ms | 625 MB |
+| 80 | 1,089 | 12 (deadline) | 15.3 / 24.1 | 6.6 s | 1,251 MB |
+
+- **One process carries about 40 scans a second** with latency equal to the
+  model's. That is roughly 3.5 million scans a day, against 48 in the 7 days
+  measured above. The knee is between 40 and 80 a second. There the event
+  loop starts to stall (`/health` waits seconds) and scans queued behind it
+  reach the client deadline.
+- **Memory is about 1 MB per scan in flight**, on a base of about 110 MB.
+  The service's memory limit, divided by that, is the in-flight ceiling
+  before an OOM kill. Keep the limit at 1 GB or more to hold the 40/s figure.
+- **The server is not the first limit. The first limits are Gemini's quota
+  on the project's tier (requests per minute and per day, read in AI Studio
+  or the Cloud Console) and spend** (§10, `GEMINI_DAILY_BUDGET_USD`).
+- **A slow provider costs scans, not capacity.** With the model's median at
+  22 s instead of 11 s, 68 of 299 scans (23%) were stopped at the client
+  deadline at 10/s, and in-flight peaked at 213 with `/health` at 19 ms. A
+  replica would not help with that, which is the §11 trigger's note.
+
 A second **worker** (`--workers 2`) is a second process in the same
 container. Everything in the checklist below applies to it exactly as to a
 second replica, and Railway cannot see it.
