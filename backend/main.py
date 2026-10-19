@@ -1370,7 +1370,10 @@ Rules:
 - listing_price is what to ask: set it near the typical resale value, a touch higher to leave negotiating room.
 - negotiation_floor is the lowest you'd accept; it MUST be greater than 0 and less than or equal to listing_price.
 - Prices are plain numbers in {req.currency} — no currency symbols.
-- Be honest about the "{cond}" condition; never invent flaws or features you can't see.
+- Be honest about the "{cond}" condition; never invent flaws or features you can't see,
+  and never describe it as better than "{cond}" (new, unworn, mint, flawless).
+- Never vouch that the item is authentic, genuine, verified or not a replica, in any
+  language: nothing above establishes that. Naming the brand and model is fine.
 - Never return any text outside the JSON object."""
 
 
