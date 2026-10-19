@@ -227,6 +227,18 @@ same questions (`listingclaims.py`) when `LISTING_CLAIM_CHECK` is on, and
 swaps a flagged draft's words for the deterministic listing's; it is off until
 this run shows a rate worth the latency.
 
+**Gold photos are checked against their labels before approval (#359).**
+`python -m eval.photo_check` sends each unapproved record's primary photo to
+Jev's image model with its label and asks two questions: does the photo show
+the labelled brand and model, and is there exactly one item in it? It lists
+the records where either answer is no, least likely first, for a reviewer to
+look at. It is not a gate, and it changes no record. `--all` includes approved
+records. Only the operator's own sale photos are sent, never a user's scan,
+and each JPEG's EXIF and other metadata segments are dropped first. Image
+support is experimental at TypeSafe, so the model is a flag (`--model`, or
+`TYPESAFE_IMAGE_MODEL`, default `jev-preview`). If nothing is answered, the
+model name is the first thing to check.
+
 ---
 
 ### Per region: which market the dollar figure prices for (#225)
