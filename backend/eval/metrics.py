@@ -371,6 +371,40 @@ def field_accuracy(
     }
 
 
+def identity_match(
+    judgements: list[tuple[float | None, bool]], threshold: float = 0.5
+) -> dict | None:
+    """How often the scan named the labelled product, as judged (#352).
+
+    `judgements` is (probability the scan names the same product, abstained)
+    per labelled item. An abstention — the scan said "Unknown" — is counted
+    as `field_accuracy` counts one: in the denominator, never as wrong. A
+    probability of None with no abstention is a judge call that failed; it is
+    `unjudged` and left out entirely, so an outage cannot read as a miss.
+
+    `borderline` counts judgements within 0.15 of the threshold, the ones a
+    person should read before trusting the rate.
+    """
+    abstained = sum(1 for _, a in judgements if a)
+    judged = [p for p, a in judgements if not a and p is not None]
+    unjudged = sum(1 for p, a in judgements if not a and p is None)
+    graded = len(judged) + abstained
+    # Every call failed: the abstentions alone would read as a 0% rate.
+    if not graded or (not judged and unjudged):
+        return None
+    matched = sum(1 for p in judged if p >= threshold)
+    return {
+        "rate": matched / graded,
+        "precision_when_attempted": matched / len(judged) if judged else None,
+        "matched": matched,
+        "different": len(judged) - matched,
+        "abstained": abstained,
+        "unjudged": unjudged,
+        "borderline": sum(1 for p in judged if abs(p - threshold) < 0.15),
+        "n": graded,
+    }
+
+
 def top_k_accuracy(
     ranked_predictions: list[tuple[list[str], str]], k: int = 3
 ) -> float | None:

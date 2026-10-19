@@ -10,6 +10,9 @@ calibration, consistency, hallucination rate and latency.
     python -m eval.runner --photos ~/scans --repeats 3 --compare v2.1 v2.1@512
                                    # no labels: consistency, latency, tokens,
                                    # and how far the second arm moves prices
+    TYPESAFE_API_KEY=... python -m eval.runner --dataset ...
+                                   # also judge whether each scan named the
+                                   # labelled product (`eval/identity.py`)
 
 `--dataset` reads either schema: gold-v2 (`schema.load_gold`, what
 `eval/data/gold.jsonl` and CI use) or the v1 benchmark format
@@ -66,6 +69,7 @@ import prompts  # noqa: E402
 import valuation as valuation_module  # noqa: E402
 from eval import dataset as dataset_module  # noqa: E402
 from eval import fx  # noqa: E402
+from eval import identity as identity_module  # noqa: E402
 from eval import metrics  # noqa: E402
 from eval import schema  # noqa: E402
 from eval.calibration import DEFAULT_TOLERANCE_PCT  # noqa: E402
@@ -99,6 +103,7 @@ class EvalItem:
     expected_brand: str | None = None
     split: str | None = None              # gold-v2's dev/test, for --examples-out
     region: str = "unknown"               # where it sold, ISO 3166 (#225)
+    expected_model: str | None = None     # model and variant, for the identity judge (#352)
 
 
 def _is_gold(path: Path) -> bool:
@@ -140,7 +145,8 @@ def load_items(path: Path) -> tuple[list[EvalItem], dict[str, int]]:
                 skip("not scoreable (synthetic or negative control)")
                 continue
             items.append(EvalItem(record.id, record.category, record.image_path,
-                                  record.actual_sale_price_usd, record.brand))
+                                  record.actual_sale_price_usd, record.brand,
+                                  expected_model=record.model))
         return items, excluded
 
     rates = fx.load()
@@ -167,7 +173,10 @@ def load_items(path: Path) -> tuple[list[EvalItem], dict[str, int]]:
             items.append(EvalItem(gold.id, gold.category, image.path,
                                   round(price, 2), gold.brand,
                                   gold.assigned_split().value,
-                                  region=gold.region or "unknown"))
+                                  region=gold.region or "unknown",
+                                  expected_model=" ".join(
+                                      part for part in (gold.model, gold.variant) if part)
+                                  or None))
     return items, excluded
 
 
@@ -233,6 +242,12 @@ class Prediction:
     signals: dict[str, float] = field(default_factory=dict)
     split: str | None = None
     region: str = "unknown"
+    expected_model: str | None = None
+    # Set by `judge_identity` (#352): the judge's probability that the scan
+    # named the labelled product (None when unjudged), and whether the scan
+    # abstained by naming neither a brand nor a model.
+    identity_probability: float | None = None
+    identity_abstained: bool = False
 
     @property
     def ok(self) -> bool:
@@ -288,6 +303,19 @@ def evaluate(predictions: list[Prediction]) -> dict:
 
     cal = metrics.calibration(scored)
 
+    # Only items `judge_identity` reached: the judge is optional, and a run
+    # without it reports no identity figure rather than a zero.
+    identity_judged = [p for p, _ in labelled
+                       if p.identity_probability is not None or p.identity_abstained]
+    identity = metrics.identity_match(
+        [(p.identity_probability, p.identity_abstained) for p in identity_judged])
+    if identity is not None:
+        # Least likely to be the same product first: the list to read.
+        identity["items"] = sorted(
+            ({"item_id": p.item_id, "probability": round(p.identity_probability, 3)}
+             for p in identity_judged if p.identity_probability is not None),
+            key=lambda row: row["probability"])
+
     by_category: dict[str, dict] = {}
     for category in sorted({p.category for p, _ in labelled}):
         subset = [(p.predicted_expected, actual)
@@ -340,6 +368,7 @@ def evaluate(predictions: list[Prediction]) -> dict:
         # metric zero reads as perfect. With nothing labelled it is None.
         "calibration": {"ece": cal.ece if scored else None, "buckets": cal.as_table()},
         "hallucination": metrics.hallucination_rate(hallucination_records),
+        "identity": identity,
         "latency_ms": metrics.latency_summary([p.latency_ms for p in usable]),
         "tokens": _token_summary(usable),
         "by_category": by_category,
@@ -451,7 +480,8 @@ def median_predictions(repeats: list[list[Prediction]]) -> list[Prediction]:
             visual_evidence=first.visual_evidence,
             latency_ms=statistics.median(p.latency_ms for p in ok),
             output_tokens=first.output_tokens, thoughts_tokens=first.thoughts_tokens,
-            prompt_version=first.prompt_version, split=first.split, region=first.region))
+            prompt_version=first.prompt_version, split=first.split, region=first.region,
+            expected_model=first.expected_model))
     return out
 
 
@@ -538,6 +568,11 @@ def metric_set(report: dict, label: str) -> MetricSet:
     rate = hall.get("rate")
     add("hallucination_rate", rate * 100 if rate is not None else None,
         hall.get("n", 0), "%")
+    # Reported, never gated (#352): only runs with a TypeSafe key measure it.
+    identity = report.get("identity") or {}
+    match = identity.get("rate")
+    add("identity_match", match * 100 if match is not None else None,
+        identity.get("n", 0), "%")
 
     latency = report.get("latency_ms") or {}
     for key in ("p50", "p95"):
@@ -607,6 +642,7 @@ async def _predict_one(model, item: EvalItem, prompt_text: str, version: str, ro
         item_id=item.id, category=item.category,
         expected_price=item.expected_price, expected_brand=item.expected_brand,
         prompt_version=version, split=item.split, region=item.region,
+        expected_model=item.expected_model,
     )
 
     image_path = (root / item.image_path).resolve()
@@ -707,6 +743,36 @@ async def run_live(items: list[EvalItem], version: str, root: Path, concurrency:
     return list(await asyncio.gather(*(guarded(i) for i in items)))
 
 
+async def judge_identity(predictions: list[Prediction], concurrency: int = 4) -> None:
+    """Ask the identity judge about each priced, labelled prediction, and set
+    its `identity_*` fields (#352). Items whose label names no product are
+    left untouched, so they are not counted."""
+    pending: list[tuple[Prediction, dict, dict]] = []
+    for p in predictions:
+        if not p.ok or p.expected_price is None:
+            continue
+        label = identity_module.describe(p.category, p.expected_brand, p.expected_model)
+        if label is None:
+            continue
+        # The scan's own category is not kept on a Prediction, and the label's
+        # would hand the judge part of the answer, so the scan goes without one.
+        scan = identity_module.describe(None, p.brand, p.model_name)
+        if scan is None:
+            p.identity_abstained = True
+            continue
+        pending.append((p, label, scan))
+    verdicts = await identity_module.judge_all(
+        [(label, scan) for _, label, scan in pending], concurrency)
+    for (p, _, _), verdict in zip(pending, verdicts):
+        p.identity_probability = verdict.probability
+    models = sorted({v.model for v in verdicts if v.model})
+    tokens = sum(v.input_tokens or 0 for v in verdicts)
+    if pending:
+        log.info("identity judge: %d asked, %d answered, model %s, %d input tokens",
+                 len(pending), sum(1 for v in verdicts if v.probability is not None),
+                 ", ".join(models) or "unknown", tokens)
+
+
 def _format(report: dict) -> str:
     acc, rng = report["accuracy"], report["range"]
 
@@ -754,6 +820,18 @@ def _format(report: dict) -> str:
             f"  flagged rate          {pct(hall.get('rate'))}",
             f"  reasons               {hall.get('reasons') or '—'}",
         ]
+        ident = report.get("identity")
+        if ident:
+            lines += [
+                "",
+                "Identity (judged: the scan named the labelled product)",
+                f"  same product          {pct(ident['rate'])}   "
+                f"({ident['matched']} same, {ident['different']} different, "
+                f"{ident['abstained']} abstained, {ident['unjudged']} unjudged)",
+                f"  borderline            {ident['borderline']}   (read these before trusting the rate)",
+            ]
+            for row in ident["items"][:5]:
+                lines.append(f"    {row['item_id']:<24} p={row['probability']:.2f}")
     else:
         lines += ["", "Accuracy: not measured — no sale prices to measure against"]
 
@@ -913,6 +991,8 @@ def main(argv=None) -> int:
                 all_runs.setdefault(prediction.item_id, []).append(prediction.predicted_expected)
         predictions = (median_predictions(batches) if args.aggregate == "median"
                        else batches[0])
+        if labelled and identity_module.enabled():
+            asyncio.run(judge_identity(predictions, args.concurrency))
         # Negative controls: one pass, scored only on whether they are declined.
         control_predictions = (asyncio.run(run_live(controls, version, root,
                                                     args.concurrency, budget))
