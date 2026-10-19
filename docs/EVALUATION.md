@@ -205,6 +205,17 @@ evidence.
 separately from a wrong answer. Scoring abstention as failure would train the
 system toward confident guessing.
 
+**Identity is judged, not string-matched (#352).** Exact brand text calls
+"Levi's 501" wrong against "Levi Strauss 501 Original", and passes "Air Max 95"
+against "Air Max 97". With `TYPESAFE_API_KEY` set, the runner asks TypeSafe's
+Jev, once per priced labelled item, whether the scan named the labelled product
+(`eval/identity.py`), and reports `identity_match`: the share judged the same
+at p ≥ 0.5, with abstentions counted as `field_accuracy` counts them and the
+least likely matches listed first. Only the label and the scan's text answer
+are sent, never a photo. A failed call leaves the item unjudged rather than
+wrong, and without the key the figure is absent. Reported, not gated: set
+`TYPESAFE_MODEL` to pin a build before a baseline depends on it.
+
 ---
 
 ### Per region: which market the dollar figure prices for (#225)
