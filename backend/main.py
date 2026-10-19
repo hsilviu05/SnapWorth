@@ -44,6 +44,7 @@ import imagequality
 import imagevalidation
 import legit as legit_module
 import levers
+import listingclaims
 import metrics
 import notify
 import opsspend
@@ -58,6 +59,7 @@ import outcomes
 import social
 import tokens
 import trends as trends_module
+import typesafe
 import valuation as valuation_module
 from apierrors import APIError
 from auditlog import AuditEvent
@@ -542,6 +544,11 @@ async def _close_dependencies() -> None:
         await devicecheck.aclose()
     except Exception as exc:
         log.warning("devicecheck client close failed: %s", exc)
+
+    try:
+        await typesafe.aclose()
+    except Exception as exc:
+        log.warning("typesafe client close failed: %s", exc)
 
     # Only ever opened if an operator ran /sub on this replica, and imported
     # here rather than at module scope for the same cycle reason notify gives.
@@ -1441,6 +1448,31 @@ def _validate_listing(data: dict, req: ListingRequest) -> ListingResponse:
     )
 
 
+async def _check_listing_claims(result: ListingResponse,
+                                req: ListingRequest) -> ListingResponse:
+    """A draft that claims authenticity, or a better condition than the scan's,
+    gets the deterministic listing's title and description (#353); the prices
+    and category stay. Off unless `listingclaims.enabled()`, and fail-open: a
+    draft that could not be checked is returned as it was written."""
+    if not listingclaims.enabled():
+        return result
+    try:
+        claims = await listingclaims.check(
+            req.item_name, req.brand, req.category,
+            _CONDITION_LABEL.get(req.condition, "Good"), result.title, result.description)
+    except Exception as exc:
+        log.warning("listing claim check failed: %s", type(exc).__name__)
+        return result
+    flags = listingclaims.flagged(claims)
+    if not flags:
+        return result
+    # Which claims, never the text: it is the user's item.
+    log.info("listing claim replaced", extra={"claims": flags, "marketplace": req.marketplace})
+    fallback = _fallback_listing(req)
+    return result.model_copy(update={"title": fallback.title,
+                                     "description": fallback.description})
+
+
 def _extract_json(text: str) -> dict:
     """Extract the first JSON object from the model response, handling markdown fences.
 
@@ -1663,7 +1695,7 @@ def privacy():
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Privacy Policy — SnapWorth</title><style>{_STYLE}</style></head><body>
 <h1>Privacy Policy</h1>
-<p>Last updated: October 13, 2026</p>
+<p>Last updated: October 19, 2026</p>
 <p>SnapWorth ("we", "our", or "us") operates the SnapWorth mobile application.
 This page informs you of our policies regarding the collection, use, and
 disclosure of personal data when you use our Service.</p>
@@ -1742,6 +1774,14 @@ train its models. Photos are not retained by us after the response is returned.<
 <p><strong>Apple (DeviceCheck).</strong> Receives the device token described
 above, and stores two bits against your hardware so a reinstall does not reset
 the free allowance.</p>
+<p><strong>TypeSafe (Jev).</strong> May receive text about an item to answer a
+yes/no check on it: when you ask for a listing draft, the draft's title and
+description with the item name, brand, category and condition it was written
+from, to check that it does not claim the item is authentic or in better
+condition than the scan shows; and the brand and model the AI identified with
+the titles of sold listings found for it, to check that they are the same
+product. Never the photo, and never your device identifier, name, email
+address or location.</p>
 <p><strong>TelemetryDeck.</strong> Receives the anonymous usage events described
 above. It never receives photos, item names, prices, or identifiers.</p>
 <p><strong>Telegram.</strong> To monitor the service, operational information may
@@ -3214,7 +3254,7 @@ async def listing(
                     exc, len(raw))
         return _fallback_listing(req)
 
-    result = _validate_listing(data, req)
+    result = await _check_listing_claims(_validate_listing(data, req), req)
     # No ask or floor beside the device's pseudonym, for "scan ok"'s reason.
     log.info("listing ok", extra={
         "device": auditlog.pseudonymise(principal.subject), "marketplace": marketplace})

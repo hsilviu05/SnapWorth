@@ -19,6 +19,10 @@ What is logged is the gate for #40 and #41: how often the model and the comps
 agree, and where they do not. Per lookup — status, both ranges, comp count,
 match confidence, per-provider latency — plus three metrics for dashboards.
 
+With `COMPS_JEV_SHADOW` on, the matcher's least certain comps also get a
+second opinion from TypeSafe's Jev, logged beside the lookup
+(`comps/secondopinion.py`, #354).
+
 With `COMPS_ENABLED=false`, which production must keep until a provider grants
 sold-data access in writing, `schedule` returns before creating anything: off
 means the engine is not called at all.
@@ -33,7 +37,7 @@ from decimal import Decimal
 from typing import Protocol
 
 import metrics
-from comps import normalize
+from comps import normalize, secondopinion
 from comps.engine import CompsEngine
 from comps.models import CompsResult, Condition, ItemIdentity
 
@@ -180,12 +184,35 @@ class ShadowRunner:
             metrics.comps_shadow_lookups.inc(status="error")
             return
 
+        if secondopinion.enabled():
+            fields.update(await self._second_opinion(identity, result))
+
         metrics.comps_shadow_lookups.inc(status=fields["status"])
         metrics.comps_shadow_duration.observe(result.latency_ms / 1000)
         if "price_ratio" in fields:
             metrics.comps_shadow_price_ratio.observe(fields["price_ratio"])
         log.info("comps shadow", extra={
             "category": identity.category, "brand": identity.brand, **fields})
+
+    @staticmethod
+    async def _second_opinion(identity: ItemIdentity, result: CompsResult) -> dict:
+        """Jev on the uncertain comps (#354). Its failure loses only its own
+        fields, never the lookup's report."""
+        try:
+            fields = await secondopinion.review(identity, result.comps)
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:
+            log.warning("comps second opinion failed: %s", type(exc).__name__)
+            return {}
+        if fields:
+            disagreed = fields["jev_disagreed"]
+            unjudged = fields["jev_asked"] - fields["jev_judged"]
+            for verdict, count in (("agree", fields["jev_judged"] - disagreed),
+                                   ("disagree", disagreed), ("unjudged", unjudged)):
+                if count:
+                    metrics.comps_jev_verdicts.inc(count, verdict=verdict)
+        return fields
 
     async def drain(self, timeout: float = 1.0) -> None:
         """At shutdown: let running lookups finish briefly, then cancel them.

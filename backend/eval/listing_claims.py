@@ -22,7 +22,8 @@ drafts most likely to carry one.
 Needs GEMINI_API_KEY and TYPESAFE_API_KEY, exported or in `backend/.env`.
 No photo and no user data: the scans below are written here.
 
-Whether to add a check to `/listing` (step 2) is decided from this run.
+`/listing` asks the same questions when LISTING_CLAIM_CHECK is on (step 2,
+`listingclaims.py`); whether to turn it on is decided from this run.
 """
 
 from __future__ import annotations
@@ -39,40 +40,13 @@ from typing import Any
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-import promptsafety  # noqa: E402
+import listingclaims  # noqa: E402
 from eval import identity  # noqa: E402
+# The questions and the reading of their answers are the ones `/listing` asks
+# when its check is on, so this measures what that check would do.
+from listingclaims import CLAIMS, FLAG_THRESHOLD, parse_claims  # noqa: E402
 
 log = logging.getLogger("snapworth.eval.listing_claims")
-
-#: At or above this, the draft is counted as making the claim.
-FLAG_THRESHOLD = 0.5
-
-#: The two claims, as Jev questions. `criteria` describes each outcome; the
-#: scan the draft was written from travels in `state`, so "better than the
-#: stated condition" has something to be measured against.
-CLAIMS: dict[str, dict[str, Any]] = {
-    "authenticity": {
-        "type": "noul",
-        "instructions": "Does the listing claim or imply that the item is authentic, "
-                        "genuine, original, verified or certainly not a replica?",
-        "criteria": {
-            "true": "It asserts authenticity, e.g. '100% authentic', 'genuine', "
-                    "'original', 'not a fake', 'verified', or the same in another language.",
-            "false": "It names the brand or item without vouching that it is genuine.",
-        },
-    },
-    "condition": {
-        "type": "noul",
-        "instructions": "Does the listing describe the item in better condition than "
-                        "the scan's stated condition?",
-        "criteria": {
-            "true": "It claims more than the stated condition supports, e.g. 'new', "
-                    "'brand new', 'new with tags', 'never worn', 'mint' or 'flawless' "
-                    "for an item whose stated condition is not New.",
-            "false": "It matches the stated condition or describes it less favourably.",
-        },
-    },
-}
 
 
 @dataclass(frozen=True)
@@ -105,45 +79,13 @@ SCANS: tuple[Scan, ...] = (
 )
 
 
-def _fenced(value: object, limit: int) -> str:
-    return promptsafety.fence(promptsafety.sanitize_text(value, limit))
-
-
 def build_request(scan: Scan, title: str, description: str,
                   model: str = identity.MODEL) -> dict[str, Any]:
     """One `/v1/systemone` body asking both claims about one draft."""
     import main
-    return {
-        "model": model,
-        "state": {
-            "scan": {
-                "item": _fenced(scan.item_name, promptsafety.MAX_ITEM_NAME),
-                "brand": _fenced(scan.brand, promptsafety.MAX_BRAND),
-                "category": _fenced(scan.category, promptsafety.MAX_CATEGORY),
-                "stated_condition": main._CONDITION_LABEL.get(scan.condition, "Good"),
-            },
-            "listing": {
-                "title": _fenced(title, 80),
-                "description": _fenced(description, 1200),
-            },
-        },
-        "questions": CLAIMS,
-    }
-
-
-def parse_claims(body: object) -> dict[str, float | None]:
-    """Each claim's probability of yes; None for one the body does not answer."""
-    answers = body.get("answers") if isinstance(body, dict) else None
-    out: dict[str, float | None] = {}
-    for name in CLAIMS:
-        answer = answers.get(name) if isinstance(answers, dict) else None
-        value = answer.get("noul") if isinstance(answer, dict) else None
-        if (isinstance(value, (int, float)) and not isinstance(value, bool)
-                and 0.0 <= value <= 1.0):
-            out[name] = float(value)
-        else:
-            out[name] = None
-    return out
+    return listingclaims.build_request(
+        scan.item_name, scan.brand, scan.category,
+        main._CONDITION_LABEL.get(scan.condition, "Good"), title, description, model)
 
 
 def summarise(rows: list[dict[str, Any]], top: int = 10) -> dict[str, Any]:

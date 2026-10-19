@@ -386,6 +386,11 @@ comps_shadow_duration = _histogram(
 comps_shadow_price_ratio = _histogram(
     "snapworth_comps_shadow_price_ratio", "Comps expected / model expected",
     (0.25, 0.5, 0.67, 0.8, 0.9, 1.1, 1.25, 1.5, 2.0, 4.0))
+#: Jev's second opinion on the matcher's uncertain comps (#354), per comp:
+#: `agree` (Jev says same product), `disagree`, or `unjudged`.
+comps_jev_verdicts = _counter(
+    "snapworth_comps_jev_verdicts_total", "Jev second opinions on uncertain comps",
+    ("verdict",))
 
 # Entitlements
 entitlement_operations = _counter(

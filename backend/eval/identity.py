@@ -20,17 +20,13 @@ and never a user's scan: the gold set is the operator's own sales.
     TYPESAFE_API_KEY=... python -m eval.identity   # check the key and the
                                                    # format on two known pairs
 
-The wire format is the one `typesafe-sdk` 0.7.5 generates from
-api.typesafe.ai's OpenAPI schema (`SystemOneRequest`, `NoulQuestion`,
-`NoulAnswer`). It is called with httpx, which the backend already pins, rather
-than by adding the SDK and its dependencies for one request shape.
+The call itself, and its wire format, are `typesafe.py`'s.
 """
 
 from __future__ import annotations
 
 import asyncio
 import logging
-import os
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -39,15 +35,9 @@ import httpx
 
 import promptsafety
 from confidence import UNKNOWN_BRANDS, brand_is_known
+import typesafe
+from typesafe import API_KEY_ENV, MODEL, enabled, noul, post
 
-log = logging.getLogger("snapworth.eval.identity")
-
-# The SDK's own environment names, so a key set up for it works here too.
-API_KEY_ENV = "TYPESAFE_API_KEY"
-BASE_URL = os.environ.get("TYPESAFE_BASE_URL", "https://api.typesafe.ai")
-# `jev-latest` moves when TypeSafe ships a build, so the model that actually
-# answered is recorded from each response; set TYPESAFE_MODEL to pin one.
-MODEL = os.environ.get("TYPESAFE_MODEL", "jev-latest")
 TIMEOUT_S = 10.0
 
 QUESTION = "same_product"
@@ -81,10 +71,6 @@ def load_env() -> None:
     there works for the eval too. A variable already exported wins."""
     from dotenv import load_dotenv
     load_dotenv(Path(__file__).resolve().parent.parent / ".env")
-
-
-def enabled() -> bool:
-    return bool(os.environ.get(API_KEY_ENV, "").strip())
 
 
 def _clean(value: object, limit: int) -> str | None:
@@ -140,33 +126,15 @@ def parse_response(body: object) -> Verdict:
     verdict when the body is not the shape the schema promises."""
     if not isinstance(body, dict):
         return Verdict(None)
-    answers = body.get("answers")
-    answer = answers.get(QUESTION) if isinstance(answers, dict) else None
-    value = answer.get("noul") if isinstance(answer, dict) else None
-    # bool is an int: a `true` here is a malformed body, not probability 1.
-    if isinstance(value, bool) or not isinstance(value, (int, float)) or not 0.0 <= value <= 1.0:
+    value = noul(body.get("answers"), QUESTION)
+    if value is None:
         return Verdict(None)
     usage = body.get("usage")
     usage = usage if isinstance(usage, dict) else {}
     tokens = usage.get("input_tokens")
     model = body.get("model")
-    return Verdict(float(value), model if isinstance(model, str) else None,
+    return Verdict(value, model if isinstance(model, str) else None,
                    tokens if isinstance(tokens, int) and not isinstance(tokens, bool) else None)
-
-
-async def post(client: httpx.AsyncClient, body: dict[str, Any]) -> object | None:
-    """One `/v1/systemone` call; its decoded JSON, or None on any failure —
-    network, status or body — so a caller counts the item unjudged."""
-    try:
-        response = await client.post("/v1/systemone", json=body)
-        response.raise_for_status()
-        return response.json()
-    except (httpx.HTTPError, ValueError) as exc:
-        # The status and the exception type only: the body could echo the key.
-        status = getattr(getattr(exc, "response", None), "status_code", None)
-        log.warning("typesafe call failed: %s%s", type(exc).__name__,
-                    f" (HTTP {status})" if status else "")
-        return None
 
 
 async def judge(client: httpx.AsyncClient, label: dict[str, str],
@@ -176,9 +144,7 @@ async def judge(client: httpx.AsyncClient, label: dict[str, str],
 
 
 def make_client(api_key: str | None = None) -> httpx.AsyncClient:
-    key = (api_key or os.environ.get(API_KEY_ENV, "")).strip()
-    return httpx.AsyncClient(base_url=BASE_URL, timeout=TIMEOUT_S,
-                             headers={"Authorization": f"Bearer {key}"})
+    return typesafe.make_client(TIMEOUT_S, api_key)
 
 
 async def judge_all(pairs: list[tuple[dict[str, str], dict[str, str]]],
