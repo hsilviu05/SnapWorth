@@ -39,13 +39,21 @@ struct HistoryView: View {
     var body: some View {
         NavigationStack {
             GeometryReader { geo in
-                // Two columns at every size but the accessibility ones,
+                // Two columns on every iPhone but at the accessibility sizes,
                 // where half a phone width cannot hold a two-line item name
                 // and a price range at 2-3x the type size — the name wrapped
-                // to four lines and the range truncated mid-figure. `perRow`
-                // is 2 for every non-accessibility size, so the arithmetic
-                // below is unchanged for all of them.
-                let perRow = dynamicTypeSize.isAccessibilitySize ? 1 : 2
+                // to four lines and the range truncated mid-figure.
+                //
+                // More only where they fit at a card's minimum width, which
+                // takes a window at least 596 pt wide: no iPhone before
+                // iPhone Duo, whose inner display is wider than that and
+                // reports regular width (#361). A fixed two there drew cards
+                // the size of a whole phone screen.
+                let isAccessibilitySize = dynamicTypeSize.isAccessibilitySize
+                let minCardWidth: CGFloat = isAccessibilitySize ? 300 : 180
+                let fitting = Int((geo.size.width - hPad * 2 + gridSpacing)
+                                  / (minCardWidth + gridSpacing))
+                let perRow = max(isAccessibilitySize ? 1 : 2, fitting)
                 let cardWidth = (geo.size.width - hPad * 2
                                  - CGFloat(perRow - 1) * gridSpacing) / CGFloat(perRow)
                 let fixedColumns = Array(
