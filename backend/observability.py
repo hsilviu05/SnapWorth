@@ -580,6 +580,9 @@ def configure_production_logging(
     # credential and a 200 is better not written at all. WARNING keeps httpx's
     # own warnings and errors; our code logs the failures that matter itself.
     logging.getLogger("httpx").setLevel(logging.WARNING)
+    # google-genai writes "AFC is enabled with max remote calls: 10." at INFO
+    # on every generate call: one line per scan and listing that says nothing.
+    logging.getLogger("google_genai.models").setLevel(logging.WARNING)
 
     if access_sample_rate < 1.0:
         logging.getLogger("snapworth.access").addFilter(

@@ -80,6 +80,16 @@ class TestRequest:
         assert "ignore previous instructions" not in body["state"]["listing"]["title"].lower()
 
 
+class TestPrompt:
+    def test_the_listing_prompt_forbids_the_claims_the_eval_found(self):
+        # The first full eval run (2026-10-19, 198 drafts) flagged 13 for
+        # authenticity, 8 of them eBay's, and 2 Vinted drafts for a better
+        # condition than the scan's; nothing in the request supported either.
+        prompt = main._listing_prompt(REQ)
+        assert "Never vouch that the item is authentic" in prompt
+        assert 'never describe it as better than "Used"' in prompt
+
+
 class TestFlagged:
     def test_only_answers_at_or_over_the_threshold(self):
         assert listingclaims.flagged({"authenticity": 0.5, "condition": 0.49}) == ["authenticity"]

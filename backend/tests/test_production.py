@@ -408,6 +408,11 @@ class TestHttpxLinesCarryNoToken:
         assert not logging.getLogger("httpx").isEnabledFor(logging.INFO)
         assert logging.getLogger("httpx").isEnabledFor(logging.WARNING)
 
+    def test_google_genai_call_lines_are_not_written(self):
+        obs.configure_production_logging()
+        assert not logging.getLogger("google_genai.models").isEnabledFor(logging.INFO)
+        assert logging.getLogger("google_genai.models").isEnabledFor(logging.WARNING)
+
 
 class TestRedaction:
     @pytest.mark.parametrize("secret,marker", [
