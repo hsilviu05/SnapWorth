@@ -259,6 +259,71 @@ jobs:
 
           xcrun simctl list devices | grep -A1 "^-- iOS" | tail -3 || true
 
+      # Screenshots of the build under test, for reviewing a change without
+      # Xcode. The app the test run just built is installed on the test
+      # iPhone, and on an iPhone Duo too when this Xcode has one (#361), then
+      # opened on each screen a URL or a launch can reach. A report, never a
+      # gate: every command is allowed to fail, and the job's result is the
+      # tests'. Debug build, so `-mock-scans` is honoured; the Simulator has
+      # no camera, so the viewfinder is black.
+      - name: Screenshots (report only)
+        if: success()
+        continue-on-error: true
+        run: |
+          set +e
+          APP=$(find ~/Library/Developer/Xcode/DerivedData -maxdepth 6 -type d \
+                  -path "*/Debug-iphonesimulator/SnapWorth.app" | head -1)
+          if [ -z "$APP" ]; then echo "no simulator build of SnapWorth.app found"; exit 0; fi
+          BUNDLE=eu.snapworth.app
+          OUT=/tmp/screenshots
+          mkdir -p "$OUT"
+
+          DEVICES="${{ steps.sim.outputs.udid }}"
+          DUO_TYPE=$(xcrun simctl list devicetypes | grep -i "iPhone Duo" | head -1 \
+                       | grep -oE 'com\.apple\.CoreSimulator\.SimDeviceType\.[A-Za-z0-9-]+')
+          RT=$(xcrun simctl list runtimes | grep "iOS" | grep -v unavailable | tail -1 | awk '{print $NF}')
+          if [ -n "$DUO_TYPE" ]; then
+            DUO=$(xcrun simctl create "CI-iPhone-Duo" "$DUO_TYPE" "$RT")
+            [ -n "$DUO" ] && xcrun simctl boot "$DUO" && DEVICES="$DEVICES $DUO"
+          else
+            echo "No iPhone Duo simulator in this Xcode"
+          fi
+
+          shoot() {  # device, name
+            sleep 4
+            xcrun simctl io "$1" screenshot "$OUT/$NAME-$2.png"
+          }
+          for UDID in $DEVICES; do
+            NAME=$(xcrun simctl list devices | grep "$UDID" | sed -E 's/^ *//; s/ \(.*//; s/ /-/g')
+            xcrun simctl bootstatus "$UDID" -b >/dev/null
+            xcrun simctl status_bar "$UDID" override --time 9:41 --batteryState charged \
+              --batteryLevel 100 --cellularBars 4 --wifiBars 3
+            xcrun simctl uninstall "$UDID" "$BUNDLE"
+            xcrun simctl install "$UDID" "$APP"
+            xcrun simctl privacy "$UDID" grant camera "$BUNDLE"
+            xcrun simctl launch "$UDID" "$BUNDLE" -mock-scans
+            shoot "$UDID" 1-onboarding
+            xcrun simctl terminate "$UDID" "$BUNDLE"
+            xcrun simctl spawn "$UDID" defaults write "$BUNDLE" hasCompletedOnboarding -bool YES
+            xcrun simctl launch "$UDID" "$BUNDLE" -mock-scans
+            shoot "$UDID" 2-scan
+            xcrun simctl openurl "$UDID" snapworth://history
+            shoot "$UDID" 3-my-finds
+            xcrun simctl openurl "$UDID" snapworth://flips
+            shoot "$UDID" 4-my-flips
+          done
+          ls -la "$OUT"
+
+      - name: Upload screenshots
+        if: success()
+        continue-on-error: true
+        uses: actions/upload-artifact@v7
+        with:
+          name: screenshots
+          path: /tmp/screenshots
+          if-no-files-found: ignore
+          retention-days: 14
+
   # ── Security gate: no real keys committed ───────────────────────────────────
   # ── SwiftLint (reporting only) ───────────────────────────────────────────────
   # NON-BLOCKING BY DESIGN. The codebase predates any linter, so this reports a
