@@ -17,6 +17,9 @@ item unjudged, never wrong, so Jev being down cannot fail an eval.
 Only gold-set labels and the scan's own text answer are sent — never a photo,
 and never a user's scan: the gold set is the operator's own sales.
 
+    TYPESAFE_API_KEY=... python -m eval.identity   # check the key and the
+                                                   # format on two known pairs
+
 The wire format is the one `typesafe-sdk` 0.7.5 generates from
 api.typesafe.ai's OpenAPI schema (`SystemOneRequest`, `NoulQuestion`,
 `NoulAnswer`). It is called with httpx, which the backend already pins, rather
@@ -181,3 +184,43 @@ async def judge_all(pairs: list[tuple[dict[str, str], dict[str, str]]],
     finally:
         if owned:
             await http.aclose()
+
+
+#: What `python -m eval.identity` asks: one pair that is the same product in
+#: other words, and one that is not. A judge that cannot tell these apart is
+#: not worth a run.
+CHECK_PAIRS = (
+    ({"category": "shoes", "brand": "Nike", "model": "Air Max 97"},
+     {"brand": "Nike", "model": "Air Max 97 Silver Bullet"}, True),
+    ({"category": "shoes", "brand": "Nike", "model": "Air Max 97"},
+     {"brand": "Nike", "model": "Air Max 95"}, False),
+)
+
+
+async def check(client: httpx.AsyncClient | None = None) -> bool:
+    """Ask the check pairs and print each answer. True when both are judged
+    and land on the expected side of the threshold."""
+    verdicts = await judge_all([(label, scan) for label, scan, _ in CHECK_PAIRS],
+                               client=client)
+    ok = True
+    for (label, scan, same), verdict in zip(CHECK_PAIRS, verdicts):
+        p = verdict.probability
+        right = p is not None and (p >= MATCH_THRESHOLD) == same
+        ok = ok and right
+        shown = "no answer" if p is None else f"p={p:.2f}"
+        print(f"{'ok  ' if right else 'FAIL'} {label['model']} vs {scan['model']}: "
+              f"{shown} (expected {'same' if same else 'different'}"
+              f"{', model ' + verdict.model if verdict.model else ''})")
+    return ok
+
+
+def main() -> int:
+    if not enabled():
+        print(f"{API_KEY_ENV} is not set")
+        return 2
+    logging.basicConfig(level=logging.WARNING, format="%(message)s")
+    return 0 if asyncio.run(check()) else 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

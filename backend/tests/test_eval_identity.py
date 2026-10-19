@@ -239,3 +239,27 @@ class TestRunnerWiring:
         items, excluded = runner.load_items(path)
         assert excluded == {}
         assert items[0].expected_model == "Air Max 97 Silver Bullet"
+
+
+class TestCheck:
+    def test_passes_when_the_judge_tells_the_pairs_apart(self, capsys):
+        def handler(request):
+            scan = json.loads(request.content)["state"]["scan_answer"]["model"]
+            return _answer(0.9 if "Silver Bullet" in scan else 0.1)
+
+        async def go():
+            async with _client(handler) as client:
+                return await identity.check(client)
+        assert asyncio.run(go()) is True
+        assert "FAIL" not in capsys.readouterr().out
+
+    def test_fails_when_the_judge_does_not_answer(self, capsys):
+        async def go():
+            async with _client(lambda request: httpx.Response(401)) as client:
+                return await identity.check(client)
+        assert asyncio.run(go()) is False
+        assert "no answer" in capsys.readouterr().out
+
+    def test_main_needs_a_key(self, monkeypatch):
+        monkeypatch.delenv(identity.API_KEY_ENV, raising=False)
+        assert identity.main() == 2
