@@ -32,6 +32,7 @@ import asyncio
 import logging
 import os
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
 
 import httpx
@@ -73,6 +74,13 @@ class Verdict:
     probability: float | None
     model: str | None = None
     input_tokens: int | None = None
+
+
+def load_env() -> None:
+    """Read `backend/.env`, the server's own and gitignored, so a key kept
+    there works for the eval too. A variable already exported wins."""
+    from dotenv import load_dotenv
+    load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 
 
 def enabled() -> bool:
@@ -146,19 +154,25 @@ def parse_response(body: object) -> Verdict:
                    tokens if isinstance(tokens, int) and not isinstance(tokens, bool) else None)
 
 
-async def judge(client: httpx.AsyncClient, label: dict[str, str],
-                scan: dict[str, str]) -> Verdict:
-    """Ask once. Any failure — network, status, body — is an unjudged item."""
+async def post(client: httpx.AsyncClient, body: dict[str, Any]) -> object | None:
+    """One `/v1/systemone` call; its decoded JSON, or None on any failure —
+    network, status or body — so a caller counts the item unjudged."""
     try:
-        response = await client.post("/v1/systemone", json=build_request(label, scan))
+        response = await client.post("/v1/systemone", json=body)
         response.raise_for_status()
-        return parse_response(response.json())
+        return response.json()
     except (httpx.HTTPError, ValueError) as exc:
         # The status and the exception type only: the body could echo the key.
         status = getattr(getattr(exc, "response", None), "status_code", None)
-        log.warning("identity judge failed: %s%s", type(exc).__name__,
+        log.warning("typesafe call failed: %s%s", type(exc).__name__,
                     f" (HTTP {status})" if status else "")
-        return Verdict(None)
+        return None
+
+
+async def judge(client: httpx.AsyncClient, label: dict[str, str],
+                scan: dict[str, str]) -> Verdict:
+    """Ask once. Any failure is an unjudged item."""
+    return parse_response(await post(client, build_request(label, scan)))
 
 
 def make_client(api_key: str | None = None) -> httpx.AsyncClient:
@@ -215,6 +229,9 @@ async def check(client: httpx.AsyncClient | None = None) -> bool:
 
 
 def main() -> int:
+    # The server's own .env, which is gitignored, so a key kept there works
+    # for the eval too; a variable already exported wins.
+    load_env()
     if not enabled():
         print(f"{API_KEY_ENV} is not set")
         return 2

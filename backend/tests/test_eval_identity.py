@@ -261,5 +261,7 @@ class TestCheck:
         assert "no answer" in capsys.readouterr().out
 
     def test_main_needs_a_key(self, monkeypatch):
+        # A developer's own backend/.env must not decide this test.
+        monkeypatch.setattr(identity, "load_env", lambda: None)
         monkeypatch.delenv(identity.API_KEY_ENV, raising=False)
         assert identity.main() == 2

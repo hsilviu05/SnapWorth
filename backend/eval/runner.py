@@ -944,6 +944,7 @@ def main(argv=None) -> int:
         parser.error(str(exc))
 
     logging.basicConfig(level=logging.INFO, format="%(message)s")
+    identity_module.load_env()
 
     labelled = args.dataset is not None
     excluded: dict[str, int] = {}

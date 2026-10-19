@@ -216,6 +216,14 @@ are sent, never a photo. A failed call leaves the item unjudged rather than
 wrong, and without the key the figure is absent. Reported, not gated: set
 `TYPESAFE_MODEL` to pin a build before a baseline depends on it.
 
+**Listing drafts are checked for claims their scan can't support (#353).**
+`python -m eval.listing_claims` writes drafts through the shipping `/listing`
+pipeline for fixed synthetic scans on every marketplace, then asks Jev whether
+each draft vouches for authenticity or claims a better condition than the
+scan's. It reports the rate per claim and marketplace and the drafts most
+likely to carry one. It needs `GEMINI_API_KEY` and `TYPESAFE_API_KEY`, exported
+or in `backend/.env`, which the eval scripts now read.
+
 ---
 
 ### Per region: which market the dollar figure prices for (#225)
