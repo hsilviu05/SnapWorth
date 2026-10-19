@@ -230,7 +230,8 @@ class TestLegalEndpoints:
         a false one — this page is linked from the paywall and is what App
         Review and an EU user read."""
         body = client.get("/privacy").text
-        for processor in ("Google", "Gemini", "TelemetryDeck", "Telegram", "DeviceCheck"):
+        for processor in ("Google", "Gemini", "TypeSafe", "TelemetryDeck", "Telegram",
+                          "DeviceCheck"):
             assert processor in body, f"{processor} receives data but is not disclosed"
 
     def test_privacy_does_not_claim_data_is_unshared(self):
@@ -739,6 +740,28 @@ class TestListingEndpoint:
         data = r.json()
         for f in ["title", "description", "listing_price", "negotiation_floor", "category"]:
             assert f in data, f"missing field: {f}"
+
+    def test_a_flagged_claim_is_replaced_before_the_listing_leaves(self, monkeypatch):
+        """#353: the claim check runs on the endpoint's own draft, after the
+        validator, and its swap is what the client receives."""
+        import httpx
+        import listingclaims
+
+        monkeypatch.setenv(listingclaims.FLAG_ENV, "true")
+        monkeypatch.setenv("TYPESAFE_API_KEY", "test-key")
+        monkeypatch.setattr(listingclaims, "_client", httpx.AsyncClient(
+            base_url="https://api.typesafe.test",
+            transport=httpx.MockTransport(lambda request: httpx.Response(200, json={
+                "answers": {"authenticity": {"type": "noul", "noul": 0.1},
+                            "condition": {"type": "noul", "noul": 0.9}}}))))
+        with patch("main._model") as mm:
+            mm.generate_content_async = AsyncMock(return_value=self._mock(json.dumps(MOCK_LISTING_JSON)))
+            r = _post_listing()
+        assert r.status_code == 200
+        fallback = main._fallback_listing(main.ListingRequest(**_listing_body()))
+        assert (r.json()["title"], r.json()["description"]) == \
+            (fallback.title, fallback.description)
+        assert r.json()["listing_price"] == MOCK_LISTING_JSON["listing_price"]
 
     def test_all_supported_marketplaces_accepted(self):
         for mkt in ["ebay", "poshmark", "mercari", "depop", "vinted", "facebook", "olx"]:

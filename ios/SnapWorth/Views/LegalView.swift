@@ -24,12 +24,12 @@ struct PrivacyPolicyView: View {
 /// Change this and `backend/main.py`'s `/privacy` together.
 /// `PrivacyPolicyDisclosureTests` fails if a processor goes missing.
 enum PrivacyPolicy {
-    static let updated = "October 13, 2026"
+    static let updated = "October 19, 2026"
 
     /// Every third party that receives user data, by the name a reader would
     /// recognise. The test asserts each appears in `sections`.
     static let processors = ["Google", "Gemini", "Apple", "DeviceCheck",
-                             "TelemetryDeck", "Telegram"]
+                             "TypeSafe", "TelemetryDeck", "Telegram"]
 
     static let sections: [(heading: String?, text: String)] = [
         (heading: nil, text: """
@@ -57,6 +57,8 @@ enum PrivacyPolicy {
             Google (Gemini API). Photos you submit are transmitted to Google's Gemini API, which identifies the item and estimates its resale value, or reads a legit check's close-ups. Google processes them under its API terms of service and does not use them to train its models. Photos are not retained by us after the response is returned.
 
             Apple (DeviceCheck). Receives the device token described above, and stores two bits against your hardware so a reinstall does not reset the free allowance.
+
+            TypeSafe (Jev). When you ask for a listing draft, its title and description may be sent to TypeSafe, with the item name, brand, category and condition the draft was written from, to check that it does not claim the item is authentic or in better condition than the scan shows. Never the photo, and never your device identifier, name, email address or location.
 
             TelemetryDeck. Receives the anonymous usage events described above. It never receives photos, item names, prices, or identifiers.
 

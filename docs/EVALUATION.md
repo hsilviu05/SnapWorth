@@ -222,7 +222,10 @@ pipeline for fixed synthetic scans on every marketplace, then asks Jev whether
 each draft vouches for authenticity or claims a better condition than the
 scan's. It reports the rate per claim and marketplace and the drafts most
 likely to carry one. It needs `GEMINI_API_KEY` and `TYPESAFE_API_KEY`, exported
-or in `backend/.env`, which the eval scripts now read.
+or in `backend/.env`, which the eval scripts now read. `/listing` asks the
+same questions (`listingclaims.py`) when `LISTING_CLAIM_CHECK` is on, and
+swaps a flagged draft's words for the deterministic listing's; it is off until
+this run shows a rate worth the latency.
 
 ---
 
