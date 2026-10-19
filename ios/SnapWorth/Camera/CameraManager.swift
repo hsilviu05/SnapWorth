@@ -33,6 +33,17 @@ final class CameraManager: NSObject, ObservableObject {
     private var sessionQueue = DispatchQueue(label: "com.snapworth.camera")
     private var isConfigured = false
 
+    /// Which way is up for a photo, from how the phone is held (#361).
+    ///
+    /// Nothing set the capture connection's rotation, so which way a photo
+    /// was stored came from the connection's default, which knows neither how
+    /// the phone is held nor how the app's window is turned. While every
+    /// iPhone ran this app in portrait, only the first could vary. On iPhone
+    /// Duo's inner display the window can turn too, and the coordinator
+    /// accounts for both. Nil where there is no camera (the Simulator), which
+    /// leaves the connection's default as it was.
+    private var captureRotation: AVCaptureDevice.RotationCoordinator?
+
     override init() {
         super.init()
         authStatus = AVCaptureDevice.authorizationStatus(for: .video)
@@ -86,6 +97,9 @@ final class CameraManager: NSObject, ObservableObject {
     }
 
     private func setupSessionIfNeeded() {
+        if captureRotation == nil, let device = Self.backCamera() {
+            captureRotation = AVCaptureDevice.RotationCoordinator(device: device, previewLayer: nil)
+        }
         guard !isConfigured else {
             startSession()
             return
@@ -116,7 +130,7 @@ final class CameraManager: NSObject, ObservableObject {
 
             // Input
             guard
-                let device = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: .back),
+                let device = Self.backCamera(),
                 let input = try? AVCaptureDeviceInput(device: device),
                 self.session.canAddInput(input)
             else {
@@ -169,6 +183,13 @@ final class CameraManager: NSObject, ObservableObject {
             self.session.commitConfiguration()
             self.session.startRunning()
         }
+    }
+
+    /// The camera every screen here uses. One lookup, so the session and both
+    /// rotation coordinators (capture here, preview in `PreviewUIView`)
+    /// always describe the same device.
+    nonisolated static func backCamera() -> AVCaptureDevice? {
+        AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: .back)
     }
 
     func startSession() {
@@ -278,6 +299,9 @@ final class CameraManager: NSObject, ObservableObject {
             return
         }
         #endif
+        // Read here, on the main actor that owns the coordinator, at the
+        // moment of the tap; only the number crosses to the session queue.
+        let rotationAngle = captureRotation?.videoRotationAngleForHorizonLevelCapture
         sessionQueue.async { [weak self] in
             guard let self else { return }
             // A tap that arrives while the session is stopped used to return
@@ -295,6 +319,11 @@ final class CameraManager: NSObject, ObservableObject {
             guard self.session.isRunning else {
                 Task { @MainActor [weak self] in self?.deliverFailure() }
                 return
+            }
+            if let rotationAngle,
+               let connection = self.photoOutput.connection(with: .video),
+               connection.isVideoRotationAngleSupported(rotationAngle) {
+                connection.videoRotationAngle = rotationAngle
             }
             let settings = AVCapturePhotoSettings()
             if let mode = Self.flashMode(preferring: .auto,
@@ -401,6 +430,44 @@ final class PreviewUIView: UIView {
         set {
             previewLayer.session = newValue
             previewLayer.videoGravity = .resizeAspectFill
+            observeRotation()
+        }
+    }
+
+    // The preview's half of `CameraManager.captureRotation` (#361). In a
+    // portrait-only app on a portrait-only screen this always answers
+    // portrait, which is the connection's default, so on every iPhone before
+    // iPhone Duo it changes nothing. On Duo's inner display, where the
+    // window can turn, it keeps the picture level instead of sideways.
+    private var rotation: AVCaptureDevice.RotationCoordinator?
+    private var rotationObservation: NSKeyValueObservation?
+
+    private func observeRotation() {
+        guard rotation == nil, let device = CameraManager.backCamera() else { return }
+        let coordinator = AVCaptureDevice.RotationCoordinator(device: device,
+                                                              previewLayer: previewLayer)
+        rotation = coordinator
+        rotationObservation = coordinator.observe(
+            \.videoRotationAngleForHorizonLevelPreview, options: [.initial, .new]
+        ) { [weak self] _, _ in
+            // KVO makes no promise about the thread; the layer is UI.
+            Task { @MainActor in self?.applyPreviewRotation() }
+        }
+    }
+
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        // The preview connection only exists once the session has its input,
+        // which `CameraManager` adds on its own queue after this view is
+        // made; a turn of the window always lays this view out again.
+        applyPreviewRotation()
+    }
+
+    private func applyPreviewRotation() {
+        guard let rotation, let connection = previewLayer.connection else { return }
+        let angle = rotation.videoRotationAngleForHorizonLevelPreview
+        if connection.isVideoRotationAngleSupported(angle), connection.videoRotationAngle != angle {
+            connection.videoRotationAngle = angle
         }
     }
 }
