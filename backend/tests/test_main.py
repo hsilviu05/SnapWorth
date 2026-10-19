@@ -746,10 +746,11 @@ class TestListingEndpoint:
         validator, and its swap is what the client receives."""
         import httpx
         import listingclaims
+        import typesafe
 
         monkeypatch.setenv(listingclaims.FLAG_ENV, "true")
         monkeypatch.setenv("TYPESAFE_API_KEY", "test-key")
-        monkeypatch.setattr(listingclaims, "_client", httpx.AsyncClient(
+        monkeypatch.setattr(typesafe, "_client", httpx.AsyncClient(
             base_url="https://api.typesafe.test",
             transport=httpx.MockTransport(lambda request: httpx.Response(200, json={
                 "answers": {"authenticity": {"type": "noul", "noul": 0.1},

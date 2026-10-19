@@ -58,7 +58,7 @@ enum PrivacyPolicy {
 
             Apple (DeviceCheck). Receives the device token described above, and stores two bits against your hardware so a reinstall does not reset the free allowance.
 
-            TypeSafe (Jev). When you ask for a listing draft, its title and description may be sent to TypeSafe, with the item name, brand, category and condition the draft was written from, to check that it does not claim the item is authentic or in better condition than the scan shows. Never the photo, and never your device identifier, name, email address or location.
+            TypeSafe (Jev). May receive text about an item to answer a yes/no check on it: when you ask for a listing draft, the draft's title and description with the item name, brand, category and condition it was written from, to check that it does not claim the item is authentic or in better condition than the scan shows; and the brand and model the AI identified with the titles of sold listings found for it, to check that they are the same product. Never the photo, and never your device identifier, name, email address or location.
 
             TelemetryDeck. Receives the anonymous usage events described above. It never receives photos, item names, prices, or identifiers.
 

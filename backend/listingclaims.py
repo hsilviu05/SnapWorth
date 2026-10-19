@@ -26,17 +26,11 @@ the user or the device. The privacy policy names TypeSafe for this, in
 
 from __future__ import annotations
 
-import asyncio
-import logging
 import os
 from typing import Any
 
-import httpx
-
 import promptsafety
 import typesafe
-
-log = logging.getLogger("snapworth.listingclaims")
 
 FLAG_ENV = "LISTING_CLAIM_CHECK"
 
@@ -119,41 +113,9 @@ def flagged(claims: dict[str, float | None]) -> list[str]:
     return [name for name, p in claims.items() if p is not None and p >= FLAG_THRESHOLD]
 
 
-# ── Shared client ─────────────────────────────────────────────────────────────
-# Pooled and created lazily under a lock, as `devicecheck` does: a client per
-# call would add a TLS handshake to every listing. Closed by the app lifespan.
-
-_client: httpx.AsyncClient | None = None
-_client_lock = asyncio.Lock()
-
-
-async def _shared_client() -> httpx.AsyncClient:
-    global _client
-    if _client is not None:
-        return _client
-    async with _client_lock:
-        if _client is None:
-            _client = typesafe.make_client(TIMEOUT_S)
-    return _client
-
-
-async def aclose() -> None:
-    global _client
-    if _client is not None:
-        client, _client = _client, None
-        await client.aclose()
-
-
 async def check(item: str, brand: str, category: str, condition_label: str,
                 title: str, description: str) -> dict[str, float | None]:
     """Ask both claims about a draft. All None when the call failed or ran
-    past `TIMEOUT_S` — httpx's timeout is per phase, so it is not a cap on
-    the whole call by itself."""
-    client = await _shared_client()
+    past `TIMEOUT_S`."""
     body = build_request(item, brand, category, condition_label, title, description)
-    try:
-        answer = await asyncio.wait_for(typesafe.post(client, body), TIMEOUT_S)
-    except asyncio.TimeoutError:
-        log.warning("listing claim check timed out")
-        answer = None
-    return parse_claims(answer)
+    return parse_claims(await typesafe.ask(body, TIMEOUT_S, "listing claim check"))

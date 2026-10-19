@@ -59,6 +59,7 @@ import outcomes
 import social
 import tokens
 import trends as trends_module
+import typesafe
 import valuation as valuation_module
 from apierrors import APIError
 from auditlog import AuditEvent
@@ -545,9 +546,9 @@ async def _close_dependencies() -> None:
         log.warning("devicecheck client close failed: %s", exc)
 
     try:
-        await listingclaims.aclose()
+        await typesafe.aclose()
     except Exception as exc:
-        log.warning("listing claim client close failed: %s", exc)
+        log.warning("typesafe client close failed: %s", exc)
 
     # Only ever opened if an operator ran /sub on this replica, and imported
     # here rather than at module scope for the same cycle reason notify gives.
@@ -1773,11 +1774,14 @@ train its models. Photos are not retained by us after the response is returned.<
 <p><strong>Apple (DeviceCheck).</strong> Receives the device token described
 above, and stores two bits against your hardware so a reinstall does not reset
 the free allowance.</p>
-<p><strong>TypeSafe (Jev).</strong> When you ask for a listing draft, its title
-and description may be sent to TypeSafe, with the item name, brand, category and
-condition the draft was written from, to check that it does not claim the item
-is authentic or in better condition than the scan shows. Never the photo, and
-never your device identifier, name, email address or location.</p>
+<p><strong>TypeSafe (Jev).</strong> May receive text about an item to answer a
+yes/no check on it: when you ask for a listing draft, the draft's title and
+description with the item name, brand, category and condition it was written
+from, to check that it does not claim the item is authentic or in better
+condition than the scan shows; and the brand and model the AI identified with
+the titles of sold listings found for it, to check that they are the same
+product. Never the photo, and never your device identifier, name, email
+address or location.</p>
 <p><strong>TelemetryDeck.</strong> Receives the anonymous usage events described
 above. It never receives photos, item names, prices, or identifiers.</p>
 <p><strong>Telegram.</strong> To monitor the service, operational information may

@@ -12,6 +12,7 @@ and the caller treats that as "not judged".
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import os
 from typing import Any
@@ -44,6 +45,46 @@ def make_client(timeout: float, key: str | None = None,
         limits=httpx.Limits(max_connections=max_connections,
                             max_keepalive_connections=max_connections,
                             keepalive_expiry=30.0))
+
+
+# ── Shared client (server) ────────────────────────────────────────────────────
+# Pooled and created lazily under a lock, as `devicecheck` does: a client per
+# call would add a TLS handshake to every check. httpx's timeout is per phase,
+# so each caller also caps its whole call with `asyncio.wait_for`. Closed by
+# the app lifespan.
+
+#: Per phase. The callers' own caps are shorter.
+SHARED_TIMEOUT_S = 5.0
+
+_client: httpx.AsyncClient | None = None
+_client_lock = asyncio.Lock()
+
+
+async def shared_client() -> httpx.AsyncClient:
+    global _client
+    if _client is not None:
+        return _client
+    async with _client_lock:
+        if _client is None:
+            _client = make_client(SHARED_TIMEOUT_S)
+    return _client
+
+
+async def aclose() -> None:
+    global _client
+    if _client is not None:
+        client, _client = _client, None
+        await client.aclose()
+
+
+async def ask(body: dict[str, Any], cap_s: float, label: str) -> object | None:
+    """`post` on the shared client, abandoned after `cap_s` seconds."""
+    client = await shared_client()
+    try:
+        return await asyncio.wait_for(post(client, body), cap_s)
+    except asyncio.TimeoutError:
+        log.warning("typesafe %s timed out", label)
+        return None
 
 
 async def post(client: httpx.AsyncClient, body: dict[str, Any]) -> object | None:

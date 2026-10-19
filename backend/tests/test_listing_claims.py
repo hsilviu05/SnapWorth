@@ -47,7 +47,7 @@ def jev(monkeypatch):
             return handler(request)
         monkeypatch.setenv(listingclaims.FLAG_ENV, "true")
         monkeypatch.setenv(typesafe.API_KEY_ENV, "test-key")
-        monkeypatch.setattr(listingclaims, "_client", httpx.AsyncClient(
+        monkeypatch.setattr(typesafe, "_client", httpx.AsyncClient(
             base_url="https://api.typesafe.test", transport=httpx.MockTransport(recording)))
         return sent
     return install
@@ -154,13 +154,13 @@ class TestCheckListingClaims:
 class TestSharedClient:
     def test_created_once_with_the_bearer_key_and_closed(self, monkeypatch):
         monkeypatch.setenv(typesafe.API_KEY_ENV, "test-key")
-        monkeypatch.setattr(listingclaims, "_client", None)
+        monkeypatch.setattr(typesafe, "_client", None)
 
         async def go():
-            first = await listingclaims._shared_client()
-            second = await listingclaims._shared_client()
+            first = await typesafe.shared_client()
+            second = await typesafe.shared_client()
             auth = first.headers["Authorization"]
-            await listingclaims.aclose()
-            return first is second, auth, listingclaims._client
+            await typesafe.aclose()
+            return first is second, auth, typesafe._client
         same, auth, after = asyncio.run(go())
         assert same and auth == "Bearer test-key" and after is None
