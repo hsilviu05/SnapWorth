@@ -213,8 +213,7 @@ jobs:
             echo "Created simulator: $UDID"
           fi
 
-          echo "Booting simulator $UDID"
-          xcrun simctl boot "$UDID" 2>/dev/null || true
+          # Booted from the build step, once xcodebuild has started; see there.
           echo "udid=$UDID" >> "$GITHUB_OUTPUT"
 
       # Build and test are two steps so the job's step list shows each one's
@@ -250,11 +249,24 @@ jobs:
         run: |
           set -o pipefail
           set +e
-          # A generic destination, so the build cannot wait on the simulator.
-          # On 2026-10-20 xcodebuild sat 250 s before its first build task
-          # while the iPhone it was given as destination was still booting;
-          # the next step's own time says whether that was the wait. The
-          # simulator boots meanwhile, and the step after this waits for it.
+          # The test iPhone boots in the background, but only once xcodebuild
+          # has printed its build description. On 2026-10-20, with the boot
+          # started before the build, xcodebuild printed nothing at all for
+          # 250-260 s, with a booting iPhone as its destination and again with
+          # a generic one, and was quick to start when nothing was booting.
+          # The "Booting simulator" line's timestamp shows where the boot
+          # landed. If the build ends first, the boot-wait step boots it.
+          UDID="${{ steps.sim.outputs.udid }}"
+          rm -f /tmp/xcodebuild-build.log
+          (
+            until grep -q "^Build description" /tmp/xcodebuild-build.log 2>/dev/null; do
+              sleep 2
+            done
+            echo "Booting simulator $UDID"
+            xcrun simctl boot "$UDID" 2>/dev/null || true
+          ) &
+          booter=$!
+          # A generic destination, so the build never waits on the simulator.
           # ARCHS=arm64 because a generic destination otherwise builds every
           # simulator architecture, and this runner is Apple silicon.
           xcodebuild build-for-testing \
@@ -273,6 +285,7 @@ jobs:
             2>&1 | tee /tmp/xcodebuild-build.log | grep --line-buffered -E \
               "^(.*(error|warning): |Command line invocation|Resolve Package Graph|Prepare packages|--- xcodebuild|\*\* (TEST )?BUILD|ComputePackagePrebuildTargetDependencyGraph|ComputeTargetDependencyGraph|Build description|SwiftDriver |SwiftEmitModule |SwiftCompile |Ld |CompileAssetCatalog|ValidateEmbeddedBinary |CodeSign )"
           status=${PIPESTATUS[0]}
+          kill "$booter" 2>/dev/null
           set -e
           echo "=== Build timing ==="
           grep -A40 "Build Timing Summary" /tmp/xcodebuild-build.log || true
