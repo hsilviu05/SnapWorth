@@ -34,6 +34,13 @@ on:
       - 'backend/scan/valuation.py'
       - 'backend/scan/prompts.py'
 
+# A newer push to the same pull request makes the run in progress worthless,
+# and on a macOS runner it holds the slot for up to ten minutes. Pushes to main
+# are never cancelled: each one is the record of what main built.
+concurrency:
+  group: ios-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   build-test:
     name: Build & Test
@@ -223,16 +230,35 @@ jobs:
           # simple command and resets PIPESTATUS, so a failing build would
           # have reported success — the exact class of bug this step exists
           # to stop hiding.
+          #
+          # Time, on a run that took 9 min (2026-10-20): build 4.5, tests 2.5,
+          # screenshots 1. What is switched off here does no work this job reads:
+          #   -collect-test-diagnostics never  a failing run otherwise sits ten
+          #       minutes gathering simulator diagnostics before it exits
+          #       ("Timed out after 600.0 seconds"); the failures themselves
+          #       are in the log above either way.
+          #   -enableCodeCoverage NO  nothing here or downstream reads coverage,
+          #       and instrumenting slows both the build and every test.
+          #   COMPILER_INDEX_STORE_ENABLE=NO  the index is for Xcode's editor.
+          #   SWIFT_EMIT_LOC_STRINGS=NO  string extraction writes into the
+          #       .xcstrings, which CI never commits; the catalogs are checked
+          #       against ios/Localization by the steps above instead.
+          # -showBuildTimingSummary records where the build's time goes; the
+          # summary step prints it.
           set +e
           xcodebuild test \
             -project ios/SnapWorth.xcodeproj \
             -scheme SnapWorth \
             -destination "platform=iOS Simulator,id=${{ steps.sim.outputs.udid }}" \
             -clonedSourcePackagesDirPath ~/spm-cache \
-            -enableCodeCoverage YES \
+            -enableCodeCoverage NO \
+            -collect-test-diagnostics never \
+            -showBuildTimingSummary \
             CODE_SIGN_IDENTITY="" \
             CODE_SIGNING_REQUIRED=NO \
             ONLY_ACTIVE_ARCH=YES \
+            COMPILER_INDEX_STORE_ENABLE=NO \
+            SWIFT_EMIT_LOC_STRINGS=NO \
             2>&1 | tee /tmp/xcodebuild.log | grep -E \
               "^(Test Suite|Test Case|.*(error|warning): |\*\* TEST|Executed )"
           status=${PIPESTATUS[0]}
@@ -249,6 +275,8 @@ jobs:
             >> "$GITHUB_STEP_SUMMARY"
           echo '```' >> "$GITHUB_STEP_SUMMARY"
           grep -E "Executed [0-9]+ test" /tmp/xcodebuild.log | tail -2 || true
+          echo "=== Build timing ==="
+          grep -A30 "Build Timing Summary" /tmp/xcodebuild.log || true
           # `awk NR==1`, not `head -1`: head closes the pipe after one line and
           # xcodebuild dies writing the rest, printing an NSException stack
           # trace into the summary step. awk reads to EOF, so there is nothing
