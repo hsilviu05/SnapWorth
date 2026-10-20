@@ -21,7 +21,7 @@ Read from the code on 2026-09-27, after Haul (#187), Q (#237), R (#238), S
 
 | Fact | 1.5.1 | Source |
 |---|---|---|
-| Free tier | **One free scan a day.** A Thrift Flip scan spends it too. The first-day allowance is a server lever and off | `ios/SnapWorth/Config.swift:124`; `backend/quota.py:44`, `:60`; `ThriftFlipViewModel.swift:58` |
+| Free tier | **One free scan a day.** A Thrift Flip scan spends it too. The first-day allowance is a server lever and off | `ios/SnapWorth/Config.swift:124`; `backend/billing/quota.py:44`, `:60`; `ThriftFlipViewModel.swift:58` |
 | Marketplaces | **Nine**, in the app's chip order: eBay · Poshmark · Mercari · Depop · Facebook · Vinted · OLX · 闲鱼 (Xianyu) · Kleinanzeigen. Both pickers (Thrift Flip, Snap → Sell) list all nine | `Services/ListingService.swift:11-21`, names `:27-38`; `ThriftFlipView.swift:186`; `ResultView.swift:1449` |
 | The Pro price ladder | Four price points, floor to ceiling: **Floor · Quick sale · Expected · Best case**, Expected in sage. Pro-only, inside *Why this price*; a free result shows that card blurred behind "Unlock why this price" | `Services/ScanAPIClient.swift:363-378`; `ResultView.swift:1080-1099`, `:1813-1836`, `:1323` |
 | The number behind the band | The same Pro panel prints the 0–100 score, e.g. **"72 / 100 confidence"**. That is why no frame shows the Pro panel | `ResultView.swift:1843-1848` |

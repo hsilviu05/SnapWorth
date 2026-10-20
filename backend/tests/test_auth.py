@@ -27,16 +27,16 @@ from fastapi.testclient import TestClient
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-import appattest  # noqa: E402
-import auditlog  # noqa: E402
-import auth  # noqa: E402
-import levers  # noqa: E402
-from cache import CacheUnavailable, InMemoryCache, ResilientCache  # noqa: E402
+from security import appattest  # noqa: E402
+from security import auditlog  # noqa: E402
+from security import auth  # noqa: E402
+from ops import levers  # noqa: E402
+from core.cache import CacheUnavailable, InMemoryCache, ResilientCache  # noqa: E402
 from main import app  # noqa: E402
-from quota import QuotaExceeded, QuotaUnavailable, ScanQuota  # noqa: E402
+from billing.quota import QuotaExceeded, QuotaUnavailable, ScanQuota  # noqa: E402
 from tests.conftest import TEST_APP_ID, build_deps  # noqa: E402
 from tests.images import VALID_JPEG  # noqa: E402
-from tokens import TokenError, TokenSigner  # noqa: E402
+from security.tokens import TokenError, TokenSigner  # noqa: E402
 
 client = TestClient(app)
 
@@ -484,7 +484,7 @@ def test_exhausted_message_reads_correctly_at_every_limit():
     today." — which is what production served once the free tier moved to one
     scan a day.
     """
-    from quota import _exhausted_message
+    from billing.quota import _exhausted_message
     assert _exhausted_message(1) == "You've used your free scan for today."
     assert _exhausted_message(3) == "You've used all 3 free scans today."
     assert "1 free scans" not in _exhausted_message(1)
@@ -589,7 +589,7 @@ class TestQuota:
         against the counter keys rather than through a faked clock, because
         what is being tested is which key the decrement lands on.
         """
-        import quota as quota_module
+        from billing import quota as quota_module
         q = _quota(1)
         current = {"day": "2026-09-12"}
 
@@ -657,7 +657,7 @@ class TestQuota:
         assert auth.deps.signer is not None   # set by the build_deps/conftest fixture
         token, _ = auth.deps.signer.mint("quota-subject")
         h = {"Authorization": f"Bearer {token}"}
-        import metrics
+        from ops import metrics
         refused_before = metrics.quota_exhausted.value()
         assert _scan(headers=h).status_code == 200
         assert _scan(headers=h).status_code == 200
@@ -773,17 +773,17 @@ class TestEntitlementOutageIsNotADowngrade:
         async def ping(self): raise ConnectionError("down")
 
     def _down(self):
-        from entitlements import EntitlementService
+        from billing.entitlements import EntitlementService
         return EntitlementService(
             ResilientCache(self._Broken(), InMemoryCache()), "eu.snapworth.app")
 
     def test_outage_raises_rather_than_reporting_free(self):
-        from entitlements import EntitlementsUnavailable
+        from billing.entitlements import EntitlementsUnavailable
         with pytest.raises(EntitlementsUnavailable):
             asyncio.run(self._down().current("subj"))
 
     def test_a_genuine_miss_is_still_free(self):
-        from entitlements import EntitlementService
+        from billing.entitlements import EntitlementService
         svc = EntitlementService(
             ResilientCache(None, InMemoryCache()), "eu.snapworth.app")
         assert asyncio.run(svc.current("nobody")).tier == "free"

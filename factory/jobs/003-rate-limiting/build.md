@@ -20,7 +20,7 @@ redirect (the spec's assumption allowed this). RUNBOOK §5.8 item 3 names the ro
 Commit (branch `factory/003-rate-limiting`, on `main` 22f26b3):
 - `0de1ee9` Social, backend: rate limit /social/tiktok/callback with the standard IP bucket
 
-Files changed: `backend/social.py`, `backend/main.py`, `backend/tests/test_social.py`,
+Files changed: `backend/insights/social.py`, `backend/main.py`, `backend/tests/test_social.py`,
 `backend/tests/test_client_ip.py`, `docs/RUNBOOK.md`.
 
 ## Acceptance criteria
@@ -63,14 +63,14 @@ Files changed: `backend/social.py`, `backend/main.py`, `backend/tests/test_socia
    `metrics.KNOWN_ENDPOINTS` vs `main.app.routes` check.
    `git diff main -- backend/tests/test_social.py | grep -E "^-[^-]" | wc -l` prints `0`:
    additions only, one new class `TestCallbackLimit` after `TestCallbackRoute`.
-7. [x] **No new knobs.** `git diff main --stat -- backend/ratelimit.py backend/.env.example`
+7. [x] **No new knobs.** `git diff main --stat -- backend/security/ratelimit.py backend/.env.example`
    is empty. `git diff main -- backend/main.py | grep -E "^\+.*(os.environ.get|async def _enforce_)" | wc -l`
    prints `0`; the `main.py` diff is the one assignment plus a two-line comment.
 8. [x] **Types stay clean.** `backend/.venv/bin/pyright --pythonpath backend/.venv/bin/python $(git ls-files 'backend/*.py' ':!:backend/tests/*')`
    from the worktree root: `0 errors, 0 warnings, 0 informations`.
 9. [x] **Docs.** `grep -n "/social/tiktok/callback" docs/RUNBOOK.md` prints line 492, in
    §5.8 item 3's "The IP bucket is one for every route with a limit" sentence.
-   `grep -n -i "limit" backend/social.py` shows line 264 (the comment above `_social`:
+   `grep -n -i "limit" backend/insights/social.py` shows line 264 (the comment above `_social`:
    "limited by the standard per-IP bucket") and lines 269-273 (the `limiter`
    declaration and its comment), plus the call at 286-287.
 

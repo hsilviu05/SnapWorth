@@ -2,7 +2,7 @@
 
 What this replaces
 ------------------
-`backend/confidence.py` combines signals using hand-chosen weights. Its own
+`backend/scan/confidence.py` combines signals using hand-chosen weights. Its own
 docstring is explicit that those are "a considered prior, not a fitted model —
 there is no labelled outcome data yet", and that the absolute values should be
 read as ordinal until measured. This module is how they stop being assumed.

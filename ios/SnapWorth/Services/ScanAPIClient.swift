@@ -1252,7 +1252,7 @@ enum APIErrorDetail {
     private static let fallback = "Something went wrong. Please try again."
 
     /// The body's `code`: a stable token the server sends beside `detail`
-    /// (`backend/apierrors.py`), which `AppError.from` routes and translates
+    /// (`backend/core/apierrors.py`), which `AppError.from` routes and translates
     /// on. Nil when there is none — a server from before the codes, a body
     /// that is not JSON — and the caller falls back to `detail`.
     static func code(_ data: Data) -> String? {

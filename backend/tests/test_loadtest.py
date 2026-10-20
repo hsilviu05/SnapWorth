@@ -14,8 +14,8 @@ import io
 import pytest
 from PIL import Image
 
-import aiconfig
-import imagevalidation
+from scan import aiconfig
+from scan import imagevalidation
 import main
 from loadtest import run
 

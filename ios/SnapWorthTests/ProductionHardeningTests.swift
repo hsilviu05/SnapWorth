@@ -7538,7 +7538,7 @@ final class EntitlementSyncMemoryTests: XCTestCase {
     }
 
     func test_theIntervalStaysInsideTheServersProCacheLifetime() {
-        // backend/entitlements.py: PRO_ENTITLEMENT_CACHE_TTL = 86_400.
+        // backend/billing/entitlements.py: PRO_ENTITLEMENT_CACHE_TTL = 86_400.
         XCTAssertLessThan(EntitlementSyncMemory.interval, 86_400)
     }
 
@@ -10068,7 +10068,7 @@ final class ValuationDidChangeTests: XCTestCase {
 
 // MARK: - Server error codes
 //
-// Every error body now carries a `code` beside `detail` (`backend/apierrors.py`).
+// Every error body now carries a `code` beside `detail` (`backend/core/apierrors.py`).
 // The client routes on it — the two 402s were told apart by whether the
 // English contained "pro feature" — and words it in the app's language, where
 // every earlier build printed the server's English in a translated app.

@@ -24,24 +24,24 @@ import pytest_asyncio
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-import auditlog  # noqa: E402
-import chatlog  # noqa: E402
-import checkup  # noqa: E402
-import levers  # noqa: E402
-import notify  # noqa: E402
-import observability  # noqa: E402
-import opsexperiment  # noqa: E402
-import opsformat  # noqa: E402
-import opsindex  # noqa: E402
-import opsspend  # noqa: E402
-import opsstats  # noqa: E402
-import opssupport  # noqa: E402
-import telegram  # noqa: E402
-import trends  # noqa: E402
-from cache import InMemoryCache, ResilientCache  # noqa: E402
+from security import auditlog  # noqa: E402
+from ops import chatlog  # noqa: E402
+from ops import checkup  # noqa: E402
+from ops import levers  # noqa: E402
+from ops import notify  # noqa: E402
+from ops import observability  # noqa: E402
+from ops import opsexperiment  # noqa: E402
+from ops import opsformat  # noqa: E402
+from ops import opsindex  # noqa: E402
+from ops import opsspend  # noqa: E402
+from ops import opsstats  # noqa: E402
+from ops import opssupport  # noqa: E402
+from ops import telegram  # noqa: E402
+from insights import trends  # noqa: E402
+from core.cache import InMemoryCache, ResilientCache  # noqa: E402
 from datetime import datetime, timedelta, timezone  # noqa: E402
-from entitlements import FREE, Entitlement, Reinstatement  # noqa: E402
-from quota import ScanQuota  # noqa: E402
+from billing.entitlements import FREE, Entitlement, Reinstatement  # noqa: E402
+from billing.quota import ScanQuota  # noqa: E402
 
 # Shaped like a real BotFather token; used to prove it never reaches the logs.
 FAKE_TOKEN = "123456789:AAtest-token-abcdefghijklmnopqrstuvwx"
@@ -1329,7 +1329,7 @@ class TestSpend:
     async def test_costs_shows_thinking_per_scan_call_and_the_budget(
             self, enabled_notify, cache, monkeypatch):
         """#217: the number a thinking budget moves, apart from the answer."""
-        import aiconfig
+        from scan import aiconfig
         monkeypatch.setattr(aiconfig, "THINKING_BUDGET", None)
         opsspend.model_usage("scan", {"prompt_tokens": 1_000, "output_tokens": 800,
                                     "thoughts_tokens": 1_500})
@@ -2089,7 +2089,7 @@ class TestOneDevice:
         scan(subject=SUBJECT, tier="pro")
         await drain()
         await notify.entitlement_recorded(SUBJECT, pro_entitlement("otid-u1", "com.snapworth.yearly"))
-        who = __import__("auditlog").pseudonymise(SUBJECT)
+        who = __import__("security.auditlog").auditlog.pseudonymise(SUBJECT)
         text = await notify.handle_command(f"/user {who[:4]}")
         assert text.startswith(f"👤 <b>Device {who[:8]}</b> — Pro")
         assert "Scans since the bot started watching: 1" in text
@@ -2286,7 +2286,7 @@ class TestCheckupAppStore:
 
     @staticmethod
     def _probe(monkeypatch, result):
-        import appstorestatus
+        from billing import appstorestatus
 
         async def probe(hours: int = 24):
             if isinstance(result, Exception):
@@ -2318,7 +2318,7 @@ class TestCheckupAppStore:
 
     @pytest.mark.asyncio
     async def test_a_missing_or_refused_key_is_named(self, enabled_notify, monkeypatch):
-        import appstorestatus
+        from billing import appstorestatus
         self._probe(monkeypatch, appstorestatus.StatusNotConfigured("No credentials."))
         assert (await checkup._appstore_api_line()).startswith(
             "App Store API: NOT configured — /sub cannot ask Apple.")
@@ -3051,7 +3051,7 @@ class TestSafetyBlocks:
         await drain()
         assert len(enabled_notify.texts) == 1
         text = enabled_notify.texts[0]
-        who = __import__("auditlog").pseudonymise(SUBJECT)
+        who = __import__("security.auditlog").auditlog.pseudonymise(SUBJECT)
         assert text.startswith("🚫 <b>Device paused after repeated blocked photos</b>")
         assert who[:8] in text and "sent 5 photos today" in text
         assert SUBJECT not in text, "pseudonym, never the raw subject"
@@ -3114,7 +3114,7 @@ class TestDeviceCheckLine:
         """`DeviceCheckClient.verify` against a stand-in for Apple, so the two
         halves are tested together: what the probe returns for each failure,
         and what the checkup line makes of it."""
-        import devicecheck
+        from security import devicecheck
         from cryptography.hazmat.primitives import serialization
         from cryptography.hazmat.primitives.asymmetric import ec
         # Generated, never written down: see test_production's `_key`.
@@ -4351,7 +4351,7 @@ class TestLeverFloorAndSource:
         assert "capped" not in text, text
 
     def test_a_capped_override_from_chat_names_the_cap_too(self):
-        from quota import WelcomeSetting
+        from billing.quota import WelcomeSetting
         armed, head, why = levers.welcome_summary(
             WelcomeSetting(daily=10, environment=0, override=12, cap=10))
         assert (armed, head) == (False, "lever not armed")
@@ -4505,7 +4505,7 @@ class TestExperimentExport:
         saved as a .csv read as ragged rows ahead of its header."""
         import csv
 
-        from quota import WelcomeSetting
+        from billing.quota import WelcomeSetting
 
         async def capped():
             return WelcomeSetting(daily=10, environment=3, override=12, cap=10)
@@ -4536,7 +4536,7 @@ class TestExperimentExport:
     @pytest.mark.asyncio
     async def test_an_unreadable_cache_exports_nothing_rather_than_zeros(
             self, cache, monkeypatch):
-        from cache import CacheUnavailable
+        from core.cache import CacheUnavailable
 
         async def down(key, *, required=False):
             if required:
@@ -4555,7 +4555,7 @@ class TestExperimentExport:
         does not cover: the counters read, and only the lever's record does
         not. Read best-effort, that record was {} — a kept copy with no lever
         move in it, and nothing refused it."""
-        from cache import CacheUnavailable
+        from core.cache import CacheUnavailable
 
         monkeypatch.setattr(opsexperiment, "EXPERIMENT_START_DAY", opsstats.day())
         monkeypatch.setattr(opsexperiment, "EXPERIMENT_END_DAY", opsstats.day())
@@ -4960,7 +4960,7 @@ class _FakeStatus:
 
 def _patch_lookup(monkeypatch, result):
     """Substitute `appstorestatus.lookup`, raising if `result` is an exception."""
-    import appstorestatus
+    from billing import appstorestatus
 
     async def _lookup(transaction_id):
         _lookup.called_with.append(transaction_id)
@@ -5156,7 +5156,7 @@ class TestSubCommandIdResolution:
             self, enabled_notify, monkeypatch):
         """The Order ID on the customer's Apple receipt: the one id they can
         always find, and one no index of ours holds."""
-        import appstorestatus
+        from billing import appstorestatus
         orders: list[str] = []
 
         async def _lookup_order(order_id):
@@ -5174,7 +5174,7 @@ class TestSubCommandIdResolution:
 
     @pytest.mark.asyncio
     async def test_an_unknown_order_id_is_named_as_one(self, enabled_notify, monkeypatch):
-        import appstorestatus
+        from billing import appstorestatus
 
         async def _lookup_order(order_id):
             raise appstorestatus.OrderNotFound(f"Apple has no order {order_id} for this app.")
@@ -5311,7 +5311,7 @@ class TestSubCommandErrors:
     @pytest.mark.asyncio
     async def test_unknown_subscriber_says_both_environments_were_checked(
             self, enabled_notify, monkeypatch):
-        import appstorestatus
+        from billing import appstorestatus
         _patch_lookup(monkeypatch, appstorestatus.SubscriberNotFound("nope"))
 
         text = await notify.handle_command("/sub 2000000000000001")
@@ -5321,7 +5321,7 @@ class TestSubCommandErrors:
     @pytest.mark.asyncio
     async def test_not_found_yet_says_retry_rather_than_typo(
             self, enabled_notify, monkeypatch):
-        import appstorestatus
+        from billing import appstorestatus
         _patch_lookup(monkeypatch, appstorestatus.StatusRetryLater(
             "Production does not have this purchase yet. Retry in a few minutes.",
             environment="Production"))
@@ -5340,7 +5340,7 @@ class TestSubCommandErrors:
         words and then "Sandbox was not asked", and hid the useful half: that
         Production has nothing, so this is a TestFlight or App Review purchase
         — which this server refuses."""
-        import appstorestatus
+        from billing import appstorestatus
         _patch_lookup(monkeypatch, appstorestatus.StatusRetryLater(
             "Sandbox has nothing under this id yet. Retry in a few minutes.",
             environment="Sandbox"))
@@ -5355,8 +5355,8 @@ class TestSubCommandErrors:
     @pytest.mark.asyncio
     async def test_sandboxs_not_yet_carries_no_refusal_where_sandbox_is_allowed(
             self, enabled_notify, monkeypatch):
-        import appstorestatus
-        import entitlements
+        from billing import appstorestatus
+        from billing import entitlements
         monkeypatch.setattr(entitlements, "ALLOWED_ENVIRONMENTS",
                             frozenset({"Production", "Sandbox"}))
         _patch_lookup(monkeypatch, appstorestatus.StatusRetryLater(
@@ -5370,7 +5370,7 @@ class TestSubCommandErrors:
     @pytest.mark.asyncio
     async def test_missing_credentials_say_the_rest_still_works(
             self, enabled_notify, monkeypatch):
-        import appstorestatus
+        from billing import appstorestatus
         _patch_lookup(monkeypatch,
                       appstorestatus.StatusNotConfigured("no credentials"))
 
@@ -5382,7 +5382,7 @@ class TestSubCommandErrors:
     @pytest.mark.asyncio
     async def test_rate_limiting_is_reported_as_such(
             self, enabled_notify, monkeypatch):
-        import appstorestatus
+        from billing import appstorestatus
         _patch_lookup(monkeypatch,
                       appstorestatus.StatusRateLimited("Apple is rate limiting"))
 
@@ -5391,7 +5391,7 @@ class TestSubCommandErrors:
     @pytest.mark.asyncio
     async def test_bad_credentials_are_not_reported_as_a_missing_subscriber(
             self, enabled_notify, monkeypatch):
-        import appstorestatus
+        from billing import appstorestatus
         _patch_lookup(monkeypatch,
                       appstorestatus.StatusCredentialsRejected("401 from Apple"))
 
@@ -5403,7 +5403,7 @@ class TestSubCommandErrors:
     @pytest.mark.asyncio
     async def test_a_network_failure_is_not_swallowed(
             self, enabled_notify, monkeypatch):
-        import appstorestatus
+        from billing import appstorestatus
         _patch_lookup(monkeypatch,
                       appstorestatus.StatusUnavailable("Could not reach Apple"))
 
@@ -5606,7 +5606,7 @@ class TestAFailedReadDoesNotWipeTheDocument:
 # clears the mark for a *later* term — and `/sub` could see neither.
 
 def _refund_block_store(cache):
-    from entitlements import EntitlementService
+    from billing.entitlements import EntitlementService
     return EntitlementService(cache, "eu.snapworth.app")
 
 
@@ -5726,7 +5726,7 @@ class TestAReversedRefund:
     @pytest.mark.asyncio
     async def test_lifting_takes_two_taps_and_asks_apple_again(
             self, enabled_notify, cache, monkeypatch):
-        import entitlements
+        from billing import entitlements
         term = sub("2000000000000010", expires_in_days=30)
         await _refund_block_store(cache).revoke(term, revoked_at=int(time.time()))
         spy = _patch_lookup(monkeypatch, [_FakeStatus(term, state="active")])
@@ -5749,7 +5749,7 @@ class TestAReversedRefund:
             self, enabled_notify, cache, monkeypatch):
         """Lifting it would let the server re-derive Pro from the pre-refund
         proof it holds — the bug the block exists to stop."""
-        import entitlements
+        from billing import entitlements
         now = int(time.time())
         term = sub("2000000000000011", expires_in_days=30)
         await _refund_block_store(cache).revoke(term, revoked_at=now)

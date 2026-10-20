@@ -53,11 +53,11 @@ os.environ.setdefault("GEMINI_API_KEY", "ci-placeholder-not-real")
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-import auth  # noqa: E402
-import tokens  # noqa: E402
-from cache import InMemoryCache, ResilientCache  # noqa: E402
-from entitlements import EntitlementService  # noqa: E402
-from quota import ScanQuota  # noqa: E402
+from security import auth  # noqa: E402
+from security import tokens  # noqa: E402
+from core.cache import InMemoryCache, ResilientCache  # noqa: E402
+from billing.entitlements import EntitlementService  # noqa: E402
+from billing.quota import ScanQuota  # noqa: E402
 
 TEST_TEAM_ID = "A93FGV7L5Y"
 TEST_BUNDLE_ID = "eu.snapworth.app"

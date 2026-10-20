@@ -10,7 +10,7 @@ from datetime import datetime, timedelta, timezone
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from cache import InMemoryCache  # noqa: E402
+from core.cache import InMemoryCache  # noqa: E402
 from comps import aggregate as agg  # noqa: E402
 from comps.cache import CompsCache  # noqa: E402
 from comps.models import CompsStatus  # noqa: E402

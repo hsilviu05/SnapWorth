@@ -15,7 +15,7 @@ import pytest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-import aiconfig  # noqa: E402
+from scan import aiconfig  # noqa: E402
 import main  # noqa: E402
 from eval import identity, listing_claims  # noqa: E402
 from eval.listing_claims import SCANS, Scan, build_request, parse_claims, summarise  # noqa: E402

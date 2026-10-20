@@ -28,13 +28,13 @@ import pytest_asyncio
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-import notify  # noqa: E402
-import opsexperiment  # noqa: E402
-import opsindex  # noqa: E402
-import opsstats  # noqa: E402
-import telegram  # noqa: E402
-from cache import InMemoryCache, ResilientCache  # noqa: E402
-from entitlements import Entitlement  # noqa: E402
+from ops import notify  # noqa: E402
+from ops import opsexperiment  # noqa: E402
+from ops import opsindex  # noqa: E402
+from ops import opsstats  # noqa: E402
+from ops import telegram  # noqa: E402
+from core.cache import InMemoryCache, ResilientCache  # noqa: E402
+from billing.entitlements import Entitlement  # noqa: E402
 
 from tests.test_notify import FAKE_CHAT, FAKE_TOKEN, FakeNotification, Recorder  # noqa: E402
 
@@ -387,8 +387,8 @@ class TestEntitlementRoute:
 
     @pytest.fixture
     def seen(self, monkeypatch):
-        import auth
-        import referral
+        from security import auth
+        from billing import referral
 
         ent = Entitlement("pro", "com.snapworth.yearly", None, "otid-1", "Production")
         calls: list[dict] = []

@@ -27,12 +27,12 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-import aiconfig
-import apierrors
-import levers
+from scan import aiconfig
+from core import apierrors
+from ops import levers
 import main
-import quota
-from cache import InMemoryCache, ResilientCache
+from billing import quota
+from core.cache import InMemoryCache, ResilientCache
 from tests.conftest import build_deps
 from tests.images import padded_image_bytes
 from tests.test_ai_pipeline import V2_PAYLOAD, _client, _scan_with
@@ -162,7 +162,7 @@ class TestSuccessBodies:
     def test_the_legit_body(self):
         """`legit-response.json`: a Legit check's read (#90). The app decodes
         it strictly and words `verdict` from a closed table."""
-        import legit
+        from scan import legit
         r, _ = post_legit("contract-legit")
         assert r.status_code == 200
         fixture = _check("legit-response.json", r.json())
@@ -356,7 +356,7 @@ def test_the_error_codes():
 
 
 def test_the_confidence_reason_codes():
-    import confidence
+    from scan import confidence
     _check_list("confidence-reason-codes.json", sorted(confidence.REASON_CODES))
 
 

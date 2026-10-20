@@ -15,7 +15,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-import tokens  # noqa: E402
+from security import tokens  # noqa: E402
 
 
 @pytest.fixture

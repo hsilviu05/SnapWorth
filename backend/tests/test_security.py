@@ -240,7 +240,7 @@ class TestFileUploadSecurity:
         and this asserts they agree rather than that each is separately
         plausible.
         """
-        import auth
+        from security import auth
         import main
 
         class Req:

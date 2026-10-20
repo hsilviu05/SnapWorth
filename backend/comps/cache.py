@@ -33,7 +33,7 @@ from typing import Protocol
 from datetime import datetime, timezone
 from decimal import Decimal
 
-from cache import KeyValueStore
+from core.cache import KeyValueStore
 from comps.models import Comp, Condition, ItemIdentity, Marketplace
 
 log = logging.getLogger("snapworth.comps.cache")

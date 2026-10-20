@@ -21,8 +21,8 @@ import pytest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-import cache as cache_module  # noqa: E402
-from cache import CacheUnavailable  # noqa: E402
+from core import cache as cache_module  # noqa: E402
+from core.cache import CacheUnavailable  # noqa: E402
 
 
 # ── Client construction ──────────────────────────────────────────────────────

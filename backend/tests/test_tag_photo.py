@@ -12,7 +12,7 @@ from fastapi.testclient import TestClient
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-import prompts  # noqa: E402
+from scan import prompts  # noqa: E402
 from main import app  # noqa: E402
 from tests.test_main import MOCK_RESPONSE_JSON, padded_image_bytes  # noqa: E402
 
@@ -30,7 +30,7 @@ def scan_request(*, with_tag: bool, tag_bytes: bytes | None = None, device: str 
     response = MagicMock()
     response.text = json.dumps(MOCK_RESPONSE_JSON)
     with patch("main._model") as model, \
-         patch("auth.Principal.is_pro", property(lambda self: pro)):
+         patch("security.auth.Principal.is_pro", property(lambda self: pro)):
         model.generate_content_async = AsyncMock(return_value=response)
         result = client.post("/scan", files=files, headers={"x-device-id": device})
         calls = model.generate_content_async.await_args_list
@@ -96,7 +96,7 @@ class TestQuotaAndCost:
         tag photo is a second look at the same item, and tallying it again
         put it into "Notable finds" twice."""
         seen: list[dict] = []
-        with patch("notify.scan_completed", lambda **kw: seen.append(kw)):
+        with patch("ops.notify.scan_completed", lambda **kw: seen.append(kw)):
             scan_request(with_tag=True, device="tag-reread")
             scan_request(with_tag=False, device="tag-first-look")
         assert [kw["reread"] for kw in seen] == [True, False]

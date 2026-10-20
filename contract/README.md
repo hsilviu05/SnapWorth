@@ -17,7 +17,7 @@ Responses the server really sends, read by both test suites.
 | `errors/scan-426-update-required.json` | Below the operator's minimum build, for a build that sent `X-SnapWorth-Build` (`update_required`) |
 | `errors/scan-429-rate-limited.json` | The per-device limit (`rate_limited`). Carries `Retry-After` in seconds |
 | `errors/scan-502-ai-unavailable.json` | The model could not be reached (`ai_unavailable`) |
-| `error-codes.json` | Every specific error `code` the server sends (`backend/apierrors.py`) |
+| `error-codes.json` | Every specific error `code` the server sends (`backend/core/apierrors.py`) |
 | `confidence-reason-codes.json` | Every code `confidence_reason_codes` can carry (`confidence.REASON_CODES`) |
 
 An error fixture records the status, the headers the server sends that a
@@ -30,7 +30,7 @@ An error body is `{"detail": …, "code": …}` for every `HTTPException` (the
 routes' own, and the router's 404 and 405), every request that fails
 validation, and the body-size limit's 400 and 413. `detail` is what it always
 was — a sentence, or FastAPI's validation list — and it is the text installed
-builds show. `code` is a stable token beside it (`backend/apierrors.py` lists
+builds show. `code` is a stable token beside it (`backend/core/apierrors.py` lists
 them all) that a client can route on and translate. An error raised without a
 specific code gets one from its status: generic for most (`not_found`,
 `bad_request`…), which no client routes on, and the specific
@@ -42,7 +42,7 @@ plain-text `Internal Server Error` 500 and no body code, and a client must
 treat it as unknown.
 
 `/scan` bodies also carry `confidence_reason_codes`: one token per entry of
-`confidence_reasons`, same order (`backend/confidence.py`). Pro detail, like
+`confidence_reasons`, same order (`backend/scan/confidence.py`). Pro detail, like
 the reasons: blanked to `[]` on a free scan.
 
 The two lists are not responses. They are what a client checks its own

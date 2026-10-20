@@ -15,9 +15,9 @@ import pytest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-import listingclaims  # noqa: E402
+from scan import listingclaims  # noqa: E402
 import main  # noqa: E402
-import typesafe  # noqa: E402
+from scan import typesafe  # noqa: E402
 
 REQ = main.ListingRequest(
     item_name="Speedy 30", brand="Louis Vuitton", category="accessories",

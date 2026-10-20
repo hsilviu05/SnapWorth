@@ -44,7 +44,7 @@ misleading at the same time: it implied nothing was watching, while §8 told the
 reader to "Run 🩺 Checkup" without ever saying what that is or where to run it.
 The word "Telegram" did not appear in this document.
 
-**The ops bot is the monitoring surface.** It lives in `backend/notify.py`,
+**The ops bot is the monitoring surface.** It lives in `backend/ops/notify.py`,
 posts to the operator's Telegram chat, and is where every operational signal
 actually arrives:
 
@@ -712,7 +712,7 @@ not one per merge.
 `SCAN_PROMPT_VERSION` picks the valuation prompt: `v1`, `v2` (the default) or
 `v2.1`. v2.1 is v2 with the multiple-items rule restored, the evidence asked
 for before the prices, the market named (US resale value, in USD), and the v1
-low/high pair left to the server; `backend/prompts.py` gives the reasons. The
+low/high pair left to the server; `backend/scan/prompts.py` gives the reasons. The
 response has the same fields and types under all three.
 
 1. Compare on real photos first. It needs `GEMINI_API_KEY`, and costs one
@@ -1861,7 +1861,7 @@ typo can only narrow access.
 ## 18. Referrals (#97) — before switching them on
 
 Off in production: `REFERRALS_ENABLED` is unset, and the feature is inert
-until `REFERRAL_FRIEND_OFFER` names the friend offer too. `backend/referral.py`
+until `REFERRAL_FRIEND_OFFER` names the friend offer too. `backend/billing/referral.py`
 has the design; this is what the operator does.
 
 ### The hardening, and the decision it leaves open

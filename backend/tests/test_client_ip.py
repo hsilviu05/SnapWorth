@@ -28,10 +28,10 @@ from starlette.routing import Route
 from starlette.testclient import TestClient
 from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 
-import auth
+from security import auth
 import main
-import ratelimit
-import referral
+from security import ratelimit
+from billing import referral
 from tests.test_main import client
 
 # The app as the container serves it: uvicorn runs with --proxy-headers and

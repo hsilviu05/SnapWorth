@@ -6,7 +6,7 @@ import os.log
 /// App Attest client: proves to our backend that requests come from a genuine,
 /// unmodified build of this app on real Apple hardware.
 ///
-/// Flow (mirrors `backend/auth.py`):
+/// Flow (mirrors `backend/security/auth.py`):
 ///   1. `POST /auth/challenge` → server nonce
 ///   2. `DCAppAttestService.attestKey` over that nonce → `POST /auth/attest`
 ///   3. Server returns a bearer token, stored in the Keychain

@@ -107,7 +107,7 @@ class TestRunner:
         runner.engine.lookup.assert_not_called()
 
     def test_enabled_lookup_is_logged_and_counted(self, caplog):
-        import metrics
+        from ops import metrics
         runner = ShadowRunner(engine())
         before = metrics.comps_shadow_lookups.value(status="ok")
 
@@ -126,7 +126,7 @@ class TestRunner:
         assert getattr(record, "comp_count") > 0
 
     def test_an_engine_failure_is_swallowed(self):
-        import metrics
+        from ops import metrics
         runner = ShadowRunner(engine())
         runner.engine.lookup = AsyncMock(side_effect=RuntimeError("boom"))
         before = metrics.comps_shadow_lookups.value(status="error")

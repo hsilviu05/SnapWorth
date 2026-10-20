@@ -71,7 +71,7 @@ The iMessage app icon comes from the binary; there is nothing to upload.
 
 TestFlight buys in the **Sandbox**, and production honours only Production
 transactions (`ALLOWED_STOREKIT_ENVIRONMENTS=Production`,
-`backend/entitlements.py`). A TestFlight purchase therefore never unlocks Pro
+`backend/billing/entitlements.py`). A TestFlight purchase therefore never unlocks Pro
 on the server. That is by design, and it is not a bug in this build. What it
 looks like depends on whether the build carries the subscription
 re-confirmation (`PurchaseService.confirmingSubscription`):

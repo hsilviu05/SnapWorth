@@ -26,8 +26,8 @@ from cryptography.x509.oid import NameOID
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-import appattest  # noqa: E402
-from appattest import AttestationError  # noqa: E402
+from security import appattest  # noqa: E402
+from security.appattest import AttestationError  # noqa: E402
 
 APP_ID = "TEAM123456.eu.snapworth.app"
 CHALLENGE = b"a-single-use-server-challenge"

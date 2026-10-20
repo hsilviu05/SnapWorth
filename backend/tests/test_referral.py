@@ -14,13 +14,13 @@ from fastapi.testclient import TestClient
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-import auth  # noqa: E402
-import opsstats  # noqa: E402
-import referral  # noqa: E402
-import telegram  # noqa: E402
-from entitlements import Entitlement, entitlement_from_payload  # noqa: E402
+from security import auth  # noqa: E402
+from ops import opsstats  # noqa: E402
+from billing import referral  # noqa: E402
+from ops import telegram  # noqa: E402
+from billing.entitlements import Entitlement, entitlement_from_payload  # noqa: E402
 from main import app  # noqa: E402
-from referral import POOL_FRIEND, POOL_REWARD, ReferralConfig, ReferralError  # noqa: E402
+from billing.referral import POOL_FRIEND, POOL_REWARD, ReferralConfig, ReferralError  # noqa: E402
 
 FRIEND_OFFER = "referral-friend-7d"
 MIN_BUILD = 23
@@ -206,7 +206,7 @@ class TestReward:
         terms that keep it out of everything that counts money. A reward is a
         real Apple offer code, so it counts."""
         import dataclasses
-        import entitlements
+        from billing import entitlements
         monkeypatch.setattr(entitlements, "ALLOWED_ENVIRONMENTS", frozenset({"Production"}))
         self.claimed()
         run(load(POOL_REWARD, ["REWARD1"]))
@@ -392,7 +392,7 @@ class TestBinding:
     def test_a_store_that_cannot_answer_is_a_503_not_a_binding_in_memory(self):
         """Redis configured and down: the binding must fail closed, or each
         replica keeps its own and the check is no check."""
-        from cache import InMemoryCache, ResilientCache
+        from core.cache import InMemoryCache, ResilientCache
         auth.deps.cache = ResilientCache(None, InMemoryCache(), configured=True)
         r = self.status("subj-a", "dev-a")
         assert r.status_code == 503 and "paused" in r.json()["detail"]
@@ -518,7 +518,7 @@ class TestPoolCursor:
         """Not `required`, the INCR fell back to process memory and counted
         from 1 while Redis still answered the item read: the next friend got
         the code the first one had."""
-        from cache import InMemoryCache, ResilientCache
+        from core.cache import InMemoryCache, ResilientCache
         redis = InMemoryCache()
         run(redis.set(referral.pool_size_key(POOL_FRIEND), "2"))
         run(redis.set(referral.pool_item_key(POOL_FRIEND, 1), "ISSUED"))
@@ -602,7 +602,7 @@ class _Outage:
 def _outage(**kwargs):
     """Redis (the store behind the fake) and the fake, wired in as the app's
     configured cache."""
-    from cache import InMemoryCache, ResilientCache
+    from core.cache import InMemoryCache, ResilientCache
     redis = InMemoryCache()
     fake = _Outage(redis, **kwargs)
     auth.deps.cache = ResilientCache(fake, InMemoryCache(), configured=True)
@@ -710,7 +710,7 @@ class TestInterruptedReward:
         """So a week that is lost after all — its free week over before a
         retry could run — can be found and reissued by hand (RUNBOOK §18)."""
         import logging
-        import auditlog
+        from security import auditlog
         self.setup(trip=("incr", "ref:count:"))      # the count landed, then down
         with caplog.at_level(logging.WARNING, logger="snapworth.referral"):
             assert run(referral.on_entitlement("subj-f", "friend", redeemed())) is False
@@ -786,7 +786,7 @@ def operator():
     """notify wired to the same cache the referral module uses, with a bot
     whose messages are captured."""
     import httpx
-    import notify
+    from ops import notify
     sent = _Sent()
     notifier = telegram.TelegramNotifier(
         "123456789:AAtest-token-abcdefghijklmnopqrstuvwx", "424242",
@@ -797,7 +797,7 @@ def operator():
 
 
 async def _drain():
-    import notify
+    from ops import notify
     pending = [t for t in notify._tasks if not t.done()]
     if pending:
         await asyncio.gather(*pending, return_exceptions=True)
@@ -811,7 +811,7 @@ def _paid(otid="otid-1"):
 
 class TestFunnelCounters:
     def test_claims_redemptions_rewards_and_paid_periods_reach_the_digest(self, operator):
-        import notify
+        from ops import notify
         from datetime import datetime, timedelta, timezone
 
         async def go():
@@ -833,14 +833,14 @@ class TestFunnelCounters:
                 "1 paid after the free week") in digest
 
     def test_a_quiet_day_has_no_referral_line(self, operator):
-        import notify
+        from ops import notify
         from datetime import datetime, timezone
         digest = asyncio.run(notify._digest_text(datetime.now(timezone.utc)))
         assert "Referrals:" not in digest
 
     def test_apples_renewal_notice_counts_a_friend_who_never_reopened_the_app(self, operator):
-        import appstorenotify
-        import notify
+        from billing import appstorenotify
+        from ops import notify
 
         async def go():
             await auth.deps.cache.set(referral._redeemed_key("otid-9"), "1")
@@ -875,7 +875,7 @@ class TestPoolAlerts:
         assert len(empty) == 1 and "Invites are paused" in empty[0]
 
     def test_a_redis_outage_is_not_reported_as_an_empty_pool(self, operator):
-        from cache import CacheUnavailable, InMemoryCache, ResilientCache
+        from core.cache import CacheUnavailable, InMemoryCache, ResilientCache
         auth.deps.cache = ResilientCache(None, InMemoryCache(), configured=True)
 
         async def go():
@@ -886,7 +886,7 @@ class TestPoolAlerts:
         assert not [t for t in operator.texts if "pool" in t]
 
     def test_checkup_shows_the_pools_and_flags_a_low_one(self, operator, monkeypatch):
-        import notify
+        from ops import notify
         monkeypatch.setattr(referral, "POOL_LOW_AT", 2)
 
         async def go():
@@ -901,15 +901,15 @@ class TestPoolAlerts:
     def test_checkup_reports_an_outage_as_one_not_as_empty_pools(self, operator, monkeypatch):
         """Not required, both reads were answered (0, 0) from process memory,
         and the checkup said every invite was refused for want of codes."""
-        import notify
-        from cache import InMemoryCache, ResilientCache
+        from ops import notify
+        from core.cache import InMemoryCache, ResilientCache
         down = ResilientCache(None, InMemoryCache(), configured=True)
         monkeypatch.setattr(notify, "_cache", down)
         line = asyncio.run(notify._referral_line())
         assert line == "Referrals: on for build 23+ · pools unreadable (CacheUnavailable)"
 
     def test_checkup_when_off_is_one_quiet_line(self, operator, monkeypatch):
-        import notify
+        from ops import notify
         monkeypatch.setattr(referral, "config", ReferralConfig(enabled=False))
         assert asyncio.run(notify._referral_line()).startswith("Referrals: off")
 

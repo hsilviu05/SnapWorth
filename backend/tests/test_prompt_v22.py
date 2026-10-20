@@ -15,7 +15,7 @@ from __future__ import annotations
 
 import pytest
 
-import prompts
+from scan import prompts
 from eval import runner
 from tests.test_prompt_v21 import V21, V21_PAYLOAD, _rule, _scan, _schema_keys
 

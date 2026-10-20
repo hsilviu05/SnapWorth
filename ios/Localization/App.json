@@ -4189,7 +4189,7 @@
       "zh-Hans": "开通 Pro 前扫描"
     },
     "Scanning from this device is paused for 24 hours after repeated photos that could not be analysed.": {
-      "comment": "An error the server sent with a code this build words itself (backend/apierrors.py). In English the server's own sentence is shown instead.",
+      "comment": "An error the server sent with a code this build words itself (backend/core/apierrors.py). In English the server's own sentence is shown instead.",
       "en": "Scanning from this device is paused for 24 hours after repeated photos that could not be analysed.",
       "ro": "Scanarea de pe acest dispozitiv e oprită pentru 24 de ore după mai multe poze care nu au putut fi analizate.",
       "es": "El escaneo desde este dispositivo está en pausa durante 24 horas tras varias fotos que no se pudieron analizar.",
@@ -4952,7 +4952,7 @@
       "zh-Hans": "这是你自己的邀请码。把它分享给朋友吧。"
     },
     "The AI couldn't price this item. Please try again.": {
-      "comment": "An error the server sent with a code this build words itself (backend/apierrors.py). In English the server's own sentence is shown instead.",
+      "comment": "An error the server sent with a code this build words itself (backend/core/apierrors.py). In English the server's own sentence is shown instead.",
       "en": "The AI couldn't price this item. Please try again.",
       "ro": "AI-ul nu a putut estima un preț pentru acest obiect. Încearcă din nou.",
       "es": "La IA no ha podido poner precio a este artículo. Inténtalo de nuevo.",
@@ -4960,7 +4960,7 @@
       "zh-Hans": "AI 无法给这件物品估价，请再试一次。"
     },
     "The AI response couldn't be read. Please try again.": {
-      "comment": "An error the server sent with a code this build words itself (backend/apierrors.py). In English the server's own sentence is shown instead.",
+      "comment": "An error the server sent with a code this build words itself (backend/core/apierrors.py). In English the server's own sentence is shown instead.",
       "en": "The AI response couldn't be read. Please try again.",
       "ro": "Răspunsul AI-ului nu a putut fi citit. Încearcă din nou.",
       "es": "No se ha podido leer la respuesta de la IA. Inténtalo de nuevo.",
@@ -4968,7 +4968,7 @@
       "zh-Hans": "无法读取 AI 的回复，请再试一次。"
     },
     "The AI service is temporarily unavailable. Please try again.": {
-      "comment": "An error the server sent with a code this build words itself (backend/apierrors.py). In English the server's own sentence is shown instead.",
+      "comment": "An error the server sent with a code this build words itself (backend/core/apierrors.py). In English the server's own sentence is shown instead.",
       "en": "The AI service is temporarily unavailable. Please try again.",
       "ro": "Serviciul AI e momentan indisponibil. Încearcă din nou.",
       "es": "El servicio de IA no está disponible temporalmente. Inténtalo de nuevo.",
@@ -5091,7 +5091,7 @@
       "zh-Hans": "这台设备不支持安全验证。"
     },
     "This doesn't look like something with a resale value. Try a photo of a single item you'd actually sell.": {
-      "comment": "An error the server sent with a code this build words itself (backend/apierrors.py). In English the server's own sentence is shown instead. The server's English also gives the AI's reason, which is model text in English; this sentence is shown without it.",
+      "comment": "An error the server sent with a code this build words itself (backend/core/apierrors.py). In English the server's own sentence is shown instead. The server's English also gives the AI's reason, which is model text in English; this sentence is shown without it.",
       "en": "This doesn't look like something with a resale value. Try a photo of a single item you'd actually sell.",
       "ro": "Nu pare să fie ceva ce se poate revinde. Încearcă o poză cu un singur obiect pe care chiar l-ai vinde.",
       "es": "Esto no parece algo con valor de reventa. Prueba con una foto de un solo artículo que de verdad venderías.",
@@ -5130,7 +5130,7 @@
       "zh-Hans": "这台 iPhone 没有设置邮件账户。复制你写的内容，用别的地方的邮箱发到 %@。"
     },
     "This is a SnapWorth Pro feature.": {
-      "comment": "An error the server sent with a code this build words itself (backend/apierrors.py). In English the server's own sentence is shown instead.",
+      "comment": "An error the server sent with a code this build words itself (backend/core/apierrors.py). In English the server's own sentence is shown instead.",
       "en": "This is a SnapWorth Pro feature.",
       "ro": "Aceasta este o funcție SnapWorth Pro.",
       "es": "Esta es una función de SnapWorth Pro.",
@@ -5145,7 +5145,7 @@
       "zh-Hans": "这部手机已经用过一次邀请了。"
     },
     "This photo couldn't be analysed. Try a clear photo of a single item.": {
-      "comment": "An error the server sent with a code this build words itself (backend/apierrors.py). In English the server's own sentence is shown instead.",
+      "comment": "An error the server sent with a code this build words itself (backend/core/apierrors.py). In English the server's own sentence is shown instead.",
       "en": "This photo couldn't be analysed. Try a clear photo of a single item.",
       "ro": "Poza asta nu a putut fi analizată. Încearcă o poză clară cu un singur obiect.",
       "es": "No se ha podido analizar esta foto. Prueba con una foto nítida de un solo artículo.",
@@ -5845,7 +5845,7 @@
       "zh-Hans": "你在这一小时内已进行了很多次检查。请稍后再试。"
     },
     "You've used today's free scans.": {
-      "comment": "An error the server sent with a code this build words itself (backend/apierrors.py). In English the server's own sentence is shown instead. Count-neutral on purpose: the allowance is one scan a day by default, and more on the first day when the first-day allowance is switched on.",
+      "comment": "An error the server sent with a code this build words itself (backend/core/apierrors.py). In English the server's own sentence is shown instead. Count-neutral on purpose: the allowance is one scan a day by default, and more on the first day when the first-day allowance is switched on.",
       "en": "You've used today's free scans.",
       "ro": "Ai consumat scanările gratuite de azi.",
       "es": "Has gastado los escaneos gratis de hoy.",

@@ -40,11 +40,11 @@ from typing import Any
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-import listingclaims  # noqa: E402
+from scan import listingclaims  # noqa: E402
 from eval import identity  # noqa: E402
 # The questions and the reading of their answers are the ones `/listing` asks
 # when its check is on, so this measures what that check would do.
-from listingclaims import CLAIMS, FLAG_THRESHOLD, parse_claims  # noqa: E402
+from scan.listingclaims import CLAIMS, FLAG_THRESHOLD, parse_claims  # noqa: E402
 
 log = logging.getLogger("snapworth.eval.listing_claims")
 
@@ -125,7 +125,7 @@ async def write_draft(scan: Scan, marketplace: str) -> tuple[str, str, bool] | N
     """A draft from the shipping `/listing` pipeline: (title, description,
     whether it is the deterministic fallback rather than the model's), or None
     when the model was unavailable — where `/listing` answers 502, not a draft."""
-    import aiconfig
+    from scan import aiconfig
     import main
 
     req = main.ListingRequest(

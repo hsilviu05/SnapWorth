@@ -5,28 +5,28 @@
 ## Context
 
 **The route.** `GET /social/tiktok/callback` is `social.tiktok_callback`
-(`backend/social.py:269-281`), on `social.router` (`APIRouter(prefix="/social")`,
-`backend/social.py:261`), mounted by `app.include_router(social.router)`
+(`backend/insights/social.py:269-281`), on `social.router` (`APIRouter(prefix="/social")`,
+`backend/insights/social.py:261`), mounted by `app.include_router(social.router)`
 (`backend/main.py:609`). It is the OAuth redirect target of the operator's
 one-time TikTok link (`TikTokClient.begin_link` / `complete_link`,
-`backend/social.py:121-135`). It takes no credentials. On every call that has a
+`backend/insights/social.py:121-135`). It takes no credentials. On every call that has a
 `code` it runs `complete_link`, which reads and deletes a cache key
 (`opssocial:tiktok:state:<state>`) and, when the state is live, makes an
 outbound token request to TikTok. Today nothing limits it: the comment above
-`_social` (`backend/social.py:258-259`) calls it "harmless without a live state
+`_social` (`backend/insights/social.py:258-259`) calls it "harmless without a live state
 nonce", but every request still costs a cache round trip.
 
 **The standard per-IP bucket.** `main._enforce_ip_limit(ip)`
 (`backend/main.py:957-968`) is the IP-only limit "for routes that have no device
 or subject yet". It checks key `ip:<ip>` on `main._ip_limiter` (Redis, via
 `ratelimit.ResilientRateLimiter`) at `ratelimit.IP_RATE_MAX_REQUESTS` (60/h,
-`backend/ratelimit.py:333-336`). Before startup it falls back to the in-process
+`backend/security/ratelimit.py:333-336`). Before startup it falls back to the in-process
 `main._ip_memory`, keyed by the bare IP. Over the limit it raises
 `apierrors.APIError(429, RATE_LIMITED, ...)` with a `Retry-After` header. This
 is the same `ip:` bucket that `/scan`, `/listing`, `/legit`, `/rack`, `/trends`
 and `/auth/entitlement` share through `_enforce_limits` /
 `_enforce_entitlement_limit`. The key comes from `ratelimit.client_ip(request)`
-(`backend/ratelimit.py:33-120`), the one resolver every caller must use
+(`backend/security/ratelimit.py:33-120`), the one resolver every caller must use
 (`main._client_ip` wraps it).
 
 **How the other unauthenticated routes use it.**
@@ -38,10 +38,10 @@ and `/auth/entitlement` share through `_enforce_limits` /
   `auth.deps.ip_limiter = _enforce_ip_limit` (`backend/main.py:240-241`).
   `auth._limit_unauthenticated` then calls
   `await deps.ip_limiter(ratelimit.client_ip(request))`, and returns early when
-  it is `None` (`backend/auth.py:307-329`).
+  it is `None` (`backend/security/auth.py:307-329`).
 - `referral` and `outcomes` follow the same injection pattern with a
   module-level `limiter: Callable[...] | None = None`
-  (`backend/referral.py:113-119`, `backend/outcomes.py:119`), set in
+  (`backend/billing/referral.py:113-119`, `backend/insights/outcomes.py:119`), set in
   `main._lifespan` (`backend/main.py:244-247`). The route calls it only
   `if limiter is not None`.
 
@@ -67,12 +67,12 @@ in-repo imports.
 on the shared IP bucket: "`/scan`, `/rack`, `/listing`, `/legit`, `/trends`,
 `/auth/entitlement`, and the unauthenticated `/auth` routes and
 `/apple/notifications`". `metrics.KNOWN_ENDPOINTS` already contains
-`/social/tiktok/callback` (`backend/metrics.py:430-436`), so no metrics change
+`/social/tiktok/callback` (`backend/ops/metrics.py:430-436`), so no metrics change
 is needed.
 
 ## Requirements
 
-1. `backend/social.py` declares a module-level injected limiter, matching
+1. `backend/insights/social.py` declares a module-level injected limiter, matching
    `referral.limiter` / `outcomes.limiter`:
    `limiter: Callable[[str | None], Awaitable[None]] | None = None`. It has a
    comment saying that `main._lifespan` injects it, why (`social` cannot import
@@ -93,7 +93,7 @@ is needed.
    (200 linked, 400 failed, 400 denied, 400 when unconfigured) is unchanged.
 5. When `social.limiter` is `None`, the route behaves exactly as today. The
    existing `TestCallbackRoute` passes unchanged.
-6. Update the comment above `_social` in `backend/social.py` (lines 258-259) to
+6. Update the comment above `_social` in `backend/insights/social.py` (lines 258-259) to
    say that the route is limited by the standard per-IP bucket.
 7. `docs/RUNBOOK.md` §5.8, item 3, names `/social/tiktok/callback` among the
    routes on the shared IP bucket.
@@ -163,7 +163,7 @@ is needed.
    `main.app.routes`.
    `git diff main -- backend/tests/test_social.py` shows only additions inside
    the existing test module, not edits to `test_route_completes_or_refuses`.
-7. **No new knobs.** `git diff main -- backend/ratelimit.py backend/.env.example`
+7. **No new knobs.** `git diff main -- backend/security/ratelimit.py backend/.env.example`
    is empty. `git diff main -- backend/main.py` adds no new
    `os.environ.get(...)` and no new `async def _enforce_*` function.
 8. **Types stay clean.** From the repo root,
@@ -171,7 +171,7 @@ is needed.
    reports `0 errors`.
 9. **Docs.** `grep -n "/social/tiktok/callback" docs/RUNBOOK.md` prints a match
    in §5.8, item 3 (the "The IP bucket is one for every route with a limit"
-   sentence). `grep -n -i "limit" backend/social.py` shows the updated comment
+   sentence). `grep -n -i "limit" backend/insights/social.py` shows the updated comment
    above `_social` and the `limiter` declaration's comment.
 
 ## Out of scope

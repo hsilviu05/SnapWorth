@@ -18,8 +18,8 @@ on:
       - 'tools/build_xcstrings.py'
       - 'contract/**'
       - 'backend/main.py'
-      - 'backend/valuation.py'
-      - 'backend/prompts.py'
+      - 'backend/scan/valuation.py'
+      - 'backend/scan/prompts.py'
   pull_request:
     branches: [main]
     paths:
@@ -31,8 +31,8 @@ on:
       - 'tools/build_xcstrings.py'
       - 'contract/**'
       - 'backend/main.py'
-      - 'backend/valuation.py'
-      - 'backend/prompts.py'
+      - 'backend/scan/valuation.py'
+      - 'backend/scan/prompts.py'
 
 jobs:
   build-test:

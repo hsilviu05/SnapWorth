@@ -46,7 +46,7 @@ a Pro capture of a free screen shows Pro-only things (the 0–100 number in
 |---|---|---|
 | **Build** | **1.5.1 (21), installed from TestFlight** — the binary that is submitted | A TestFlight build is Release: no `#if DEBUG` code is compiled in, and it cannot receive `-mock-scans`, so every result is production output from `api.snapworth.eu` (`Config.swift:6-25`). Not an Xcode run, not a Debug build |
 | **Device** | **A physical 6.9″ iPhone** — iPhone 16 Pro Max or 17 Pro Max (or newer 6.9″); native screenshots are 1320 × 2868 | The Simulator cannot use App Attest, so every Simulator scan against production fails (`Config.swift:12-19`). `--check` refuses any capture that is not 1320 × 2868 |
-| **Backend** | Production, as is. A TestFlight purchase is Sandbox, which production honours on bounded terms: Pro on one device, for up to 24 hours per sync (`backend/entitlements.py:125-191`) | So the Pro frames work on the TestFlight build without a real subscription |
+| **Backend** | Production, as is. A TestFlight purchase is Sandbox, which production honours on bounded terms: Pro on one device, for up to 24 hours per sync (`backend/billing/entitlements.py:125-191`) | So the Pro frames work on the TestFlight build without a real subscription |
 | **Devices** | **iPhone only** (`TARGETED_DEVICE_FAMILY = 1`, `project.pbxproj:951`, `:983`) | App Store Connect asks for the iPhone set alone |
 | **Other iPhone sizes** | None. Apple scales the 6.9″ set down | — |
 

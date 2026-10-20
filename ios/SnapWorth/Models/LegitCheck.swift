@@ -7,7 +7,7 @@ import SwiftUI
 //
 // Two to four guided close-ups of one item, read by `/legit` for the usual
 // signs of a replica. The server holds the prompt and the closed verdict set
-// (`backend/legit.py`); this file holds what the app says about each verdict,
+// (`backend/scan/legit.py`); this file holds what the app says about each verdict,
 // the photos it asks for, and which brands it offers the check for.
 //
 // The wording rule is legal, not style: everything here is an observation

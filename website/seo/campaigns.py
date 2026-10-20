@@ -51,7 +51,7 @@ _ROW = re.compile(r"^\|\s*`([^`]+)`\s*\|\s*`([^`]+)`\s*\|")
 
 # A product page's path ends in its `id<digits>`: /app/apple-store/id…,
 # /us/app/<slug>/id…, /app/id…. Nothing else on Apple's store hosts is one or
-# can carry a campaign: the offer-code redeem sheet backend/referral.py builds
+# can carry a campaign: the offer-code redeem sheet backend/billing/referral.py builds
 # (/redeem?ctx=offercodes…), and Manage Subscriptions (/account/subscriptions),
 # which the app links to and support.html's "How do I cancel" could.
 STORE_HOSTS = ("apps.apple.com", "itunes.apple.com")

@@ -5,7 +5,7 @@ None.
 
 ## Notes
 - The change does what the spec asks and adds no new attack surface.
-  `tiktok_callback` (`backend/social.py:282-287`) awaits the injected limiter
+  `tiktok_callback` (`backend/insights/social.py:282-287`) awaits the injected limiter
   as its first statement, before the `error` / unconfigured refusals and
   before `complete_link`. A throttled call therefore never touches the
   `opssocial:tiktok:state:*` cache key and never sends the outbound token

@@ -3,7 +3,7 @@ import Foundation
 /// Referrals (#97): give a friend a week of Pro, get a week of Pro.
 ///
 /// Apple grants both weeks, as one-time offer codes; the server
-/// (`backend/referral.py`) only decides who gets which code, and the app only
+/// (`backend/billing/referral.py`) only decides who gets which code, and the app only
 /// shows codes and opens Apple's redemption page. Nothing here unlocks Pro.
 ///
 /// The server is the switch: `status().enabled == false` hides every
@@ -59,7 +59,7 @@ struct ReferralClaim: Decodable, Equatable {
 
 /// Why a claim failed, worded here rather than taken from the server: the
 /// backend's `detail` is English, and this screen is in five languages. The
-/// status codes are the contract (`backend/referral.py`, `claim`).
+/// status codes are the contract (`backend/billing/referral.py`, `claim`).
 enum ReferralClaimError: LocalizedError, Equatable {
     case unknownCode, ownCode, alreadyUsed, tooManyTries, paused, unavailable, other
 

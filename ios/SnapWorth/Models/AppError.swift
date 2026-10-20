@@ -424,7 +424,7 @@ enum AppError: LocalizedError, Equatable {
 // MARK: - Server copy
 
 /// The `code` the server sends beside `detail` on an error
-/// (`backend/apierrors.py`), for the failures this build words itself.
+/// (`backend/core/apierrors.py`), for the failures this build words itself.
 ///
 /// `detail` is English, and every earlier build shows it as written — in an
 /// app translated into four other languages. A code is what can be

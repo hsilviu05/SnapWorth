@@ -9,11 +9,11 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from fastapi.testclient import TestClient
 
-import aiconfig
-import apierrors
+from scan import aiconfig
+from core import apierrors
 import main
-import prompts
-import rack
+from scan import prompts
+from scan import rack
 from tests.images import padded_image_bytes
 from tests.test_main import _pro_headers
 
@@ -166,19 +166,19 @@ class TestTheRead:
 
 class TestCounting:
     def test_counted_as_one_scan_and_one_rack(self):
-        with patch("opsstats.count_scan") as scans, \
-             patch("opsstats.count_rack_scan") as racks:
+        with patch("ops.opsstats.count_scan") as scans, \
+             patch("ops.opsstats.count_rack_scan") as racks:
             post_rack("rack-count")
         scans.assert_called_once_with("pro")
         racks.assert_called_once_with()
 
     def test_not_posted_as_a_find(self):
-        with patch("notify.scan_completed") as find:
+        with patch("ops.notify.scan_completed") as find:
             post_rack("rack-nofind")
         assert not find.called
 
     def test_the_spend_is_charged_to_pro(self):
-        import opsspend
+        from ops import opsspend
         assert opsspend._usage_tier("rack", None) == "pro"
 
 

@@ -19,9 +19,9 @@ from fastapi.testclient import TestClient
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import main  # noqa: E402
-import metrics  # noqa: E402
-import observability  # noqa: E402
-import ratelimit  # noqa: E402
+from ops import metrics  # noqa: E402
+from ops import observability  # noqa: E402
+from security import ratelimit  # noqa: E402
 
 client = TestClient(main.app)
 
@@ -175,7 +175,7 @@ class TestRedisLimiterMemberUniqueness:
         against a Redis that is not in this suite.
         """
         root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        with open(os.path.join(root, "ratelimit.py"), encoding="utf-8") as handle:
+        with open(os.path.join(root, "security", "ratelimit.py"), encoding="utf-8") as handle:
             source = handle.read()
         assert 'member = f"{now_ms}-{self._nonce}-{self._counter}"' in source
         assert 'member = f"{now_ms}-{os.getpid()}' not in source
@@ -191,7 +191,7 @@ class TestEntitlementRouteIsLimited:
         verification per link, per call, and was the only authenticated route
         doing real work with no bucket in front of it.
         """
-        import auth
+        from security import auth
         seen = []
 
         async def recording(subject, ip):
@@ -230,7 +230,7 @@ class TestEntitlementRouteIsLimited:
         """Only verified transactions reach the subscription index, so a
         refused one left nothing `/user` could show: the customer who paid and
         was told free looked as if they had never tried."""
-        import notify
+        from ops import notify
         seen: list[tuple[str, str]] = []
         monkeypatch.setattr(notify, "entitlement_rejected",
                             lambda subject, reason: seen.append((subject, reason)))

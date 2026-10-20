@@ -21,13 +21,13 @@ from typing import Any
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-import aiconfig  # noqa: E402
-import confidence as confidence_module  # noqa: E402
-import imagequality  # noqa: E402
-import prompts  # noqa: E402
-import valuation as valuation_module  # noqa: E402
-from imagequality import ImageQuality  # noqa: E402
-from valuation import PricePoints, normalise, reconcile_prices  # noqa: E402
+from scan import aiconfig  # noqa: E402
+from scan import confidence as confidence_module  # noqa: E402
+from scan import imagequality  # noqa: E402
+from scan import prompts  # noqa: E402
+from scan import valuation as valuation_module  # noqa: E402
+from scan.imagequality import ImageQuality  # noqa: E402
+from scan.valuation import PricePoints, normalise, reconcile_prices  # noqa: E402
 
 
 # ── Generation config ────────────────────────────────────────────────────────
@@ -732,8 +732,8 @@ class TestConfidence:
     def test_one_unknown_brand_list_everywhere(self):
         """notify tallied "Generic" as no brand and the eval's hallucination
         check counted it as an asserted brand; both now read this list."""
-        import notify
-        import trends
+        from ops import notify
+        from insights import trends
         from eval import metrics as eval_metrics
 
         for spelling in confidence_module.UNKNOWN_BRANDS:
@@ -804,7 +804,7 @@ import io as _io  # noqa: E402
 import json as _json  # noqa: E402
 from unittest.mock import AsyncMock, MagicMock, patch  # noqa: E402
 
-import auth  # noqa: E402
+from security import auth  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402
 
 from main import ScanResponse, app, _rate_store, _ip_rate_store  # noqa: E402
@@ -845,7 +845,7 @@ def _pro_headers(subject: str) -> dict:
     import asyncio as _asyncio
     import time as _time
 
-    from entitlements import Entitlement
+    from billing.entitlements import Entitlement
 
     ent = Entitlement(
         tier="pro",

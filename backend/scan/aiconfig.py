@@ -1,0 +1,467 @@
+"""Model construction and generation parameters.
+
+The problem this fixes
+----------------------
+`main.py` previously did:
+
+    _model = genai.GenerativeModel("gemini-2.5-flash")   # old SDK
+
+with no generation config at all. That means every sampling parameter took its
+API default, and for Gemini that is **temperature 1.0** — full sampling
+randomness on a task whose entire purpose is producing a number a user will act
+on. Two uploads of the same photo could return materially different prices, and
+nothing in the system was pinning them together.
+
+For a valuation task that is simply the wrong setting. We are not generating
+prose, we are extracting a quantity. Low temperature is not a stylistic
+preference here, it is a correctness requirement: the same evidence should yield
+the same price.
+
+Four settings, and why each
+---------------------------
+* **temperature 0.15** — near-greedy. Preserves enough sampling to escape a
+  degenerate token loop, while making repeat scans of one item cluster tightly.
+  Measured by the `consistency` metric in `backend/eval/`.
+
+* **response_mime_type "application/json"** — constrains decoding to valid JSON
+  at the sampler. This is what makes `_extract_json`'s regex scraping and the
+  `_retry_as_json` second billed call into a fallback rather than the norm. Both
+  are retained, because a fallback that never fires costs nothing and a missing
+  one costs a user their scan.
+
+* **max_output_tokens** — v2 returns considerably more structure than v1, so
+  this is sized for it with headroom. Without a ceiling a pathological response
+  is unbounded in both latency and cost.
+
+* **safety_settings at BLOCK_ONLY_HIGH** — thrift inventory legitimately
+  includes pocket knives, lighters, vintage medical and military items, and
+  alcohol-branded glassware. Default thresholds block those, and a block
+  surfaces as an exception on `response.text`, which the old code caught with a
+  bare `except Exception`, retried, and finally reported as "the AI service is
+  temporarily unavailable". Users got a service outage message for a photo of a
+  penknife. We loosen to BLOCK_ONLY_HIGH (genuinely harmful content still
+  blocked) and handle the block explicitly — see `ModelBlocked`.
+
+Determinism, and the SDK this now uses
+--------------------------------------
+This module targets **google-genai**. The previous SDK, `google-generativeai`,
+reached end-of-life at 0.8.6 and announced it on import.
+
+That migration also removed a workaround. `google-generativeai` exposed `seed`
+on its `GenerationConfig` dataclass while the protobuf it serialised into had
+no such field, so construction succeeded and the *call* failed — surfacing as
+"the AI service is temporarily unavailable" for every scan over nine days in
+production. The fix at the time was to probe which optional fields the
+SDK/proto pairing actually accepted and drop the ones it did not, which meant
+shipping without a seed. google-genai accepts `seed` end-to-end, verified
+against the live API, so it is now sent unconditionally and the probe is gone.
+
+Gemini still does not guarantee bit-identical output across calls with a fixed
+seed and temperature. It narrows variance rather than eliminating it, which is
+why consistency is measured empirically rather than assumed.
+"""
+
+from __future__ import annotations
+
+import base64
+import logging
+import os
+from functools import lru_cache
+from typing import Any
+
+from google import genai
+from google.genai import types
+
+log = logging.getLogger("snapworth.aiconfig")
+
+MODEL_NAME = os.environ.get("GEMINI_MODEL", "gemini-2.5-flash")
+
+# Near-greedy: the same photo should produce the same price.
+TEMPERATURE = float(os.environ.get("GEMINI_TEMPERATURE", "0.15"))
+TOP_P = float(os.environ.get("GEMINI_TOP_P", "0.90"))
+SEED = int(os.environ.get("GEMINI_SEED", "20260728"))
+
+# v2's structured payload runs ~700-900 tokens — but on a thinking model the
+# reasoning tokens are drawn from this SAME ceiling, and they are both larger
+# and more variable than the answer: measured at 1177-1777 for one scan, and
+# higher with an image than with text.
+#
+# The old 2048 was sized for the payload alone. In production that left ~256
+# tokens for JSON after thinking, so every scan truncated mid-object — before
+# reaching the price fields, which sit two-thirds down the schema. The parse
+# failure was then papered over downstream and users were shown "$1-5", a
+# number no model ever produced. Raising the ceiling is the actual fix.
+#
+# That was v2's schema. v2.1 asks for the prices after all the evidence, so
+# they sit lower still, and this ceiling matters more under it, not less.
+#
+# 8192 is a cap, not a spend: unused headroom is not billed, and the tokens
+# already being burned on truncated answers are pure waste. Sized so the
+# worst observed thinking (~1800) plus a full payload (~900) still leaves
+# room for a harder image, while keeping a pathological response bounded.
+MAX_OUTPUT_TOKENS = int(os.environ.get("GEMINI_MAX_OUTPUT_TOKENS", "8192"))
+
+# The listing endpoint returns far less prose, but paid the same thinking tax
+# out of the same ceiling — 800 did not cover the reasoning alone. Thinking is
+# off for listings now (TEXT_THINKING_BUDGET), so most of this is headroom;
+# it stays, because that knob can turn thinking back on.
+LISTING_MAX_OUTPUT_TOKENS = int(os.environ.get("GEMINI_LISTING_MAX_TOKENS", "4096"))
+
+# Set to "0" to fall back to prose parsing if a future model regresses on
+# constrained decoding. The regex extractor stays in place either way.
+JSON_MODE = os.environ.get("GEMINI_JSON_MODE", "1").lower() in {"1", "true", "yes"}
+
+
+class ModelBlocked(Exception):
+    """The model refused to answer because of a safety filter.
+
+    Distinct from a transient failure: retrying is pointless and reporting it as
+    an outage is misleading. The caller should tell the user what happened.
+    """
+
+
+class ModelUnavailable(Exception):
+    """A transient upstream failure. Retrying is reasonable."""
+
+
+def _safety_settings() -> list[types.SafetySetting]:
+    """Permit ordinary resale inventory; still block genuinely harmful content.
+
+    A photo of a vintage hunting knife or a whisky decanter is normal thrift
+    stock and must not read as an outage.
+    """
+    categories = [
+        types.HarmCategory.HARM_CATEGORY_HARASSMENT,
+        types.HarmCategory.HARM_CATEGORY_HATE_SPEECH,
+        types.HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,
+        types.HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
+    ]
+    # The SDK's enums rather than the equivalent strings: pydantic coerces the
+    # strings, so both work, but a typo in one would only surface as a category
+    # silently not being configured.
+    return [types.SafetySetting(
+                category=c,
+                threshold=types.HarmBlockThreshold.BLOCK_ONLY_HIGH)
+            for c in categories]
+
+
+def generation_config(
+    *, json_mode: bool = True, max_output_tokens: int | None = None,
+    thinking_budget: int | None = None,
+) -> types.GenerateContentConfig:
+    """Sampling parameters, plus the safety thresholds.
+
+    `seed` is now attached unconditionally. On google-generativeai it could not
+    be: the dataclass exposed the field, the protobuf it serialised into did
+    not, and the mismatch surfaced only at request time as an outage. google-genai
+    accepts it end-to-end, so the probe that worked around that is gone and
+    determinism rests on seed as well as temperature and top_p.
+
+    Safety settings live here rather than on the client because this SDK takes
+    the whole configuration per call.
+
+    `thinking_budget` overrides `THINKING_BUDGET` for this call; None keeps
+    it. See `TEXT_THINKING_BUDGET` for the calls that pass one.
+    """
+    kwargs: dict[str, Any] = {
+        "temperature": TEMPERATURE,
+        "top_p": TOP_P,
+        "candidate_count": 1,
+        "max_output_tokens": max_output_tokens or MAX_OUTPUT_TOKENS,
+        "seed": SEED,
+        "safety_settings": _safety_settings(),
+    }
+    if json_mode and JSON_MODE:
+        kwargs["response_mime_type"] = "application/json"
+    # Only when explicitly configured — see THINKING_BUDGET. Passing the
+    # field at all changes model behaviour, so an unset knob must not.
+    budget = THINKING_BUDGET if thinking_budget is None else thinking_budget
+    if budget is not None:
+        kwargs["thinking_config"] = types.ThinkingConfig(thinking_budget=budget)
+    return types.GenerateContentConfig(**kwargs)
+
+
+# google-genai's HttpOptions.timeout defaults to None, i.e. no timeout at all,
+# and its retry_options default to None as well. Unbounded is the wrong default
+# for a request on the scan path: a hung upstream would hold a worker until the
+# process restarted, and `_generate_with_retry` in main.py could never take over
+# because the call it is wrapping never returns. Observed directly during this
+# migration — one probe ran past ten minutes before it was killed.
+#
+# 60s against a p95 /scan budget of 20s (see RUNBOOK §3): generous enough that a
+# slow-but-working call still completes, bounded enough that a dead one fails
+# fast and hits the retry loop. Milliseconds, per the SDK's field.
+# 25s, not the previous 60s. The iOS client gives up at 30s request / 35s
+# resource (`URLSession.snapWorthAPI` in CertificatePinning.swift), so a 60s
+# ceiling meant the *first* attempt could still be running long after the only
+# caller had stopped listening.
+#
+# This is per attempt, and it does not leave room for a retry after a timeout:
+# 25s, a backoff and a second 25s is about 50s. An earlier version of this
+# comment said it did. The overall bound is `main.CLIENT_DEADLINE_SECONDS`,
+# which `_generate_with_retry` enforces across attempts — a retry gets the time
+# that is left, or is skipped when too little is.
+REQUEST_TIMEOUT_MS = int(os.environ.get("GEMINI_TIMEOUT_MS", "25000"))
+
+# Cap on the model's internal reasoning tokens. Unset by default, which is
+# exactly today's behaviour — this adds the knob, not a new setting.
+#
+# Worth having because thinking is the largest single component of per-scan
+# cost: 1138-1777 tokens billed as output against a ~700-900 token answer,
+# so roughly half the spend and a good share of the latency. There was no way
+# to influence it from configuration at all.
+#
+# Deliberately not given a default value. Capping reasoning on a valuation
+# model is a quality decision, and the right way to make it is to run
+# `backend/eval/runner.py` at a candidate budget and compare, not to pick a
+# number here and ship it. `0` disables thinking entirely; the SDK also
+# accepts `-1` for "let the model decide", which is the current behaviour.
+#
+# Run that comparison on prompt v2.1 (`--compare v2.1 v2.1@512`), not v2. v2
+# asks for the prices before the evidence, and with less thinking the evidence
+# written after a price is a justification of it; v2.1 has the model write
+# what it saw first.
+#
+# And ship a lowered budget only while v2.1 is what serves: SCAN_PROMPT_VERSION
+# set to v2.1, or v2.1 the default (`prompts.DEFAULT_PROMPT_VERSION`, v2 as of
+# this writing). This setting is process-wide, whatever the prompt, so a cap
+# measured on v2.1 and set while v2 serves is exactly the case above.
+def _budget(raw: str) -> int | None:
+    """A thinking budget from the environment: an integer, or None when blank
+    or unreadable — which means "send no thinking config at all"."""
+    raw = raw.strip()
+    return int(raw) if raw.lstrip("-").isdigit() else None
+
+
+THINKING_BUDGET: int | None = _budget(os.environ.get("GEMINI_THINKING_BUDGET", ""))
+
+# Thinking for the two text-only calls — /listing and the reformat retry of an
+# unparseable scan reply. Off.
+#
+# The budget above is global, so both paid the scan's thinking tax, out of
+# their own token ceilings, for work reasoning does not improve. A listing is
+# copy written around a valuation it is handed, and its prices survive only
+# inside that valuation's band (`main._validate_listing` replaces them
+# outside it); the reformat restates a reply it is handed as bare JSON. That
+# is why this is not the quality decision THINKING_BUDGET is: no valuation
+# comes out of either call.
+#
+# `0` turns thinking off on 2.5 Flash, the configured model. A model that
+# cannot run without thinking refuses a zero budget with a 400 — 2.5 Pro
+# does — which would fail every listing and every reformat. So before
+# pointing GEMINI_MODEL at one, set GEMINI_TEXT_THINKING_BUDGET=-1 ("let the
+# model decide"), or blank to follow GEMINI_THINKING_BUDGET like scans do.
+TEXT_THINKING_BUDGET: int | None = _budget(
+    os.environ.get("GEMINI_TEXT_THINKING_BUDGET", "0"))
+
+
+@lru_cache(maxsize=1)
+def _client() -> genai.Client:
+    """One client per process. Reads GEMINI_API_KEY at first use.
+
+    Retries are deliberately left at the SDK default of None: main.py already
+    classifies and retries around this call, and a second layer underneath it
+    would multiply billed attempts on a failure it has already decided is
+    terminal — exactly what the quota-exhaustion fix was for.
+    """
+    return genai.Client(
+        api_key=os.environ.get("GEMINI_API_KEY", ""),
+        http_options=types.HttpOptions(timeout=REQUEST_TIMEOUT_MS),
+    )
+
+
+def _as_part(item: Any) -> Any:
+    """Accept the previous SDK's inline-image dict as well as native inputs.
+
+    google-generativeai took an image as a plain dict:
+
+        {"mime_type": "image/jpeg", "data": "<base64 str>"}
+
+    google-genai does not — it wants a `types.Part`, and hands a pydantic
+    validation error back for the dict. That failure is invisible to a
+    text-only test, which is exactly how it reached production: the migration
+    was verified against typed item descriptions because the repository has no
+    photo fixture, so every check exercised the text path and none built a
+    Part. /scan sends prompt + image on every request, so 100% of real scans
+    failed while every test passed.
+
+    Converting here rather than at the call site keeps main.py and
+    eval/runner.py on the shape they already use, and means any caller still
+    holding the old dict keeps working.
+    """
+    if isinstance(item, dict) and "mime_type" in item and "data" in item:
+        data = item["data"]
+        if isinstance(data, str):          # the dict carries base64 text
+            data = base64.b64decode(data)
+        return types.Part.from_bytes(data=data, mime_type=item["mime_type"])
+    return item
+
+
+class _Model:
+    """Binds a model name and its default config to a `generate_content_async`.
+
+    An adapter, deliberately. google-genai is client-first
+    (`client.aio.models.generate_content(model=..., config=...)`) whereas the
+    old SDK was model-first, and the call shape is depended on by main.py,
+    eval/runner.py and roughly forty test mocks that patch
+    `generate_content_async`. Keeping that one method signature stable confined
+    this migration to a single module.
+    """
+
+    __slots__ = ("model_name", "_default_config", "_system_instruction")
+
+    def __init__(self, model_name: str, config: types.GenerateContentConfig,
+                 system_instruction: str | None = None) -> None:
+        self.model_name = model_name
+        self._default_config = config
+        self._system_instruction = system_instruction
+
+    async def generate_content_async(
+        self, contents, generation_config: types.GenerateContentConfig | None = None
+    ):
+        config = generation_config or self._default_config
+        if self._system_instruction is not None:
+            # Copied per call: system_instruction belongs to the config in this
+            # SDK, and mutating the shared default would leak across callers.
+            config = config.model_copy(
+                update={"system_instruction": self._system_instruction})
+        if not isinstance(contents, list):
+            contents = [contents]
+        contents = [_as_part(c) for c in contents]
+        return await _client().aio.models.generate_content(
+            model=self.model_name, contents=contents, config=config)
+
+
+def build_model(system_instruction: str | None = None) -> _Model:
+    """Construct the vision model with deterministic-leaning parameters."""
+    return _Model(MODEL_NAME, generation_config(), system_instruction)
+
+
+_BLOCK_MARKERS = {"SAFETY", "PROHIBITED_CONTENT", "BLOCKLIST", "SPII", "IMAGE_SAFETY"}
+
+
+def _finish_reason_name(response) -> str:
+    """Best-effort finish reason as an upper-case string, or "" if unavailable.
+
+    Deliberately defensive. The SDK returns an enum here, but proto-plus objects,
+    plain ints and test doubles all appear in practice, and treating an
+    unrecognised shape as a block would fail a perfectly good response.
+
+    The container check is duck-typed, not `isinstance(candidates, (list,
+    tuple))`. The real SDK hands back a `proto.marshal.collections.repeated.
+    RepeatedComposite`, which is neither, so that guard rejected every genuine
+    response and this returned "" in production while the unit tests — which
+    pass plain lists — went on passing. Two things silently stopped working:
+    the max_output_tokens truncation warning never fired, and no reply ever
+    matched _BLOCK_MARKERS, so safety blocks surfaced to users as "the AI
+    service is unavailable" instead of "try a clear photo of a single item".
+    """
+    candidates = getattr(response, "candidates", None)
+    if candidates is None:
+        return ""
+    try:
+        first = candidates[0]
+    except (TypeError, IndexError, KeyError):
+        return ""
+    finish = getattr(first, "finish_reason", None)
+    if finish is None:
+        return ""
+    name = getattr(finish, "name", None)
+    return str(name if isinstance(name, str) else finish).upper()
+
+
+def _prompt_block_name(response) -> str:
+    """The prompt-level block reason (`promptFeedback.blockReason`) as an
+    upper-case name, or "" when there is none.
+
+    `.name`, not `str()`: `BlockedReason` is a str enum, and on Python 3.13
+    `str()` of one reads "BlockedReason.SAFETY". BLOCKED_REASON_UNSPECIFIED is
+    no block. Anything that is neither an enum nor a string, a MagicMock
+    included, is "" rather than a guess, for `_finish_reason_name`'s reason.
+    """
+    feedback = getattr(response, "prompt_feedback", None)
+    block = getattr(feedback, "block_reason", None)
+    if block is None:
+        return ""
+    name = getattr(block, "name", None)
+    if not isinstance(name, str):
+        name = block if isinstance(block, str) else ""
+    name = name.upper()
+    return "" if name == "BLOCKED_REASON_UNSPECIFIED" else name
+
+
+def extract_text(response) -> str:
+    """Read text from a response, distinguishing a safety block from a failure.
+
+    Ordering matters: **the success path is tried first**. If the response
+    carries text, that text is the answer and nothing else needs interrogating.
+    Only when there is no usable text do we look at why — because that is the
+    only situation where the distinction changes what the user is told.
+
+    The inverse (inspecting block metadata before reading text) is fragile: it
+    has to correctly interpret every shape the SDK might use for those fields,
+    and any misread turns a good response into a spurious refusal.
+    """
+    text = ""
+    try:
+        text = (response.text or "").strip()
+    except Exception as exc:
+        # `.text` raised when there were no candidates in the old SDK —
+        # usually a block.
+        reason = _finish_reason_name(response)
+        if reason in _BLOCK_MARKERS:
+            raise ModelBlocked(reason) from None
+        block = _prompt_block_name(response)
+        if block:
+            raise ModelBlocked(block) from None
+        raise ModelUnavailable(f"response carried no text: {exc}") from exc
+
+    if text:
+        if _finish_reason_name(response) == "MAX_TOKENS":
+            # Truncated mid-JSON. Logged so it reads as a config problem rather
+            # than an unexplained parse failure downstream.
+            log.warning("model response hit max_output_tokens — output truncated")
+        return text
+
+    # Empty but no exception: a block that returned an empty candidate, or a
+    # prompt-level block with no candidates at all. google-genai's `.text`
+    # returns None for the second rather than raising, so it lands here, and
+    # read as an outage it was retried, paged the operator as "model
+    # unhealthy", and never counted toward the device's safety pause.
+    reason = _finish_reason_name(response)
+    if reason in _BLOCK_MARKERS:
+        raise ModelBlocked(reason)
+    block = _prompt_block_name(response)
+    if block:
+        raise ModelBlocked(block)
+    raise ModelUnavailable(f"model returned empty text (finish_reason={reason or 'unknown'})")
+
+
+def usage_of(response) -> dict:
+    """Token counts for cost attribution. Absent on some SDK paths.
+
+    Values are coerced to `int` and non-numeric shapes dropped, so a changed SDK
+    surface degrades to "no usage recorded" rather than writing opaque objects
+    into structured logs.
+    """
+    usage = getattr(response, "usage_metadata", None)
+    if usage is None:
+        return {}
+    fields = {
+        "prompt_tokens": "prompt_token_count",
+        "output_tokens": "candidates_token_count",
+        "total_tokens": "total_token_count",
+        # Reasoning tokens. google-generativeai never surfaced these, which is
+        # part of why the max_output_tokens bug was invisible: thinking is drawn
+        # from the same ceiling as the answer, so a scan could spend 1800 tokens
+        # reasoning, truncate the JSON, and look — by prompt and output counts
+        # alone — entirely normal. google-genai reports it, so it is recorded.
+        "thoughts_tokens": "thoughts_token_count",
+    }
+    out: dict[str, int] = {}
+    for key, attr in fields.items():
+        value = getattr(usage, attr, None)
+        if isinstance(value, bool) or not isinstance(value, (int, float)):
+            continue
+        out[key] = int(value)
+    return out

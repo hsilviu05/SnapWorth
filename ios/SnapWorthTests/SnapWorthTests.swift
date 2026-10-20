@@ -3252,7 +3252,7 @@ final class ListingPhotoCleanupTests: XCTestCase {
 
 // MARK: - Referrals (#97)
 
-/// The client half of `backend/referral.py`: decoding its responses, wording
+/// The client half of `backend/billing/referral.py`: decoding its responses, wording
 /// its failures, and announcing each earned week once.
 final class ReferralTests: XCTestCase {
 

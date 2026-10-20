@@ -33,10 +33,10 @@ from typing import Any
 
 import httpx
 
-import promptsafety
-from confidence import UNKNOWN_BRANDS, brand_is_known
-import typesafe
-from typesafe import API_KEY_ENV, MODEL, enabled, noul, post
+from scan import promptsafety
+from scan.confidence import UNKNOWN_BRANDS, brand_is_known
+from scan import typesafe
+from scan.typesafe import API_KEY_ENV, MODEL, enabled, noul, post
 
 TIMEOUT_S = 10.0
 

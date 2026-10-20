@@ -32,47 +32,47 @@ from starlette.datastructures import Headers, MutableHeaders
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
-import aiconfig
-import apierrors
-import auditlog
-import auth
-import cache as cache_module
-import confidence as confidence_module
-import devicecheck
-import entitlements
-import imagequality
-import imagevalidation
-import legit as legit_module
-import levers
-import listingclaims
-import metrics
-import notify
-import opsspend
-import opsstats
-import promptsafety
-import prompts
-import rack as rack_module
-import ratelimit
-import appstorenotify
-import referral
-import outcomes
-import social
-import tokens
-import trends as trends_module
-import typesafe
-import valuation as valuation_module
-from apierrors import APIError
-from auditlog import AuditEvent
+from scan import aiconfig
+from core import apierrors
+from security import auditlog
+from security import auth
+from core import cache as cache_module
+from scan import confidence as confidence_module
+from security import devicecheck
+from billing import entitlements
+from scan import imagequality
+from scan import imagevalidation
+from scan import legit as legit_module
+from ops import levers
+from scan import listingclaims
+from ops import metrics
+from ops import notify
+from ops import opsspend
+from ops import opsstats
+from scan import promptsafety
+from scan import prompts
+from scan import rack as rack_module
+from security import ratelimit
+from billing import appstorenotify
+from billing import referral
+from insights import outcomes
+from insights import social
+from security import tokens
+from insights import trends as trends_module
+from scan import typesafe
+from scan import valuation as valuation_module
+from core.apierrors import APIError
+from security.auditlog import AuditEvent
 from comps.engine import build_engine as build_comps_engine
 from comps.shadow import ShadowRunner
-from auth import (Principal, record_quota_consumed, refund_quota,
+from security.auth import (Principal, record_quota_consumed, refund_quota,
                   require_auth, reserve_quota)
-from entitlements import EntitlementError, EntitlementService, Reinstatement
+from billing.entitlements import EntitlementError, EntitlementService, Reinstatement
 from fastapi import Depends
-import observability
-from observability import RequestContextMiddleware, configure_production_logging
-from quota import FREE_SCANS_PER_DAY, ScanQuota
-from ratelimit import (
+from ops import observability
+from ops.observability import RequestContextMiddleware, configure_production_logging
+from billing.quota import FREE_SCANS_PER_DAY, ScanQuota
+from security.ratelimit import (
     IP_RATE_MAX_REQUESTS,
     LEGIT_RATE_MAX_REQUESTS,
     LISTING_RATE_MAX_REQUESTS,
@@ -553,7 +553,7 @@ async def _close_dependencies() -> None:
     # Only ever opened if an operator ran /sub on this replica, and imported
     # here rather than at module scope for the same cycle reason notify gives.
     try:
-        import appstorestatus
+        from billing import appstorestatus
         await appstorestatus.aclose()
     except Exception as exc:
         log.warning("App Store status client close failed: %s", exc)

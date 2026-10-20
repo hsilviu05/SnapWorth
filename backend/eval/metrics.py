@@ -36,7 +36,7 @@ import statistics
 from collections.abc import Sequence
 from dataclasses import dataclass, field
 
-from confidence import brand_is_known
+from scan.confidence import brand_is_known
 
 
 def ape(predicted: float, actual: float) -> float | None:

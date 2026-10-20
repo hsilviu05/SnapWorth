@@ -22,8 +22,8 @@ from fastapi.testclient import TestClient
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-import auth  # noqa: E402
-import outcomes  # noqa: E402
+from security import auth  # noqa: E402
+from insights import outcomes  # noqa: E402
 from main import app  # noqa: E402
 
 client = TestClient(app)
@@ -302,7 +302,7 @@ DAY = 86_400
 @pytest.fixture
 def clock(monkeypatch):
     """The in-memory cache's clock, movable. Records and indexes expire by it."""
-    import cache as cache_module
+    from core import cache as cache_module
     now = [cache_module.time.time()]
     monkeypatch.setattr(cache_module.time, "time", lambda: now[0])
     return now
@@ -367,7 +367,7 @@ def test_an_edit_does_not_count_twice_in_delete_all():
 def test_rotating_the_audit_salt_leaves_shared_sales_editable_and_deletable(monkeypatch):
     """RUNBOOK §8.5 allows rotating AUDIT_SALT. Tagged with it, every record
     became undeletable and uneditable by its own install for 400 days."""
-    import auditlog
+    from security import auditlog
     body = outcome()
     share(body)
     monkeypatch.setattr(auditlog, "_SALT", b"a-rotated-salt")

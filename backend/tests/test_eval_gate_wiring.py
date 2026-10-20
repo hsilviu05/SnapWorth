@@ -52,7 +52,7 @@ def write_jsonl(path: Path, records: list[dict]) -> Path:
 def test_production_json_names_what_production_runs():
     pinned = runner.load_config(PRODUCTION)
     assert set(pinned) == {"prompt_version", "model", "thinking_budget"}
-    import prompts
+    from scan import prompts
     # The code defaults, which is what Railway runs while the three variables
     # are unset (checked 2026-10-06). A default change must move this too.
     assert pinned["prompt_version"] == prompts.DEFAULT_PROMPT_VERSION
@@ -65,7 +65,7 @@ def test_the_pinned_model_is_aiconfigs_default():
     that is what the file must pin. Read from the source: reloading aiconfig
     would swap classes other tests hold."""
     import re
-    source = (Path(__file__).resolve().parents[1] / "aiconfig.py").read_text()
+    source = (Path(__file__).resolve().parents[1] / "scan" / "aiconfig.py").read_text()
     default = re.search(r'MODEL_NAME = os\.environ\.get\("GEMINI_MODEL", "([^"]+)"\)', source)
     assert default, "aiconfig.MODEL_NAME no longer reads GEMINI_MODEL with a default"
     assert default.group(1) == runner.load_config(PRODUCTION)["model"]
@@ -119,7 +119,7 @@ def test_config_cannot_be_combined_with_compare():
 
 
 def test_config_refuses_a_different_model(monkeypatch, capsys):
-    import aiconfig
+    from scan import aiconfig
     monkeypatch.setattr(aiconfig, "MODEL_NAME", "gemini-3-flash")
     with pytest.raises(SystemExit):
         runner.main(["--dataset", "x.jsonl", "--config", str(PRODUCTION)])

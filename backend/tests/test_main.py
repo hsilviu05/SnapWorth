@@ -20,13 +20,13 @@ import sys
 import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
-import appstorenotify
-import auth
-from entitlements import Entitlement
+from billing import appstorenotify
+from security import auth
+from billing.entitlements import Entitlement
 import main
-import opsindex
-import opsstats
-import trends
+from ops import opsindex
+from ops import opsstats
+from insights import trends
 from main import app, _extract_json, _check_rate_limit, _rate_store, _ip_rate_store
 from tests.images import VALID_PNG, padded_image_bytes
 
@@ -263,7 +263,7 @@ class TestLegalEndpoints:
 
     def test_the_stated_retention_is_the_retention_the_code_applies(self):
         """A number in a policy that nothing checks is a number that drifts."""
-        import notify
+        from ops import notify
         body = _prose(client.get("/privacy").text)
         days = opsindex.INDEX_TTL // 86_400
         assert f"{days} days" in body, (
@@ -276,7 +276,7 @@ class TestLegalEndpoints:
         and each day's best finds, item name included, were shown to Pro
         subscribers as notable finds. The photo claim was true; the rest was
         not."""
-        import notify
+        from ops import notify
         body = _prose(client.get("/privacy").text)
         assert "scan results are processed in real time" not in body
         assert f"{opsstats.STATS_TTL // 86_400} days after the day of the scan" in body
@@ -294,8 +294,8 @@ class TestLegalEndpoints:
         find in a day's tallies carries a tag per device for as long as the
         day does. "Without your device identifier" stayed literally true and
         told the reader nothing about it; the tag is disclosed on its own."""
-        import auditlog
-        import notify
+        from security import auditlog
+        from ops import notify
         body = _prose(client.get("/privacy").text)
         assert ("Beside each category, brand and highest-value scan we also keep "
                 "a short tag for each device that scanned it") in body
@@ -321,7 +321,7 @@ class TestLegalEndpoints:
         and `_write_index` prunes on `seen`. So a subscriber who deleted the app
         but keeps renewing keeps that row: 400 days from the app's last visit is
         not what the code does."""
-        import notify
+        from ops import notify
         body = _prose(client.get("/privacy").text)
         assert (f"for up to {opsindex.INDEX_TTL // 86_400} days after the device "
                 "last uses the service or, for a subscription, after the app or "
@@ -330,7 +330,7 @@ class TestLegalEndpoints:
     def test_privacy_discloses_the_purchase_record_and_its_retention(self):
         """The app uploads Apple's signed transaction with the device id on
         every status refresh, and the server keeps it; neither policy said so."""
-        import entitlements
+        from billing import entitlements
         body = _prose(client.get("/privacy").text)
         assert "Apple's signed record of your subscription purchase" in body
         days = entitlements.ENTITLEMENT_PROOF_TTL // 86_400
@@ -339,7 +339,7 @@ class TestLegalEndpoints:
 
     def test_privacy_discloses_referral_records(self):
         """A claimed invite links two devices for a year and more."""
-        import referral
+        from billing import referral
         body = _prose(client.get("/privacy").text)
         assert "Once Invite a friend is available in the app" in body
         assert "whether or not you open it" in body
@@ -348,7 +348,7 @@ class TestLegalEndpoints:
     def test_privacy_discloses_shared_sales(self):
         """Opt-in sale sharing (#224) keeps a record per sold flip for as long
         as RECORD_TTL says, and says what never leaves the phone."""
-        import outcomes
+        from insights import outcomes
         body = _prose(client.get("/privacy").text)
         assert "If you turn on Share sale prices to improve estimates" in body
         assert f"Records are kept for up to {outcomes.RECORD_TTL // 86_400} days." in body
@@ -745,8 +745,8 @@ class TestListingEndpoint:
         """#353: the claim check runs on the endpoint's own draft, after the
         validator, and its swap is what the client receives."""
         import httpx
-        import listingclaims
-        import typesafe
+        from scan import listingclaims
+        from scan import typesafe
 
         monkeypatch.setenv(listingclaims.FLAG_ENV, "true")
         monkeypatch.setenv("TYPESAFE_API_KEY", "test-key")
@@ -950,7 +950,7 @@ class TestProbeDoesNotTouchModelHealth:
         import asyncio
         from unittest.mock import AsyncMock, patch
 
-        import aiconfig
+        from scan import aiconfig
         import main
         health = main._ModelHealth()
         with patch.object(main, "_model_health", health), patch("main._model") as model:
@@ -1070,7 +1070,7 @@ class TestScanAccounting:
         find nobody ever saw.
         """
         import main
-        import notify
+        from ops import notify
         counted: list[str] = []
         completed: list[dict] = []
         monkeypatch.setattr(opsstats, "count_scan", lambda tier: counted.append(tier))
@@ -1109,7 +1109,7 @@ class TestRepeatedSafetyBlocks:
         from unittest.mock import AsyncMock, patch
 
         import main
-        from cache import InMemoryCache, ResilientCache
+        from core.cache import InMemoryCache, ResilientCache
         monkeypatch.setattr(main, "_cache", ResilientCache(None, InMemoryCache()))
         monkeypatch.setattr(main, "SAFETY_BLOCKS_BEFORE_PAUSE", 2)
         _rate_store.clear()
@@ -1149,7 +1149,7 @@ class TestRepeatedSafetyBlocks:
         from unittest.mock import AsyncMock, patch
 
         import main
-        from cache import InMemoryCache, ResilientCache
+        from core.cache import InMemoryCache, ResilientCache
         monkeypatch.setattr(main, "_cache", ResilientCache(None, InMemoryCache()))
         monkeypatch.setattr(main, "SAFETY_BLOCKS_BEFORE_PAUSE", 1)
         _rate_store.clear()
@@ -1167,7 +1167,7 @@ class TestRepeatedSafetyBlocks:
         from unittest.mock import AsyncMock, patch
 
         import main
-        from cache import InMemoryCache, ResilientCache
+        from core.cache import InMemoryCache, ResilientCache
         monkeypatch.setattr(main, "_cache", ResilientCache(None, InMemoryCache()))
         monkeypatch.setattr(main, "SAFETY_BLOCKS_BEFORE_PAUSE", 0)
         _rate_store.clear()
@@ -1188,7 +1188,7 @@ class TestRepeatedSafetyBlocks:
         from google.genai import types
 
         import main
-        from cache import InMemoryCache, ResilientCache
+        from core.cache import InMemoryCache, ResilientCache
         monkeypatch.setattr(main, "_cache", ResilientCache(None, InMemoryCache()))
         monkeypatch.setattr(main, "_model_health", main._ModelHealth())
         monkeypatch.setattr(main, "SAFETY_BLOCKS_BEFORE_PAUSE", 2)
@@ -1216,8 +1216,8 @@ class TestTrendsEndpoint:
         import json as _json
         from datetime import datetime, timedelta, timezone
 
-        import notify
-        from cache import InMemoryCache, ResilientCache
+        from ops import notify
+        from core.cache import InMemoryCache, ResilientCache
         # Only notify's cache is involved; main._cache is deliberately left
         # alone, since assigning a memory-backed one there makes /health report
         # "degraded" for every later test in the process.
@@ -1265,8 +1265,8 @@ _HERE = os.path.dirname(os.path.abspath(__file__))
 if _HERE not in sys.path:
     sys.path.insert(0, _HERE)
 
-import entitlements as _entitlements  # noqa: E402
-from cache import InMemoryCache, ResilientCache  # noqa: E402
+from billing import entitlements as _entitlements  # noqa: E402
+from core.cache import InMemoryCache, ResilientCache  # noqa: E402
 from test_appstorenotify import make_notification  # noqa: E402
 from test_entitlements import build_chain  # noqa: E402
 
@@ -1293,7 +1293,7 @@ class TestAppleNotifications:
     @pytest.fixture
     def entitlement_store(self, monkeypatch):
         """A real service on an in-memory cache, wired where the app looks."""
-        import auth as _auth
+        from security import auth as _auth
         store = _entitlements.EntitlementService(
             ResilientCache(None, InMemoryCache()),
             "eu.snapworth.app", ["com.snapworth.yearly", "com.snapworth.monthly"])
@@ -1337,7 +1337,7 @@ class TestAppleNotifications:
         tombstone was invisible to `_is_revoked` after recovery and gone at the
         next deploy.
         """
-        import auth as _auth
+        from security import auth as _auth
         from test_entitlements import make_jws, valid_payload
 
         class _Flaky(InMemoryCache):
@@ -1416,7 +1416,7 @@ class TestAppleNotifications:
             return await super().delete(*a, **k)
 
     def _partial_store(self, monkeypatch):
-        import auth as _auth
+        from security import auth as _auth
         redis = self._Partial()
         durable = ResilientCache(redis, InMemoryCache(), configured=True)
         store = _entitlements.EntitlementService(
@@ -1593,7 +1593,7 @@ class TestAppleNotifications:
             self, pinned, monkeypatch):
         """/checkup's "last verified App Store notification" line. A forged
         body must not be able to make a silent webhook look alive."""
-        import notify
+        from ops import notify
         seen: list[tuple[str, str]] = []
         monkeypatch.setattr(notify, "appstore_notification_verified",
                             lambda env, kind: seen.append((env, kind)))
@@ -1626,7 +1626,7 @@ class TestAppleNotifications:
         refuse too. An unsigned body is used here so the test measures the
         limiter and not the crypto.
         """
-        from ratelimit import IP_RATE_MAX_REQUESTS
+        from security.ratelimit import IP_RATE_MAX_REQUESTS
         _ip_rate_store.clear()
         _rate_store.clear()
         codes = [client.post("/apple/notifications",

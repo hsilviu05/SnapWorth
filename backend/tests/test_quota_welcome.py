@@ -15,9 +15,9 @@ import pytest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-import quota as quota_module  # noqa: E402
-from cache import InMemoryCache, ResilientCache  # noqa: E402
-from quota import QuotaExceeded, ScanQuota  # noqa: E402
+from billing import quota as quota_module  # noqa: E402
+from core.cache import InMemoryCache, ResilientCache  # noqa: E402
+from billing.quota import QuotaExceeded, ScanQuota  # noqa: E402
 
 
 class _NoDeviceCheck:
@@ -132,7 +132,7 @@ class TestWhatDeviceCheckFailuresAreWorth:
 
     @pytest.mark.asyncio
     async def test_a_token_apple_refuses_gets_the_daily_limit_not_the_welcome(self):
-        from devicecheck import DeviceCheckError
+        from security.devicecheck import DeviceCheckError
         q = make(3, dc=_Answers(DeviceCheckError("bad device token", 400)))
         assert await q.starting_balance("s", "junk-token") == 1
         assert (await q.status("s", False)).limit == 1
@@ -140,19 +140,19 @@ class TestWhatDeviceCheckFailuresAreWorth:
 
     @pytest.mark.asyncio
     async def test_rejected_credentials_are_not_an_outage_either(self):
-        from devicecheck import DeviceCheckError
+        from security.devicecheck import DeviceCheckError
         q = make(3, dc=_Answers(DeviceCheckError("auth rejected", 401)))
         assert await q.starting_balance("s", "device-token") == 1
 
     @pytest.mark.asyncio
     async def test_apple_erroring_still_welcomes(self):
-        from devicecheck import DeviceCheckError
+        from security.devicecheck import DeviceCheckError
         q = make(3, dc=_Answers(DeviceCheckError("query failed (503)", 503)))
         assert await q.starting_balance("s", "device-token") == 3
 
     @pytest.mark.asyncio
     async def test_apple_unreachable_still_welcomes(self):
-        from devicecheck import DeviceCheckError
+        from security.devicecheck import DeviceCheckError
         q = make(3, dc=_Answers(DeviceCheckError("DeviceCheck unreachable")))
         assert await q.starting_balance("s", "device-token") == 3
 
@@ -170,7 +170,7 @@ class TestWhatDeviceCheckFailuresAreWorth:
 
     @pytest.mark.asyncio
     async def test_the_real_client_says_which_answer_it_got(self, monkeypatch):
-        import devicecheck
+        from security import devicecheck
         client = devicecheck.DeviceCheckClient("TEAM", "KEY", "not-used")
         answer = {"status": 400}
 
@@ -274,7 +274,7 @@ class TestTheWelcomeMarksTheDevice:
     async def test_apple_unreachable_welcomes_without_marking(self):
         """The bits were not read, so a write could clear a bit0 set this
         month."""
-        from devicecheck import DeviceCheckError
+        from security.devicecheck import DeviceCheckError
 
         class _Gone(_Hardware):
             async def query_bits(self, token):
@@ -474,7 +474,7 @@ class TestRuntimeOverride:
     """
 
     def _quota(self, override, *, env_first_day=0, limit=1):
-        from cache import InMemoryCache, ResilientCache
+        from core.cache import InMemoryCache, ResilientCache
         return ScanQuota(ResilientCache(None, InMemoryCache()), None,
                          limit=limit, first_day_limit=env_first_day,
                          welcome_override=override)
