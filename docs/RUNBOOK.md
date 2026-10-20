@@ -1777,7 +1777,7 @@ same backend as the App Store app (`Config.swift`). Until the fix for the
 2026-09-26 audit, production accepted Production only, so a reviewer who bought
 Pro got a 400 from `/auth/entitlement`, then the paywall again, a 402 on
 `/listing` and an empty "Why this price" — Guideline 2.1 / 3.1.1, *purchased
-content not delivered* (`docs/AUDIT-2026-09-26.md`). It had not happened only
+content not delivered* (`docs/audits/AUDIT-2026-09-26.md`). It had not happened only
 because no reviewer had bought.
 
 Production now honours Sandbox, **bounded**. Two separate settings:

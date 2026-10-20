@@ -21,7 +21,7 @@ Honesty rules, same as everywhere else
 --------------------------------------
 These are typical secondhand ranges for guidance, framed as such. Nothing here
 claims sold-listing data or comps, because there is no such source — see
-`marketing/x_account_setup.md`'s claims check and `docs/AUDIT-2026-09-07.md`.
+`marketing/x_account_setup.md`'s claims check and `docs/audits/AUDIT-2026-09-07.md`.
 
 Run: python3 website/seo/build_guess.py
 """

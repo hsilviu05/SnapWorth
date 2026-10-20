@@ -68,7 +68,7 @@ would start minting codes that its own policy says it doesn't keep.
 | [#312](https://github.com/hsilviu05/SnapWorth/pull/312) | Per-region scoring in dollars from a pinned ECB table (#225) |
 | [#315](https://github.com/hsilviu05/SnapWorth/pull/315) | ECE and the reliability table on the in-range event (#226) |
 | [#321](https://github.com/hsilviu05/SnapWorth/pull/321) | Backend runs on `main` are serialised in push order, so the newest merge is the one that deploys |
-| [#322](https://github.com/hsilviu05/SnapWorth/pull/322), [#325](https://github.com/hsilviu05/SnapWorth/pull/325) | `AUDIT-2026-10-07.md`; RUNBOOK records the production config verified on 2026-10-07 (#207); simulator walkthroughs in `docs/walkthroughs/2026-10-08` |
+| [#322](https://github.com/hsilviu05/SnapWorth/pull/322), [#325](https://github.com/hsilviu05/SnapWorth/pull/325) | `docs/audits/AUDIT-2026-10-07.md`; RUNBOOK records the production config verified on 2026-10-07 (#207); simulator walkthroughs in `docs/walkthroughs/2026-10-08` |
 
 ### Not in this build
 
