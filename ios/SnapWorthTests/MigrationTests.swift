@@ -1030,7 +1030,7 @@ final class PortfolioDigestTests: XCTestCase {
             contentsOf: URL(fileURLWithPath: #filePath)
                 .deletingLastPathComponent()
                 .deletingLastPathComponent()
-                .appendingPathComponent("SnapWorth/Services/NotificationManager.swift"),
+                .appendingPathComponent("SnapWorth/Services/System/NotificationManager.swift"),
             encoding: .utf8)) ?? ""
     }
 
@@ -1069,7 +1069,7 @@ final class PortfolioDigestTests: XCTestCase {
             contentsOf: URL(fileURLWithPath: #filePath)
                 .deletingLastPathComponent()
                 .deletingLastPathComponent()
-                .appendingPathComponent("SnapWorth/Views/NotificationSettingsView.swift"),
+                .appendingPathComponent("SnapWorth/Views/Settings/NotificationSettingsView.swift"),
             encoding: .utf8)) ?? ""
         XCTAssertTrue(view.contains("requestAuthorizationIfNeeded"),
                       "the toggle is the moment to ask")

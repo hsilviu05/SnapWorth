@@ -7,7 +7,7 @@ its log:
 - **App Store Connect** App Analytics: the store and installs.
 - **Vercel Web Analytics**: the site, on every page since #195.
 - **TelemetryDeck**: what people do in the app. Signal names and parameters
-  are `AnalyticsEvent` in `ios/SnapWorth/Services/Analytics.swift`, the only
+  are `AnalyticsEvent` in `ios/SnapWorth/Services/Telemetry/Analytics.swift`, the only
   place they are defined; `TelemetryDeckAnalytics.swift` sends each as
   `TelemetryDeck.signal(name, parameters:)`.
 - **The bot's `/week`**: the server's own counters.
@@ -249,7 +249,7 @@ for e in onboarding_started onboarding_completed scan_started scan_result_shown 
          ledger_item_marked_listed ledger_item_marked_sold \
          review_prompt_requested entitlement_sync_failed legit_check_completed \
          rack_scan_completed rack_candidate_chosen; do
-  grep -q "return \"$e\"" ios/SnapWorth/Services/Analytics.swift || echo "missing: $e"
+  grep -q "return \"$e\"" ios/SnapWorth/Services/Telemetry/Analytics.swift || echo "missing: $e"
 done
 ```
 

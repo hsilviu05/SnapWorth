@@ -63,7 +63,7 @@ FTC Act §5 analysis is equivalent. "Real sold listings" is specific,
 falsifiable, and material.
 
 **Trust.** The in-app legal copy already says estimates are not guarantees of
-actual sale prices (`ios/SnapWorth/Views/LegalView.swift`). Honest legal copy
+actual sale prices (`ios/SnapWorth/Views/Settings/LegalView.swift`). Honest legal copy
 beside overclaiming marketing copy is the worst combination, because it shows
 the discrepancy was known.
 

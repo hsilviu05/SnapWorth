@@ -58,9 +58,9 @@ SnapWorth/
 │   │   ├── Camera/              # AVFoundation camera manager
 │   │   ├── DesignSystem/        # Colors, typography, shared components
 │   │   ├── Models/              # ScanResult (@Model), AppError
-│   │   ├── Services/            # API client, repository, StoreKit 2 purchases
+│   │   ├── Services/            # By area: Network, Purchases, Storage, Telemetry, Listing, Scan, System
 │   │   ├── ViewModels/          # @Observable view models
-│   │   └── Views/               # SwiftUI screens
+│   │   └── Views/               # SwiftUI screens by feature: Scan, Result, Share, Flips, Paywall, Settings
 │   ├── SnapWorthWidgets/        # Widgets, Control Center control, Live Activity
 │   └── SnapWorthTests/
 ├── backend/                     # FastAPI + Gemini vision

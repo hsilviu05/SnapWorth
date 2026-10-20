@@ -39,7 +39,7 @@ OFFER_STARTS = "offer_starts"
 TRIAL_CONVERSIONS = "trial_conversions"
 
 # Every place the app can show a paywall: `PaywallTrigger`'s raw values in
-# ios/SnapWorth/Services/Analytics.swift, copied exactly. `thrift_flip` is not
+# ios/SnapWorth/Services/Telemetry/Analytics.swift, copied exactly. `thrift_flip` is not
 # here: it retired with #128, before any build sent a trigger. The set is
 # closed because each value becomes a counter key; anything else a client
 # sends is ignored, never stored.

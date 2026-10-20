@@ -466,7 +466,7 @@ final class ListingClientTests: XCTestCase {
             contentsOf: URL(fileURLWithPath: #filePath)
                 .deletingLastPathComponent()
                 .deletingLastPathComponent()
-                .appendingPathComponent("SnapWorth/Services/ListingService.swift"),
+                .appendingPathComponent("SnapWorth/Services/Listing/ListingService.swift"),
             encoding: .utf8)
         guard let actorStart = source.range(of: "actor ListingAPIClient") else {
             return XCTFail("could not locate the actor")
