@@ -213,8 +213,17 @@ jobs:
             echo "Created simulator: $UDID"
           fi
 
-          # Booted from the build step, once xcodebuild has started; see there.
           echo "udid=$UDID" >> "$GITHUB_OUTPUT"
+
+      # The boot is its own step, finished before the build starts, because it
+      # cannot overlap anything. A first boot on a fresh runner takes about
+      # four minutes and stalls every xcodebuild on the machine while it runs:
+      # on 2026-10-20 a build started during the boot printed nothing for
+      # 250-260 s, and one whose boot began after its build description sat
+      # four minutes between that line and its first compile. Run alone, the
+      # build is about two and a half minutes. This step's time is the boot.
+      - name: Boot the test iPhone
+        run: xcrun simctl bootstatus "${{ steps.sim.outputs.udid }}" -b
 
       # Build and test are two steps so the job's step list shows each one's
       # time: the same commit has taken 4.5 and 11 minutes to build on
@@ -249,24 +258,7 @@ jobs:
         run: |
           set -o pipefail
           set +e
-          # The test iPhone boots in the background, but only once xcodebuild
-          # has printed its build description. On 2026-10-20, with the boot
-          # started before the build, xcodebuild printed nothing at all for
-          # 250-260 s, with a booting iPhone as its destination and again with
-          # a generic one, and was quick to start when nothing was booting.
-          # The "Booting simulator" line's timestamp shows where the boot
-          # landed. If the build ends first, the boot-wait step boots it.
-          UDID="${{ steps.sim.outputs.udid }}"
-          rm -f /tmp/xcodebuild-build.log
-          (
-            until grep -q "^Build description" /tmp/xcodebuild-build.log 2>/dev/null; do
-              sleep 2
-            done
-            echo "Booting simulator $UDID"
-            xcrun simctl boot "$UDID" 2>/dev/null || true
-          ) &
-          booter=$!
-          # A generic destination, so the build never waits on the simulator.
+          # A generic destination: the build has no use for the device.
           # ARCHS=arm64 because a generic destination otherwise builds every
           # simulator architecture, and this runner is Apple silicon.
           xcodebuild build-for-testing \
@@ -285,14 +277,10 @@ jobs:
             2>&1 | tee /tmp/xcodebuild-build.log | grep --line-buffered -E \
               "^(.*(error|warning): |Command line invocation|Resolve Package Graph|Prepare packages|--- xcodebuild|\*\* (TEST )?BUILD|ComputePackagePrebuildTargetDependencyGraph|ComputeTargetDependencyGraph|Build description|SwiftDriver |SwiftEmitModule |SwiftCompile |Ld |CompileAssetCatalog|ValidateEmbeddedBinary |CodeSign )"
           status=${PIPESTATUS[0]}
-          kill "$booter" 2>/dev/null
           set -e
           echo "=== Build timing ==="
           grep -A40 "Build Timing Summary" /tmp/xcodebuild-build.log || true
           exit "$status"
-
-      - name: Wait for the simulator to finish booting
-        run: xcrun simctl bootstatus "${{ steps.sim.outputs.udid }}" -b
 
       - name: Run unit tests
         run: |
