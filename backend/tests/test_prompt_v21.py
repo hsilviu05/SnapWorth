@@ -172,12 +172,12 @@ class TestOutputSchema:
 # ── Served ───────────────────────────────────────────────────────────────────
 
 def _scan(monkeypatch, payload: dict | None = None, *, pro: bool = True,
-          answer=None):
-    """POST /scan with `SCAN_PROMPT_VERSION=v2.1`; the response and model calls.
+          answer=None, version: str = "v2.1"):
+    """POST /scan with `SCAN_PROMPT_VERSION=version`; the response and model calls.
 
     The model replies with `payload` as JSON, or, given `answer`, with
     whatever that async function returns for each call's contents."""
-    monkeypatch.setattr(main, "SCAN_PROMPT_VERSION", "v2.1")
+    monkeypatch.setattr(main, "SCAN_PROMPT_VERSION", version)
     _rate_store.clear()
     _ip_rate_store.clear()
     reply = MagicMock()

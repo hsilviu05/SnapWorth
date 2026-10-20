@@ -456,16 +456,28 @@ final class ResultViewModel {
         marketplace.openSellPage()
     }
 
-    func copyListing(result: ScanResult) {
-        let text = """
+    /// What "Copy listing draft" puts on the clipboard.
+    ///
+    /// The condition line is the grade the user picked, once they have picked
+    /// one. The scan's notes describe what the photo seemed to show, so a
+    /// seller who corrected "Used" to "New" was still pasting the model's
+    /// scuffs into a public listing.
+    static func listingDraftText(for result: ScanResult) -> String {
+        let condition = result.conditionRaw == nil
+            ? result.conditionNotes
+            : result.condition.listingPhrase
+        return """
         \(result.listingTitle)
 
         \(result.listingDescription)
 
         Asking: \(result.formattedRange)
-        Condition: \(result.conditionNotes)
+        Condition: \(condition)
         """
-        UIPasteboard.general.string = text
+    }
+
+    func copyListing(result: ScanResult) {
+        UIPasteboard.general.string = Self.listingDraftText(for: result)
         Analytics.shared.track(.listingCopied(marketplace: "draft"))
 
         withAnimation { didCopyListing = true }

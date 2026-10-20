@@ -74,6 +74,26 @@ wording, so a comparison between the two measures these and nothing else.
   dollars in every language is deliberate; what was missing is which market
   they describe. Pricing for the user's own region would need the region sent
   with /scan, and it is not.
+
+Design of v2.2
+--------------
+v2.1 plus two rules, from a customer report (2026-10-20): six photos of one
+new pair of sandals came back under several different style names, and graded
+used with scuffs and footprints. Everything else is v2.1's wording.
+
+* **A style name only when it can be read.** "Unreadable means null" covered
+  `model`, while `item_name` asked for the most specific name. A style picked
+  from the shape is a choice between look-alikes, and another photo of the
+  same item makes another choice. `_NAMING_RULE` asks for brand, type,
+  material and colour instead, unless the name is printed in the photo or the
+  design is one a reseller names on sight.
+
+* **Wear only where it can be seen.** Prices were "for a *used* item", the
+  persona buys at thrift stores, and nothing said what an unworn item looks
+  like, so a footbed's moulded toe shape could read as footprints.
+  `_CONDITION_RULE` names the factory features that are not wear and what to
+  grade when none is visible; the price rule says a secondhand sale in the
+  graded condition, still not retail, instead of a used item.
 """
 
 from __future__ import annotations
@@ -314,12 +334,65 @@ Rules for the numeric fields:
 - Arrays must contain 1-5 short entries. Never leave `visual_evidence` empty; if you truly can see nothing useful, say so as its single entry."""
 
 
+# The two rules in "Design of v2.2", one string each so the tests can find
+# them in the prompt by the same text.
+_NAMING_RULE = (
+    "- **Name a style only when you can read it.** Put a style, model or "
+    "product-line name in `item_name` or `model` only when it is printed on "
+    "the item, its label or its box in this photo, or the design is one a "
+    "reseller would name on sight without doubt. Otherwise describe the item "
+    "by brand, type, material and colour (e.g. 'Women's brown leather thong "
+    "sandals' after the brand) and set `model` to null. Choosing between "
+    "look-alike styles from the shape alone is a guess: another photo of the "
+    "same item would get a different name, and the person lists the item "
+    "under the name you give."
+)
+
+_CONDITION_RULE = (
+    "- **Grade only the wear you can see.** Being photographed for resale does "
+    "not make an item used. Call something a scuff, stain, scratch, footprint "
+    "or wear mark only when it is clearly visible, and say where it is. What "
+    "the factory made is not wear: a footbed's moulded toe and heel shape, "
+    "embossed or textured insoles and linings, sole tread, the natural grain "
+    "and colour variation of leather, creases from packaging, glue lines and "
+    "stitching. If you can see no wear, grade `new` when something shows it is "
+    "unworn (tags, a box, soles and footbed with no dirt, marks or "
+    "flattening) and `likeNew` otherwise, never `good` or `used`, and say in "
+    "`condition_notes` that no wear is visible."
+)
+
+
+def _edit_once(text: str, old: str, new: str) -> str:
+    """`text` with `old` replaced by `new`, failing at import unless `old`
+    occurs exactly once: a v2.1 edit that moved the anchor must not leave
+    v2.2 silently without its rule."""
+    if text.count(old) != 1:
+        raise ValueError(f"v2.2 anchor not found exactly once: {old[:60]!r}")
+    return text.replace(old, new)
+
+
+# v2.1 with the two rules added to the honesty block and the price rule's
+# "*used* item" changed. Derived rather than copied, so it cannot drift from
+# v2.1 anywhere else.
+SCAN_PROMPT_V2_2 = _edit_once(
+    _edit_once(
+        SCAN_PROMPT_V2_1,
+        _MULTIPLE_ITEMS_RULE + "\n",
+        _NAMING_RULE + "\n" + _MULTIPLE_ITEMS_RULE + "\n" + _CONDITION_RULE + "\n"),
+    "for a *used* item in the stated condition, reflecting real completed sales "
+    "in the US — not asking prices, not retail,",
+    "for a *secondhand* sale in the condition you graded, reflecting real "
+    "completed sales in the US — not asking prices, not retail (even for a new "
+    "item),")
+
+
 # Prompt registry. Selected at request time so a rollback is an env var, not a
 # code deploy, and so the eval harness can run any two against the same dataset.
 PROMPTS: dict[str, str] = {
     "v1": SCAN_PROMPT_V1,
     "v2": SCAN_PROMPT_V2,
     "v2.1": SCAN_PROMPT_V2_1,
+    "v2.2": SCAN_PROMPT_V2_2,
 }
 
 # Still v2. The owner's condition for changing it, verbatim: "make v2.1 the
@@ -345,6 +418,10 @@ PROMPTS: dict[str, str] = {
 # effect when the service restarts with it (RUNBOOK §6). Unset it, or set v2,
 # to go back. Once v2.1 has served and held, change this line so a deploy
 # without the variable agrees with production.
+#
+# v2.2 (v2.1 plus the naming and condition rules) switches the same way,
+# SCAN_PROMPT_VERSION=v2.2, and is compared against v2.1 rather than v2 so
+# that the run measures the two rules alone.
 DEFAULT_PROMPT_VERSION = "v2"
 
 # Appended when the client sent a close-up of the label as well (#88). Kept
