@@ -22,8 +22,8 @@ Read from the code on 2026-09-27, after Haul (#187), Q (#237), R (#238), S
 | Fact | 1.5.1 | Source |
 |---|---|---|
 | Free tier | **One free scan a day.** A Thrift Flip scan spends it too. The first-day allowance is a server lever and off | `ios/SnapWorth/Config.swift:124`; `backend/billing/quota.py:44`, `:60`; `ThriftFlipViewModel.swift:58` |
-| Marketplaces | **Nine**, in the app's chip order: eBay · Poshmark · Mercari · Depop · Facebook · Vinted · OLX · 闲鱼 (Xianyu) · Kleinanzeigen. Both pickers (Thrift Flip, Snap → Sell) list all nine | `Services/ListingService.swift:11-21`, names `:27-38`; `ThriftFlipView.swift:186`; `ResultView.swift:1449` |
-| The Pro price ladder | Four price points, floor to ceiling: **Floor · Quick sale · Expected · Best case**, Expected in sage. Pro-only, inside *Why this price*; a free result shows that card blurred behind "Unlock why this price" | `Services/ScanAPIClient.swift:363-378`; `ResultView.swift:1080-1099`, `:1813-1836`, `:1323` |
+| Marketplaces | **Nine**, in the app's chip order: eBay · Poshmark · Mercari · Depop · Facebook · Vinted · OLX · 闲鱼 (Xianyu) · Kleinanzeigen. Both pickers (Thrift Flip, Snap → Sell) list all nine | `Services/Listing/ListingService.swift:11-21`, names `:27-38`; `ThriftFlipView.swift:186`; `ResultView.swift:1449` |
+| The Pro price ladder | Four price points, floor to ceiling: **Floor · Quick sale · Expected · Best case**, Expected in sage. Pro-only, inside *Why this price*; a free result shows that card blurred behind "Unlock why this price" | `Services/Network/ScanAPIClient.swift:363-378`; `ResultView.swift:1080-1099`, `:1813-1836`, `:1323` |
 | The number behind the band | The same Pro panel prints the 0–100 score, e.g. **"72 / 100 confidence"**. That is why no frame shows the Pro panel | `ResultView.swift:1843-1848` |
 | Pro prices | **$4.99 a month, $39.99 a year** (US). The paywall prints StoreKit's own price in the storefront's currency, adds a per-week figure ($0.77) and **SAVE 33%** (rounded down) to the yearly card. A trial is shown only when StoreKit says *this* account can take one | `SnapWorth.storekit:32`, `:60`; `PaywallView.swift:97-139`; `StoreKitPurchaseService.swift:198-219`, `:347-355` |
 | Trial length | An App Store Connect setting. The local StoreKit file has 3 days; the listing names no length (#245) and no frame does either | `SnapWorth.storekit:64-69`; `app_store_listing.md`, *Paste with 1.5.1* |
@@ -135,7 +135,7 @@ value history) appears under a free caption.
 ## 2. Visual system
 
 From `DesignSystem.swift` (`SnapLightHex`) and `SnapDarkHex`
-(`Services/WidgetDataStore.swift`). Do not invent colours.
+(`Services/System/WidgetDataStore.swift`). Do not invent colours.
 
 | Token | Light | Dark | Use in screenshots |
 |---|---|---|---|

@@ -382,7 +382,7 @@ class TestLegalEndpoints:
         import pathlib
         import re
         swift = (pathlib.Path(__file__).resolve().parents[2]
-                 / "ios" / "SnapWorth" / "Views" / "LegalView.swift").read_text()
+                 / "ios" / "SnapWorth" / "Views" / "Settings" / "LegalView.swift").read_text()
         match = re.search(r'enum PrivacyPolicy \{\s*static let updated = "([^"]+)"', swift)
         assert match, "PrivacyPolicy.updated moved; update this test"
         assert f"Last updated: {match.group(1)}" in client.get("/privacy").text

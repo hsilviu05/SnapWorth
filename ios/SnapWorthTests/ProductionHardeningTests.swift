@@ -723,7 +723,7 @@ final class PrivacyPolicyDisclosureTests: XCTestCase {
             contentsOf: URL(fileURLWithPath: #filePath)
                 .deletingLastPathComponent()
                 .deletingLastPathComponent()
-                .appendingPathComponent("SnapWorth/Views/LegalView.swift"),
+                .appendingPathComponent("SnapWorth/Views/Settings/LegalView.swift"),
             encoding: .utf8)
         XCTAssertTrue(source.contains("let title: LocalizedStringKey"))
         XCTAssertFalse(source.contains("let title: String"))
@@ -1829,7 +1829,7 @@ final class ScanPersistenceFailureTests: XCTestCase {
             contentsOf: URL(fileURLWithPath: #filePath)
                 .deletingLastPathComponent()
                 .deletingLastPathComponent()
-                .appendingPathComponent("SnapWorth/Services/ScanRepository.swift"),
+                .appendingPathComponent("SnapWorth/Services/Storage/ScanRepository.swift"),
             encoding: .utf8)
         let catches = source.components(separatedBy: "} catch {").dropFirst()
         XCTAssertEqual(catches.count, 4, "save, delete, deleteAll, applyPricingRulesIfNeeded")
@@ -1943,7 +1943,7 @@ final class MonthCountTests: XCTestCase {
             contentsOf: URL(fileURLWithPath: #filePath)
                 .deletingLastPathComponent()
                 .deletingLastPathComponent()
-                .appendingPathComponent("SnapWorth/Services/ScanRepository.swift"),
+                .appendingPathComponent("SnapWorth/Services/Storage/ScanRepository.swift"),
             encoding: .utf8)
         XCTAssertTrue(source.contains("fetchCount"),
                       "month count must use fetchCount, not a full fetch")
@@ -3676,18 +3676,18 @@ final class QuotaResetTests: XCTestCase {
     /// wrote the toggle and never asked would be the silent Settings bug over
     /// again (see `needsAuthorizationRequest`).
     func test_bothWaysInReportTheOptIn() throws {
-        let scan = try source("SnapWorth/Views/ScanView.swift")
+        let scan = try source("SnapWorth/Views/Scan/ScanView.swift")
         XCTAssertTrue(scan.contains("optInToFreeScanReminder(source: .scanSpent"))
         XCTAssertTrue(scan.contains("vm.freeScansRemaining == 0"),
                       "the row is for the spent state")
-        let settings = try source("SnapWorth/Views/NotificationSettingsView.swift")
+        let settings = try source("SnapWorth/Views/Settings/NotificationSettingsView.swift")
         XCTAssertTrue(settings.contains(".reminderOptIn(source: .settings)"))
         let optIn = try body(of: "func optInToFreeScanReminder",
-                             in: source("SnapWorth/Services/NotificationManager.swift"))
+                             in: source("SnapWorth/Services/System/NotificationManager.swift"))
         XCTAssertTrue(optIn.contains("switchOnFreeScanReminder(source: source)"))
         XCTAssertTrue(optIn.contains("requestAuthorizationIfNeeded()"))
         let switchOn = try body(of: "func switchOnFreeScanReminder",
-                                in: source("SnapWorth/Services/NotificationManager.swift"))
+                                in: source("SnapWorth/Services/System/NotificationManager.swift"))
         XCTAssertTrue(switchOn.contains("setEnabled(.freeScan, true)"))
     }
 
@@ -3731,7 +3731,7 @@ final class QuotaResetTests: XCTestCase {
     /// later, and the row named a Sunday over a first reminder due Monday.
     func test_theOptInSchedulesEverythingBeforeTheRowReadsItBack() throws {
         let optIn = try body(of: "func optInToFreeScanReminder",
-                             in: source("SnapWorth/Services/NotificationManager.swift"))
+                             in: source("SnapWorth/Services/System/NotificationManager.swift"))
         let asked = try XCTUnwrap(optIn.range(of: "requestAuthorizationIfNeeded()"))
         let synced = try XCTUnwrap(
             optIn.range(of: "syncEligible(context: context, purchaseService: purchaseService)"),
@@ -3740,7 +3740,7 @@ final class QuotaResetTests: XCTestCase {
         XCTAssertFalse(optIn.contains("syncFreeScanReminder("))
 
         let row = try body(of: "private func remindMe()",
-                           in: source("SnapWorth/Views/ScanView.swift"))
+                           in: source("SnapWorth/Views/Scan/ScanView.swift"))
         let opted = try XCTUnwrap(row.range(of: "optInToFreeScanReminder("))
         let read = try XCTUnwrap(row.range(of: "pendingFreeScanReminder()"))
         XCTAssertLessThan(opted.lowerBound, read.lowerBound)
@@ -6654,7 +6654,7 @@ final class BearerRetryStructureTests: XCTestCase {
     }
 
     func test_submitEntitlementRetriesOnAnExpiredToken() throws {
-        let file = try source("Services/AttestationService.swift")
+        let file = try source("Services/Network/AttestationService.swift")
         let method = try body(
             of: "paywallTrigger: PaywallTrigger? = nil) async throws -> String {",
             in: file)
@@ -6673,7 +6673,7 @@ final class BearerRetryStructureTests: XCTestCase {
         // is obtained — and `post` handles its own 401 on the refresh path.
         // Wrapping them would ask the token service to re-mint a token in order
         // to mint a token.
-        let file = try source("Services/AttestationService.swift")
+        let file = try source("Services/Network/AttestationService.swift")
         for signature in ["private func fetchChallenge() async throws -> String {",
                           "private func post<B: Encodable>(path: String, body: B) async throws -> String {"] {
             let method = try body(of: signature, in: file)
@@ -6689,7 +6689,7 @@ final class BearerRetryStructureTests: XCTestCase {
     func test_aMintThatMovesTheFreeScanCountRewritesTheWidget() throws {
         let mint = try body(
             of: "private func post<B: Encodable>(path: String, body: B) async throws -> String {",
-            in: try source("Services/AttestationService.swift"))
+            in: try source("Services/Network/AttestationService.swift"))
         XCTAssertTrue(mint.contains("post(name: .snapFreeScansChanged"),
                       "the mint changes the count and tells nobody")
         let app = try source("SnapWorthApp.swift")
@@ -6701,10 +6701,10 @@ final class BearerRetryStructureTests: XCTestCase {
         // A sweep rather than a proof: file-level, so it catches a whole file
         // that forgot — which is exactly what happened — but not a second call
         // site added inside a file that already uses the wrapper elsewhere.
-        for path in ["Services/AttestationService.swift",
-                     "Services/ScanAPIClient.swift",
-                     "Services/ListingService.swift",
-                     "Services/ReferralService.swift"] {
+        for path in ["Services/Network/AttestationService.swift",
+                     "Services/Network/ScanAPIClient.swift",
+                     "Services/Listing/ListingService.swift",
+                     "Services/Purchases/ReferralService.swift"] {
             let file = try source(path)
             let attaches = file.contains("requireBearerToken")
                 || file.contains(#"forHTTPHeaderField: "Authorization""#)
@@ -6719,12 +6719,12 @@ final class BearerRetryStructureTests: XCTestCase {
     /// 401 every time: the photo went up, and the user was told to reinstall
     /// whatever the real cause was — offline, a rate limit, an outage.
     func test_aRequestWithoutATokenIsNeverSent() throws {
-        let tokenStore = try source("Services/TokenStore.swift")
+        let tokenStore = try source("Services/Network/TokenStore.swift")
         XCTAssertTrue(tokenStore.contains("mutating func requireBearerToken() async throws {"))
         XCTAssertFalse(tokenStore.contains("continuing unauthenticated"))
-        for path in ["Services/ScanAPIClient.swift",
-                     "Services/ListingService.swift",
-                     "Services/ReferralService.swift"] {
+        for path in ["Services/Network/ScanAPIClient.swift",
+                     "Services/Listing/ListingService.swift",
+                     "Services/Purchases/ReferralService.swift"] {
             let file = try source(path)
             XCTAssertFalse(file.contains("attachBearerToken"), path)
             // Read only by the server's pre-enforcement path, which a request
@@ -7591,7 +7591,7 @@ final class EntitlementSyncMemoryTests: XCTestCase {
         let file = try String(
             contentsOf: URL(fileURLWithPath: #filePath)
                 .deletingLastPathComponent().deletingLastPathComponent()
-                .appendingPathComponent("SnapWorth/Services/StoreKitPurchaseService.swift"),
+                .appendingPathComponent("SnapWorth/Services/Purchases/StoreKitPurchaseService.swift"),
             encoding: .utf8)
         // Cold launch and the foreground refresh.
         XCTAssertEqual(file.components(separatedBy: "refreshSubscriptionStatus(serverSync: .ifStale)").count - 1, 2)
@@ -7651,7 +7651,7 @@ final class EntitlementPaywallTriggerTests: XCTestCase {
         try String(
             contentsOf: URL(fileURLWithPath: #filePath)
                 .deletingLastPathComponent().deletingLastPathComponent()
-                .appendingPathComponent("SnapWorth/Services/StoreKitPurchaseService.swift"),
+                .appendingPathComponent("SnapWorth/Services/Purchases/StoreKitPurchaseService.swift"),
             encoding: .utf8)
     }
 
@@ -7859,7 +7859,7 @@ final class SettingsEntitlementObservationTests: XCTestCase {
         //
         // Source-level because the defect is about view *identity*: nothing
         // in-process can assert that SwiftUI would have re-run a body.
-        let settings = try source("Views/SettingsView.swift")
+        let settings = try source("Views/Settings/SettingsView.swift")
         XCTAssertTrue(settings.contains("let isPro: Bool"),
                       "the entitlement must arrive as a value the view differs on")
 
@@ -8917,7 +8917,7 @@ final class PurchaseTriggerTests: XCTestCase {
     /// the compiler only proves *a* trigger is passed. Every outcome must pass
     /// the one it was given, not a stand-in.
     func test_theStoreKitServiceReportsEveryOutcomeWithTheTriggerItWasGiven() throws {
-        let file = try source("SnapWorth/Services/StoreKitPurchaseService.swift")
+        let file = try source("SnapWorth/Services/Purchases/StoreKitPurchaseService.swift")
         var calls = 0
         for marker in [".purchaseCompleted(", ".purchaseFailed("] {
             var from = file.startIndex
@@ -8931,7 +8931,7 @@ final class PurchaseTriggerTests: XCTestCase {
             }
         }
         XCTAssertEqual(calls, 5, "one completed and four failure reasons")
-        XCTAssertTrue(try source("SnapWorth/Views/PaywallView.swift")
+        XCTAssertTrue(try source("SnapWorth/Views/Paywall/PaywallView.swift")
             .contains("vm.purchase(service: purchaseService, trigger: trigger)"),
                       "the paywall must hand over the trigger it was opened with")
     }
@@ -9047,7 +9047,7 @@ final class HaulAnalyticsTests: XCTestCase {
             contentsOf: URL(fileURLWithPath: #filePath)
                 .deletingLastPathComponent()
                 .deletingLastPathComponent()
-                .appendingPathComponent("SnapWorth/Views/HaulView.swift"),
+                .appendingPathComponent("SnapWorth/Views/Scan/HaulView.swift"),
             encoding: .utf8)
         XCTAssertEqual(source.components(separatedBy: ".haulShared").count - 1, 1)
 
@@ -9484,7 +9484,7 @@ final class StaleRunRefreshTests: XCTestCase {
     }
 
     func test_comingForwardRepublishesALiveRun() throws {
-        let view = try source("Views/ScanView.swift")
+        let view = try source("Views/Scan/ScanView.swift")
         guard let handler = view.range(of: ".onChange(of: scenePhase)") else {
             return XCTFail("the foreground handler moved")
         }
@@ -9510,7 +9510,7 @@ final class StaleRunRefreshTests: XCTestCase {
         // guard was on the launch seed alone, so the foreground refresh — and
         // the debounced sync and `deleteAll` behind it — published zero over
         // a real run. It has to hold in `update`, before the Activity is read.
-        let controller = try source("Services/ThriftRunController.swift")
+        let controller = try source("Services/System/ThriftRunController.swift")
         guard let update = controller.range(of: "static func update(results:") else {
             return XCTFail("the run update moved")
         }
@@ -11014,7 +11014,7 @@ final class ClearHistoryDigestTests: XCTestCase {
         let repo = try String(contentsOf: URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
             .deletingLastPathComponent()
-            .appendingPathComponent("SnapWorth/Services/ScanRepository.swift"), encoding: .utf8)
+            .appendingPathComponent("SnapWorth/Services/Storage/ScanRepository.swift"), encoding: .utf8)
         guard let start = repo.range(of: "func deleteAll(") else {
             return XCTFail("deleteAll moved")
         }

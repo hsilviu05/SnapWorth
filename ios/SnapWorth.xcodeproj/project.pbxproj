@@ -357,32 +357,88 @@
 			path = Models;
 			sourceTree = "<group>";
 		};
-		AA00000000000000000000BA /* Services */ = {
+		5EC7000000000000000007D0 /* Network */ = {
+			isa = PBXGroup;
+			children = (
+				AA00000000000000000000CE /* ScanAPIClient.swift */,
+				FEED0000000000000000C10 /* AttestationService.swift */,
+				FEED0000000000000000C30 /* CertificatePinning.swift */,
+				FEED0000000000000000C20 /* TokenStore.swift */,
+			);
+			path = Network;
+			sourceTree = "<group>";
+		};
+		5EC7000000000000000007D1 /* Purchases */ = {
 			isa = PBXGroup;
 			children = (
 				AA00000000000000000000C8 /* PurchaseService.swift */,
-				AA00000000000000000000CA /* MockPurchaseService.swift */,
 				AA00000000000000000000CC /* StoreKitPurchaseService.swift */,
-				AA00000000000000000000CE /* ScanAPIClient.swift */,
+				AA00000000000000000000CA /* MockPurchaseService.swift */,
+				FEED000000000000000097A1 /* ReferralService.swift */,
+			);
+			path = Purchases;
+			sourceTree = "<group>";
+		};
+		5EC7000000000000000007D2 /* Storage */ = {
+			isa = PBXGroup;
+			children = (
 				AA0000000000000000000112 /* ScanRepository.swift */,
+				BB0000000000000000000E02 /* StoreProtection.swift */,
+				BB0000000000000000000C02 /* AppLaunchState.swift */,
+			);
+			path = Storage;
+			sourceTree = "<group>";
+		};
+		5EC7000000000000000007D3 /* Telemetry */ = {
+			isa = PBXGroup;
+			children = (
+				ADD1EC0000000000000000B1 /* Analytics.swift */,
+				ADD1EC0000000000000000B3 /* TelemetryDeckAnalytics.swift */,
+				BB0000000000000000000D02 /* CrashReporter.swift */,
+			);
+			path = Telemetry;
+			sourceTree = "<group>";
+		};
+		5EC7000000000000000007D4 /* Listing */ = {
+			isa = PBXGroup;
+			children = (
+				FEED000000000000000000A1 /* ListingService.swift */,
+				FEED000000000000000091A1 /* ListingPhotoCleanup.swift */,
+				FEED00000000000000224AA1 /* SaleSharing.swift */,
+			);
+			path = Listing;
+			sourceTree = "<group>";
+		};
+		5EC7000000000000000007D5 /* Scan */ = {
+			isa = PBXGroup;
+			children = (
 				FEED000000000000000000A2 /* PriceTagOCR.swift */,
 				EA57E0000000000000000A01 /* RareFind.swift */,
-				FEED000000000000000097A1 /* ReferralService.swift */,
-				FEED00000000000000224AA1 /* SaleSharing.swift */,
-				FEED000000000000000091A1 /* ListingPhotoCleanup.swift */,
-				FEED000000000000000000A1 /* ListingService.swift */,
-				FEED0000000000000000C30 /* CertificatePinning.swift */,
-				FEED0000000000000000C20 /* TokenStore.swift */,
-				FEED0000000000000000C10 /* AttestationService.swift */,
+			);
+			path = Scan;
+			sourceTree = "<group>";
+		};
+		5EC7000000000000000007D6 /* System */ = {
+			isa = PBXGroup;
+			children = (
+				ADD1EC0000000000000000F3 /* NotificationManager.swift */,
 				BB0000000000000000000009 /* WidgetDataStore.swift */,
 				C0FFEE000000000000000002 /* ThriftRunController.swift */,
-				ADD1EC0000000000000000B1 /* Analytics.swift */,
-				BB0000000000000000000C02 /* AppLaunchState.swift */,
-				BB0000000000000000000D02 /* CrashReporter.swift */,
-				BB0000000000000000000E02 /* StoreProtection.swift */,
-				ADD1EC0000000000000000B3 /* TelemetryDeckAnalytics.swift */,
 				ADD1EC0000000000000000F1 /* ReviewPrompt.swift */,
-				ADD1EC0000000000000000F3 /* NotificationManager.swift */,
+			);
+			path = System;
+			sourceTree = "<group>";
+		};
+		AA00000000000000000000BA /* Services */ = {
+			isa = PBXGroup;
+			children = (
+				5EC7000000000000000007D0 /* Network */,
+				5EC7000000000000000007D1 /* Purchases */,
+				5EC7000000000000000007D2 /* Storage */,
+				5EC7000000000000000007D3 /* Telemetry */,
+				5EC7000000000000000007D4 /* Listing */,
+				5EC7000000000000000007D5 /* Scan */,
+				5EC7000000000000000007D6 /* System */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -411,35 +467,83 @@
 			path = ViewModels;
 			sourceTree = "<group>";
 		};
-		AA00000000000000000000BD /* Views */ = {
+		5EC7000000000000000003E8 /* Scan */ = {
 			isa = PBXGroup;
 			children = (
-				AA00000000000000000000DE /* OnboardingView.swift */,
-				AA00000000000000000000E0 /* PaywallView.swift */,
-				AA00000000000000000000E2 /* MainTabView.swift */,
 				AA00000000000000000000E4 /* ScanView.swift */,
-				AA00000000000000000000E6 /* ResultView.swift */,
-				AA0000000000000000229A0E /* RereadCards.swift */,
-				AA0000000000000000229A0C /* ResultValueSection.swift */,
-				AA0000000000000000229A0A /* FlipLedgerSection.swift */,
-				AA0000000000000000229A08 /* SnapSellSection.swift */,
 				AA0000000000000000229A06 /* TagCameraSheet.swift */,
 				89A0C0DE0000000000000004 /* RackScanView.swift */,
 				90A0C0DE0000000000000004 /* LegitCheckView.swift */,
+				FEED000000000000000093A2 /* HaulView.swift */,
+				FEED000000000000000000A5 /* ThriftFlipView.swift */,
+				EA57E0000000000000000A02 /* RareFindViews.swift */,
+			);
+			path = Scan;
+			sourceTree = "<group>";
+		};
+		5EC7000000000000000003E9 /* Result */ = {
+			isa = PBXGroup;
+			children = (
+				AA00000000000000000000E6 /* ResultView.swift */,
+				AA0000000000000000229A0C /* ResultValueSection.swift */,
 				AA0000000000000000229A04 /* ValuationDetailView.swift */,
 				AA0000000000000000229A02 /* FullDetailOffer.swift */,
-				AA00000000000000000000E8 /* HistoryView.swift */,
-				AA00000000000000000000EA /* SettingsView.swift */,
-				ADD1EC0000000000000000F5 /* NotificationSettingsView.swift */,
-				AA00000000000000000000F6 /* LegalView.swift */,
-				AA00000000000000000000FB /* FeedbackView.swift */,
+				AA0000000000000000229A0E /* RereadCards.swift */,
+				AA0000000000000000229A08 /* SnapSellSection.swift */,
+				AA0000000000000000229A0A /* FlipLedgerSection.swift */,
+			);
+			path = Result;
+			sourceTree = "<group>";
+		};
+		5EC7000000000000000003EA /* Share */ = {
+			isa = PBXGroup;
+			children = (
 				AA0000000000000000000113 /* ShareCardView.swift */,
 				ADD1EC0000000000000000B5 /* ActivityShareSheet.swift */,
+			);
+			path = Share;
+			sourceTree = "<group>";
+		};
+		5EC7000000000000000003EB /* Flips */ = {
+			isa = PBXGroup;
+			children = (
+				AA00000000000000000000E8 /* HistoryView.swift */,
 				ADD1EC0000000000000000B9 /* FlipsView.swift */,
-				FEED000000000000000000A5 /* ThriftFlipView.swift */,
+			);
+			path = Flips;
+			sourceTree = "<group>";
+		};
+		5EC7000000000000000003EC /* Paywall */ = {
+			isa = PBXGroup;
+			children = (
+				AA00000000000000000000E0 /* PaywallView.swift */,
 				FEED000000000000000097A2 /* ReferralViews.swift */,
-				EA57E0000000000000000A02 /* RareFindViews.swift */,
-				FEED000000000000000093A2 /* HaulView.swift */,
+			);
+			path = Paywall;
+			sourceTree = "<group>";
+		};
+		5EC7000000000000000003ED /* Settings */ = {
+			isa = PBXGroup;
+			children = (
+				AA00000000000000000000EA /* SettingsView.swift */,
+				ADD1EC0000000000000000F5 /* NotificationSettingsView.swift */,
+				AA00000000000000000000FB /* FeedbackView.swift */,
+				AA00000000000000000000F6 /* LegalView.swift */,
+			);
+			path = Settings;
+			sourceTree = "<group>";
+		};
+		AA00000000000000000000BD /* Views */ = {
+			isa = PBXGroup;
+			children = (
+				5EC7000000000000000003E8 /* Scan */,
+				5EC7000000000000000003E9 /* Result */,
+				5EC7000000000000000003EA /* Share */,
+				5EC7000000000000000003EB /* Flips */,
+				5EC7000000000000000003EC /* Paywall */,
+				5EC7000000000000000003ED /* Settings */,
+				AA00000000000000000000DE /* OnboardingView.swift */,
+				AA00000000000000000000E2 /* MainTabView.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";

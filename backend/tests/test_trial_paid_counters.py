@@ -41,7 +41,7 @@ from tests.test_notify import FAKE_CHAT, FAKE_TOKEN, FakeNotification, Recorder 
 SUBJECT = "b" * 64
 ANALYTICS_SWIFT = os.path.join(
     os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
-    "ios", "SnapWorth", "Services", "Analytics.swift")
+    "ios", "SnapWorth", "Services", "Telemetry", "Analytics.swift")
 
 
 def trial(otid: str = "otid-trial") -> Entitlement:
