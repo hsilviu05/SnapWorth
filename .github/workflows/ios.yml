@@ -243,7 +243,9 @@ jobs:
       #       minutes gathering simulator diagnostics before it exits
       #       ("Timed out after 600.0 seconds"); the failures themselves are
       #       in the log either way.
-      # -showBuildTimingSummary prints where the build's time goes.
+      # -showBuildTimingSummary prints where the build's time goes, and
+      # `--line-buffered` makes the log's own timestamps say when each phase
+      # ran: without it grep held the lines back and they arrived together.
       - name: Build for testing
         run: |
           set -o pipefail
@@ -260,8 +262,8 @@ jobs:
             ONLY_ACTIVE_ARCH=YES \
             COMPILER_INDEX_STORE_ENABLE=NO \
             SWIFT_EMIT_LOC_STRINGS=NO \
-            2>&1 | tee /tmp/xcodebuild-build.log | grep -E \
-              "^(.*(error|warning): |\*\* (TEST )?BUILD)"
+            2>&1 | tee /tmp/xcodebuild-build.log | grep --line-buffered -E \
+              "^(.*(error|warning): |\*\* (TEST )?BUILD|ComputePackagePrebuildTargetDependencyGraph|ComputeTargetDependencyGraph|Build description|SwiftDriver |SwiftEmitModule |SwiftCompile |Ld |CompileAssetCatalog|ValidateEmbeddedBinary |CodeSign )"
           status=${PIPESTATUS[0]}
           set -e
           echo "=== Build timing ==="
@@ -279,7 +281,7 @@ jobs:
             -clonedSourcePackagesDirPath ~/spm-cache \
             -enableCodeCoverage NO \
             -collect-test-diagnostics never \
-            2>&1 | tee /tmp/xcodebuild.log | grep -E \
+            2>&1 | tee /tmp/xcodebuild.log | grep --line-buffered -E \
               "^(Test Suite|Test Case|.*(error|warning): |\*\* TEST|Executed )"
           status=${PIPESTATUS[0]}
           set -e
