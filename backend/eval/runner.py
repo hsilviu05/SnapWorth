@@ -705,6 +705,7 @@ async def _predict_one(model, item: EvalItem, prompt_text: str, version: str, ro
         model_field_count=valuation_module.count_present_fields(val),
         expected_field_count=len(valuation_module.EXPECTED_OPTIONAL_FIELDS),
         range_synthesised=val.prices.single_price,
+        unread_specifics=val.unread_specifics,
     )
 
     prediction.predicted_expected = val.prices.expected

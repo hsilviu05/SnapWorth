@@ -28,6 +28,7 @@ from __future__ import annotations
 import dataclasses
 import logging
 import math
+import re
 from dataclasses import dataclass, field
 
 import categories
@@ -140,6 +141,9 @@ class Valuation:
     listing_description: str = ""
     was_clamped: bool = False
     confidence: ConfidenceResult | None = None
+    #: A size or a style number the model gave without reading it in the
+    #: photo — see `hold_to_evidence`. Lowers confidence (`confidence.compute`).
+    unread_specifics: bool = False
 
 
 def safe_float(value: object) -> float:
@@ -277,7 +281,7 @@ def normalise(data: dict, *, image_quality: ImageQuality | None = None) -> Valua
         legacy_high=data.get("est_value_high_usd", 0),
     )
 
-    return Valuation(
+    return hold_to_evidence(_footwear_as_shoes(Valuation(
         item_name=promptsafety.sanitize_text(
             data.get("item_name", "Unknown Item"),
             promptsafety.MAX_ITEM_NAME, "item_name") or "Unknown Item",
@@ -314,7 +318,129 @@ def normalise(data: dict, *, image_quality: ImageQuality | None = None) -> Valua
             data.get("listing_title", ""), promptsafety.MAX_ITEM_NAME, "listing_title"),
         listing_description=promptsafety.sanitize_text(
             data.get("listing_description", ""), promptsafety.MAX_NOTES, "listing_description"),
-    )
+    )))
+
+
+#: The last word of a name that makes it footwear, whatever else it says.
+_FOOTWEAR = frozenset({
+    "boot", "boots", "bootie", "booties", "sandal", "sandals", "shoe", "shoes",
+    "sneaker", "sneakers", "trainers", "heels", "mule", "mules", "slides",
+    "loafer", "loafers", "pumps", "clog", "clogs", "slipper", "slippers",
+    "flats", "oxfords", "espadrilles", "wedges", "moccasins", "stilettos",
+    "flops",
+})
+
+
+def _footwear_as_shoes(val: Valuation) -> Valuation:
+    """`shoes` for footwear the model filed under `clothing`.
+
+    Seen on 2026-10-20: two scans of one pair of open-toe boots in a run of
+    fifteen came back "clothing", the rest "shoes". Only this one move, and
+    only on the name's head noun — the last word before any comma or
+    bracket — so "Boot Cut Jeans" and "Wool Boot Socks" stay clothing.
+    Not the synonym table `categories.normalise` declines: the model's answer
+    is already on the list, and this corrects one confusion between two
+    entries of it.
+    """
+    if val.category != "clothing":
+        return val
+    head = re.split(r"[,(;]", val.item_name, maxsplit=1)[0]
+    words = _words(head)
+    if words and words[-1] in _FOOTWEAR:
+        val.category = "shoes"
+    return val
+
+
+# ── Specifics the photo has to show ──────────────────────────────────────────
+#
+# Every prompt since v2 says an unreadable size or model number is null, and
+# that each identification claim traces to `visual_evidence`. Nothing held
+# the model to it. Ten scans of one pair of sandals (2026-10-20) came back as
+# sizes 7.5 and 8, and a pair of boots as 9 and 6, with style numbers like
+# "EMI-7857" and "S-0279" that no photo showed, all under a High badge. A
+# reseller pastes those into a listing.
+#
+# A size and a style number are only ever read, never recognised from the
+# design, so they are the two specifics checked here: each must appear in the
+# evidence the model cited. A named style ("Better Sweater") can be known on
+# sight and is left to the prompt.
+
+_WORD = re.compile(r"[a-z0-9]+(?:\.[0-9]+)?")
+
+#: Words around a size that are not the size: "Size US 7.5", "Women's 8".
+_SIZE_QUALIFIERS = frozenset({
+    "size", "sz", "us", "usa", "uk", "eu", "it", "fr", "jp", "au", "women",
+    "womens", "men", "mens", "s", "wmns", "kids", "youth", "label", "tag",
+})
+
+#: A style or product number: letters and digits joined by a hyphen, with at
+#: least three digits in all — "EMI-7857", "S-0279", "DD1391-100".
+_STYLE_CODE = re.compile(r"\b[A-Za-z0-9]+(?:-[A-Za-z0-9]+)+\b")
+
+#: ", Size 8", " (Size US 7.5)", " size: M" — one size mention in a name.
+_SIZE_MENTION = re.compile(
+    r"[,;]?\s*\(?\bsize\b[\s:]*(?:(?:us|usa|uk|eu|women'?s|men'?s)\b\.?\s*)*"
+    r"[a-z0-9][a-z0-9./]*\)?", re.IGNORECASE)
+
+
+def _words(text: str) -> list[str]:
+    return _WORD.findall(text.lower())
+
+
+def _is_style_code(token: str) -> bool:
+    return sum(c.isdigit() for c in token) >= 3 and any(c.isalpha() for c in token)
+
+
+def _tidy(text: str) -> str:
+    """Collapse what a removal leaves: doubled spaces, a dangling comma."""
+    text = re.sub(r"\s{2,}", " ", text)
+    text = re.sub(r"\s+([,;)])", r"\1", text)
+    return text.strip(" ,;-")
+
+
+def hold_to_evidence(val: Valuation) -> Valuation:
+    """Drop a size and any style number the cited evidence does not show.
+
+    The size goes from `size`, and its "Size …" mention from `item_name` and
+    `listing_title`; a style number goes from those two and from `model`.
+    `unread_specifics` records that either happened. A reply with no
+    `visual_evidence` at all (v1 asks for none) is left as it is: there is
+    nothing to check it against.
+    """
+    if not val.visual_evidence:
+        return val
+    seen = set(_words(" ".join(val.visual_evidence)))
+    unread = False
+
+    if val.size:
+        wanted = [w for w in _words(val.size) if w not in _SIZE_QUALIFIERS]
+        if wanted and not all(w in seen for w in wanted):
+            unread = True
+            val.size = None
+
+            def _drop_size(text: str) -> str:
+                def keep_unless_this_size(m: re.Match[str]) -> str:
+                    said = [w for w in _words(m.group(0)) if w not in _SIZE_QUALIFIERS]
+                    return "" if said == wanted else m.group(0)
+                return _tidy(_SIZE_MENTION.sub(keep_unless_this_size, text))
+
+            val.item_name = _drop_size(val.item_name) or val.item_name
+            val.listing_title = _drop_size(val.listing_title)
+
+    codes = {m.group(0) for text in (val.item_name, val.model or "", val.listing_title)
+             for m in _STYLE_CODE.finditer(text) if _is_style_code(m.group(0))}
+    for code in codes:
+        if all(w in seen for w in _words(code)):
+            continue
+        unread = True
+        pattern = re.compile(r"\b" + re.escape(code) + r"\b", re.IGNORECASE)
+        val.item_name = _tidy(pattern.sub("", val.item_name)) or val.item_name
+        val.listing_title = _tidy(pattern.sub("", val.listing_title))
+        if val.model:
+            val.model = _tidy(pattern.sub("", val.model)) or None
+
+    val.unread_specifics = unread
+    return val
 
 
 #: The price keys the v2 (and v2.1) and v1 prompts ask for, respectively.

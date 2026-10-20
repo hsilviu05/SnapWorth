@@ -112,6 +112,10 @@ _AUTHENTICITY_SCORE = {
 REPLICA_CEILING = 30
 UNCERTAIN_ID_CEILING = HIGH_THRESHOLD - 1
 
+#: The identification signal when the model named a size or style number it
+#: did not show it read (`compute`'s `unread_specifics`).
+UNREAD_CERTAINTY = 0.4
+
 # A likely replica's own explanation, and the one every other doubtful
 # authenticity read gets. The first is the verdict, which is Pro detail
 # (`main._PRO_ONLY_DETAIL_FIELDS`); `confidence_summary` is not — it keeps the
@@ -232,6 +236,7 @@ def compute(
     model_field_count: int = 0,
     expected_field_count: int = 0,
     range_synthesised: bool = False,
+    unread_specifics: bool = False,
 ) -> ConfidenceResult:
     """Compute confidence from observable signals.
 
@@ -240,6 +245,12 @@ def compute(
 
     `range_synthesised` means the model gave one price and the server opened
     it into `value_low`–`value_high` (`valuation.PricePoints.single_price`).
+
+    `unread_specifics` means the model gave a size or a style number its own
+    evidence did not show (`valuation.hold_to_evidence`). The server dropped
+    them, but a model that claims more than it read has identified the item
+    less surely than it says: the identification reads as "the exact model
+    could not be pinned down", and the score stays below High.
     """
     signals: list[ConfidenceSignal] = []
 
@@ -289,6 +300,10 @@ def compute(
     # whether it recognised something — it just must not dominate.
     certainty_key = (identification_certainty or "").strip().lower()
     certainty = _CERTAINTY_SCORE.get(certainty_key)
+    if unread_specifics:
+        # Below "probable"'s 0.6, so the reason is among those shown
+        # (`value < 0.6`), and the user sees why the badge is not High.
+        certainty = min(certainty if certainty is not None else 1.0, UNREAD_CERTAINTY)
     if certainty is not None:
         # "uncertain" is about what the item is, not which model it is, and it
         # now caps the score (UNCERTAIN_ID_CEILING) — so it names that.
@@ -392,7 +407,7 @@ def compute(
     # See REPLICA_CEILING. No extra signal is appended: the authenticity or
     # identification signal above already carries the explanation, and at 0.10
     # and 0.15 it is among the weakest, so it is what the summary names.
-    if certainty_key == "uncertain":
+    if certainty_key == "uncertain" or unread_specifics:
         score = min(score, UNCERTAIN_ID_CEILING)
     if auth_key == "likely_replica":
         score = min(score, REPLICA_CEILING)
