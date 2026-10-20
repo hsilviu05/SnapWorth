@@ -64,8 +64,8 @@ import os
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
-import categories
-from imagequality import ImageQuality
+from scan import categories
+from scan.imagequality import ImageQuality
 
 if TYPE_CHECKING:
     from eval.calibration import CalibrationModel

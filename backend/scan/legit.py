@@ -25,8 +25,8 @@ from __future__ import annotations
 
 import re
 
-import promptsafety
-import prompts
+from scan import promptsafety
+from scan import prompts
 
 #: The four verdicts, in order from best read to worst, then the honest
 #: "could not judge". The app has a case and a translation for each, and

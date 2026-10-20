@@ -18,9 +18,9 @@ from datetime import datetime, timedelta, timezone
 from typing import TYPE_CHECKING
 
 from security import auditlog
-import categories
+from scan import categories
 import opsstats
-from confidence import brand_is_known
+from scan.confidence import brand_is_known
 
 if TYPE_CHECKING:
     from core.cache import ResilientCache

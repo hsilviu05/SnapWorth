@@ -32,26 +32,26 @@ from starlette.datastructures import Headers, MutableHeaders
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
-import aiconfig
+from scan import aiconfig
 from core import apierrors
 from security import auditlog
 from security import auth
 from core import cache as cache_module
-import confidence as confidence_module
+from scan import confidence as confidence_module
 from security import devicecheck
 from billing import entitlements
-import imagequality
-import imagevalidation
-import legit as legit_module
+from scan import imagequality
+from scan import imagevalidation
+from scan import legit as legit_module
 import levers
-import listingclaims
+from scan import listingclaims
 import metrics
 import notify
 import opsspend
 import opsstats
-import promptsafety
-import prompts
-import rack as rack_module
+from scan import promptsafety
+from scan import prompts
+from scan import rack as rack_module
 from security import ratelimit
 from billing import appstorenotify
 from billing import referral
@@ -59,8 +59,8 @@ import outcomes
 import social
 from security import tokens
 import trends as trends_module
-import typesafe
-import valuation as valuation_module
+from scan import typesafe
+from scan import valuation as valuation_module
 from core.apierrors import APIError
 from security.auditlog import AuditEvent
 from comps.engine import build_engine as build_comps_engine

@@ -1329,7 +1329,7 @@ class TestSpend:
     async def test_costs_shows_thinking_per_scan_call_and_the_budget(
             self, enabled_notify, cache, monkeypatch):
         """#217: the number a thinking budget moves, apart from the answer."""
-        import aiconfig
+        from scan import aiconfig
         monkeypatch.setattr(aiconfig, "THINKING_BUDGET", None)
         opsspend.model_usage("scan", {"prompt_tokens": 1_000, "output_tokens": 800,
                                     "thoughts_tokens": 1_500})

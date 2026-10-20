@@ -9,11 +9,11 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from fastapi.testclient import TestClient
 
-import aiconfig
+from scan import aiconfig
 from core import apierrors
-import legit
+from scan import legit
 import main
-import prompts
+from scan import prompts
 from tests.images import padded_image_bytes
 from tests.test_main import _pro_headers
 

@@ -48,7 +48,7 @@ Every locale follows these; the translated files point here.
   Nor a number: the caps are server configuration, and a figure here would
   outlive a change to them.
 * **Confidence as "how clearly the AI identified the item".** That was v1,
-  the model rating itself. The score since v2 (`backend/confidence.py`) weighs
+  the model rating itself. The score since v2 (`backend/scan/confidence.py`) weighs
   whether the brand was read, how tight the range is, how clear the photo is,
   the category, and — at low weight — the model's own certainty. Describe it
   as how strongly the photo and the identification back the estimate.

@@ -31,10 +31,10 @@ import math
 import re
 from dataclasses import dataclass, field
 
-import categories
-import promptsafety
-from confidence import ConfidenceResult
-from imagequality import ImageQuality
+from scan import categories
+from scan import promptsafety
+from scan.confidence import ConfidenceResult
+from scan.imagequality import ImageQuality
 
 log = logging.getLogger("snapworth.valuation")
 

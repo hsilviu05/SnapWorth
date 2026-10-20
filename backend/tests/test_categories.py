@@ -13,13 +13,13 @@ import re
 
 import pytest
 
-import categories
-import confidence
+from scan import categories
+from scan import confidence
 import main
 import notify
-import prompts
-import promptsafety
-import valuation
+from scan import prompts
+from scan import promptsafety
+from scan import valuation
 from tests.test_ai_pipeline import V2_PAYLOAD, _scan_with
 
 

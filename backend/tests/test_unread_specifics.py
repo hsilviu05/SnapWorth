@@ -11,8 +11,8 @@ from typing import Any
 
 import pytest
 
-import confidence
-import valuation
+from scan import confidence
+from scan import valuation
 from tests.test_ai_pipeline import V2_PAYLOAD
 from tests.test_prompt_v21 import _scan
 

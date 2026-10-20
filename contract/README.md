@@ -42,7 +42,7 @@ plain-text `Internal Server Error` 500 and no body code, and a client must
 treat it as unknown.
 
 `/scan` bodies also carry `confidence_reason_codes`: one token per entry of
-`confidence_reasons`, same order (`backend/confidence.py`). Pro detail, like
+`confidence_reasons`, same order (`backend/scan/confidence.py`). Pro detail, like
 the reasons: blanked to `[]` on a free scan.
 
 The two lists are not responses. They are what a client checks its own

@@ -67,8 +67,8 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from security import auditlog
-import categories
-import prompts
+from scan import categories
+from scan import prompts
 from security import ratelimit
 from security.auth import Principal, deps, require_auth
 from core.cache import CacheUnavailable

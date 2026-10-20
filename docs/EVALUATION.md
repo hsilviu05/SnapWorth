@@ -340,7 +340,7 @@ prices, never that it makes them better or worse — that needs the gold set.
 
 The same run is the check before a prompt version becomes the default. v2.1
 has not had one on real photos; the comment on `DEFAULT_PROMPT_VERSION` in
-`backend/prompts.py` quotes the condition for the switch and the two ways it
+`backend/scan/prompts.py` quotes the condition for the switch and the two ways it
 reads:
 
 ```bash
@@ -371,7 +371,7 @@ one, and percentage-ranked reports bury the second behind the first.
 
 ## Phase 5 — calibration
 
-`backend/confidence.py` currently uses hand-chosen weights; its own docstring
+`backend/scan/confidence.py` currently uses hand-chosen weights; its own docstring
 says they are "a considered prior, not a fitted model". This is how they stop
 being assumed.
 

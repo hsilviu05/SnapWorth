@@ -7,7 +7,7 @@ import Foundation
 //
 // One photo of a rail, shelf or bin; at most three items worth picking up,
 // each pinned on the photo. The server decides what may be pinned
-// (`backend/rack.py`); this file is the wire shape and the little geometry
+// (`backend/scan/rack.py`); this file is the wire shape and the little geometry
 // the pins need.
 
 /// `/rack`'s 200 body (`contract/rack-response.json`).

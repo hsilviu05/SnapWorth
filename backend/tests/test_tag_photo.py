@@ -12,7 +12,7 @@ from fastapi.testclient import TestClient
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-import prompts  # noqa: E402
+from scan import prompts  # noqa: E402
 from main import app  # noqa: E402
 from tests.test_main import MOCK_RESPONSE_JSON, padded_image_bytes  # noqa: E402
 

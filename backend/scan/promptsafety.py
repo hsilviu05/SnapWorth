@@ -24,7 +24,7 @@ import logging
 import re
 import unicodedata
 
-import categories
+from scan import categories
 
 log = logging.getLogger("snapworth.promptsafety")
 

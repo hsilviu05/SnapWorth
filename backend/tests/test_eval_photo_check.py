@@ -17,7 +17,7 @@ import pytest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-import typesafe  # noqa: E402
+from scan import typesafe  # noqa: E402
 from eval import identity, photo_check, schema  # noqa: E402
 from eval.photo_check import ONE_ITEM, SHOWS_LABEL  # noqa: E402
 

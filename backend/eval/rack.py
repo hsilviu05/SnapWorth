@@ -28,8 +28,8 @@ import time
 from dataclasses import dataclass
 from pathlib import Path
 
-import prompts
-import rack
+from scan import prompts
+from scan import rack
 
 #: The issue's bar.
 MIN_PHOTOS = 20
@@ -95,7 +95,7 @@ def _draw(photo: Path, candidates: list[dict], out: Path) -> None:
 
 
 async def _run(photos: list[Path], out: Path) -> list[dict]:
-    import aiconfig
+    from scan import aiconfig
     from main import _extract_json
 
     model = aiconfig.build_model()

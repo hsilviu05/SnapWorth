@@ -42,11 +42,11 @@ from typing import Any
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-import promptsafety  # noqa: E402
+from scan import promptsafety  # noqa: E402
 from eval import identity, schema  # noqa: E402
 from eval.intake import DEFAULT_GOLD, JPEG_MAGIC  # noqa: E402
-import typesafe  # noqa: E402
-from typesafe import API_KEY_ENV, noul  # noqa: E402
+from scan import typesafe  # noqa: E402
+from scan.typesafe import API_KEY_ENV, noul  # noqa: E402
 
 log = logging.getLogger("snapworth.eval.photo_check")
 

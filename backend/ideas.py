@@ -23,7 +23,7 @@ import html
 import json
 import re
 
-import promptsafety
+from scan import promptsafety
 
 # Three ideas at ~120 words each with JSON scaffolding; thinking tokens draw
 # from the same allowance, so this leaves room.

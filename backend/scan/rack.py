@@ -20,8 +20,8 @@ from __future__ import annotations
 
 import math
 
-import categories
-import promptsafety
+from scan import categories
+from scan import promptsafety
 
 MAX_CANDIDATES = 3
 

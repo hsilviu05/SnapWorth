@@ -745,8 +745,8 @@ class TestListingEndpoint:
         """#353: the claim check runs on the endpoint's own draft, after the
         validator, and its swap is what the client receives."""
         import httpx
-        import listingclaims
-        import typesafe
+        from scan import listingclaims
+        from scan import typesafe
 
         monkeypatch.setenv(listingclaims.FLAG_ENV, "true")
         monkeypatch.setenv("TYPESAFE_API_KEY", "test-key")
@@ -950,7 +950,7 @@ class TestProbeDoesNotTouchModelHealth:
         import asyncio
         from unittest.mock import AsyncMock, patch
 
-        import aiconfig
+        from scan import aiconfig
         import main
         health = main._ModelHealth()
         with patch.object(main, "_model_health", health), patch("main._model") as model:

@@ -28,10 +28,10 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-import aiconfig
+from scan import aiconfig
 import main
-import prompts
-import valuation
+from scan import prompts
+from scan import valuation
 from eval import runner
 from main import _ip_rate_store, _rate_store
 from tests.images import VALID_JPEG, padded_image_bytes

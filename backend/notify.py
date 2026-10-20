@@ -83,7 +83,7 @@ from typing import TYPE_CHECKING
 
 from security import auditlog
 from core import background
-import categories
+from scan import categories
 import chatlog
 import checkup
 import ideas

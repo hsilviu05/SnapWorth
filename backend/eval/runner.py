@@ -63,10 +63,10 @@ from pathlib import Path
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-import confidence as confidence_module  # noqa: E402
-import imagequality  # noqa: E402
-import prompts  # noqa: E402
-import valuation as valuation_module  # noqa: E402
+from scan import confidence as confidence_module  # noqa: E402
+from scan import imagequality  # noqa: E402
+from scan import prompts  # noqa: E402
+from scan import valuation as valuation_module  # noqa: E402
 from eval import dataset as dataset_module  # noqa: E402
 from eval import fx  # noqa: E402
 from eval import identity as identity_module  # noqa: E402
@@ -495,7 +495,7 @@ def load_config(path: Path) -> dict:
 def arm_config(version: str, budget: int | None) -> dict:
     """What an arm ran under, recorded with it so two runs made under
     different settings are never compared as if they were alike."""
-    import aiconfig
+    from scan import aiconfig
     return {"prompt_version": version, "thinking_budget": budget,
             "model": aiconfig.MODEL_NAME}
 
@@ -636,7 +636,7 @@ def evaluate_consistency(runs: dict[str, list[float]]) -> dict:
 async def _predict_one(model, item: EvalItem, prompt_text: str, version: str, root: Path,
                        generation_config=None) -> Prediction:
     """Run one item through the real pipeline."""
-    import aiconfig
+    from scan import aiconfig
 
     prediction = Prediction(
         item_id=item.id, category=item.category,
@@ -722,7 +722,7 @@ async def _predict_one(model, item: EvalItem, prompt_text: str, version: str, ro
 
 async def run_live(items: list[EvalItem], version: str, root: Path, concurrency: int = 4,
                    thinking_budget: int | None = None) -> list[Prediction]:
-    import aiconfig
+    from scan import aiconfig
 
     prompt_text, resolved = prompts.get_prompt(version)
     model = aiconfig.build_model()
@@ -930,7 +930,7 @@ def main(argv=None) -> int:
     if args.config:
         if args.compare:
             parser.error("--config pins one arm; it cannot be combined with --compare")
-        import aiconfig
+        from scan import aiconfig
         pinned = load_config(Path(args.config))
         if pinned.get("model") and pinned["model"] != aiconfig.MODEL_NAME:
             parser.error(f"{args.config} pins model {pinned['model']!r}, but this run "

@@ -17,7 +17,7 @@
 **Why the current design doesn't hold up:**
 
 - **No source for price or speed.** Nothing in reach measures how secondhand prices or sell-through change by month, for any category. The only evidence that is reproducible, per country and per category is search interest (Google Trends [1]). That is a measure of demand, not of price.
-- **The model can't know when or where.** The scan prompt carries no date and no country (`backend/main.py:1676-1685`, `backend/prompts.py`), and `ScanAPIClient.swift` sends no locale. So any window the model writes is a guess that defaults to one market.
+- **The model can't know when or where.** The scan prompt carries no date and no country (`backend/main.py:1676-1685`, `backend/scan/prompts.py`), and `ScanAPIClient.swift` sends no locale. So any window the model writes is a guess that defaults to one market.
 - **Real windows differ, even for the issue's own example.** In the US, searches for "nuptse" in September are only 0.21 of the November peak. Spain's peak is January. Australia and New Zealand peak May–July. Costume demand in Germany and Spain peaks in January–February, not October [1].
 - **The acceptance test is broken.** The gate "populated on ≥80% of the gold set" rewards the model for inventing seasonality, because most scanned items aren't seasonal. And the gold set doesn't exist: `docs/EVALUATION.md:3-6` says "There is no gold dataset in this repository".
 

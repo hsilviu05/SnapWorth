@@ -20,13 +20,13 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from fastapi.testclient import TestClient
 
-import aiconfig
+from scan import aiconfig
 from core import apierrors
 from security import auth
-import confidence
-import imagevalidation
+from scan import confidence
+from scan import imagevalidation
 import main
-from imagequality import ImageQuality
+from scan.imagequality import ImageQuality
 from tests.conftest import build_deps
 from tests.images import VALID_JPEG, padded_image_bytes
 from tests.test_ai_pipeline import V2_PAYLOAD, _pro_headers, _scan_with

@@ -352,7 +352,7 @@ async def _thinking_line() -> str:
     """Thinking tokens per scan call, today and over 7 and 30 days, and the
     budget this process runs with (#217): the before and after a
     `GEMINI_THINKING_BUDGET` change is read against."""
-    import aiconfig    # the live value, as this process parsed it at start
+    from scan import aiconfig    # the live value, as this process parsed it at start
     budget = aiconfig.THINKING_BUDGET
     parts = []
     for label, n in (("today", 1), ("7d", 7), ("30d", 30)):

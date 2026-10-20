@@ -81,7 +81,7 @@ class TestHarnessMatchesProduction:
     def test_a_reply_scan_refuses_is_not_scored(self, tmp_path):
         """`/scan` 502s a reply carrying one price (`prices.servable`) and 422s
         a deliberate zero; the harness scored both as predictions."""
-        import valuation as valuation_module
+        from scan import valuation as valuation_module
         from tests.test_ai_pipeline import V2_PAYLOAD
 
         unpriced = {k: v for k, v in V2_PAYLOAD.items()
@@ -601,7 +601,7 @@ class TestLiveArm:
         return Model()
 
     def _run(self, tmp_path, monkeypatch, budget):
-        import aiconfig
+        from scan import aiconfig
         from tests.images import VALID_JPEG
 
         (tmp_path / "a.jpg").write_bytes(VALID_JPEG)

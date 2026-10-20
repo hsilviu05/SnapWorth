@@ -98,7 +98,7 @@ used with scuffs and footprints. Everything else is v2.1's wording.
 
 from __future__ import annotations
 
-import categories
+from scan import categories
 
 # Bump on any change to SCAN_PROMPT_V2. The eval harness groups results by this.
 PROMPT_VERSION = "scan-v2.0.0"

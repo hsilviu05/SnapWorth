@@ -21,13 +21,13 @@ from typing import Any
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-import aiconfig  # noqa: E402
-import confidence as confidence_module  # noqa: E402
-import imagequality  # noqa: E402
-import prompts  # noqa: E402
-import valuation as valuation_module  # noqa: E402
-from imagequality import ImageQuality  # noqa: E402
-from valuation import PricePoints, normalise, reconcile_prices  # noqa: E402
+from scan import aiconfig  # noqa: E402
+from scan import confidence as confidence_module  # noqa: E402
+from scan import imagequality  # noqa: E402
+from scan import prompts  # noqa: E402
+from scan import valuation as valuation_module  # noqa: E402
+from scan.imagequality import ImageQuality  # noqa: E402
+from scan.valuation import PricePoints, normalise, reconcile_prices  # noqa: E402
 
 
 # ── Generation config ────────────────────────────────────────────────────────

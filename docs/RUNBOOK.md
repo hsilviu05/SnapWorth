@@ -712,7 +712,7 @@ not one per merge.
 `SCAN_PROMPT_VERSION` picks the valuation prompt: `v1`, `v2` (the default) or
 `v2.1`. v2.1 is v2 with the multiple-items rule restored, the evidence asked
 for before the prices, the market named (US resale value, in USD), and the v1
-low/high pair left to the server; `backend/prompts.py` gives the reasons. The
+low/high pair left to the server; `backend/scan/prompts.py` gives the reasons. The
 response has the same fields and types under all three.
 
 1. Compare on real photos first. It needs `GEMINI_API_KEY`, and costs one

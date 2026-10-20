@@ -29,8 +29,8 @@ from __future__ import annotations
 import os
 from typing import Any
 
-import promptsafety
-import typesafe
+from scan import promptsafety
+from scan import typesafe
 
 FLAG_ENV = "LISTING_CLAIM_CHECK"
 

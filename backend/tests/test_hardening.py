@@ -11,8 +11,8 @@ from PIL import Image
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-import imagevalidation
-import promptsafety
+from scan import imagevalidation
+from scan import promptsafety
 from security.ratelimit import InMemoryRateLimiter, RateLimitExceeded, ResilientRateLimiter
 from tests.images import VALID_GIF, VALID_JPEG, VALID_PNG, VALID_WEBP, image_bytes
 

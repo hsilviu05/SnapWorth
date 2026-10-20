@@ -24,8 +24,8 @@ import asyncio
 import os
 from typing import Any
 
-import promptsafety
-import typesafe
+from scan import promptsafety
+from scan import typesafe
 from comps.matching import MIN_MATCH_SCORE
 from comps.models import Comp, ItemIdentity
 
