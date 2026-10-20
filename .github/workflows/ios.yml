@@ -34,6 +34,13 @@ on:
       - 'backend/scan/valuation.py'
       - 'backend/scan/prompts.py'
 
+# A newer push to the same pull request makes the run in progress worthless,
+# and on a macOS runner it holds the slot for up to ten minutes. Pushes to main
+# are never cancelled: each one is the record of what main built.
+concurrency:
+  group: ios-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   build-test:
     name: Build & Test
@@ -206,34 +213,89 @@ jobs:
             echo "Created simulator: $UDID"
           fi
 
-          echo "Booting simulator $UDID"
-          xcrun simctl boot "$UDID" 2>/dev/null || true
           echo "udid=$UDID" >> "$GITHUB_OUTPUT"
 
-      - name: Build & run unit tests
+      # The boot comes first, as its own step, because nothing overlaps it
+      # usefully. For about four minutes after a first boot starts on a fresh
+      # runner, any xcodebuild on the machine stalls, even once `bootstatus`
+      # has returned (in about a minute). Measured on 2026-10-20: a build
+      # started during the boot printed nothing for 250-260 s; one whose boot
+      # began after its build description sat four minutes before its first
+      # compile; one started after this step stalled two minutes and then
+      # compiled in 68 s. Booting first is the order that leaves no second
+      # stall in front of the tests, and the job went from 14-16 minutes to 8.
+      - name: Boot the test iPhone
+        run: xcrun simctl bootstatus "${{ steps.sim.outputs.udid }}" -b
+
+      # Build and test are two steps so the job's step list shows each one's
+      # time: the same commit has taken 4.5 and 11 minutes to build on
+      # different runners, and one combined step hid which half moved.
+      #
+      # No `-quiet` on either. It suppressed the test counts entirely: a green
+      # run printed "Testing started" and nothing else, so a suite that
+      # silently stopped running most of its tests would have looked
+      # identical to a healthy one. The full logs go to files and the summary
+      # step below prints what actually ran.
+      # `set +e` around each pipeline, and read PIPESTATUS[0] explicitly.
+      # A trailing `|| true` would have been wrong here: `true` runs as a
+      # simple command and resets PIPESTATUS, so a failing build would have
+      # reported success — the exact class of bug these steps exist to stop
+      # hiding.
+      #
+      # What is switched off does no work this job reads:
+      #   -enableCodeCoverage NO  nothing here or downstream reads coverage,
+      #       and instrumenting slows both the build and every test.
+      #   COMPILER_INDEX_STORE_ENABLE=NO  the index is for Xcode's editor.
+      #   SWIFT_EMIT_LOC_STRINGS=NO  string extraction writes into the
+      #       .xcstrings, which CI never commits; the catalogs are checked
+      #       against ios/Localization by the steps above instead.
+      #   -collect-test-diagnostics never  a failing run otherwise sits ten
+      #       minutes gathering simulator diagnostics before it exits
+      #       ("Timed out after 600.0 seconds"); the failures themselves are
+      #       in the log either way.
+      # -showBuildTimingSummary prints where the build's time goes, and
+      # `--line-buffered` makes the log's own timestamps say when each phase
+      # ran: without it grep held the lines back and they arrived together.
+      - name: Build for testing
         run: |
           set -o pipefail
-          # No `-quiet`. It suppressed the test counts entirely: a green run
-          # printed "Testing started" and nothing else, so a suite that
-          # silently stopped running most of its tests would have looked
-          # identical to a healthy one. The full log goes to a file and the
-          # summary step below prints what actually ran.
-          # `set +e` around the pipeline, and read PIPESTATUS[0] explicitly.
-          # A trailing `|| true` would have been wrong here: `true` runs as a
-          # simple command and resets PIPESTATUS, so a failing build would
-          # have reported success — the exact class of bug this step exists
-          # to stop hiding.
           set +e
-          xcodebuild test \
+          # A generic destination: the build has no use for the device.
+          # ARCHS=arm64 because a generic destination otherwise builds every
+          # simulator architecture, and this runner is Apple silicon.
+          xcodebuild build-for-testing \
+            -project ios/SnapWorth.xcodeproj \
+            -scheme SnapWorth \
+            -destination "generic/platform=iOS Simulator" \
+            -clonedSourcePackagesDirPath ~/spm-cache \
+            -enableCodeCoverage NO \
+            -showBuildTimingSummary \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            ONLY_ACTIVE_ARCH=YES \
+            ARCHS=arm64 \
+            COMPILER_INDEX_STORE_ENABLE=NO \
+            SWIFT_EMIT_LOC_STRINGS=NO \
+            2>&1 | tee /tmp/xcodebuild-build.log | grep --line-buffered -E \
+              "^(.*(error|warning): |Command line invocation|Resolve Package Graph|Prepare packages|--- xcodebuild|\*\* (TEST )?BUILD|ComputePackagePrebuildTargetDependencyGraph|ComputeTargetDependencyGraph|Build description|SwiftDriver |SwiftEmitModule |SwiftCompile |Ld |CompileAssetCatalog|ValidateEmbeddedBinary |CodeSign )"
+          status=${PIPESTATUS[0]}
+          set -e
+          echo "=== Build timing ==="
+          grep -A40 "Build Timing Summary" /tmp/xcodebuild-build.log || true
+          exit "$status"
+
+      - name: Run unit tests
+        run: |
+          set -o pipefail
+          set +e
+          xcodebuild test-without-building \
             -project ios/SnapWorth.xcodeproj \
             -scheme SnapWorth \
             -destination "platform=iOS Simulator,id=${{ steps.sim.outputs.udid }}" \
             -clonedSourcePackagesDirPath ~/spm-cache \
-            -enableCodeCoverage YES \
-            CODE_SIGN_IDENTITY="" \
-            CODE_SIGNING_REQUIRED=NO \
-            ONLY_ACTIVE_ARCH=YES \
-            2>&1 | tee /tmp/xcodebuild.log | grep -E \
+            -enableCodeCoverage NO \
+            -collect-test-diagnostics never \
+            2>&1 | tee /tmp/xcodebuild.log | grep --line-buffered -E \
               "^(Test Suite|Test Case|.*(error|warning): |\*\* TEST|Executed )"
           status=${PIPESTATUS[0]}
           set -e
