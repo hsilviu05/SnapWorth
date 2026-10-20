@@ -215,13 +215,15 @@ jobs:
 
           echo "udid=$UDID" >> "$GITHUB_OUTPUT"
 
-      # The boot is its own step, finished before the build starts, because it
-      # cannot overlap anything. A first boot on a fresh runner takes about
-      # four minutes and stalls every xcodebuild on the machine while it runs:
-      # on 2026-10-20 a build started during the boot printed nothing for
-      # 250-260 s, and one whose boot began after its build description sat
-      # four minutes between that line and its first compile. Run alone, the
-      # build is about two and a half minutes. This step's time is the boot.
+      # The boot comes first, as its own step, because nothing overlaps it
+      # usefully. For about four minutes after a first boot starts on a fresh
+      # runner, any xcodebuild on the machine stalls, even once `bootstatus`
+      # has returned (in about a minute). Measured on 2026-10-20: a build
+      # started during the boot printed nothing for 250-260 s; one whose boot
+      # began after its build description sat four minutes before its first
+      # compile; one started after this step stalled two minutes and then
+      # compiled in 68 s. Booting first is the order that leaves no second
+      # stall in front of the tests, and the job went from 14-16 minutes to 8.
       - name: Boot the test iPhone
         run: xcrun simctl bootstatus "${{ steps.sim.outputs.udid }}" -b
 
