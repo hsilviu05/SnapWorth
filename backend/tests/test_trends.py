@@ -14,7 +14,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from ops import notify  # noqa: E402
 from ops import opsstats  # noqa: E402
-import trends  # noqa: E402
+from insights import trends  # noqa: E402
 from core.cache import InMemoryCache, ResilientCache  # noqa: E402
 
 

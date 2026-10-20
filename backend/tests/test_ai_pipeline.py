@@ -733,7 +733,7 @@ class TestConfidence:
         """notify tallied "Generic" as no brand and the eval's hallucination
         check counted it as an asserted brand; both now read this list."""
         from ops import notify
-        import trends
+        from insights import trends
         from eval import metrics as eval_metrics
 
         for spelling in confidence_module.UNKNOWN_BRANDS:

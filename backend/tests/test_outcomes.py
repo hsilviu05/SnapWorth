@@ -23,7 +23,7 @@ from fastapi.testclient import TestClient
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from security import auth  # noqa: E402
-import outcomes  # noqa: E402
+from insights import outcomes  # noqa: E402
 from main import app  # noqa: E402
 
 client = TestClient(app)

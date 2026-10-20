@@ -86,7 +86,7 @@ from core import background
 from scan import categories
 from ops import chatlog
 from ops import checkup
-import ideas
+from insights import ideas
 from ops import levers
 from ops import opsformat
 from ops import opsexperiment
@@ -95,7 +95,7 @@ from ops import opsspend
 from ops import opsstats
 from ops import opssupport
 from ops import telegram
-import trends
+from insights import trends
 from ops.opsstats import STATS_TTL
 
 if TYPE_CHECKING:

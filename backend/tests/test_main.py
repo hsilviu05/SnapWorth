@@ -26,7 +26,7 @@ from billing.entitlements import Entitlement
 import main
 from ops import opsindex
 from ops import opsstats
-import trends
+from insights import trends
 from main import app, _extract_json, _check_rate_limit, _rate_store, _ip_rate_store
 from tests.images import VALID_PNG, padded_image_bytes
 
@@ -348,7 +348,7 @@ class TestLegalEndpoints:
     def test_privacy_discloses_shared_sales(self):
         """Opt-in sale sharing (#224) keeps a record per sold flip for as long
         as RECORD_TTL says, and says what never leaves the phone."""
-        import outcomes
+        from insights import outcomes
         body = _prose(client.get("/privacy").text)
         assert "If you turn on Share sale prices to improve estimates" in body
         assert f"Records are kept for up to {outcomes.RECORD_TTL // 86_400} days." in body

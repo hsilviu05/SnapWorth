@@ -37,7 +37,7 @@ from ops import opsspend  # noqa: E402
 from ops import opsstats  # noqa: E402
 from ops import opssupport  # noqa: E402
 from ops import telegram  # noqa: E402
-import trends  # noqa: E402
+from insights import trends  # noqa: E402
 from core.cache import InMemoryCache, ResilientCache  # noqa: E402
 from datetime import datetime, timedelta, timezone  # noqa: E402
 from billing.entitlements import FREE, Entitlement, Reinstatement  # noqa: E402

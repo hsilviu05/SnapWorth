@@ -55,10 +55,10 @@ from scan import rack as rack_module
 from security import ratelimit
 from billing import appstorenotify
 from billing import referral
-import outcomes
-import social
+from insights import outcomes
+from insights import social
 from security import tokens
-import trends as trends_module
+from insights import trends as trends_module
 from scan import typesafe
 from scan import valuation as valuation_module
 from core.apierrors import APIError
