@@ -33,8 +33,8 @@ import os
 import time
 from dataclasses import dataclass
 
-import entitlements
-from entitlements import Entitlement
+from billing import entitlements
+from billing.entitlements import Entitlement
 
 log = logging.getLogger("snapworth.appstorestatus")
 

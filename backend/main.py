@@ -39,7 +39,7 @@ from security import auth
 from core import cache as cache_module
 import confidence as confidence_module
 from security import devicecheck
-import entitlements
+from billing import entitlements
 import imagequality
 import imagevalidation
 import legit as legit_module
@@ -53,8 +53,8 @@ import promptsafety
 import prompts
 import rack as rack_module
 from security import ratelimit
-import appstorenotify
-import referral
+from billing import appstorenotify
+from billing import referral
 import outcomes
 import social
 from security import tokens
@@ -67,11 +67,11 @@ from comps.engine import build_engine as build_comps_engine
 from comps.shadow import ShadowRunner
 from security.auth import (Principal, record_quota_consumed, refund_quota,
                   require_auth, reserve_quota)
-from entitlements import EntitlementError, EntitlementService, Reinstatement
+from billing.entitlements import EntitlementError, EntitlementService, Reinstatement
 from fastapi import Depends
 import observability
 from observability import RequestContextMiddleware, configure_production_logging
-from quota import FREE_SCANS_PER_DAY, ScanQuota
+from billing.quota import FREE_SCANS_PER_DAY, ScanQuota
 from security.ratelimit import (
     IP_RATE_MAX_REQUESTS,
     LEGIT_RATE_MAX_REQUESTS,
@@ -553,7 +553,7 @@ async def _close_dependencies() -> None:
     # Only ever opened if an operator ran /sub on this replica, and imported
     # here rather than at module scope for the same cycle reason notify gives.
     try:
-        import appstorestatus
+        from billing import appstorestatus
         await appstorestatus.aclose()
     except Exception as exc:
         log.warning("App Store status client close failed: %s", exc)

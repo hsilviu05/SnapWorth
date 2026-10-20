@@ -31,7 +31,7 @@ from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 from security import auth
 import main
 from security import ratelimit
-import referral
+from billing import referral
 from tests.test_main import client
 
 # The app as the container serves it: uvicorn runs with --proxy-headers and

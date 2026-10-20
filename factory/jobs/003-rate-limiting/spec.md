@@ -41,7 +41,7 @@ and `/auth/entitlement` share through `_enforce_limits` /
   it is `None` (`backend/security/auth.py:307-329`).
 - `referral` and `outcomes` follow the same injection pattern with a
   module-level `limiter: Callable[...] | None = None`
-  (`backend/referral.py:113-119`, `backend/outcomes.py:119`), set in
+  (`backend/billing/referral.py:113-119`, `backend/outcomes.py:119`), set in
   `main._lifespan` (`backend/main.py:244-247`). The route calls it only
   `if limiter is not None`.
 

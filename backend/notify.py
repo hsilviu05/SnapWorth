@@ -102,7 +102,7 @@ if TYPE_CHECKING:
     # For the annotation only. The value arrives through `configure`, from the
     # one `ScanQuota` main builds, so the bot asks the quota what the welcome
     # is instead of working it out again.
-    from quota import WelcomeSetting
+    from billing.quota import WelcomeSetting
 
 log = logging.getLogger("snapworth.notify")
 
@@ -539,7 +539,7 @@ async def _announce_referral_pool(pool: str, remaining: int) -> None:
 
 async def _referral_line() -> str:
     """The checkup's referral line: on or off, and what is left in each pool."""
-    import referral            # not at the top: referral imports auth, which imports this
+    from billing import referral            # not at the top: referral imports auth, which imports this
     state = await referral.describe()
     live = await referral.switched_on()
     try:
@@ -662,7 +662,7 @@ async def subscription_event(note, *, reinstated=None) -> None:
             # the friend's payment for good rather than wait for the bot.
             # A friend who took a referral week and then paid. Apple says so
             # whether or not they open the app again, which the sync cannot.
-            import referral    # not at the top: referral imports auth, which imports this
+            from billing import referral    # not at the top: referral imports auth, which imports this
             await referral.note_paid_period(ent)
 
         before = await opsindex.index_subscription(None, ent, note.auto_renew,
@@ -719,7 +719,7 @@ async def subscription_event(note, *, reinstated=None) -> None:
             # Apple took back a refund it had granted, so this term is paid
             # for again. The handler has already acted on the access path;
             # this says what it found there.
-            from entitlements import Reinstatement
+            from billing.entitlements import Reinstatement
             lines = ["↪️ <b>Refund reversed by Apple</b>", detail]
             if reinstated is Reinstatement.LIFTED:
                 lines.append("Refund block lifted: Pro comes back at the "
@@ -1638,7 +1638,7 @@ async def handle_command_with_buttons(text: str) -> tuple[str, opsformat.Buttons
         text, offers, menu = await levers.minbuild_command(argument, rest)
         return text, offers + (await _buttons() if menu else [])
     if command == "/referrals":
-        import referral        # not at the top: referral imports auth, which imports this
+        from billing import referral        # not at the top: referral imports auth, which imports this
         return await referral.bot_command(argument, rest)
     if command == "/social":
         return await _social_text(), await _buttons()

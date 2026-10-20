@@ -104,7 +104,7 @@ class TestScanErrors:
         assert _code(r) == apierrors.DEVICE_PAUSED
 
     def test_a_quota_store_that_cannot_be_read(self, monkeypatch):
-        from quota import QuotaUnavailable
+        from billing.quota import QuotaUnavailable
         monkeypatch.setattr(auth.deps.quota, "reserve",
                             AsyncMock(side_effect=QuotaUnavailable("down")))
         r = _scan(padded_image_bytes("JPEG", 1024))

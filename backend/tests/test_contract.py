@@ -31,7 +31,7 @@ import aiconfig
 from core import apierrors
 import levers
 import main
-import quota
+from billing import quota
 from core.cache import InMemoryCache, ResilientCache
 from tests.conftest import build_deps
 from tests.images import padded_image_bytes

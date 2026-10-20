@@ -123,7 +123,7 @@ Then, separately, go earn the comps claim (see §9, C-6).
 
 **Severity: Critical · Revenue · Effort: 30 minutes**
 
-`backend/entitlements.py:188-198` builds the entitlement:
+`backend/billing/entitlements.py:188-198` builds the entitlement:
 
 ```python
 ent = Entitlement(

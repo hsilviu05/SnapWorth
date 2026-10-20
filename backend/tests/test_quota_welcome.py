@@ -15,9 +15,9 @@ import pytest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-import quota as quota_module  # noqa: E402
+from billing import quota as quota_module  # noqa: E402
 from core.cache import InMemoryCache, ResilientCache  # noqa: E402
-from quota import QuotaExceeded, ScanQuota  # noqa: E402
+from billing.quota import QuotaExceeded, ScanQuota  # noqa: E402
 
 
 class _NoDeviceCheck:

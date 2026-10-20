@@ -20,7 +20,7 @@ with its `ct`.
 Only product links are held to this (`campaigns.is_product_link`: a path
 ending in `id<digits>`). Excluded, because it opens Apple's redeem sheet
 rather than the product page and cannot carry a campaign: the offer-code
-redeem URL backend/referral.py builds,
+redeem URL backend/billing/referral.py builds,
 `https://apps.apple.com/redeem?ctx=offercodes&id=…&code=…`. So is any other
 non-product store URL, such as Manage Subscriptions. The Smart App Banner's
 `apple-itunes-app` meta holds no URL.

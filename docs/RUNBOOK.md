@@ -1861,7 +1861,7 @@ typo can only narrow access.
 ## 18. Referrals (#97) — before switching them on
 
 Off in production: `REFERRALS_ENABLED` is unset, and the feature is inert
-until `REFERRAL_FRIEND_OFFER` names the friend offer too. `backend/referral.py`
+until `REFERRAL_FRIEND_OFFER` names the friend offer too. `backend/billing/referral.py`
 has the design; this is what the operator does.
 
 ### The hardening, and the decision it leaves open

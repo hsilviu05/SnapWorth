@@ -28,16 +28,16 @@ sys.path.insert(0, os.path.dirname(_HERE))
 sys.path.insert(0, _HERE)
 
 from security import auth  # noqa: E402
-import entitlements  # noqa: E402
+from billing import entitlements  # noqa: E402
 import main  # noqa: E402
 import notify  # noqa: E402
 import opsindex  # noqa: E402
 import opsstats  # noqa: E402
 import opssupport  # noqa: E402
-from appstorenotify import Notification  # noqa: E402
+from billing.appstorenotify import Notification  # noqa: E402
 from core.cache import InMemoryCache, ResilientCache  # noqa: E402
 from tests.conftest import not_none  # noqa: E402
-from entitlements import (  # noqa: E402
+from billing.entitlements import (  # noqa: E402
     EXPIRY_GRACE_SECONDS,
     PRO_ENTITLEMENT_CACHE_TTL,
     SANDBOX_ENTITLEMENT_TTL,

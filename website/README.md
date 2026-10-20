@@ -123,7 +123,7 @@ ASC's campaign generator with the same provider token:
 
 The share-card QR codes get their own values in #221 (1.5.2).
 
-Excluded from all of this: the offer-code redeem URL `backend/referral.py`
+Excluded from all of this: the offer-code redeem URL `backend/billing/referral.py`
 builds (`apps.apple.com/redeem?...`), which opens Apple's redeem sheet and
 cannot carry a campaign; any other store URL that is not a product page,
 such as Manage Subscriptions (`apps.apple.com/account/subscriptions`); and the

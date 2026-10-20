@@ -259,7 +259,7 @@ async def _appstore_api_line() -> str:
     failures only, answers both: it is refused when the key is wrong, and it
     lists what Apple tried to deliver here and could not. A refund among those
     is a refund whose Pro has not been withdrawn."""
-    import appstorestatus
+    from billing import appstorestatus
     try:
         failed, more = await asyncio.wait_for(appstorestatus.undelivered_notifications(), 10)
     except appstorestatus.StatusNotConfigured as exc:

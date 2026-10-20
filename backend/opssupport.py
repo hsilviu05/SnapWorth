@@ -205,7 +205,7 @@ async def _ask_apple(transaction_id: str) -> tuple[list | None, str | None]:
 
     Returns `(statuses, error_message)` — exactly one is not None.
     """
-    import appstorestatus
+    from billing import appstorestatus
 
     try:
         return await appstorestatus.lookup(transaction_id), None
@@ -219,7 +219,7 @@ async def _ask_apple_order(order_id: str) -> tuple[str | None, str | None]:
 
     Returns `(transaction_id, error_message)` — exactly one is not None.
     """
-    import appstorestatus
+    from billing import appstorestatus
 
     try:
         return (await appstorestatus.lookup_order(order_id))[0], None
@@ -229,8 +229,8 @@ async def _ask_apple_order(order_id: str) -> tuple[str | None, str | None]:
 
 def _apple_problem(exc: Exception) -> str:
     """One of `appstorestatus`'s failures, as the operator reads it."""
-    import appstorestatus
-    import entitlements
+    from billing import appstorestatus
+    from billing import entitlements
 
     if isinstance(exc, appstorestatus.OrderNotFound):
         return (f"💳 {html.escape(str(exc))}\n\nRead as an Apple order ID — the "
@@ -277,7 +277,7 @@ def _apple_problem(exc: Exception) -> str:
 
 def _block_denies(tombstone: dict, ent) -> bool:
     """Whether a refund block denies `ent`'s term — `_is_revoked`'s rule."""
-    import entitlements
+    from billing import entitlements
 
     if entitlements.bought_after_revocation(ent, tombstone):
         return False
@@ -298,7 +298,7 @@ async def _refund_block_lines(statuses) -> tuple[list[str], opsformat.Buttons]:
     says now, and when Apple says the term is not refunded, lifting it is
     offered — as two taps, see `_lift_refund_block`.
     """
-    import entitlements
+    from billing import entitlements
 
     lines: list[str] = []
     offers: opsformat.Buttons = []
@@ -341,7 +341,7 @@ async def _lift_refund_block(otid: str, confirmed: bool) -> tuple[str, opsformat
     Pro from the pre-refund proof it holds, which is the bug the block exists
     to stop.
     """
-    import entitlements
+    from billing import entitlements
 
     otid = otid.strip()
     code = f"<code>{html.escape(otid)}</code>"
@@ -407,7 +407,7 @@ async def _sub_text(argument: str) -> tuple[str, opsformat.Buttons]:
     # `appstorestatus` imports `entitlements` — so either at the top of this
     # file closes an import cycle. The same reason `appstorenotify`'s header
     # gives for duck-typing the notification it is handed.
-    import entitlements
+    from billing import entitlements
 
     via: list[str] = []
     order_id = apple_order_id(argument)

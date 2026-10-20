@@ -33,8 +33,8 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass
 
-import entitlements
-from entitlements import Entitlement, EntitlementError
+from billing import entitlements
+from billing.entitlements import Entitlement, EntitlementError
 
 log = logging.getLogger("snapworth.appstorenotify")
 

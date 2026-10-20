@@ -16,11 +16,11 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from security import auth  # noqa: E402
 import opsstats  # noqa: E402
-import referral  # noqa: E402
+from billing import referral  # noqa: E402
 import telegram  # noqa: E402
-from entitlements import Entitlement, entitlement_from_payload  # noqa: E402
+from billing.entitlements import Entitlement, entitlement_from_payload  # noqa: E402
 from main import app  # noqa: E402
-from referral import POOL_FRIEND, POOL_REWARD, ReferralConfig, ReferralError  # noqa: E402
+from billing.referral import POOL_FRIEND, POOL_REWARD, ReferralConfig, ReferralError  # noqa: E402
 
 FRIEND_OFFER = "referral-friend-7d"
 MIN_BUILD = 23
@@ -206,7 +206,7 @@ class TestReward:
         terms that keep it out of everything that counts money. A reward is a
         real Apple offer code, so it counts."""
         import dataclasses
-        import entitlements
+        from billing import entitlements
         monkeypatch.setattr(entitlements, "ALLOWED_ENVIRONMENTS", frozenset({"Production"}))
         self.claimed()
         run(load(POOL_REWARD, ["REWARD1"]))
@@ -839,7 +839,7 @@ class TestFunnelCounters:
         assert "Referrals:" not in digest
 
     def test_apples_renewal_notice_counts_a_friend_who_never_reopened_the_app(self, operator):
-        import appstorenotify
+        from billing import appstorenotify
         import notify
 
         async def go():

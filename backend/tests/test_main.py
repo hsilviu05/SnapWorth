@@ -20,9 +20,9 @@ import sys
 import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
-import appstorenotify
+from billing import appstorenotify
 from security import auth
-from entitlements import Entitlement
+from billing.entitlements import Entitlement
 import main
 import opsindex
 import opsstats
@@ -330,7 +330,7 @@ class TestLegalEndpoints:
     def test_privacy_discloses_the_purchase_record_and_its_retention(self):
         """The app uploads Apple's signed transaction with the device id on
         every status refresh, and the server keeps it; neither policy said so."""
-        import entitlements
+        from billing import entitlements
         body = _prose(client.get("/privacy").text)
         assert "Apple's signed record of your subscription purchase" in body
         days = entitlements.ENTITLEMENT_PROOF_TTL // 86_400
@@ -339,7 +339,7 @@ class TestLegalEndpoints:
 
     def test_privacy_discloses_referral_records(self):
         """A claimed invite links two devices for a year and more."""
-        import referral
+        from billing import referral
         body = _prose(client.get("/privacy").text)
         assert "Once Invite a friend is available in the app" in body
         assert "whether or not you open it" in body
@@ -1265,7 +1265,7 @@ _HERE = os.path.dirname(os.path.abspath(__file__))
 if _HERE not in sys.path:
     sys.path.insert(0, _HERE)
 
-import entitlements as _entitlements  # noqa: E402
+from billing import entitlements as _entitlements  # noqa: E402
 from core.cache import InMemoryCache, ResilientCache  # noqa: E402
 from test_appstorenotify import make_notification  # noqa: E402
 from test_entitlements import build_chain  # noqa: E402

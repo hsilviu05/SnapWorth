@@ -125,7 +125,7 @@ def is_bounded(ent) -> bool:
     See `entitlements.SANDBOX_ENTITLEMENTS`. Imported here rather than at the
     top: entitlements imports notify, which imports this module.
     """
-    import entitlements
+    from billing import entitlements
     return entitlements.is_bounded(ent)
 
 

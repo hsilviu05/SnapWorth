@@ -49,7 +49,7 @@ from typing import Any
 import redis
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from referral import POOLS, pool_cursor_key, pool_item_key, pool_size_key  # noqa: E402
+from billing.referral import POOLS, pool_cursor_key, pool_item_key, pool_size_key  # noqa: E402
 
 CODE = re.compile(r"^[A-Z0-9]{6,32}$")
 

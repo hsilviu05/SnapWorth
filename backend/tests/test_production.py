@@ -288,8 +288,8 @@ class TestDeclaredMetricsAreIncremented:
     def test_entitlement_outcomes_are_counted(self, monkeypatch):
         from security import auth
         import notify
-        import referral
-        from entitlements import Entitlement, EntitlementError
+        from billing import referral
+        from billing.entitlements import Entitlement, EntitlementError
 
         ent = Entitlement("pro", "com.snapworth.yearly", None, "otid-1", "Production")
 

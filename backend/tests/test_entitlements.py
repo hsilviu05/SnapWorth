@@ -29,9 +29,9 @@ from cryptography.x509.oid import NameOID
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from security import auditlog  # noqa: E402
-import entitlements  # noqa: E402
+from billing import entitlements  # noqa: E402
 from security.auditlog import AuditEvent  # noqa: E402
-from entitlements import (  # noqa: E402
+from billing.entitlements import (  # noqa: E402
     ENTITLEMENT_CACHE_TTL,
     PRO_ENTITLEMENT_CACHE_TTL,
     Entitlement,

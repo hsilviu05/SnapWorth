@@ -46,9 +46,9 @@ from core.cache import CacheUnavailable, ResilientCache
 from security.devicecheck import DeviceCheckClient
 from core.apierrors import APIError
 from security.auditlog import AuditEvent
-from entitlements import Entitlement, EntitlementError, EntitlementService
-from entitlements import EntitlementsUnavailable, is_bounded
-from quota import QuotaExceeded, QuotaStatus, QuotaUnavailable, ScanQuota
+from billing.entitlements import Entitlement, EntitlementError, EntitlementService
+from billing.entitlements import EntitlementsUnavailable, is_bounded
+from billing.quota import QuotaExceeded, QuotaStatus, QuotaUnavailable, ScanQuota
 from security.tokens import TokenError, TokenSigner
 
 log = logging.getLogger("snapworth.auth")
@@ -599,7 +599,7 @@ async def record_entitlement(
     # A referred friend redeeming the friend offer earns their referrer a week.
     # Imported here, not at the top: `referral` imports this module for
     # `deps` and `require_auth`. Never raises, and never rewards Sandbox.
-    import referral
+    from billing import referral
     await referral.on_entitlement(principal.subject, req.device_id, ent)
 
     access_token = None

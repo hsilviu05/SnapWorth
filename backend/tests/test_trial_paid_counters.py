@@ -34,7 +34,7 @@ import opsindex  # noqa: E402
 import opsstats  # noqa: E402
 import telegram  # noqa: E402
 from core.cache import InMemoryCache, ResilientCache  # noqa: E402
-from entitlements import Entitlement  # noqa: E402
+from billing.entitlements import Entitlement  # noqa: E402
 
 from tests.test_notify import FAKE_CHAT, FAKE_TOKEN, FakeNotification, Recorder  # noqa: E402
 
@@ -388,7 +388,7 @@ class TestEntitlementRoute:
     @pytest.fixture
     def seen(self, monkeypatch):
         from security import auth
-        import referral
+        from billing import referral
 
         ent = Entitlement("pro", "com.snapworth.yearly", None, "otid-1", "Production")
         calls: list[dict] = []

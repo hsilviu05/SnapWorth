@@ -845,7 +845,7 @@ def _pro_headers(subject: str) -> dict:
     import asyncio as _asyncio
     import time as _time
 
-    from entitlements import Entitlement
+    from billing.entitlements import Entitlement
 
     ent = Entitlement(
         tier="pro",

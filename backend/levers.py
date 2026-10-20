@@ -22,7 +22,7 @@ import opsstats
 
 if TYPE_CHECKING:
     from core.cache import ResilientCache
-    from quota import WelcomeSetting
+    from billing.quota import WelcomeSetting
 
 # notify's logger, so log filters written before the split still match.
 log = logging.getLogger("snapworth.notify")

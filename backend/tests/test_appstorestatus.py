@@ -23,8 +23,8 @@ import pytest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-import appstorestatus  # noqa: E402
-import entitlements  # noqa: E402
+from billing import appstorestatus  # noqa: E402
+from billing import entitlements  # noqa: E402
 from appstoreserverlibrary.api_client import APIError, APIException  # noqa: E402
 from appstoreserverlibrary.models.Environment import Environment  # noqa: E402
 

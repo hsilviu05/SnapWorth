@@ -7538,7 +7538,7 @@ final class EntitlementSyncMemoryTests: XCTestCase {
     }
 
     func test_theIntervalStaysInsideTheServersProCacheLifetime() {
-        // backend/entitlements.py: PRO_ENTITLEMENT_CACHE_TTL = 86_400.
+        // backend/billing/entitlements.py: PRO_ENTITLEMENT_CACHE_TTL = 86_400.
         XCTAssertLessThan(EntitlementSyncMemory.interval, 86_400)
     }
 

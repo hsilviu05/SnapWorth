@@ -27,9 +27,9 @@ sys.path.insert(0, os.path.dirname(_HERE))
 # rather than keeping a second copy of Apple's certificate shape in sync.
 sys.path.insert(0, _HERE)
 
-import appstorenotify  # noqa: E402
-import entitlements  # noqa: E402
-from entitlements import EntitlementError  # noqa: E402
+from billing import appstorenotify  # noqa: E402
+from billing import entitlements  # noqa: E402
+from billing.entitlements import EntitlementError  # noqa: E402
 from test_entitlements import (  # noqa: E402
     BUNDLE_ID,
     PRODUCTS,
