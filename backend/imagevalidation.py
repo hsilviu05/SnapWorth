@@ -16,7 +16,7 @@ from __future__ import annotations
 import io
 import logging
 
-import apierrors
+from core import apierrors
 
 log = logging.getLogger("snapworth.imagevalidation")
 

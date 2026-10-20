@@ -21,11 +21,11 @@ from typing import TYPE_CHECKING
 import opsformat
 import opsindex
 import opsstats
-from background import spawn
+from core.background import spawn
 from opsstats import STATS_TTL
 
 if TYPE_CHECKING:
-    from cache import ResilientCache
+    from core.cache import ResilientCache
 
 # notify's logger, so log filters written before the split still match.
 log = logging.getLogger("snapworth.notify")

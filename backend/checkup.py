@@ -23,7 +23,7 @@ import auditlog
 from devicecheck import PROBE_NOT_SENT
 
 if TYPE_CHECKING:
-    from cache import ResilientCache
+    from core.cache import ResilientCache
 
 # notify's logger, so log filters written before the split still match.
 log = logging.getLogger("snapworth.notify")

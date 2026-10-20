@@ -33,7 +33,7 @@ import opsexperiment  # noqa: E402
 import opsindex  # noqa: E402
 import opsstats  # noqa: E402
 import telegram  # noqa: E402
-from cache import InMemoryCache, ResilientCache  # noqa: E402
+from core.cache import InMemoryCache, ResilientCache  # noqa: E402
 from entitlements import Entitlement  # noqa: E402
 
 from tests.test_notify import FAKE_CHAT, FAKE_TOKEN, FakeNotification, Recorder  # noqa: E402

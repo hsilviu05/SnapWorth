@@ -33,10 +33,10 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 import aiconfig
-import apierrors
+from core import apierrors
 import auditlog
 import auth
-import cache as cache_module
+from core import cache as cache_module
 import confidence as confidence_module
 import devicecheck
 import entitlements
@@ -61,7 +61,7 @@ import tokens
 import trends as trends_module
 import typesafe
 import valuation as valuation_module
-from apierrors import APIError
+from core.apierrors import APIError
 from auditlog import AuditEvent
 from comps.engine import build_engine as build_comps_engine
 from comps.shadow import ShadowRunner

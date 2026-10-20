@@ -21,7 +21,7 @@ import opsformat
 import opsstats
 
 if TYPE_CHECKING:
-    from cache import ResilientCache
+    from core.cache import ResilientCache
     from quota import WelcomeSetting
 
 # notify's logger, so log filters written before the split still match.

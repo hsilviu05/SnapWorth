@@ -64,7 +64,7 @@ import notify
 import observability
 import ratelimit
 from auth import Principal, deps, require_auth
-from cache import CacheUnavailable, ResilientCache
+from core.cache import CacheUnavailable, ResilientCache
 from entitlements import Entitlement, is_bounded
 
 log = logging.getLogger("snapworth.referral")

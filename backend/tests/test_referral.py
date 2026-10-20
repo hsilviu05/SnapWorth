@@ -392,7 +392,7 @@ class TestBinding:
     def test_a_store_that_cannot_answer_is_a_503_not_a_binding_in_memory(self):
         """Redis configured and down: the binding must fail closed, or each
         replica keeps its own and the check is no check."""
-        from cache import InMemoryCache, ResilientCache
+        from core.cache import InMemoryCache, ResilientCache
         auth.deps.cache = ResilientCache(None, InMemoryCache(), configured=True)
         r = self.status("subj-a", "dev-a")
         assert r.status_code == 503 and "paused" in r.json()["detail"]
@@ -518,7 +518,7 @@ class TestPoolCursor:
         """Not `required`, the INCR fell back to process memory and counted
         from 1 while Redis still answered the item read: the next friend got
         the code the first one had."""
-        from cache import InMemoryCache, ResilientCache
+        from core.cache import InMemoryCache, ResilientCache
         redis = InMemoryCache()
         run(redis.set(referral.pool_size_key(POOL_FRIEND), "2"))
         run(redis.set(referral.pool_item_key(POOL_FRIEND, 1), "ISSUED"))
@@ -602,7 +602,7 @@ class _Outage:
 def _outage(**kwargs):
     """Redis (the store behind the fake) and the fake, wired in as the app's
     configured cache."""
-    from cache import InMemoryCache, ResilientCache
+    from core.cache import InMemoryCache, ResilientCache
     redis = InMemoryCache()
     fake = _Outage(redis, **kwargs)
     auth.deps.cache = ResilientCache(fake, InMemoryCache(), configured=True)
@@ -875,7 +875,7 @@ class TestPoolAlerts:
         assert len(empty) == 1 and "Invites are paused" in empty[0]
 
     def test_a_redis_outage_is_not_reported_as_an_empty_pool(self, operator):
-        from cache import CacheUnavailable, InMemoryCache, ResilientCache
+        from core.cache import CacheUnavailable, InMemoryCache, ResilientCache
         auth.deps.cache = ResilientCache(None, InMemoryCache(), configured=True)
 
         async def go():
@@ -902,7 +902,7 @@ class TestPoolAlerts:
         """Not required, both reads were answered (0, 0) from process memory,
         and the checkup said every invite was refused for want of codes."""
         import notify
-        from cache import InMemoryCache, ResilientCache
+        from core.cache import InMemoryCache, ResilientCache
         down = ResilientCache(None, InMemoryCache(), configured=True)
         monkeypatch.setattr(notify, "_cache", down)
         line = asyncio.run(notify._referral_line())

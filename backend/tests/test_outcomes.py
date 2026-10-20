@@ -302,7 +302,7 @@ DAY = 86_400
 @pytest.fixture
 def clock(monkeypatch):
     """The in-memory cache's clock, movable. Records and indexes expire by it."""
-    import cache as cache_module
+    from core import cache as cache_module
     now = [cache_module.time.time()]
     monkeypatch.setattr(cache_module.time, "time", lambda: now[0])
     return now

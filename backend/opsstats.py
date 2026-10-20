@@ -18,10 +18,10 @@ import logging
 from datetime import datetime, timedelta, timezone
 from typing import TYPE_CHECKING
 
-from background import spawn
+from core.background import spawn
 
 if TYPE_CHECKING:
-    from cache import ResilientCache
+    from core.cache import ResilientCache
 
 log = logging.getLogger("snapworth.notify")
 

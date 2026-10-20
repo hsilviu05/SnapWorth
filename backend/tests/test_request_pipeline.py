@@ -37,7 +37,7 @@ import levers  # noqa: E402
 import notify  # noqa: E402
 import opsstats  # noqa: E402
 import observability  # noqa: E402
-from cache import InMemoryCache, ResilientCache  # noqa: E402
+from core.cache import InMemoryCache, ResilientCache  # noqa: E402
 from tests.conftest import build_deps  # noqa: E402
 from tests.images import padded_image_bytes  # noqa: E402
 

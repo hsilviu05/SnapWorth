@@ -34,7 +34,7 @@ from typing import Literal
 from fastapi import APIRouter, Depends, Header, Request
 from pydantic import BaseModel, Field, field_validator
 
-import apierrors
+from core import apierrors
 import appattest
 import auditlog
 import levers
@@ -42,9 +42,9 @@ import metrics
 import notify
 import opsstats
 import ratelimit
-from cache import CacheUnavailable, ResilientCache
+from core.cache import CacheUnavailable, ResilientCache
 from devicecheck import DeviceCheckClient
-from apierrors import APIError
+from core.apierrors import APIError
 from auditlog import AuditEvent
 from entitlements import Entitlement, EntitlementError, EntitlementService
 from entitlements import EntitlementsUnavailable, is_bounded

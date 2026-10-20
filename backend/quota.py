@@ -30,7 +30,7 @@ import time
 from dataclasses import dataclass
 from datetime import datetime, timezone
 
-from cache import CacheUnavailable
+from core.cache import CacheUnavailable
 from devicecheck import DeviceCheckError
 
 log = logging.getLogger("snapworth.quota")

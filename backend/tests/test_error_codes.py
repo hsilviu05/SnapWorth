@@ -21,7 +21,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 import aiconfig
-import apierrors
+from core import apierrors
 import auth
 import confidence
 import imagevalidation

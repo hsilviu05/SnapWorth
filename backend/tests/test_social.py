@@ -20,7 +20,7 @@ import notify  # noqa: E402
 import telegram  # noqa: E402
 import opsstats  # noqa: E402
 import social  # noqa: E402
-from cache import InMemoryCache, ResilientCache  # noqa: E402
+from core.cache import InMemoryCache, ResilientCache  # noqa: E402
 from tests.test_notify import FAKE_CHAT, FAKE_TOKEN, Recorder  # noqa: E402
 
 

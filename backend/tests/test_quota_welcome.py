@@ -16,7 +16,7 @@ import pytest
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import quota as quota_module  # noqa: E402
-from cache import InMemoryCache, ResilientCache  # noqa: E402
+from core.cache import InMemoryCache, ResilientCache  # noqa: E402
 from quota import QuotaExceeded, ScanQuota  # noqa: E402
 
 
@@ -474,7 +474,7 @@ class TestRuntimeOverride:
     """
 
     def _quota(self, override, *, env_first_day=0, limit=1):
-        from cache import InMemoryCache, ResilientCache
+        from core.cache import InMemoryCache, ResilientCache
         return ScanQuota(ResilientCache(None, InMemoryCache()), None,
                          limit=limit, first_day_limit=env_first_day,
                          welcome_override=override)

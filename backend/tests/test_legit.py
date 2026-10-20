@@ -10,7 +10,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 import aiconfig
-import apierrors
+from core import apierrors
 import legit
 import main
 import prompts

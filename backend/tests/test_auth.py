@@ -31,7 +31,7 @@ import appattest  # noqa: E402
 import auditlog  # noqa: E402
 import auth  # noqa: E402
 import levers  # noqa: E402
-from cache import CacheUnavailable, InMemoryCache, ResilientCache  # noqa: E402
+from core.cache import CacheUnavailable, InMemoryCache, ResilientCache  # noqa: E402
 from main import app  # noqa: E402
 from quota import QuotaExceeded, QuotaUnavailable, ScanQuota  # noqa: E402
 from tests.conftest import TEST_APP_ID, build_deps  # noqa: E402

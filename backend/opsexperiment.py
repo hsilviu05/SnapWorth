@@ -22,7 +22,7 @@ import opsstats
 from opsstats import STATS_TTL
 
 if TYPE_CHECKING:
-    from cache import ResilientCache
+    from core.cache import ResilientCache
 
 _cache: ResilientCache | None = None
 

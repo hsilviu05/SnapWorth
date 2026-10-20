@@ -1109,7 +1109,7 @@ class TestRepeatedSafetyBlocks:
         from unittest.mock import AsyncMock, patch
 
         import main
-        from cache import InMemoryCache, ResilientCache
+        from core.cache import InMemoryCache, ResilientCache
         monkeypatch.setattr(main, "_cache", ResilientCache(None, InMemoryCache()))
         monkeypatch.setattr(main, "SAFETY_BLOCKS_BEFORE_PAUSE", 2)
         _rate_store.clear()
@@ -1149,7 +1149,7 @@ class TestRepeatedSafetyBlocks:
         from unittest.mock import AsyncMock, patch
 
         import main
-        from cache import InMemoryCache, ResilientCache
+        from core.cache import InMemoryCache, ResilientCache
         monkeypatch.setattr(main, "_cache", ResilientCache(None, InMemoryCache()))
         monkeypatch.setattr(main, "SAFETY_BLOCKS_BEFORE_PAUSE", 1)
         _rate_store.clear()
@@ -1167,7 +1167,7 @@ class TestRepeatedSafetyBlocks:
         from unittest.mock import AsyncMock, patch
 
         import main
-        from cache import InMemoryCache, ResilientCache
+        from core.cache import InMemoryCache, ResilientCache
         monkeypatch.setattr(main, "_cache", ResilientCache(None, InMemoryCache()))
         monkeypatch.setattr(main, "SAFETY_BLOCKS_BEFORE_PAUSE", 0)
         _rate_store.clear()
@@ -1188,7 +1188,7 @@ class TestRepeatedSafetyBlocks:
         from google.genai import types
 
         import main
-        from cache import InMemoryCache, ResilientCache
+        from core.cache import InMemoryCache, ResilientCache
         monkeypatch.setattr(main, "_cache", ResilientCache(None, InMemoryCache()))
         monkeypatch.setattr(main, "_model_health", main._ModelHealth())
         monkeypatch.setattr(main, "SAFETY_BLOCKS_BEFORE_PAUSE", 2)
@@ -1217,7 +1217,7 @@ class TestTrendsEndpoint:
         from datetime import datetime, timedelta, timezone
 
         import notify
-        from cache import InMemoryCache, ResilientCache
+        from core.cache import InMemoryCache, ResilientCache
         # Only notify's cache is involved; main._cache is deliberately left
         # alone, since assigning a memory-backed one there makes /health report
         # "degraded" for every later test in the process.
@@ -1266,7 +1266,7 @@ if _HERE not in sys.path:
     sys.path.insert(0, _HERE)
 
 import entitlements as _entitlements  # noqa: E402
-from cache import InMemoryCache, ResilientCache  # noqa: E402
+from core.cache import InMemoryCache, ResilientCache  # noqa: E402
 from test_appstorenotify import make_notification  # noqa: E402
 from test_entitlements import build_chain  # noqa: E402
 

@@ -28,11 +28,11 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 import aiconfig
-import apierrors
+from core import apierrors
 import levers
 import main
 import quota
-from cache import InMemoryCache, ResilientCache
+from core.cache import InMemoryCache, ResilientCache
 from tests.conftest import build_deps
 from tests.images import padded_image_bytes
 from tests.test_ai_pipeline import V2_PAYLOAD, _client, _scan_with

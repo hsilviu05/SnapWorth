@@ -82,7 +82,7 @@ from datetime import datetime, timedelta, timezone
 from typing import TYPE_CHECKING
 
 import auditlog
-import background
+from core import background
 import categories
 import chatlog
 import checkup

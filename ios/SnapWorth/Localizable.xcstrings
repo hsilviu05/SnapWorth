@@ -19697,7 +19697,7 @@
       }
     },
     "Scanning from this device is paused for 24 hours after repeated photos that could not be analysed." : {
-      "comment" : "An error the server sent with a code this build words itself (backend/apierrors.py). In English the server's own sentence is shown instead.",
+      "comment" : "An error the server sent with a code this build words itself (backend/core/apierrors.py). In English the server's own sentence is shown instead.",
       "extractionState" : "manual",
       "localizations" : {
         "de" : {
@@ -23379,7 +23379,7 @@
       }
     },
     "The AI couldn't price this item. Please try again." : {
-      "comment" : "An error the server sent with a code this build words itself (backend/apierrors.py). In English the server's own sentence is shown instead.",
+      "comment" : "An error the server sent with a code this build words itself (backend/core/apierrors.py). In English the server's own sentence is shown instead.",
       "extractionState" : "manual",
       "localizations" : {
         "de" : {
@@ -23415,7 +23415,7 @@
       }
     },
     "The AI response couldn't be read. Please try again." : {
-      "comment" : "An error the server sent with a code this build words itself (backend/apierrors.py). In English the server's own sentence is shown instead.",
+      "comment" : "An error the server sent with a code this build words itself (backend/core/apierrors.py). In English the server's own sentence is shown instead.",
       "extractionState" : "manual",
       "localizations" : {
         "de" : {
@@ -23451,7 +23451,7 @@
       }
     },
     "The AI service is temporarily unavailable. Please try again." : {
-      "comment" : "An error the server sent with a code this build words itself (backend/apierrors.py). In English the server's own sentence is shown instead.",
+      "comment" : "An error the server sent with a code this build words itself (backend/core/apierrors.py). In English the server's own sentence is shown instead.",
       "extractionState" : "manual",
       "localizations" : {
         "de" : {
@@ -24022,7 +24022,7 @@
       }
     },
     "This doesn't look like something with a resale value. Try a photo of a single item you'd actually sell." : {
-      "comment" : "An error the server sent with a code this build words itself (backend/apierrors.py). In English the server's own sentence is shown instead. The server's English also gives the AI's reason, which is model text in English; this sentence is shown without it.",
+      "comment" : "An error the server sent with a code this build words itself (backend/core/apierrors.py). In English the server's own sentence is shown instead. The server's English also gives the AI's reason, which is model text in English; this sentence is shown without it.",
       "extractionState" : "manual",
       "localizations" : {
         "de" : {
@@ -24201,7 +24201,7 @@
       }
     },
     "This is a SnapWorth Pro feature." : {
-      "comment" : "An error the server sent with a code this build words itself (backend/apierrors.py). In English the server's own sentence is shown instead.",
+      "comment" : "An error the server sent with a code this build words itself (backend/core/apierrors.py). In English the server's own sentence is shown instead.",
       "extractionState" : "manual",
       "localizations" : {
         "de" : {
@@ -24272,7 +24272,7 @@
       }
     },
     "This photo couldn't be analysed. Try a clear photo of a single item." : {
-      "comment" : "An error the server sent with a code this build words itself (backend/apierrors.py). In English the server's own sentence is shown instead.",
+      "comment" : "An error the server sent with a code this build words itself (backend/core/apierrors.py). In English the server's own sentence is shown instead.",
       "extractionState" : "manual",
       "localizations" : {
         "de" : {
@@ -27598,7 +27598,7 @@
       }
     },
     "You've used today's free scans." : {
-      "comment" : "An error the server sent with a code this build words itself (backend/apierrors.py). In English the server's own sentence is shown instead. Count-neutral on purpose: the allowance is one scan a day by default, and more on the first day when the first-day allowance is switched on.",
+      "comment" : "An error the server sent with a code this build words itself (backend/core/apierrors.py). In English the server's own sentence is shown instead. Count-neutral on purpose: the allowance is one scan a day by default, and more on the first day when the first-day allowance is switched on.",
       "extractionState" : "manual",
       "localizations" : {
         "de" : {

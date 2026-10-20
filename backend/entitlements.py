@@ -37,7 +37,7 @@ from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import ec
 
 import notify
-from cache import CacheUnavailable
+from core.cache import CacheUnavailable
 
 log = logging.getLogger("snapworth.entitlements")
 

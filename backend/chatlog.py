@@ -22,7 +22,7 @@ from typing import TYPE_CHECKING
 import opsformat
 
 if TYPE_CHECKING:
-    from cache import ResilientCache
+    from core.cache import ResilientCache
     from telegram import TelegramNotifier
 
 # notify's logger, so log filters written before the split still match.

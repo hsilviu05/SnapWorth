@@ -228,7 +228,7 @@ class TestVerifySignedTransactionRejects:
 class TestEntitlementService:
     @pytest.fixture
     def service(self):
-        from cache import InMemoryCache, ResilientCache
+        from core.cache import InMemoryCache, ResilientCache
         return EntitlementService(ResilientCache(None, InMemoryCache()), BUNDLE_ID, PRODUCTS)
 
     @pytest.mark.asyncio
@@ -260,7 +260,7 @@ class TestEntitlementService:
     @staticmethod
     def _recording_cache():
         """Wraps the real cache, capturing the TTL handed to each `set`."""
-        from cache import InMemoryCache, ResilientCache
+        from core.cache import InMemoryCache, ResilientCache
 
         class Recorder(ResilientCache):
             def __init__(self):
@@ -638,7 +638,7 @@ class TestEntitlementService:
         """So the webhook answers 503 and Apple redelivers, as for a REFUND.
         A plain read on a failing Redis would answer "no block" and the 200
         would end Apple's retries with the block still in place."""
-        from cache import CacheUnavailable, InMemoryCache, ResilientCache
+        from core.cache import CacheUnavailable, InMemoryCache, ResilientCache
 
         class _Down(InMemoryCache):
             async def get(self, key):
@@ -905,7 +905,7 @@ class TestChainConstraints:
 class TestDeviceCap:
     @pytest.fixture
     def service(self):
-        from cache import InMemoryCache, ResilientCache
+        from core.cache import InMemoryCache, ResilientCache
         return EntitlementService(
             ResilientCache(None, InMemoryCache()), BUNDLE_ID, PRODUCTS, max_devices=3)
 
@@ -965,7 +965,7 @@ class TestDeviceCap:
         and returns None, so the record read as empty and the write replaced
         every other device's binding with this one.
         """
-        from cache import InMemoryCache, ResilientCache
+        from core.cache import InMemoryCache, ResilientCache
 
         class _SlowGetRedis(InMemoryCache):
             failing = False
@@ -1103,7 +1103,7 @@ class TestDeviceCap:
 class TestDeviceIdentityBinding:
     @pytest.fixture
     def service(self):
-        from cache import InMemoryCache, ResilientCache
+        from core.cache import InMemoryCache, ResilientCache
         return EntitlementService(
             ResilientCache(None, InMemoryCache()), BUNDLE_ID, PRODUCTS, max_devices=3)
 
@@ -1201,7 +1201,7 @@ class TestOriginalPurchaseDate:
 class TestSharingAlertOnMigration:
     @pytest.fixture
     def service(self):
-        from cache import InMemoryCache, ResilientCache
+        from core.cache import InMemoryCache, ResilientCache
         return EntitlementService(
             ResilientCache(None, InMemoryCache()), BUNDLE_ID, PRODUCTS, max_devices=3)
 
@@ -1318,7 +1318,7 @@ class TestSharingAlertOnMigration:
         "stop detecting" as "evict on every second device", which is further
         from the operator's intent than the crash was.
         """
-        from cache import InMemoryCache, ResilientCache
+        from core.cache import InMemoryCache, ResilientCache
         service = EntitlementService(
             ResilientCache(None, InMemoryCache()), BUNDLE_ID, PRODUCTS, max_devices=0)
         leaf_key, chain = pinned_root
@@ -1354,7 +1354,7 @@ class TestSharingAlertOnMigration:
         one, so a record already over the cap stays over it.
         """
         import logging
-        from cache import InMemoryCache, ResilientCache
+        from core.cache import InMemoryCache, ResilientCache
         service = EntitlementService(
             ResilientCache(None, InMemoryCache()), BUNDLE_ID, PRODUCTS, max_devices=3)
         leaf_key, chain = pinned_root

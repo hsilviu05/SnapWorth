@@ -38,7 +38,7 @@ import opsstats  # noqa: E402
 import opssupport  # noqa: E402
 import telegram  # noqa: E402
 import trends  # noqa: E402
-from cache import InMemoryCache, ResilientCache  # noqa: E402
+from core.cache import InMemoryCache, ResilientCache  # noqa: E402
 from datetime import datetime, timedelta, timezone  # noqa: E402
 from entitlements import FREE, Entitlement, Reinstatement  # noqa: E402
 from quota import ScanQuota  # noqa: E402
@@ -4536,7 +4536,7 @@ class TestExperimentExport:
     @pytest.mark.asyncio
     async def test_an_unreadable_cache_exports_nothing_rather_than_zeros(
             self, cache, monkeypatch):
-        from cache import CacheUnavailable
+        from core.cache import CacheUnavailable
 
         async def down(key, *, required=False):
             if required:
@@ -4555,7 +4555,7 @@ class TestExperimentExport:
         does not cover: the counters read, and only the lever's record does
         not. Read best-effort, that record was {} — a kept copy with no lever
         move in it, and nothing refused it."""
-        from cache import CacheUnavailable
+        from core.cache import CacheUnavailable
 
         monkeypatch.setattr(opsexperiment, "EXPERIMENT_START_DAY", opsstats.day())
         monkeypatch.setattr(opsexperiment, "EXPERIMENT_END_DAY", opsstats.day())

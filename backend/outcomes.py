@@ -71,7 +71,7 @@ import categories
 import prompts
 import ratelimit
 from auth import Principal, deps, require_auth
-from cache import CacheUnavailable
+from core.cache import CacheUnavailable
 
 #: How long a shared outcome is kept: the same horizon as the other long-lived
 #: records (RUNBOOK §11's table). The policy states it.
