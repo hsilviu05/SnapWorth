@@ -16,8 +16,8 @@ import re
 import time
 from typing import TYPE_CHECKING
 
-import opsformat
-import opsindex
+from ops import opsformat
+from ops import opsindex
 
 if TYPE_CHECKING:
     from core.cache import ResilientCache

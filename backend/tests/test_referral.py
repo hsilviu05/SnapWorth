@@ -15,9 +15,9 @@ from fastapi.testclient import TestClient
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from security import auth  # noqa: E402
-import opsstats  # noqa: E402
+from ops import opsstats  # noqa: E402
 from billing import referral  # noqa: E402
-import telegram  # noqa: E402
+from ops import telegram  # noqa: E402
 from billing.entitlements import Entitlement, entitlement_from_payload  # noqa: E402
 from main import app  # noqa: E402
 from billing.referral import POOL_FRIEND, POOL_REWARD, ReferralConfig, ReferralError  # noqa: E402
@@ -786,7 +786,7 @@ def operator():
     """notify wired to the same cache the referral module uses, with a bot
     whose messages are captured."""
     import httpx
-    import notify
+    from ops import notify
     sent = _Sent()
     notifier = telegram.TelegramNotifier(
         "123456789:AAtest-token-abcdefghijklmnopqrstuvwx", "424242",
@@ -797,7 +797,7 @@ def operator():
 
 
 async def _drain():
-    import notify
+    from ops import notify
     pending = [t for t in notify._tasks if not t.done()]
     if pending:
         await asyncio.gather(*pending, return_exceptions=True)
@@ -811,7 +811,7 @@ def _paid(otid="otid-1"):
 
 class TestFunnelCounters:
     def test_claims_redemptions_rewards_and_paid_periods_reach_the_digest(self, operator):
-        import notify
+        from ops import notify
         from datetime import datetime, timedelta, timezone
 
         async def go():
@@ -833,14 +833,14 @@ class TestFunnelCounters:
                 "1 paid after the free week") in digest
 
     def test_a_quiet_day_has_no_referral_line(self, operator):
-        import notify
+        from ops import notify
         from datetime import datetime, timezone
         digest = asyncio.run(notify._digest_text(datetime.now(timezone.utc)))
         assert "Referrals:" not in digest
 
     def test_apples_renewal_notice_counts_a_friend_who_never_reopened_the_app(self, operator):
         from billing import appstorenotify
-        import notify
+        from ops import notify
 
         async def go():
             await auth.deps.cache.set(referral._redeemed_key("otid-9"), "1")
@@ -886,7 +886,7 @@ class TestPoolAlerts:
         assert not [t for t in operator.texts if "pool" in t]
 
     def test_checkup_shows_the_pools_and_flags_a_low_one(self, operator, monkeypatch):
-        import notify
+        from ops import notify
         monkeypatch.setattr(referral, "POOL_LOW_AT", 2)
 
         async def go():
@@ -901,7 +901,7 @@ class TestPoolAlerts:
     def test_checkup_reports_an_outage_as_one_not_as_empty_pools(self, operator, monkeypatch):
         """Not required, both reads were answered (0, 0) from process memory,
         and the checkup said every invite was refused for want of codes."""
-        import notify
+        from ops import notify
         from core.cache import InMemoryCache, ResilientCache
         down = ResilientCache(None, InMemoryCache(), configured=True)
         monkeypatch.setattr(notify, "_cache", down)
@@ -909,7 +909,7 @@ class TestPoolAlerts:
         assert line == "Referrals: on for build 23+ · pools unreadable (CacheUnavailable)"
 
     def test_checkup_when_off_is_one_quiet_line(self, operator, monkeypatch):
-        import notify
+        from ops import notify
         monkeypatch.setattr(referral, "config", ReferralConfig(enabled=False))
         assert asyncio.run(notify._referral_line()).startswith("Referrals: off")
 

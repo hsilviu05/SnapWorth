@@ -18,8 +18,8 @@ from datetime import datetime, timedelta, timezone
 from typing import TYPE_CHECKING
 
 from security import auditlog
-import opsformat
-import opsstats
+from ops import opsformat
+from ops import opsstats
 
 if TYPE_CHECKING:
     from core.cache import ResilientCache

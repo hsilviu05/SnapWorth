@@ -732,7 +732,7 @@ class TestConfidence:
     def test_one_unknown_brand_list_everywhere(self):
         """notify tallied "Generic" as no brand and the eval's hallucination
         check counted it as an asserted brand; both now read this list."""
-        import notify
+        from ops import notify
         import trends
         from eval import metrics as eval_metrics
 

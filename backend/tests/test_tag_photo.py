@@ -96,7 +96,7 @@ class TestQuotaAndCost:
         tag photo is a second look at the same item, and tallying it again
         put it into "Notable finds" twice."""
         seen: list[dict] = []
-        with patch("notify.scan_completed", lambda **kw: seen.append(kw)):
+        with patch("ops.notify.scan_completed", lambda **kw: seen.append(kw)):
             scan_request(with_tag=True, device="tag-reread")
             scan_request(with_tag=False, device="tag-first-look")
         assert [kw["reread"] for kw in seen] == [True, False]

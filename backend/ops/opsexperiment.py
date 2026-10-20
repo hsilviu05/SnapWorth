@@ -16,10 +16,10 @@ import re
 from datetime import datetime, timedelta, timezone
 from typing import TYPE_CHECKING
 
-import levers
-import opsindex
-import opsstats
-from opsstats import STATS_TTL
+from ops import levers
+from ops import opsindex
+from ops import opsstats
+from ops.opsstats import STATS_TTL
 
 if TYPE_CHECKING:
     from core.cache import ResilientCache

@@ -17,8 +17,8 @@ import logging
 from collections.abc import Awaitable, Callable
 from typing import TYPE_CHECKING, Literal
 
-import opsformat
-import opsstats
+from ops import opsformat
+from ops import opsstats
 
 if TYPE_CHECKING:
     from core.cache import ResilientCache

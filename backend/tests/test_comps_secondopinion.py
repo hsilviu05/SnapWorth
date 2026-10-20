@@ -16,7 +16,7 @@ import pytest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-import metrics  # noqa: E402
+from ops import metrics  # noqa: E402
 from scan import typesafe  # noqa: E402
 from comps import secondopinion  # noqa: E402
 from comps.matching import MIN_MATCH_SCORE  # noqa: E402

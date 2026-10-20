@@ -84,19 +84,19 @@ from typing import TYPE_CHECKING
 from security import auditlog
 from core import background
 from scan import categories
-import chatlog
-import checkup
+from ops import chatlog
+from ops import checkup
 import ideas
-import levers
-import opsformat
-import opsexperiment
-import opsindex
-import opsspend
-import opsstats
-import opssupport
-import telegram
+from ops import levers
+from ops import opsformat
+from ops import opsexperiment
+from ops import opsindex
+from ops import opsspend
+from ops import opsstats
+from ops import opssupport
+from ops import telegram
 import trends
-from opsstats import STATS_TTL
+from ops.opsstats import STATS_TTL
 
 if TYPE_CHECKING:
     # For the annotation only. The value arrives through `configure`, from the

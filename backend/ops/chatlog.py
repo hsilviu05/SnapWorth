@@ -19,11 +19,11 @@ from collections.abc import Awaitable, Callable
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING
 
-import opsformat
+from ops import opsformat
 
 if TYPE_CHECKING:
     from core.cache import ResilientCache
-    from telegram import TelegramNotifier
+    from ops.telegram import TelegramNotifier
 
 # notify's logger, so log filters written before the split still match.
 log = logging.getLogger("snapworth.notify")

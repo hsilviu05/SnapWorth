@@ -36,7 +36,7 @@ from cryptography.exceptions import InvalidSignature
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import ec
 
-import notify
+from ops import notify
 from core.cache import CacheUnavailable
 
 log = logging.getLogger("snapworth.entitlements")

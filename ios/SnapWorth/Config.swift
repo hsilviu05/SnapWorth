@@ -60,7 +60,7 @@ enum Config {
     ///   | openssl dgst -sha256 -binary | base64
     /// ```
     /// and compare what the host serves with `/checkup` in the ops bot, which
-    /// hashes the live chain against this same set (`backend/notify.py`,
+    /// hashes the live chain against this same set (`backend/ops/notify.py`,
     /// `PINNED_SPKI_HASHES` — a backend test fails when the two differ).
     static let pinnedSPKIHashes: Set<String> = [
         "fk6IOKit1ild5647BH06ujSIq5XbCgqlbYl6ANhhi88=",  // ISRG Root YR, RSA-4096   (exp 2045-09-02)

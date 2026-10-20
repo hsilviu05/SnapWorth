@@ -16,7 +16,7 @@ import pytest
 from scan import categories
 from scan import confidence
 import main
-import notify
+from ops import notify
 from scan import prompts
 from scan import promptsafety
 from scan import valuation

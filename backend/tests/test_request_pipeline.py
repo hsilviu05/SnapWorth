@@ -32,11 +32,11 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from security import auth  # noqa: E402
 from billing import entitlements  # noqa: E402
 import main  # noqa: E402
-import metrics  # noqa: E402
-import levers  # noqa: E402
-import notify  # noqa: E402
-import opsstats  # noqa: E402
-import observability  # noqa: E402
+from ops import metrics  # noqa: E402
+from ops import levers  # noqa: E402
+from ops import notify  # noqa: E402
+from ops import opsstats  # noqa: E402
+from ops import observability  # noqa: E402
 from core.cache import InMemoryCache, ResilientCache  # noqa: E402
 from tests.conftest import build_deps  # noqa: E402
 from tests.images import padded_image_bytes  # noqa: E402

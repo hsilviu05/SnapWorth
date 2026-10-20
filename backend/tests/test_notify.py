@@ -25,18 +25,18 @@ import pytest_asyncio
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from security import auditlog  # noqa: E402
-import chatlog  # noqa: E402
-import checkup  # noqa: E402
-import levers  # noqa: E402
-import notify  # noqa: E402
-import observability  # noqa: E402
-import opsexperiment  # noqa: E402
-import opsformat  # noqa: E402
-import opsindex  # noqa: E402
-import opsspend  # noqa: E402
-import opsstats  # noqa: E402
-import opssupport  # noqa: E402
-import telegram  # noqa: E402
+from ops import chatlog  # noqa: E402
+from ops import checkup  # noqa: E402
+from ops import levers  # noqa: E402
+from ops import notify  # noqa: E402
+from ops import observability  # noqa: E402
+from ops import opsexperiment  # noqa: E402
+from ops import opsformat  # noqa: E402
+from ops import opsindex  # noqa: E402
+from ops import opsspend  # noqa: E402
+from ops import opsstats  # noqa: E402
+from ops import opssupport  # noqa: E402
+from ops import telegram  # noqa: E402
 import trends  # noqa: E402
 from core.cache import InMemoryCache, ResilientCache  # noqa: E402
 from datetime import datetime, timedelta, timezone  # noqa: E402

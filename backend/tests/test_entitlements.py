@@ -1207,7 +1207,7 @@ class TestSharingAlertOnMigration:
 
     @pytest.fixture
     def alerts(self, monkeypatch):
-        import notify
+        from ops import notify
         calls: list[dict] = []
         monkeypatch.setattr(notify, "subscription_over_cap",
                             lambda *a, **k: calls.append(k))

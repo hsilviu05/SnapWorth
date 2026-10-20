@@ -11,7 +11,7 @@ from __future__ import annotations
 import logging
 from collections.abc import Awaitable, Callable
 
-import opsformat
+from ops import opsformat
 
 # notify's logger, so log filters written before the split still match.
 log = logging.getLogger("snapworth.notify")

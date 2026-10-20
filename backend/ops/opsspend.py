@@ -18,11 +18,11 @@ import time
 from collections.abc import Awaitable, Callable
 from typing import TYPE_CHECKING
 
-import opsformat
-import opsindex
-import opsstats
+from ops import opsformat
+from ops import opsindex
+from ops import opsstats
 from core.background import spawn
-from opsstats import STATS_TTL
+from ops.opsstats import STATS_TTL
 
 if TYPE_CHECKING:
     from core.cache import ResilientCache

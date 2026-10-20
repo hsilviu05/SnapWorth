@@ -24,8 +24,8 @@ from billing import appstorenotify
 from security import auth
 from billing.entitlements import Entitlement
 import main
-import opsindex
-import opsstats
+from ops import opsindex
+from ops import opsstats
 import trends
 from main import app, _extract_json, _check_rate_limit, _rate_store, _ip_rate_store
 from tests.images import VALID_PNG, padded_image_bytes
@@ -263,7 +263,7 @@ class TestLegalEndpoints:
 
     def test_the_stated_retention_is_the_retention_the_code_applies(self):
         """A number in a policy that nothing checks is a number that drifts."""
-        import notify
+        from ops import notify
         body = _prose(client.get("/privacy").text)
         days = opsindex.INDEX_TTL // 86_400
         assert f"{days} days" in body, (
@@ -276,7 +276,7 @@ class TestLegalEndpoints:
         and each day's best finds, item name included, were shown to Pro
         subscribers as notable finds. The photo claim was true; the rest was
         not."""
-        import notify
+        from ops import notify
         body = _prose(client.get("/privacy").text)
         assert "scan results are processed in real time" not in body
         assert f"{opsstats.STATS_TTL // 86_400} days after the day of the scan" in body
@@ -295,7 +295,7 @@ class TestLegalEndpoints:
         day does. "Without your device identifier" stayed literally true and
         told the reader nothing about it; the tag is disclosed on its own."""
         from security import auditlog
-        import notify
+        from ops import notify
         body = _prose(client.get("/privacy").text)
         assert ("Beside each category, brand and highest-value scan we also keep "
                 "a short tag for each device that scanned it") in body
@@ -321,7 +321,7 @@ class TestLegalEndpoints:
         and `_write_index` prunes on `seen`. So a subscriber who deleted the app
         but keeps renewing keeps that row: 400 days from the app's last visit is
         not what the code does."""
-        import notify
+        from ops import notify
         body = _prose(client.get("/privacy").text)
         assert (f"for up to {opsindex.INDEX_TTL // 86_400} days after the device "
                 "last uses the service or, for a subscription, after the app or "
@@ -1070,7 +1070,7 @@ class TestScanAccounting:
         find nobody ever saw.
         """
         import main
-        import notify
+        from ops import notify
         counted: list[str] = []
         completed: list[dict] = []
         monkeypatch.setattr(opsstats, "count_scan", lambda tier: counted.append(tier))
@@ -1216,7 +1216,7 @@ class TestTrendsEndpoint:
         import json as _json
         from datetime import datetime, timedelta, timezone
 
-        import notify
+        from ops import notify
         from core.cache import InMemoryCache, ResilientCache
         # Only notify's cache is involved; main._cache is deliberately left
         # alone, since assigning a memory-backed one there makes /health report
@@ -1593,7 +1593,7 @@ class TestAppleNotifications:
             self, pinned, monkeypatch):
         """/checkup's "last verified App Store notification" line. A forged
         body must not be able to make a silent webhook look alive."""
-        import notify
+        from ops import notify
         seen: list[tuple[str, str]] = []
         monkeypatch.setattr(notify, "appstore_notification_verified",
                             lambda env, kind: seen.append((env, kind)))

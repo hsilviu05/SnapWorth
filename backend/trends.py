@@ -19,7 +19,7 @@ from typing import TYPE_CHECKING
 
 from security import auditlog
 from scan import categories
-import opsstats
+from ops import opsstats
 from scan.confidence import brand_is_known
 
 if TYPE_CHECKING:

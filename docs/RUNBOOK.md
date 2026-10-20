@@ -44,7 +44,7 @@ misleading at the same time: it implied nothing was watching, while §8 told the
 reader to "Run 🩺 Checkup" without ever saying what that is or where to run it.
 The word "Telegram" did not appear in this document.
 
-**The ops bot is the monitoring surface.** It lives in `backend/notify.py`,
+**The ops bot is the monitoring surface.** It lives in `backend/ops/notify.py`,
 posts to the operator's Telegram chat, and is where every operational signal
 actually arrives:
 

@@ -36,7 +36,7 @@ import statistics
 from decimal import Decimal
 from typing import Protocol
 
-import metrics
+from ops import metrics
 from comps import normalize, secondopinion
 from comps.engine import CompsEngine
 from comps.models import CompsResult, Condition, ItemIdentity

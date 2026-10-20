@@ -43,12 +43,12 @@ from billing import entitlements
 from scan import imagequality
 from scan import imagevalidation
 from scan import legit as legit_module
-import levers
+from ops import levers
 from scan import listingclaims
-import metrics
-import notify
-import opsspend
-import opsstats
+from ops import metrics
+from ops import notify
+from ops import opsspend
+from ops import opsstats
 from scan import promptsafety
 from scan import prompts
 from scan import rack as rack_module
@@ -69,8 +69,8 @@ from security.auth import (Principal, record_quota_consumed, refund_quota,
                   require_auth, reserve_quota)
 from billing.entitlements import EntitlementError, EntitlementService, Reinstatement
 from fastapi import Depends
-import observability
-from observability import RequestContextMiddleware, configure_production_logging
+from ops import observability
+from ops.observability import RequestContextMiddleware, configure_production_logging
 from billing.quota import FREE_SCANS_PER_DAY, ScanQuota
 from security.ratelimit import (
     IP_RATE_MAX_REQUESTS,

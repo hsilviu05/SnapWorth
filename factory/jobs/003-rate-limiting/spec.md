@@ -67,7 +67,7 @@ in-repo imports.
 on the shared IP bucket: "`/scan`, `/rack`, `/listing`, `/legit`, `/trends`,
 `/auth/entitlement`, and the unauthenticated `/auth` routes and
 `/apple/notifications`". `metrics.KNOWN_ENDPOINTS` already contains
-`/social/tiktok/callback` (`backend/metrics.py:430-436`), so no metrics change
+`/social/tiktok/callback` (`backend/ops/metrics.py:430-436`), so no metrics change
 is needed.
 
 ## Requirements

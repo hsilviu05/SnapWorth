@@ -37,10 +37,10 @@ from pydantic import BaseModel, Field, field_validator
 from core import apierrors
 from security import appattest
 from security import auditlog
-import levers
-import metrics
-import notify
-import opsstats
+from ops import levers
+from ops import metrics
+from ops import notify
+from ops import opsstats
 from security import ratelimit
 from core.cache import CacheUnavailable, ResilientCache
 from security.devicecheck import DeviceCheckClient

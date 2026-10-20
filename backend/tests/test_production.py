@@ -19,8 +19,8 @@ from fastapi.testclient import TestClient
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from security import devicecheck  # noqa: E402
-import metrics  # noqa: E402
-import observability as obs  # noqa: E402
+from ops import metrics  # noqa: E402
+from ops import observability as obs  # noqa: E402
 import main  # noqa: E402
 from main import app  # noqa: E402
 
@@ -287,7 +287,7 @@ class TestDeclaredMetricsAreIncremented:
 
     def test_entitlement_outcomes_are_counted(self, monkeypatch):
         from security import auth
-        import notify
+        from ops import notify
         from billing import referral
         from billing.entitlements import Entitlement, EntitlementError
 

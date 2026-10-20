@@ -30,7 +30,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from security import appattest  # noqa: E402
 from security import auditlog  # noqa: E402
 from security import auth  # noqa: E402
-import levers  # noqa: E402
+from ops import levers  # noqa: E402
 from core.cache import CacheUnavailable, InMemoryCache, ResilientCache  # noqa: E402
 from main import app  # noqa: E402
 from billing.quota import QuotaExceeded, QuotaUnavailable, ScanQuota  # noqa: E402
@@ -657,7 +657,7 @@ class TestQuota:
         assert auth.deps.signer is not None   # set by the build_deps/conftest fixture
         token, _ = auth.deps.signer.mint("quota-subject")
         h = {"Authorization": f"Bearer {token}"}
-        import metrics
+        from ops import metrics
         refused_before = metrics.quota_exhausted.value()
         assert _scan(headers=h).status_code == 200
         assert _scan(headers=h).status_code == 200

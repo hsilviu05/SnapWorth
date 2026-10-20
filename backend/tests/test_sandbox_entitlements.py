@@ -30,10 +30,10 @@ sys.path.insert(0, _HERE)
 from security import auth  # noqa: E402
 from billing import entitlements  # noqa: E402
 import main  # noqa: E402
-import notify  # noqa: E402
-import opsindex  # noqa: E402
-import opsstats  # noqa: E402
-import opssupport  # noqa: E402
+from ops import notify  # noqa: E402
+from ops import opsindex  # noqa: E402
+from ops import opsstats  # noqa: E402
+from ops import opssupport  # noqa: E402
 from billing.appstorenotify import Notification  # noqa: E402
 from core.cache import InMemoryCache, ResilientCache  # noqa: E402
 from tests.conftest import not_none  # noqa: E402

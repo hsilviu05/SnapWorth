@@ -12,8 +12,8 @@ import pytest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-import notify  # noqa: E402
-import opsstats  # noqa: E402
+from ops import notify  # noqa: E402
+from ops import opsstats  # noqa: E402
 import trends  # noqa: E402
 from core.cache import InMemoryCache, ResilientCache  # noqa: E402
 

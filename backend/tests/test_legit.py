@@ -231,5 +231,5 @@ class TestFailures:
 
 
 def test_the_spend_is_charged_to_pro():
-    import opsspend
+    from ops import opsspend
     assert opsspend._usage_tier("legit", None) == "pro"

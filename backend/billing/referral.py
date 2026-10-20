@@ -60,8 +60,8 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 
 from security import auditlog
-import notify
-import observability
+from ops import notify
+from ops import observability
 from security import ratelimit
 from security.auth import Principal, deps, require_auth
 from core.cache import CacheUnavailable, ResilientCache

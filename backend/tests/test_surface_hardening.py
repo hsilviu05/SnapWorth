@@ -19,8 +19,8 @@ from fastapi.testclient import TestClient
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import main  # noqa: E402
-import metrics  # noqa: E402
-import observability  # noqa: E402
+from ops import metrics  # noqa: E402
+from ops import observability  # noqa: E402
 from security import ratelimit  # noqa: E402
 
 client = TestClient(main.app)
@@ -230,7 +230,7 @@ class TestEntitlementRouteIsLimited:
         """Only verified transactions reach the subscription index, so a
         refused one left nothing `/user` could show: the customer who paid and
         was told free looked as if they had never tried."""
-        import notify
+        from ops import notify
         seen: list[tuple[str, str]] = []
         monkeypatch.setattr(notify, "entitlement_rejected",
                             lambda subject, reason: seen.append((subject, reason)))
