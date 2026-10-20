@@ -53,7 +53,7 @@ difference.
 | [#183](https://github.com/hsilviu05/SnapWorth/pull/183) | Tests stay out of the developer's `.env` |
 | [#184](https://github.com/hsilviu05/SnapWorth/pull/184) | CI: deploy one commit at a time, newest wins |
 | [#185](https://github.com/hsilviu05/SnapWorth/pull/185) | #92 research; the Nuptse page stops claiming prices peak (website) |
-| [#186](https://github.com/hsilviu05/SnapWorth/pull/186) | `docs/AUDIT-2026-09-26.md` |
+| [#186](https://github.com/hsilviu05/SnapWorth/pull/186) | `docs/audits/AUDIT-2026-09-26.md` |
 | [#188](https://github.com/hsilviu05/SnapWorth/pull/188) | Request bodies capped as they arrive; client hang-ups; the calling build |
 | [#189](https://github.com/hsilviu05/SnapWorth/pull/189) | Refunds and reinstalls: required writes, REFUND_REVERSED, DeviceCheck flag |
 | [#190](https://github.com/hsilviu05/SnapWorth/pull/190) | Server half: ops bot `/sub` IDs, `/checkup`, `/clear`; trends count distinct devices |

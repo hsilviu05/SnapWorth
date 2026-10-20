@@ -33,7 +33,7 @@ def bind(cache: ResilientCache | None) -> None:
     _cache = cache
 
 
-# The free-scan experiment, A-6 in docs/AUDIT-2026-09.md. `FREE_SCANS_FIRST_DAY`
+# The free-scan experiment, A-6 in docs/audits/AUDIT-2026-09.md. `FREE_SCANS_FIRST_DAY`
 # was armed 2026-09-07, but until 1.3.6 shipped a spent allowance was filed as a
 # scan failure (I-23) and the client's own count could be wrong three separate
 # ways (I-3, I-4, I-5) — so the window opens on approval day, not arming day.

@@ -5,7 +5,7 @@
 ## Scope
 
 A bug-fix release, and a large one: **every iOS finding from the 2026-09-07
-audit** (`docs/AUDIT-2026-09-07.md`) — all 25 — is fixed here. No new features,
+audit** (`docs/audits/AUDIT-2026-09-07.md`) — all 25 — is fixed here. No new features,
 no prompt or model change, nothing that changes what a scan costs or returns.
 
 Most of it is invisible. Four things are not, and those are what the What's New

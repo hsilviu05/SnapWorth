@@ -68,7 +68,7 @@ is the only one that can answer the question.
 **Volume is too small to separate the arms.** The whole window has 100
 free scans and at most 6 trial starts or purchases: 2 split ones, plus 4
 from before #218, which fall in neither column. The days with the lever off
-are 09-02 to 09-06 (armed on 09-07, `docs/AUDIT-2026-09.md` A-6). Two of
+are 09-02 to 09-06 (armed on 09-07, `docs/audits/AUDIT-2026-09.md` A-6). Two of
 them have no activity at all, which is more likely the counters' first days
 than a real zero. The other three have 9 device-days. No conversion rate can
 be compared across 9 device-days.
