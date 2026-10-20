@@ -120,6 +120,34 @@ final class ConditionTests: XCTestCase {
     }
 }
 
+// MARK: - Copy listing draft: the condition line
+
+@MainActor
+final class ListingDraftTextTests: XCTestCase {
+
+    private func make() -> ScanResult {
+        ScanResult(
+            itemName: "Leather sandals", brand: "Brand", category: "shoes",
+            conditionNotes: "Scuff marks on the toe; footprint on the footbed",
+            valueLow: 20, valueHigh: 40, confidence: "Medium", soldListingsCount: 0,
+            listingTitle: "Brand leather sandals", listingDescription: "Brown leather."
+        )
+    }
+
+    func test_untouched_copiesTheScansNotes() {
+        let text = ResultViewModel.listingDraftText(for: make())
+        XCTAssertTrue(text.contains("Condition: Scuff marks on the toe"))
+    }
+
+    func test_pickedCondition_replacesTheScansNotes() {
+        let r = make()
+        r.condition = .new
+        let text = ResultViewModel.listingDraftText(for: r)
+        XCTAssertTrue(text.contains("Condition: brand new, unused"))
+        XCTAssertFalse(text.contains("Scuff"))
+    }
+}
+
 // MARK: - Thrift Flip: profit math (FlipMath) Tests
 
 final class FlipMathTests: XCTestCase {
