@@ -29,7 +29,7 @@ from starlette.types import Message
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-import auth  # noqa: E402
+from security import auth  # noqa: E402
 import entitlements  # noqa: E402
 import main  # noqa: E402
 import metrics  # noqa: E402

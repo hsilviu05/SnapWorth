@@ -34,11 +34,11 @@ from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 import aiconfig
 from core import apierrors
-import auditlog
-import auth
+from security import auditlog
+from security import auth
 from core import cache as cache_module
 import confidence as confidence_module
-import devicecheck
+from security import devicecheck
 import entitlements
 import imagequality
 import imagevalidation
@@ -52,27 +52,27 @@ import opsstats
 import promptsafety
 import prompts
 import rack as rack_module
-import ratelimit
+from security import ratelimit
 import appstorenotify
 import referral
 import outcomes
 import social
-import tokens
+from security import tokens
 import trends as trends_module
 import typesafe
 import valuation as valuation_module
 from core.apierrors import APIError
-from auditlog import AuditEvent
+from security.auditlog import AuditEvent
 from comps.engine import build_engine as build_comps_engine
 from comps.shadow import ShadowRunner
-from auth import (Principal, record_quota_consumed, refund_quota,
+from security.auth import (Principal, record_quota_consumed, refund_quota,
                   require_auth, reserve_quota)
 from entitlements import EntitlementError, EntitlementService, Reinstatement
 from fastapi import Depends
 import observability
 from observability import RequestContextMiddleware, configure_production_logging
 from quota import FREE_SCANS_PER_DAY, ScanQuota
-from ratelimit import (
+from security.ratelimit import (
     IP_RATE_MAX_REQUESTS,
     LEGIT_RATE_MAX_REQUESTS,
     LISTING_RATE_MAX_REQUESTS,

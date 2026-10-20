@@ -27,16 +27,16 @@ from fastapi.testclient import TestClient
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-import appattest  # noqa: E402
-import auditlog  # noqa: E402
-import auth  # noqa: E402
+from security import appattest  # noqa: E402
+from security import auditlog  # noqa: E402
+from security import auth  # noqa: E402
 import levers  # noqa: E402
 from core.cache import CacheUnavailable, InMemoryCache, ResilientCache  # noqa: E402
 from main import app  # noqa: E402
 from quota import QuotaExceeded, QuotaUnavailable, ScanQuota  # noqa: E402
 from tests.conftest import TEST_APP_ID, build_deps  # noqa: E402
 from tests.images import VALID_JPEG  # noqa: E402
-from tokens import TokenError, TokenSigner  # noqa: E402
+from security.tokens import TokenError, TokenSigner  # noqa: E402
 
 client = TestClient(app)
 

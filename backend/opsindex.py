@@ -17,7 +17,7 @@ import time
 from datetime import datetime, timedelta, timezone
 from typing import TYPE_CHECKING
 
-import auditlog
+from security import auditlog
 import opsformat
 import opsstats
 

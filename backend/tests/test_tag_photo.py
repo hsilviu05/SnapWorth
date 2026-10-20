@@ -30,7 +30,7 @@ def scan_request(*, with_tag: bool, tag_bytes: bytes | None = None, device: str 
     response = MagicMock()
     response.text = json.dumps(MOCK_RESPONSE_JSON)
     with patch("main._model") as model, \
-         patch("auth.Principal.is_pro", property(lambda self: pro)):
+         patch("security.auth.Principal.is_pro", property(lambda self: pro)):
         model.generate_content_async = AsyncMock(return_value=response)
         result = client.post("/scan", files=files, headers={"x-device-id": device})
         calls = model.generate_content_async.await_args_list

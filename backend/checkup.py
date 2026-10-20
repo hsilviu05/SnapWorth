@@ -19,8 +19,8 @@ from collections.abc import Awaitable, Callable
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING
 
-import auditlog
-from devicecheck import PROBE_NOT_SENT
+from security import auditlog
+from security.devicecheck import PROBE_NOT_SENT
 
 if TYPE_CHECKING:
     from core.cache import ResilientCache

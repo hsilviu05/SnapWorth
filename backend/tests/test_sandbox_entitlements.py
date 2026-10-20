@@ -27,7 +27,7 @@ _HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.dirname(_HERE))
 sys.path.insert(0, _HERE)
 
-import auth  # noqa: E402
+from security import auth  # noqa: E402
 import entitlements  # noqa: E402
 import main  # noqa: E402
 import notify  # noqa: E402

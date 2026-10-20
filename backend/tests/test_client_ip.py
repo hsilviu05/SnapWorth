@@ -28,9 +28,9 @@ from starlette.routing import Route
 from starlette.testclient import TestClient
 from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 
-import auth
+from security import auth
 import main
-import ratelimit
+from security import ratelimit
 import referral
 from tests.test_main import client
 

@@ -22,7 +22,7 @@ from fastapi.testclient import TestClient
 
 import aiconfig
 from core import apierrors
-import auth
+from security import auth
 import confidence
 import imagevalidation
 import main

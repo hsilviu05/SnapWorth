@@ -35,21 +35,21 @@ from fastapi import APIRouter, Depends, Header, Request
 from pydantic import BaseModel, Field, field_validator
 
 from core import apierrors
-import appattest
-import auditlog
+from security import appattest
+from security import auditlog
 import levers
 import metrics
 import notify
 import opsstats
-import ratelimit
+from security import ratelimit
 from core.cache import CacheUnavailable, ResilientCache
-from devicecheck import DeviceCheckClient
+from security.devicecheck import DeviceCheckClient
 from core.apierrors import APIError
-from auditlog import AuditEvent
+from security.auditlog import AuditEvent
 from entitlements import Entitlement, EntitlementError, EntitlementService
 from entitlements import EntitlementsUnavailable, is_bounded
 from quota import QuotaExceeded, QuotaStatus, QuotaUnavailable, ScanQuota
-from tokens import TokenError, TokenSigner
+from security.tokens import TokenError, TokenSigner
 
 log = logging.getLogger("snapworth.auth")
 

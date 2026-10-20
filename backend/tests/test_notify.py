@@ -24,7 +24,7 @@ import pytest_asyncio
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-import auditlog  # noqa: E402
+from security import auditlog  # noqa: E402
 import chatlog  # noqa: E402
 import checkup  # noqa: E402
 import levers  # noqa: E402
@@ -2089,7 +2089,7 @@ class TestOneDevice:
         scan(subject=SUBJECT, tier="pro")
         await drain()
         await notify.entitlement_recorded(SUBJECT, pro_entitlement("otid-u1", "com.snapworth.yearly"))
-        who = __import__("auditlog").pseudonymise(SUBJECT)
+        who = __import__("security.auditlog").auditlog.pseudonymise(SUBJECT)
         text = await notify.handle_command(f"/user {who[:4]}")
         assert text.startswith(f"👤 <b>Device {who[:8]}</b> — Pro")
         assert "Scans since the bot started watching: 1" in text
@@ -3051,7 +3051,7 @@ class TestSafetyBlocks:
         await drain()
         assert len(enabled_notify.texts) == 1
         text = enabled_notify.texts[0]
-        who = __import__("auditlog").pseudonymise(SUBJECT)
+        who = __import__("security.auditlog").auditlog.pseudonymise(SUBJECT)
         assert text.startswith("🚫 <b>Device paused after repeated blocked photos</b>")
         assert who[:8] in text and "sent 5 photos today" in text
         assert SUBJECT not in text, "pseudonym, never the raw subject"
@@ -3114,7 +3114,7 @@ class TestDeviceCheckLine:
         """`DeviceCheckClient.verify` against a stand-in for Apple, so the two
         halves are tested together: what the probe returns for each failure,
         and what the checkup line makes of it."""
-        import devicecheck
+        from security import devicecheck
         from cryptography.hazmat.primitives import serialization
         from cryptography.hazmat.primitives.asymmetric import ec
         # Generated, never written down: see test_production's `_key`.

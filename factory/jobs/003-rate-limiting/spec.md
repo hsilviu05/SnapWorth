@@ -20,13 +20,13 @@ nonce", but every request still costs a cache round trip.
 (`backend/main.py:957-968`) is the IP-only limit "for routes that have no device
 or subject yet". It checks key `ip:<ip>` on `main._ip_limiter` (Redis, via
 `ratelimit.ResilientRateLimiter`) at `ratelimit.IP_RATE_MAX_REQUESTS` (60/h,
-`backend/ratelimit.py:333-336`). Before startup it falls back to the in-process
+`backend/security/ratelimit.py:333-336`). Before startup it falls back to the in-process
 `main._ip_memory`, keyed by the bare IP. Over the limit it raises
 `apierrors.APIError(429, RATE_LIMITED, ...)` with a `Retry-After` header. This
 is the same `ip:` bucket that `/scan`, `/listing`, `/legit`, `/rack`, `/trends`
 and `/auth/entitlement` share through `_enforce_limits` /
 `_enforce_entitlement_limit`. The key comes from `ratelimit.client_ip(request)`
-(`backend/ratelimit.py:33-120`), the one resolver every caller must use
+(`backend/security/ratelimit.py:33-120`), the one resolver every caller must use
 (`main._client_ip` wraps it).
 
 **How the other unauthenticated routes use it.**
@@ -38,7 +38,7 @@ and `/auth/entitlement` share through `_enforce_limits` /
   `auth.deps.ip_limiter = _enforce_ip_limit` (`backend/main.py:240-241`).
   `auth._limit_unauthenticated` then calls
   `await deps.ip_limiter(ratelimit.client_ip(request))`, and returns early when
-  it is `None` (`backend/auth.py:307-329`).
+  it is `None` (`backend/security/auth.py:307-329`).
 - `referral` and `outcomes` follow the same injection pattern with a
   module-level `limiter: Callable[...] | None = None`
   (`backend/referral.py:113-119`, `backend/outcomes.py:119`), set in
@@ -163,7 +163,7 @@ is needed.
    `main.app.routes`.
    `git diff main -- backend/tests/test_social.py` shows only additions inside
    the existing test module, not edits to `test_route_completes_or_refuses`.
-7. **No new knobs.** `git diff main -- backend/ratelimit.py backend/.env.example`
+7. **No new knobs.** `git diff main -- backend/security/ratelimit.py backend/.env.example`
    is empty. `git diff main -- backend/main.py` adds no new
    `os.environ.get(...)` and no new `async def _enforce_*` function.
 8. **Types stay clean.** From the repo root,

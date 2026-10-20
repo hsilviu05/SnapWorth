@@ -17,7 +17,7 @@ from collections.abc import Callable
 from datetime import datetime, timedelta, timezone
 from typing import TYPE_CHECKING
 
-import auditlog
+from security import auditlog
 import categories
 import opsstats
 from confidence import brand_is_known

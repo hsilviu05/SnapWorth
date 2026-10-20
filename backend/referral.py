@@ -59,11 +59,11 @@ from dataclasses import dataclass
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 
-import auditlog
+from security import auditlog
 import notify
 import observability
-import ratelimit
-from auth import Principal, deps, require_auth
+from security import ratelimit
+from security.auth import Principal, deps, require_auth
 from core.cache import CacheUnavailable, ResilientCache
 from entitlements import Entitlement, is_bounded
 

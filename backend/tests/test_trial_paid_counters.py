@@ -387,7 +387,7 @@ class TestEntitlementRoute:
 
     @pytest.fixture
     def seen(self, monkeypatch):
-        import auth
+        from security import auth
         import referral
 
         ent = Entitlement("pro", "com.snapworth.yearly", None, "otid-1", "Production")

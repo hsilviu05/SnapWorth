@@ -18,7 +18,7 @@ from fastapi.testclient import TestClient
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-import devicecheck  # noqa: E402
+from security import devicecheck  # noqa: E402
 import metrics  # noqa: E402
 import observability as obs  # noqa: E402
 import main  # noqa: E402
@@ -286,7 +286,7 @@ class TestDeclaredMetricsAreIncremented:
     dashboard built on it — "no problem" rather than "no data"."""
 
     def test_entitlement_outcomes_are_counted(self, monkeypatch):
-        import auth
+        from security import auth
         import notify
         import referral
         from entitlements import Entitlement, EntitlementError

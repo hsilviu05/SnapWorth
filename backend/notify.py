@@ -81,7 +81,7 @@ from collections.abc import Awaitable, Callable
 from datetime import datetime, timedelta, timezone
 from typing import TYPE_CHECKING
 
-import auditlog
+from security import auditlog
 from core import background
 import categories
 import chatlog

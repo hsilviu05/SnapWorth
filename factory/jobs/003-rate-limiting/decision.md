@@ -10,6 +10,6 @@ The branch puts `GET /social/tiktok/callback` on the existing `main._enforce_ip_
 4. Every caller keys on `client_ip`: met. `TestEveryCallerUsesIt::test_the_tiktok_callback_route` has three parametrised cases through `main.app`, and I re-ran them; they passed.
 5. Startup wires it: met. `grep` prints `252:    social.limiter = _enforce_ip_limit`, inside `_lifespan`, and `test_startup_wires_it` passes.
 6. Existing behaviour unchanged: met. I ran `pytest tests/` in the worktree: 2405 passed. The diff to `test_social.py` is additions only, so `TestCallbackRoute` is unmodified.
-7. No new knobs: met. `git diff main --stat -- backend/ratelimit.py backend/.env.example` is empty, and the `main.py` diff is one assignment plus a comment.
+7. No new knobs: met. `git diff main --stat -- backend/security/ratelimit.py backend/.env.example` is empty, and the `main.py` diff is one assignment plus a comment.
 8. Types stay clean: met per build.md and review-code (pyright reports 0 errors). I did not re-run pyright.
 9. Docs: met. RUNBOOK §5.8 item 3 now names `/social/tiktok/callback`. In `social.py`, the comment above `_social` says the route is on the standard per-IP bucket, and the `limiter` declaration has its own comment.

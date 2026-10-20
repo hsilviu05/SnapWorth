@@ -66,11 +66,11 @@ from typing import Literal
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-import auditlog
+from security import auditlog
 import categories
 import prompts
-import ratelimit
-from auth import Principal, deps, require_auth
+from security import ratelimit
+from security.auth import Principal, deps, require_auth
 from core.cache import CacheUnavailable
 
 #: How long a shared outcome is kept: the same horizon as the other long-lived

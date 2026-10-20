@@ -14,7 +14,7 @@ from fastapi.testclient import TestClient
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-import auth  # noqa: E402
+from security import auth  # noqa: E402
 import opsstats  # noqa: E402
 import referral  # noqa: E402
 import telegram  # noqa: E402
@@ -710,7 +710,7 @@ class TestInterruptedReward:
         """So a week that is lost after all — its free week over before a
         retry could run — can be found and reissued by hand (RUNBOOK §18)."""
         import logging
-        import auditlog
+        from security import auditlog
         self.setup(trip=("incr", "ref:count:"))      # the count landed, then down
         with caplog.at_level(logging.WARNING, logger="snapworth.referral"):
             assert run(referral.on_entitlement("subj-f", "friend", redeemed())) is False

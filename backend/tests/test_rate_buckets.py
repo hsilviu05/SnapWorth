@@ -19,7 +19,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 import main
-import ratelimit
+from security import ratelimit
 from tests.images import padded_image_bytes
 from tests.test_main import (MOCK_LISTING_JSON, MOCK_RESPONSE_JSON, _listing_body,
                              _pro_headers, client)

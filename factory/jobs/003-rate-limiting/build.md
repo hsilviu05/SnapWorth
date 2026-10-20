@@ -63,7 +63,7 @@ Files changed: `backend/social.py`, `backend/main.py`, `backend/tests/test_socia
    `metrics.KNOWN_ENDPOINTS` vs `main.app.routes` check.
    `git diff main -- backend/tests/test_social.py | grep -E "^-[^-]" | wc -l` prints `0`:
    additions only, one new class `TestCallbackLimit` after `TestCallbackRoute`.
-7. [x] **No new knobs.** `git diff main --stat -- backend/ratelimit.py backend/.env.example`
+7. [x] **No new knobs.** `git diff main --stat -- backend/security/ratelimit.py backend/.env.example`
    is empty. `git diff main -- backend/main.py | grep -E "^\+.*(os.environ.get|async def _enforce_)" | wc -l`
    prints `0`; the `main.py` diff is the one assignment plus a two-line comment.
 8. [x] **Types stay clean.** `backend/.venv/bin/pyright --pythonpath backend/.venv/bin/python $(git ls-files 'backend/*.py' ':!:backend/tests/*')`

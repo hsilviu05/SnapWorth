@@ -804,7 +804,7 @@ import io as _io  # noqa: E402
 import json as _json  # noqa: E402
 from unittest.mock import AsyncMock, MagicMock, patch  # noqa: E402
 
-import auth  # noqa: E402
+from security import auth  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402
 
 from main import ScanResponse, app, _rate_store, _ip_rate_store  # noqa: E402

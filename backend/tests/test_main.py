@@ -21,7 +21,7 @@ import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
 import appstorenotify
-import auth
+from security import auth
 from entitlements import Entitlement
 import main
 import opsindex
@@ -294,7 +294,7 @@ class TestLegalEndpoints:
         find in a day's tallies carries a tag per device for as long as the
         day does. "Without your device identifier" stayed literally true and
         told the reader nothing about it; the tag is disclosed on its own."""
-        import auditlog
+        from security import auditlog
         import notify
         body = _prose(client.get("/privacy").text)
         assert ("Beside each category, brand and highest-value scan we also keep "
@@ -1293,7 +1293,7 @@ class TestAppleNotifications:
     @pytest.fixture
     def entitlement_store(self, monkeypatch):
         """A real service on an in-memory cache, wired where the app looks."""
-        import auth as _auth
+        from security import auth as _auth
         store = _entitlements.EntitlementService(
             ResilientCache(None, InMemoryCache()),
             "eu.snapworth.app", ["com.snapworth.yearly", "com.snapworth.monthly"])
@@ -1337,7 +1337,7 @@ class TestAppleNotifications:
         tombstone was invisible to `_is_revoked` after recovery and gone at the
         next deploy.
         """
-        import auth as _auth
+        from security import auth as _auth
         from test_entitlements import make_jws, valid_payload
 
         class _Flaky(InMemoryCache):
@@ -1416,7 +1416,7 @@ class TestAppleNotifications:
             return await super().delete(*a, **k)
 
     def _partial_store(self, monkeypatch):
-        import auth as _auth
+        from security import auth as _auth
         redis = self._Partial()
         durable = ResilientCache(redis, InMemoryCache(), configured=True)
         store = _entitlements.EntitlementService(
@@ -1626,7 +1626,7 @@ class TestAppleNotifications:
         refuse too. An unsigned body is used here so the test measures the
         limiter and not the crypto.
         """
-        from ratelimit import IP_RATE_MAX_REQUESTS
+        from security.ratelimit import IP_RATE_MAX_REQUESTS
         _ip_rate_store.clear()
         _rate_store.clear()
         codes = [client.post("/apple/notifications",
