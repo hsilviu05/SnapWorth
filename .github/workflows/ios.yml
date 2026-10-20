@@ -250,25 +250,36 @@ jobs:
         run: |
           set -o pipefail
           set +e
+          # A generic destination, so the build cannot wait on the simulator.
+          # On 2026-10-20 xcodebuild sat 250 s before its first build task
+          # while the iPhone it was given as destination was still booting;
+          # the next step's own time says whether that was the wait. The
+          # simulator boots meanwhile, and the step after this waits for it.
+          # ARCHS=arm64 because a generic destination otherwise builds every
+          # simulator architecture, and this runner is Apple silicon.
           xcodebuild build-for-testing \
             -project ios/SnapWorth.xcodeproj \
             -scheme SnapWorth \
-            -destination "platform=iOS Simulator,id=${{ steps.sim.outputs.udid }}" \
+            -destination "generic/platform=iOS Simulator" \
             -clonedSourcePackagesDirPath ~/spm-cache \
             -enableCodeCoverage NO \
             -showBuildTimingSummary \
             CODE_SIGN_IDENTITY="" \
             CODE_SIGNING_REQUIRED=NO \
             ONLY_ACTIVE_ARCH=YES \
+            ARCHS=arm64 \
             COMPILER_INDEX_STORE_ENABLE=NO \
             SWIFT_EMIT_LOC_STRINGS=NO \
             2>&1 | tee /tmp/xcodebuild-build.log | grep --line-buffered -E \
-              "^(.*(error|warning): |\*\* (TEST )?BUILD|ComputePackagePrebuildTargetDependencyGraph|ComputeTargetDependencyGraph|Build description|SwiftDriver |SwiftEmitModule |SwiftCompile |Ld |CompileAssetCatalog|ValidateEmbeddedBinary |CodeSign )"
+              "^(.*(error|warning): |Command line invocation|Resolve Package Graph|Prepare packages|--- xcodebuild|\*\* (TEST )?BUILD|ComputePackagePrebuildTargetDependencyGraph|ComputeTargetDependencyGraph|Build description|SwiftDriver |SwiftEmitModule |SwiftCompile |Ld |CompileAssetCatalog|ValidateEmbeddedBinary |CodeSign )"
           status=${PIPESTATUS[0]}
           set -e
           echo "=== Build timing ==="
           grep -A40 "Build Timing Summary" /tmp/xcodebuild-build.log || true
           exit "$status"
+
+      - name: Wait for the simulator to finish booting
+        run: xcrun simctl bootstatus "${{ steps.sim.outputs.udid }}" -b
 
       - name: Run unit tests
         run: |
