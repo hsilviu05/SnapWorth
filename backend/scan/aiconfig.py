@@ -270,7 +270,7 @@ def _client() -> genai.Client:
     )
 
 
-def _as_part(item):
+def _as_part(item: Any) -> Any:
     """Accept the previous SDK's inline-image dict as well as native inputs.
 
     google-generativeai took an image as a plain dict:
