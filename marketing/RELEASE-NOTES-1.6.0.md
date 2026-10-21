@@ -273,8 +273,11 @@ The `1.6.0, build 24` change in #373 is a lower bound for what 24 contains,
 not the build (CLAUDE.md). This record is the build.
 
 - **Archive commit** (`git rev-parse HEAD` in the checkout, at archive
-  time): _to fill in_.
-- **Organizer creation date:** _to fill in_.
+  time): `2d33f7ab9824b4596606e6335d5f38504e276963`, the merge of #373. The
+  working tree also held Xcode 27's project upgrade, uncommitted (#374:
+  object order and one analyzer setting, nothing that reaches the binary).
+- **Organizer creation date:** 2026-10-21 18:06:58 (+03:00). Uploaded the
+  same evening; 1.6.0 was Waiting for Review at 18:47.
 - **Tag** it:
 
   ```sh
