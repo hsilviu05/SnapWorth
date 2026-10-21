@@ -51,7 +51,9 @@ pydantic==2.14.1
 # input — are on a reachable path. The magic-byte allowlist in imagevalidation.py
 # already rejects the PSD/PDF/FITS/BDF/PCF vectors before Pillow sees them, which
 # is why this ranks below multipart and cbor2 rather than above them.
-Pillow==12.3.0
+# 13.0.0 fixes eight more (CVE-2026-112395 through -112899), found by pip-audit
+# on 2026-10-21; the image tests pass on it unchanged.
+Pillow==13.0.0
 # Distributed rate limiting. Optional at runtime: without REDIS_URL the limiter
 # degrades to per-process counters (see ratelimit.py).
 redis==8.1.0
