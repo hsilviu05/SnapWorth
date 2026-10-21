@@ -123,7 +123,7 @@ Află cât valorează înainte să-l cumperi. O poză, o estimare de preț, cât
 
 ---
 
-## Description (4000 chars max; 3,254 with line breaks)
+## Description (4000 chars max; 3,536 with line breaks)
 
 Ai luat vreodată ceva dintr-un second hand și te-ai întrebat dacă valorează ceva? SnapWorth îți spune pe loc.
 
@@ -171,6 +171,8 @@ SnapWorth se folosește gratuit, fără cont. Primești o scanare gratuită în 
 Pro adaugă:
 • Scanări nelimitate (în limita utilizării rezonabile)
 • Modul Lot — fotografiezi obiect după obiect și fiecare e evaluat pe loc, cu totalul la vedere
+• Scanare raft — o fotografie a unui stand, raft sau coș și articolele care merită o privire mai atentă
+• Verificare originalitate — prim-planuri ghidate, analizate pentru semnele obișnuite ale unei replici. O observație despre fotografiile tale, nu o certificare a autenticității.
 • Anunțuri rescrise pentru platforma pe care o alegi — OLX, Vinted, eBay, Poshmark, Mercari, Depop sau Facebook Marketplace
 • „De ce prețul ăsta” — explicația completă din spatele estimării, inclusiv scara de prețuri și ce a cântărit
 • Citirea etichetei — fotografiază eticheta de întreținere pentru o estimare mai exactă

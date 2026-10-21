@@ -114,7 +114,7 @@ or market data — SnapWorth has no such source.
 
 ---
 
-## Description (4000 chars max; 2,894 with line breaks)
+## Description (4000 chars max; 3,126 with line breaks)
 
 Ever picked up something at a thrift store and wondered if it's actually worth something? SnapWorth tells you instantly.
 
@@ -162,6 +162,8 @@ SnapWorth is free to try — no account needed. You get one free scan every day,
 Pro adds:
 • Unlimited scans (fair use applies)
 • Haul mode — snap item after item while each is valued, with a running total
+• Rack scan — one photo of a rail, shelf or bin, and the items most worth a closer look
+• Legit check — guided close-ups, read for the usual signs of a replica. An observation about your photos, not a certification of authenticity.
 • Listing drafts rewritten for the marketplace you pick — eBay, Poshmark, Mercari, Depop, Facebook Marketplace, Vinted, OLX, Kleinanzeigen or Xianyu
 • Why this price — the full breakdown behind an estimate, including the price ladder and what drove the value
 • Read the care tag — photograph the label for a sharper estimate

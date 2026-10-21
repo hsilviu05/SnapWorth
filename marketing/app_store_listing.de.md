@@ -104,7 +104,7 @@ Wissen, was es wert ist, bevor du es kaufst. Ein Foto, eine Schätzung, ein paar
 
 ---
 
-## Description (4000 chars max; 3,451 with line breaks)
+## Description (4000 chars max; 3,729 with line breaks)
 
 Schon mal etwas im Second-Hand-Laden in der Hand gehabt und dich gefragt, ob es etwas wert ist? SnapWorth sagt es dir sofort.
 
@@ -152,6 +152,8 @@ SnapWorth ist gratis und braucht kein Konto. Du bekommst jeden Tag einen Gratis-
 Pro bringt dazu:
 • Unbegrenzte Scans (im Rahmen fairer Nutzung)
 • Stapel-Modus – Artikel für Artikel fotografieren, jeder wird nebenbei bewertet, mit laufender Summe
+• Regal-Scan – ein Foto einer Stange, eines Regals oder einer Kiste und die Artikel, die einen genaueren Blick wert sind
+• Echtheits-Check – geführte Nahaufnahmen, geprüft auf die üblichen Anzeichen einer Replik. Eine Beobachtung zu deinen Fotos, keine Echtheitszertifizierung.
 • Inserate, neu geschrieben für die Plattform, die du wählst – Kleinanzeigen, Vinted, eBay, Poshmark, Mercari, Depop oder Facebook Marketplace. Die Kleinanzeigen-Anzeige wird auf Deutsch geschrieben.
 • „Warum dieser Preis“ – die ganze Erklärung hinter der Schätzung, mit den Preispunkten und dem, was gewogen hat
 • Etikett lesen – fotografier das Pflegeetikett für eine genauere Schätzung

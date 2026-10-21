@@ -107,9 +107,29 @@ struct ResultView: View {
         self.isFreshScan = isFreshScan
         self.priceAlreadyShown = priceAlreadyShown
         _priceRevealed = State(initialValue: priceAlreadyShown)
-        _paidPriceText = State(initialValue: Self.moneyField(result.paidPrice))
-        _soldPriceText = State(initialValue: Self.moneyField(result.soldPrice))
-        _feesText      = State(initialValue: Self.moneyField(result.feesEstimate))
+        // A parent can rebuild this view after its find is gone; `body` then
+        // only closes the sheet, and nothing here reads the deleted model.
+        let gone = Self.findWasDeleted(result, didSave: didSave)
+        _paidPriceText = State(initialValue: gone ? "" : Self.moneyField(result.paidPrice))
+        _soldPriceText = State(initialValue: gone ? "" : Self.moneyField(result.soldPrice))
+        _feesText      = State(initialValue: gone ? "" : Self.moneyField(result.feesEstimate))
+    }
+
+    /// The find was deleted while this sheet still held it.
+    ///
+    /// SwiftData traps on reading a deleted model's photo: 1.5.3 (23) crashed
+    /// in `ScanResult.imageData`'s getter, read by the `.task` below on a find
+    /// that was no longer in the store (Organizer, 2026-10-20). A deleted and
+    /// saved model has no context. A result that was never stored has none
+    /// either and is safe to read — the failed-save and fallback-store sheets
+    /// show one, with `didSave` false — so the context only counts for a
+    /// result that was saved.
+    static func findWasDeleted(_ result: ScanResult, didSave: Bool) -> Bool {
+        result.isDeleted || (didSave && result.modelContext == nil)
+    }
+
+    private var findWasDeleted: Bool {
+        Self.findWasDeleted(result, didSave: didSave)
     }
 
     /// Formats a stored amount for an editable field ("" when unset).
@@ -120,6 +140,17 @@ struct ResultView: View {
     }
 
     var body: some View {
+        // Nothing on the sheet reads a deleted find: it closes instead.
+        if findWasDeleted {
+            Color.snapBackground
+                .ignoresSafeArea()
+                .onAppear(perform: onDismiss)
+        } else {
+            sheetContent
+        }
+    }
+
+    private var sheetContent: some View {
         NavigationStack {
             GeometryReader { geo in
                 ScrollView {
@@ -290,6 +321,9 @@ struct ResultView: View {
         // sends nothing, except the delete of a record whose sale was
         // un-marked.
         .onDisappear {
+            // A deleted find's shared sale is withdrawn by the delete itself
+            // (`ScanRepository.delete`).
+            guard !findWasDeleted else { return }
             let result = result
             Task { await SaleSharing.shared.sync(result) }
         }
@@ -308,11 +342,14 @@ struct ResultView: View {
             if reportsScanResultShown {
                 Analytics.shared.track(.scanResultShown(isFirst: ScanTally.isFirstRun()))
             }
+            guard !findWasDeleted else { return }
             if let data = result.imageData {
                 photo = await Task.detached(priority: .userInitiated) {
                     UIImage(data: data)
                 }.value
             }
+            // The decode awaited: the find may have gone meanwhile.
+            guard !findWasDeleted else { return }
             vm.prepareShareCard(result: result, photo: photo)
         }
         // The rating request waits for the number. Keyed on the cover, so it
