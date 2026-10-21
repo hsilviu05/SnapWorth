@@ -1885,6 +1885,43 @@ final class ScanPersistenceFailureTests: XCTestCase {
                               didSave: false)
         XCTAssertFalse(view.didSave)
     }
+
+    // 1.5.3 (23) crashed reading `imageData` on a find deleted while a result
+    // sheet still held it. The sheet closes instead, so it has to tell a
+    // deleted find from a result that was never stored.
+
+    func test_aStoredFindIsNotTakenForDeleted() throws {
+        let context = ModelContext(try ModelContainer(
+            for: ScanResult.self, configurations: ModelConfiguration(isStoredInMemoryOnly: true)))
+        let find = sampleResult()
+        context.insert(find)
+        try context.save()
+
+        XCTAssertFalse(ResultView.findWasDeleted(find, didSave: true))
+    }
+
+    func test_aDeletedFindIsSeenAsDeleted_beforeAndAfterTheSave() throws {
+        let context = ModelContext(try ModelContainer(
+            for: ScanResult.self, configurations: ModelConfiguration(isStoredInMemoryOnly: true)))
+        let find = sampleResult()
+        find.imageData = Data([1, 2, 3])
+        context.insert(find)
+        try context.save()
+
+        context.delete(find)
+        XCTAssertTrue(ResultView.findWasDeleted(find, didSave: true), "deleted, not yet saved")
+        try context.save()
+        XCTAssertTrue(ResultView.findWasDeleted(find, didSave: true),
+                      "reading this find's photo now traps")
+    }
+
+    func test_aResultThatWasNeverStoredIsNotTakenForDeleted() {
+        // The failed-save copy and a fallback-store result: no context, and
+        // safe to read. Taking them for deleted would close the sheet on a
+        // result the user has just paid for.
+        let copy = sampleResult().detachedCopy()
+        XCTAssertFalse(ResultView.findWasDeleted(copy, didSave: false))
+    }
 }
 
 /// Fix 2 — the month count must not fetch the whole history.
