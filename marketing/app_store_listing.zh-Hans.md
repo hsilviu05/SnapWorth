@@ -99,7 +99,7 @@ generous here. The brand stays Latin — it is what the icon says and what the
 
 ---
 
-## Description (4000 chars max; 1,322 with line breaks)
+## Description (4000 chars max; 1,401 with line breaks)
 
 在二手店、市集或者闲鱼上看到一件东西，拿在手里不知道到底值不值？SnapWorth 立刻告诉你。
 
@@ -147,6 +147,8 @@ SnapWorth 免费使用，不用注册。每天一次免费扫描，长期有效�
 Pro 增加：
 • 无限扫描（适用合理使用原则）
 • 批量模式——一件接一件拍，边拍边估价，实时显示总额
+• 货架扫描——拍一张衣架、货架或货箱的照片，找出最值得细看的物品
+• 真伪检查——按引导拍摄特写，查找仿品的常见迹象。这是对你的照片的观察，并非真伪认证。
 • 按你选的平台重写商品描述——闲鱼、eBay、Vinted、Poshmark、Mercari、Depop 或 Facebook Marketplace。闲鱼的描述用中文写。
 • “为什么是这个价”——估价背后的完整说明，包括四个价格档位和影响因素
 • 读洗标——拍一下护理标签，估价更准

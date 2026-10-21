@@ -240,6 +240,9 @@ caller), so these try the ways a find can go while a sheet holds it.
       ahead of the app. Paste name, subtitle, keywords and description from
       `app_store_listing.<locale>.md`, and What's New from below. This
       cannot be done once 1.6.0 is in review.
+- [ ] **Description, all five locales**: re-paste in full. Each gained a
+      Rack scan and a Legit check line in its Pro list, in the paywall's
+      own wording, the Legit check one with its disclaimer.
 - [ ] **Store page changes** from the analytics review: new subtitle and
       first screenshot, plus a screenshot each for Rack scan and Legit
       check. Screenshots must show the app as it ships (Guideline 2.3.3).
