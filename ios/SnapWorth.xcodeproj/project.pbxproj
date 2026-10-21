@@ -7,46 +7,27 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		5A4ED0000000000000000003 /* WidgetModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A4ED0000000000000000002 /* WidgetModel.swift */; };
-		5A4ED0000000000000000004 /* WidgetModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A4ED0000000000000000002 /* WidgetModel.swift */; };
 		1DF043BB3003EE710072D4A8 /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 1DF043BA3003EE700072D4A8 /* WidgetKit.framework */; };
 		1DF043BD3003EE710072D4A8 /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 1DF043BC3003EE710072D4A8 /* SwiftUI.framework */; };
 		1DF043CE3003EE710072D4A8 /* SnapWorthWidgetsExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 1DF043B83003EE700072D4A8 /* SnapWorthWidgetsExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
-		5C1C4E000000000000000002 /* SnapWorthStickers.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 5C1C4E000000000000000001 /* SnapWorthStickers.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
-		AA00000000000000000000C1 /* SnapWorthApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000000C0 /* SnapWorthApp.swift */; };
-		AA00000000000000000000C3 /* Config.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000000C2 /* Config.swift */; };
-		AA00000000000000000000C5 /* DesignSystem.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000000C4 /* DesignSystem.swift */; };
-		BB0000000000000000000B01 /* Haptics.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0000000000000000000B02 /* Haptics.swift */; };
-		AA00000000000000000000C7 /* ScanResult.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000000C6 /* ScanResult.swift */; };
-		AA00000000000000000000C9 /* PurchaseService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000000C8 /* PurchaseService.swift */; };
-		AA00000000000000000000CB /* MockPurchaseService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000000CA /* MockPurchaseService.swift */; };
-		AA00000000000000000000CD /* StoreKitPurchaseService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000000CC /* StoreKitPurchaseService.swift */; };
-		AA00000000000000000000CF /* ScanAPIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000000CE /* ScanAPIClient.swift */; };
-		FEED000000000000000000B5 /* ThriftFlipView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FEED000000000000000000A5 /* ThriftFlipView.swift */; };
-		FEED000000000000000097B2 /* ReferralViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = FEED000000000000000097A2 /* ReferralViews.swift */; };
-		FEED000000000000000000B4 /* ThriftFlipViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = FEED000000000000000000A4 /* ThriftFlipViewModel.swift */; };
-		FEED000000000000000093B1 /* HaulSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = FEED000000000000000093A1 /* HaulSession.swift */; };
-		FEED000000000000000093B2 /* HaulView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FEED000000000000000093A2 /* HaulView.swift */; };
-		FEED000000000000000000B3 /* MarketplaceFees.swift in Sources */ = {isa = PBXBuildFile; fileRef = FEED000000000000000000A3 /* MarketplaceFees.swift */; };
 		1ED6E4000000000000000001 /* LedgerMath.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1ED6E4000000000000000002 /* LedgerMath.swift */; };
+		5A4ED0000000000000000003 /* WidgetModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A4ED0000000000000000002 /* WidgetModel.swift */; };
+		5A4ED0000000000000000004 /* WidgetModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A4ED0000000000000000002 /* WidgetModel.swift */; };
+		5C1C4E000000000000000002 /* SnapWorthStickers.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 5C1C4E000000000000000001 /* SnapWorthStickers.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		89A0C0DE0000000000000001 /* RackScan.swift in Sources */ = {isa = PBXBuildFile; fileRef = 89A0C0DE0000000000000002 /* RackScan.swift */; };
 		89A0C0DE0000000000000003 /* RackScanView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 89A0C0DE0000000000000004 /* RackScanView.swift */; };
 		89A0C0DE0000000000000005 /* RackScanTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 89A0C0DE0000000000000006 /* RackScanTests.swift */; };
 		90A0C0DE0000000000000001 /* LegitCheck.swift in Sources */ = {isa = PBXBuildFile; fileRef = 90A0C0DE0000000000000002 /* LegitCheck.swift */; };
 		90A0C0DE0000000000000003 /* LegitCheckView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 90A0C0DE0000000000000004 /* LegitCheckView.swift */; };
 		90A0C0DE0000000000000005 /* LegitCheckTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 90A0C0DE0000000000000006 /* LegitCheckTests.swift */; };
-		FEED000000000000000000B2 /* PriceTagOCR.swift in Sources */ = {isa = PBXBuildFile; fileRef = FEED000000000000000000A2 /* PriceTagOCR.swift */; };
-		EA57E0000000000000000B01 /* RareFind.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA57E0000000000000000A01 /* RareFind.swift */; };
-		EA57E0000000000000000B02 /* RareFindViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA57E0000000000000000A02 /* RareFindViews.swift */; };
-		EA57E0000000000000000B03 /* RareFindTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA57E0000000000000000A03 /* RareFindTests.swift */; };
-		EA57E0000000000000000B04 /* rare-find-reference-shirt.png in Resources */ = {isa = PBXBuildFile; fileRef = EA57E0000000000000000A04 /* rare-find-reference-shirt.png */; };
-		FEED000000000000000097B1 /* ReferralService.swift in Sources */ = {isa = PBXBuildFile; fileRef = FEED000000000000000097A1 /* ReferralService.swift */; };
-		FEED00000000000000224AB1 /* SaleSharing.swift in Sources */ = {isa = PBXBuildFile; fileRef = FEED00000000000000224AA1 /* SaleSharing.swift */; };
-		FEED000000000000000091B1 /* ListingPhotoCleanup.swift in Sources */ = {isa = PBXBuildFile; fileRef = FEED000000000000000091A1 /* ListingPhotoCleanup.swift */; };
-		FEED000000000000000000B1 /* ListingService.swift in Sources */ = {isa = PBXBuildFile; fileRef = FEED000000000000000000A1 /* ListingService.swift */; };
-		FEED0000000000000000D30 /* CertificatePinning.swift in Sources */ = {isa = PBXBuildFile; fileRef = FEED0000000000000000C30 /* CertificatePinning.swift */; };
-		FEED0000000000000000D20 /* TokenStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = FEED0000000000000000C20 /* TokenStore.swift */; };
-		FEED0000000000000000D10 /* AttestationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = FEED0000000000000000C10 /* AttestationService.swift */; };
+		AA00000000000000000000C1 /* SnapWorthApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000000C0 /* SnapWorthApp.swift */; };
+		AA00000000000000000000C3 /* Config.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000000C2 /* Config.swift */; };
+		AA00000000000000000000C5 /* DesignSystem.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000000C4 /* DesignSystem.swift */; };
+		AA00000000000000000000C7 /* ScanResult.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000000C6 /* ScanResult.swift */; };
+		AA00000000000000000000C9 /* PurchaseService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000000C8 /* PurchaseService.swift */; };
+		AA00000000000000000000CB /* MockPurchaseService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000000CA /* MockPurchaseService.swift */; };
+		AA00000000000000000000CD /* StoreKitPurchaseService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000000CC /* StoreKitPurchaseService.swift */; };
+		AA00000000000000000000CF /* ScanAPIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000000CE /* ScanAPIClient.swift */; };
 		AA00000000000000000000D1 /* CameraManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000000D0 /* CameraManager.swift */; };
 		AA00000000000000000000D3 /* OnboardingViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000000D2 /* OnboardingViewModel.swift */; };
 		AA00000000000000000000D5 /* PaywallViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000000D4 /* PaywallViewModel.swift */; };
@@ -59,13 +40,6 @@
 		AA00000000000000000000E3 /* MainTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000000E2 /* MainTabView.swift */; };
 		AA00000000000000000000E5 /* ScanView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000000E4 /* ScanView.swift */; };
 		AA00000000000000000000E7 /* ResultView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000000E6 /* ResultView.swift */; };
-		AA0000000000000000229A0D /* RereadCards.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000229A0E /* RereadCards.swift */; };
-		AA0000000000000000229A0B /* ResultValueSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000229A0C /* ResultValueSection.swift */; };
-		AA0000000000000000229A09 /* FlipLedgerSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000229A0A /* FlipLedgerSection.swift */; };
-		AA0000000000000000229A07 /* SnapSellSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000229A08 /* SnapSellSection.swift */; };
-		AA0000000000000000229A05 /* TagCameraSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000229A06 /* TagCameraSheet.swift */; };
-		AA0000000000000000229A03 /* ValuationDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000229A04 /* ValuationDetailView.swift */; };
-		AA0000000000000000229A01 /* FullDetailOffer.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000229A02 /* FullDetailOffer.swift */; };
 		AA00000000000000000000E9 /* HistoryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000000E8 /* HistoryView.swift */; };
 		AA00000000000000000000EB /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000000EA /* SettingsView.swift */; };
 		AA00000000000000000000ED /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000000EC /* Assets.xcassets */; };
@@ -74,20 +48,21 @@
 		AA00000000000000000000F7 /* LegalView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000000F6 /* LegalView.swift */; };
 		AA00000000000000000000FC /* FeedbackView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000000FB /* FeedbackView.swift */; };
 		AA0000000000000000000100 /* SnapWorthTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000102 /* SnapWorthTests.swift */; };
-		BB0000000000000000000A01 /* ProductionHardeningTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0000000000000000000A02 /* ProductionHardeningTests.swift */; };
-		BB0000000000000000000F01 /* MigrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0000000000000000000F02 /* MigrationTests.swift */; };
-		FEED000000000000000091B2 /* ListingPhotos in Resources */ = {isa = PBXBuildFile; fileRef = FEED000000000000000091A2 /* ListingPhotos */; };
 		AA000000000000000000010E /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = AA000000000000000000010D /* PrivacyInfo.xcprivacy */; };
-		AA0000000000000000000203 /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000201 /* Localizable.xcstrings */; };
-		AA0000000000000000000204 /* InfoPlist.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000202 /* InfoPlist.xcstrings */; };
 		AA000000000000000000010F /* AppError.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000110 /* AppError.swift */; };
 		AA0000000000000000000111 /* ScanRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000112 /* ScanRepository.swift */; };
 		AA0000000000000000000114 /* ShareCardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000113 /* ShareCardView.swift */; };
+		AA0000000000000000000203 /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000201 /* Localizable.xcstrings */; };
+		AA0000000000000000000204 /* InfoPlist.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000202 /* InfoPlist.xcstrings */; };
+		AA0000000000000000229A01 /* FullDetailOffer.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000229A02 /* FullDetailOffer.swift */; };
+		AA0000000000000000229A03 /* ValuationDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000229A04 /* ValuationDetailView.swift */; };
+		AA0000000000000000229A05 /* TagCameraSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000229A06 /* TagCameraSheet.swift */; };
+		AA0000000000000000229A07 /* SnapSellSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000229A08 /* SnapSellSection.swift */; };
+		AA0000000000000000229A09 /* FlipLedgerSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000229A0A /* FlipLedgerSection.swift */; };
+		AA0000000000000000229A0B /* ResultValueSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000229A0C /* ResultValueSection.swift */; };
+		AA0000000000000000229A0D /* RereadCards.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000229A0E /* RereadCards.swift */; };
 		ADD1EC0000000000000000A3 /* TelemetryDeck in Frameworks */ = {isa = PBXBuildFile; productRef = ADD1EC0000000000000000A2 /* TelemetryDeck */; };
 		ADD1EC0000000000000000B2 /* Analytics.swift in Sources */ = {isa = PBXBuildFile; fileRef = ADD1EC0000000000000000B1 /* Analytics.swift */; };
-		BB0000000000000000000C01 /* AppLaunchState.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0000000000000000000C02 /* AppLaunchState.swift */; };
-		BB0000000000000000000D01 /* CrashReporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0000000000000000000D02 /* CrashReporter.swift */; };
-		BB0000000000000000000E01 /* StoreProtection.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0000000000000000000E02 /* StoreProtection.swift */; };
 		ADD1EC0000000000000000B4 /* TelemetryDeckAnalytics.swift in Sources */ = {isa = PBXBuildFile; fileRef = ADD1EC0000000000000000B3 /* TelemetryDeckAnalytics.swift */; };
 		ADD1EC0000000000000000B6 /* ActivityShareSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = ADD1EC0000000000000000B5 /* ActivityShareSheet.swift */; };
 		ADD1EC0000000000000000B8 /* FlipsViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = ADD1EC0000000000000000B7 /* FlipsViewModel.swift */; };
@@ -96,7 +71,32 @@
 		ADD1EC0000000000000000F4 /* NotificationManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = ADD1EC0000000000000000F3 /* NotificationManager.swift */; };
 		ADD1EC0000000000000000F6 /* NotificationSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = ADD1EC0000000000000000F5 /* NotificationSettingsView.swift */; };
 		BB000000000000000000000A /* WidgetDataStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0000000000000000000009 /* WidgetDataStore.swift */; };
+		BB0000000000000000000A01 /* ProductionHardeningTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0000000000000000000A02 /* ProductionHardeningTests.swift */; };
+		BB0000000000000000000B01 /* Haptics.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0000000000000000000B02 /* Haptics.swift */; };
+		BB0000000000000000000C01 /* AppLaunchState.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0000000000000000000C02 /* AppLaunchState.swift */; };
+		BB0000000000000000000D01 /* CrashReporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0000000000000000000D02 /* CrashReporter.swift */; };
+		BB0000000000000000000E01 /* StoreProtection.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0000000000000000000E02 /* StoreProtection.swift */; };
+		BB0000000000000000000F01 /* MigrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0000000000000000000F02 /* MigrationTests.swift */; };
 		C0FFEE000000000000000001 /* ThriftRunController.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0FFEE000000000000000002 /* ThriftRunController.swift */; };
+		EA57E0000000000000000B01 /* RareFind.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA57E0000000000000000A01 /* RareFind.swift */; };
+		EA57E0000000000000000B02 /* RareFindViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA57E0000000000000000A02 /* RareFindViews.swift */; };
+		EA57E0000000000000000B03 /* RareFindTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA57E0000000000000000A03 /* RareFindTests.swift */; };
+		EA57E0000000000000000B04 /* rare-find-reference-shirt.png in Resources */ = {isa = PBXBuildFile; fileRef = EA57E0000000000000000A04 /* rare-find-reference-shirt.png */; };
+		FEED000000000000000000B1 /* ListingService.swift in Sources */ = {isa = PBXBuildFile; fileRef = FEED000000000000000000A1 /* ListingService.swift */; };
+		FEED000000000000000000B2 /* PriceTagOCR.swift in Sources */ = {isa = PBXBuildFile; fileRef = FEED000000000000000000A2 /* PriceTagOCR.swift */; };
+		FEED000000000000000000B3 /* MarketplaceFees.swift in Sources */ = {isa = PBXBuildFile; fileRef = FEED000000000000000000A3 /* MarketplaceFees.swift */; };
+		FEED000000000000000000B4 /* ThriftFlipViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = FEED000000000000000000A4 /* ThriftFlipViewModel.swift */; };
+		FEED000000000000000000B5 /* ThriftFlipView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FEED000000000000000000A5 /* ThriftFlipView.swift */; };
+		FEED000000000000000091B1 /* ListingPhotoCleanup.swift in Sources */ = {isa = PBXBuildFile; fileRef = FEED000000000000000091A1 /* ListingPhotoCleanup.swift */; };
+		FEED000000000000000091B2 /* ListingPhotos in Resources */ = {isa = PBXBuildFile; fileRef = FEED000000000000000091A2 /* ListingPhotos */; };
+		FEED000000000000000093B1 /* HaulSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = FEED000000000000000093A1 /* HaulSession.swift */; };
+		FEED000000000000000093B2 /* HaulView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FEED000000000000000093A2 /* HaulView.swift */; };
+		FEED000000000000000097B1 /* ReferralService.swift in Sources */ = {isa = PBXBuildFile; fileRef = FEED000000000000000097A1 /* ReferralService.swift */; };
+		FEED000000000000000097B2 /* ReferralViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = FEED000000000000000097A2 /* ReferralViews.swift */; };
+		FEED0000000000000000D10 /* AttestationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = FEED0000000000000000C10 /* AttestationService.swift */; };
+		FEED0000000000000000D20 /* TokenStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = FEED0000000000000000C20 /* TokenStore.swift */; };
+		FEED0000000000000000D30 /* CertificatePinning.swift in Sources */ = {isa = PBXBuildFile; fileRef = FEED0000000000000000C30 /* CertificatePinning.swift */; };
+		FEED00000000000000224AB1 /* SaleSharing.swift in Sources */ = {isa = PBXBuildFile; fileRef = FEED00000000000000224AA1 /* SaleSharing.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -139,46 +139,27 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
-		5A4ED0000000000000000002 /* WidgetModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetModel.swift; sourceTree = "<group>"; };
 		1DF043B83003EE700072D4A8 /* SnapWorthWidgetsExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = SnapWorthWidgetsExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		1DF043BA3003EE700072D4A8 /* WidgetKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WidgetKit.framework; path = System/Library/Frameworks/WidgetKit.framework; sourceTree = SDKROOT; };
 		1DF043BC3003EE710072D4A8 /* SwiftUI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SwiftUI.framework; path = System/Library/Frameworks/SwiftUI.framework; sourceTree = SDKROOT; };
-		5C1C4E000000000000000001 /* SnapWorthStickers.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = SnapWorthStickers.appex; sourceTree = BUILT_PRODUCTS_DIR; };
-		AA00000000000000000000AE /* SnapWorth.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = SnapWorth.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		AA00000000000000000000C0 /* SnapWorthApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SnapWorthApp.swift; sourceTree = "<group>"; };
-		AA00000000000000000000C2 /* Config.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Config.swift; sourceTree = "<group>"; };
-		AA00000000000000000000C4 /* DesignSystem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DesignSystem.swift; sourceTree = "<group>"; };
-		BB0000000000000000000B02 /* Haptics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Haptics.swift; sourceTree = "<group>"; };
-		AA00000000000000000000C6 /* ScanResult.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanResult.swift; sourceTree = "<group>"; };
-		AA00000000000000000000C8 /* PurchaseService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PurchaseService.swift; sourceTree = "<group>"; };
-		AA00000000000000000000CA /* MockPurchaseService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockPurchaseService.swift; sourceTree = "<group>"; };
-		AA00000000000000000000CC /* StoreKitPurchaseService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoreKitPurchaseService.swift; sourceTree = "<group>"; };
-		AA00000000000000000000CE /* ScanAPIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanAPIClient.swift; sourceTree = "<group>"; };
-		FEED000000000000000000A5 /* ThriftFlipView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThriftFlipView.swift; sourceTree = "<group>"; };
-		FEED000000000000000097A2 /* ReferralViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReferralViews.swift; sourceTree = "<group>"; };
-		FEED000000000000000000A4 /* ThriftFlipViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThriftFlipViewModel.swift; sourceTree = "<group>"; };
-		FEED000000000000000093A1 /* HaulSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HaulSession.swift; sourceTree = "<group>"; };
-		FEED000000000000000093A2 /* HaulView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HaulView.swift; sourceTree = "<group>"; };
-		FEED000000000000000000A3 /* MarketplaceFees.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarketplaceFees.swift; sourceTree = "<group>"; };
 		1ED6E4000000000000000002 /* LedgerMath.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LedgerMath.swift; sourceTree = "<group>"; };
+		5A4ED0000000000000000002 /* WidgetModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetModel.swift; sourceTree = "<group>"; };
+		5C1C4E000000000000000001 /* SnapWorthStickers.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = SnapWorthStickers.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		89A0C0DE0000000000000002 /* RackScan.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RackScan.swift; sourceTree = "<group>"; };
 		89A0C0DE0000000000000004 /* RackScanView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RackScanView.swift; sourceTree = "<group>"; };
 		89A0C0DE0000000000000006 /* RackScanTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RackScanTests.swift; sourceTree = "<group>"; };
 		90A0C0DE0000000000000002 /* LegitCheck.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LegitCheck.swift; sourceTree = "<group>"; };
 		90A0C0DE0000000000000004 /* LegitCheckView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LegitCheckView.swift; sourceTree = "<group>"; };
 		90A0C0DE0000000000000006 /* LegitCheckTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LegitCheckTests.swift; sourceTree = "<group>"; };
-		FEED000000000000000000A2 /* PriceTagOCR.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PriceTagOCR.swift; sourceTree = "<group>"; };
-		EA57E0000000000000000A01 /* RareFind.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RareFind.swift; sourceTree = "<group>"; };
-		EA57E0000000000000000A02 /* RareFindViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RareFindViews.swift; sourceTree = "<group>"; };
-		EA57E0000000000000000A03 /* RareFindTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RareFindTests.swift; sourceTree = "<group>"; };
-		EA57E0000000000000000A04 /* rare-find-reference-shirt.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "rare-find-reference-shirt.png"; sourceTree = "<group>"; };
-		FEED000000000000000097A1 /* ReferralService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReferralService.swift; sourceTree = "<group>"; };
-		FEED00000000000000224AA1 /* SaleSharing.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SaleSharing.swift; sourceTree = "<group>"; };
-		FEED000000000000000091A1 /* ListingPhotoCleanup.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ListingPhotoCleanup.swift; sourceTree = "<group>"; };
-		FEED000000000000000000A1 /* ListingService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ListingService.swift; sourceTree = "<group>"; };
-		FEED0000000000000000C30 /* CertificatePinning.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CertificatePinning.swift; sourceTree = "<group>"; };
-		FEED0000000000000000C20 /* TokenStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TokenStore.swift; sourceTree = "<group>"; };
-		FEED0000000000000000C10 /* AttestationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AttestationService.swift; sourceTree = "<group>"; };
+		AA00000000000000000000AE /* SnapWorth.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = SnapWorth.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		AA00000000000000000000C0 /* SnapWorthApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SnapWorthApp.swift; sourceTree = "<group>"; };
+		AA00000000000000000000C2 /* Config.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Config.swift; sourceTree = "<group>"; };
+		AA00000000000000000000C4 /* DesignSystem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DesignSystem.swift; sourceTree = "<group>"; };
+		AA00000000000000000000C6 /* ScanResult.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanResult.swift; sourceTree = "<group>"; };
+		AA00000000000000000000C8 /* PurchaseService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PurchaseService.swift; sourceTree = "<group>"; };
+		AA00000000000000000000CA /* MockPurchaseService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockPurchaseService.swift; sourceTree = "<group>"; };
+		AA00000000000000000000CC /* StoreKitPurchaseService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoreKitPurchaseService.swift; sourceTree = "<group>"; };
+		AA00000000000000000000CE /* ScanAPIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanAPIClient.swift; sourceTree = "<group>"; };
 		AA00000000000000000000D0 /* CameraManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraManager.swift; sourceTree = "<group>"; };
 		AA00000000000000000000D2 /* OnboardingViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingViewModel.swift; sourceTree = "<group>"; };
 		AA00000000000000000000D4 /* PaywallViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaywallViewModel.swift; sourceTree = "<group>"; };
@@ -191,13 +172,6 @@
 		AA00000000000000000000E2 /* MainTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainTabView.swift; sourceTree = "<group>"; };
 		AA00000000000000000000E4 /* ScanView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanView.swift; sourceTree = "<group>"; };
 		AA00000000000000000000E6 /* ResultView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ResultView.swift; sourceTree = "<group>"; };
-		AA0000000000000000229A0E /* RereadCards.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RereadCards.swift; sourceTree = "<group>"; };
-		AA0000000000000000229A0C /* ResultValueSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ResultValueSection.swift; sourceTree = "<group>"; };
-		AA0000000000000000229A0A /* FlipLedgerSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FlipLedgerSection.swift; sourceTree = "<group>"; };
-		AA0000000000000000229A08 /* SnapSellSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SnapSellSection.swift; sourceTree = "<group>"; };
-		AA0000000000000000229A06 /* TagCameraSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TagCameraSheet.swift; sourceTree = "<group>"; };
-		AA0000000000000000229A04 /* ValuationDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ValuationDetailView.swift; sourceTree = "<group>"; };
-		AA0000000000000000229A02 /* FullDetailOffer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FullDetailOffer.swift; sourceTree = "<group>"; };
 		AA00000000000000000000E8 /* HistoryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryView.swift; sourceTree = "<group>"; };
 		AA00000000000000000000EA /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		AA00000000000000000000EC /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
@@ -208,19 +182,20 @@
 		AA00000000000000000000FB /* FeedbackView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeedbackView.swift; sourceTree = "<group>"; };
 		AA0000000000000000000101 /* SnapWorthTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = SnapWorthTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		AA0000000000000000000102 /* SnapWorthTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SnapWorthTests.swift; sourceTree = "<group>"; };
-		BB0000000000000000000A02 /* ProductionHardeningTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProductionHardeningTests.swift; sourceTree = "<group>"; };
-		BB0000000000000000000F02 /* MigrationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MigrationTests.swift; sourceTree = "<group>"; };
-		FEED000000000000000091A2 /* ListingPhotos */ = {isa = PBXFileReference; lastKnownFileType = folder; path = ListingPhotos; sourceTree = "<group>"; };
 		AA000000000000000000010D /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
-		AA0000000000000000000201 /* Localizable.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = Localizable.xcstrings; sourceTree = "<group>"; };
-		AA0000000000000000000202 /* InfoPlist.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = InfoPlist.xcstrings; sourceTree = "<group>"; };
 		AA0000000000000000000110 /* AppError.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppError.swift; sourceTree = "<group>"; };
 		AA0000000000000000000112 /* ScanRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanRepository.swift; sourceTree = "<group>"; };
 		AA0000000000000000000113 /* ShareCardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareCardView.swift; sourceTree = "<group>"; };
+		AA0000000000000000000201 /* Localizable.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = Localizable.xcstrings; sourceTree = "<group>"; };
+		AA0000000000000000000202 /* InfoPlist.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = InfoPlist.xcstrings; sourceTree = "<group>"; };
+		AA0000000000000000229A02 /* FullDetailOffer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FullDetailOffer.swift; sourceTree = "<group>"; };
+		AA0000000000000000229A04 /* ValuationDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ValuationDetailView.swift; sourceTree = "<group>"; };
+		AA0000000000000000229A06 /* TagCameraSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TagCameraSheet.swift; sourceTree = "<group>"; };
+		AA0000000000000000229A08 /* SnapSellSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SnapSellSection.swift; sourceTree = "<group>"; };
+		AA0000000000000000229A0A /* FlipLedgerSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FlipLedgerSection.swift; sourceTree = "<group>"; };
+		AA0000000000000000229A0C /* ResultValueSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ResultValueSection.swift; sourceTree = "<group>"; };
+		AA0000000000000000229A0E /* RereadCards.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RereadCards.swift; sourceTree = "<group>"; };
 		ADD1EC0000000000000000B1 /* Analytics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Analytics.swift; sourceTree = "<group>"; };
-		BB0000000000000000000C02 /* AppLaunchState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppLaunchState.swift; sourceTree = "<group>"; };
-		BB0000000000000000000D02 /* CrashReporter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CrashReporter.swift; sourceTree = "<group>"; };
-		BB0000000000000000000E02 /* StoreProtection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoreProtection.swift; sourceTree = "<group>"; };
 		ADD1EC0000000000000000B3 /* TelemetryDeckAnalytics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TelemetryDeckAnalytics.swift; sourceTree = "<group>"; };
 		ADD1EC0000000000000000B5 /* ActivityShareSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivityShareSheet.swift; sourceTree = "<group>"; };
 		ADD1EC0000000000000000B7 /* FlipsViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FlipsViewModel.swift; sourceTree = "<group>"; };
@@ -231,7 +206,32 @@
 		ADD1EC0000000000000000F7 /* SnapWorth.storekit */ = {isa = PBXFileReference; lastKnownFileType = text; path = SnapWorth.storekit; sourceTree = "<group>"; };
 		BB0000000000000000000008 /* SnapWorth.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = SnapWorth.entitlements; sourceTree = "<group>"; };
 		BB0000000000000000000009 /* WidgetDataStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetDataStore.swift; sourceTree = "<group>"; };
+		BB0000000000000000000A02 /* ProductionHardeningTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProductionHardeningTests.swift; sourceTree = "<group>"; };
+		BB0000000000000000000B02 /* Haptics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Haptics.swift; sourceTree = "<group>"; };
+		BB0000000000000000000C02 /* AppLaunchState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppLaunchState.swift; sourceTree = "<group>"; };
+		BB0000000000000000000D02 /* CrashReporter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CrashReporter.swift; sourceTree = "<group>"; };
+		BB0000000000000000000E02 /* StoreProtection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoreProtection.swift; sourceTree = "<group>"; };
+		BB0000000000000000000F02 /* MigrationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MigrationTests.swift; sourceTree = "<group>"; };
 		C0FFEE000000000000000002 /* ThriftRunController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThriftRunController.swift; sourceTree = "<group>"; };
+		EA57E0000000000000000A01 /* RareFind.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RareFind.swift; sourceTree = "<group>"; };
+		EA57E0000000000000000A02 /* RareFindViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RareFindViews.swift; sourceTree = "<group>"; };
+		EA57E0000000000000000A03 /* RareFindTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RareFindTests.swift; sourceTree = "<group>"; };
+		EA57E0000000000000000A04 /* rare-find-reference-shirt.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "rare-find-reference-shirt.png"; sourceTree = "<group>"; };
+		FEED000000000000000000A1 /* ListingService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ListingService.swift; sourceTree = "<group>"; };
+		FEED000000000000000000A2 /* PriceTagOCR.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PriceTagOCR.swift; sourceTree = "<group>"; };
+		FEED000000000000000000A3 /* MarketplaceFees.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarketplaceFees.swift; sourceTree = "<group>"; };
+		FEED000000000000000000A4 /* ThriftFlipViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThriftFlipViewModel.swift; sourceTree = "<group>"; };
+		FEED000000000000000000A5 /* ThriftFlipView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThriftFlipView.swift; sourceTree = "<group>"; };
+		FEED000000000000000091A1 /* ListingPhotoCleanup.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ListingPhotoCleanup.swift; sourceTree = "<group>"; };
+		FEED000000000000000091A2 /* ListingPhotos */ = {isa = PBXFileReference; lastKnownFileType = folder; path = ListingPhotos; sourceTree = "<group>"; };
+		FEED000000000000000093A1 /* HaulSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HaulSession.swift; sourceTree = "<group>"; };
+		FEED000000000000000093A2 /* HaulView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HaulView.swift; sourceTree = "<group>"; };
+		FEED000000000000000097A1 /* ReferralService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReferralService.swift; sourceTree = "<group>"; };
+		FEED000000000000000097A2 /* ReferralViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReferralViews.swift; sourceTree = "<group>"; };
+		FEED0000000000000000C10 /* AttestationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AttestationService.swift; sourceTree = "<group>"; };
+		FEED0000000000000000C20 /* TokenStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TokenStore.swift; sourceTree = "<group>"; };
+		FEED0000000000000000C30 /* CertificatePinning.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CertificatePinning.swift; sourceTree = "<group>"; };
+		FEED00000000000000224AA1 /* SaleSharing.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SaleSharing.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -284,14 +284,6 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
-		5A4ED0000000000000000001 /* Shared */ = {
-			isa = PBXGroup;
-			children = (
-				5A4ED0000000000000000002 /* WidgetModel.swift */,
-			);
-			path = Shared;
-			sourceTree = "<group>";
-		};
 		1DF043B93003EE700072D4A8 /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
@@ -301,60 +293,78 @@
 			name = Frameworks;
 			sourceTree = "<group>";
 		};
-		AA00000000000000000000AB /* SnapWorth */ = {
+		5A4ED0000000000000000001 /* Shared */ = {
 			isa = PBXGroup;
 			children = (
-				AA00000000000000000000C0 /* SnapWorthApp.swift */,
-				AA00000000000000000000C2 /* Config.swift */,
-				AA00000000000000000000EC /* Assets.xcassets */,
-				AA00000000000000000000EE /* Info.plist */,
-				BB0000000000000000000008 /* SnapWorth.entitlements */,
-				AA000000000000000000010D /* PrivacyInfo.xcprivacy */,
-				AA0000000000000000000201 /* Localizable.xcstrings */,
-				AA0000000000000000000202 /* InfoPlist.xcstrings */,
-				ADD1EC0000000000000000F7 /* SnapWorth.storekit */,
-				AA00000000000000000000F5 /* Fonts */,
-				AA00000000000000000000B8 /* DesignSystem */,
-				AA00000000000000000000B9 /* Models */,
-				AA00000000000000000000BA /* Services */,
-				AA00000000000000000000BB /* Camera */,
-				AA00000000000000000000BC /* ViewModels */,
-				AA00000000000000000000BD /* Views */,
+				5A4ED0000000000000000002 /* WidgetModel.swift */,
 			);
-			path = SnapWorth;
+			path = Shared;
 			sourceTree = "<group>";
 		};
-		AA00000000000000000000AC /* Products */ = {
+		5EC7000000000000000003E8 /* Scan */ = {
 			isa = PBXGroup;
 			children = (
-				AA00000000000000000000AE /* SnapWorth.app */,
-				AA0000000000000000000101 /* SnapWorthTests.xctest */,
-				1DF043B83003EE700072D4A8 /* SnapWorthWidgetsExtension.appex */,
-				5C1C4E000000000000000001 /* SnapWorthStickers.appex */,
+				AA00000000000000000000E4 /* ScanView.swift */,
+				AA0000000000000000229A06 /* TagCameraSheet.swift */,
+				89A0C0DE0000000000000004 /* RackScanView.swift */,
+				90A0C0DE0000000000000004 /* LegitCheckView.swift */,
+				FEED000000000000000093A2 /* HaulView.swift */,
+				FEED000000000000000000A5 /* ThriftFlipView.swift */,
+				EA57E0000000000000000A02 /* RareFindViews.swift */,
 			);
-			name = Products;
+			path = Scan;
 			sourceTree = "<group>";
 		};
-		AA00000000000000000000B8 /* DesignSystem */ = {
+		5EC7000000000000000003E9 /* Result */ = {
 			isa = PBXGroup;
 			children = (
-				AA00000000000000000000C4 /* DesignSystem.swift */,
-				BB0000000000000000000B02 /* Haptics.swift */,
+				AA00000000000000000000E6 /* ResultView.swift */,
+				AA0000000000000000229A0C /* ResultValueSection.swift */,
+				AA0000000000000000229A04 /* ValuationDetailView.swift */,
+				AA0000000000000000229A02 /* FullDetailOffer.swift */,
+				AA0000000000000000229A0E /* RereadCards.swift */,
+				AA0000000000000000229A08 /* SnapSellSection.swift */,
+				AA0000000000000000229A0A /* FlipLedgerSection.swift */,
 			);
-			path = DesignSystem;
+			path = Result;
 			sourceTree = "<group>";
 		};
-		AA00000000000000000000B9 /* Models */ = {
+		5EC7000000000000000003EA /* Share */ = {
 			isa = PBXGroup;
 			children = (
-				AA00000000000000000000C6 /* ScanResult.swift */,
-				AA0000000000000000000110 /* AppError.swift */,
-				FEED000000000000000000A3 /* MarketplaceFees.swift */,
-				1ED6E4000000000000000002 /* LedgerMath.swift */,
-				89A0C0DE0000000000000002 /* RackScan.swift */,
-				90A0C0DE0000000000000002 /* LegitCheck.swift */,
+				AA0000000000000000000113 /* ShareCardView.swift */,
+				ADD1EC0000000000000000B5 /* ActivityShareSheet.swift */,
 			);
-			path = Models;
+			path = Share;
+			sourceTree = "<group>";
+		};
+		5EC7000000000000000003EB /* Flips */ = {
+			isa = PBXGroup;
+			children = (
+				AA00000000000000000000E8 /* HistoryView.swift */,
+				ADD1EC0000000000000000B9 /* FlipsView.swift */,
+			);
+			path = Flips;
+			sourceTree = "<group>";
+		};
+		5EC7000000000000000003EC /* Paywall */ = {
+			isa = PBXGroup;
+			children = (
+				AA00000000000000000000E0 /* PaywallView.swift */,
+				FEED000000000000000097A2 /* ReferralViews.swift */,
+			);
+			path = Paywall;
+			sourceTree = "<group>";
+		};
+		5EC7000000000000000003ED /* Settings */ = {
+			isa = PBXGroup;
+			children = (
+				AA00000000000000000000EA /* SettingsView.swift */,
+				ADD1EC0000000000000000F5 /* NotificationSettingsView.swift */,
+				AA00000000000000000000FB /* FeedbackView.swift */,
+				AA00000000000000000000F6 /* LegalView.swift */,
+			);
+			path = Settings;
 			sourceTree = "<group>";
 		};
 		5EC7000000000000000007D0 /* Network */ = {
@@ -429,6 +439,62 @@
 			path = System;
 			sourceTree = "<group>";
 		};
+		AA00000000000000000000AB /* SnapWorth */ = {
+			isa = PBXGroup;
+			children = (
+				AA00000000000000000000C0 /* SnapWorthApp.swift */,
+				AA00000000000000000000C2 /* Config.swift */,
+				AA00000000000000000000EC /* Assets.xcassets */,
+				AA00000000000000000000EE /* Info.plist */,
+				BB0000000000000000000008 /* SnapWorth.entitlements */,
+				AA000000000000000000010D /* PrivacyInfo.xcprivacy */,
+				AA0000000000000000000201 /* Localizable.xcstrings */,
+				AA0000000000000000000202 /* InfoPlist.xcstrings */,
+				ADD1EC0000000000000000F7 /* SnapWorth.storekit */,
+				AA00000000000000000000F5 /* Fonts */,
+				AA00000000000000000000B8 /* DesignSystem */,
+				AA00000000000000000000B9 /* Models */,
+				AA00000000000000000000BA /* Services */,
+				AA00000000000000000000BB /* Camera */,
+				AA00000000000000000000BC /* ViewModels */,
+				AA00000000000000000000BD /* Views */,
+			);
+			path = SnapWorth;
+			sourceTree = "<group>";
+		};
+		AA00000000000000000000AC /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				AA00000000000000000000AE /* SnapWorth.app */,
+				AA0000000000000000000101 /* SnapWorthTests.xctest */,
+				1DF043B83003EE700072D4A8 /* SnapWorthWidgetsExtension.appex */,
+				5C1C4E000000000000000001 /* SnapWorthStickers.appex */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		AA00000000000000000000B8 /* DesignSystem */ = {
+			isa = PBXGroup;
+			children = (
+				AA00000000000000000000C4 /* DesignSystem.swift */,
+				BB0000000000000000000B02 /* Haptics.swift */,
+			);
+			path = DesignSystem;
+			sourceTree = "<group>";
+		};
+		AA00000000000000000000B9 /* Models */ = {
+			isa = PBXGroup;
+			children = (
+				AA00000000000000000000C6 /* ScanResult.swift */,
+				AA0000000000000000000110 /* AppError.swift */,
+				FEED000000000000000000A3 /* MarketplaceFees.swift */,
+				1ED6E4000000000000000002 /* LedgerMath.swift */,
+				89A0C0DE0000000000000002 /* RackScan.swift */,
+				90A0C0DE0000000000000002 /* LegitCheck.swift */,
+			);
+			path = Models;
+			sourceTree = "<group>";
+		};
 		AA00000000000000000000BA /* Services */ = {
 			isa = PBXGroup;
 			children = (
@@ -465,72 +531,6 @@
 				FEED000000000000000093A1 /* HaulSession.swift */,
 			);
 			path = ViewModels;
-			sourceTree = "<group>";
-		};
-		5EC7000000000000000003E8 /* Scan */ = {
-			isa = PBXGroup;
-			children = (
-				AA00000000000000000000E4 /* ScanView.swift */,
-				AA0000000000000000229A06 /* TagCameraSheet.swift */,
-				89A0C0DE0000000000000004 /* RackScanView.swift */,
-				90A0C0DE0000000000000004 /* LegitCheckView.swift */,
-				FEED000000000000000093A2 /* HaulView.swift */,
-				FEED000000000000000000A5 /* ThriftFlipView.swift */,
-				EA57E0000000000000000A02 /* RareFindViews.swift */,
-			);
-			path = Scan;
-			sourceTree = "<group>";
-		};
-		5EC7000000000000000003E9 /* Result */ = {
-			isa = PBXGroup;
-			children = (
-				AA00000000000000000000E6 /* ResultView.swift */,
-				AA0000000000000000229A0C /* ResultValueSection.swift */,
-				AA0000000000000000229A04 /* ValuationDetailView.swift */,
-				AA0000000000000000229A02 /* FullDetailOffer.swift */,
-				AA0000000000000000229A0E /* RereadCards.swift */,
-				AA0000000000000000229A08 /* SnapSellSection.swift */,
-				AA0000000000000000229A0A /* FlipLedgerSection.swift */,
-			);
-			path = Result;
-			sourceTree = "<group>";
-		};
-		5EC7000000000000000003EA /* Share */ = {
-			isa = PBXGroup;
-			children = (
-				AA0000000000000000000113 /* ShareCardView.swift */,
-				ADD1EC0000000000000000B5 /* ActivityShareSheet.swift */,
-			);
-			path = Share;
-			sourceTree = "<group>";
-		};
-		5EC7000000000000000003EB /* Flips */ = {
-			isa = PBXGroup;
-			children = (
-				AA00000000000000000000E8 /* HistoryView.swift */,
-				ADD1EC0000000000000000B9 /* FlipsView.swift */,
-			);
-			path = Flips;
-			sourceTree = "<group>";
-		};
-		5EC7000000000000000003EC /* Paywall */ = {
-			isa = PBXGroup;
-			children = (
-				AA00000000000000000000E0 /* PaywallView.swift */,
-				FEED000000000000000097A2 /* ReferralViews.swift */,
-			);
-			path = Paywall;
-			sourceTree = "<group>";
-		};
-		5EC7000000000000000003ED /* Settings */ = {
-			isa = PBXGroup;
-			children = (
-				AA00000000000000000000EA /* SettingsView.swift */,
-				ADD1EC0000000000000000F5 /* NotificationSettingsView.swift */,
-				AA00000000000000000000FB /* FeedbackView.swift */,
-				AA00000000000000000000F6 /* LegalView.swift */,
-			);
-			path = Settings;
 			sourceTree = "<group>";
 		};
 		AA00000000000000000000BD /* Views */ = {
@@ -679,7 +679,7 @@
 			attributes = {
 				BuildIndependentTargetsInParallel = 1;
 				LastSwiftUpdateCheck = 2640;
-				LastUpgradeCheck = 2640;
+				LastUpgradeCheck = 2700;
 				TargetAttributes = {
 					1DF043B73003EE700072D4A8 = {
 						CreatedOnToolsVersion = 26.4.1;
@@ -992,6 +992,7 @@
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_LOCALIZABILITY_NONLOCALIZED = YES;
 				CLANG_ANALYZER_NONNULL = YES;
 				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
 				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
@@ -1057,6 +1058,7 @@
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_LOCALIZABILITY_NONLOCALIZED = YES;
 				CLANG_ANALYZER_NONNULL = YES;
 				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
 				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
