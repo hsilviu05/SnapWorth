@@ -32,7 +32,10 @@ from comps.models import (  # noqa: E402
 from comps.providers.base import ProviderRegistry  # noqa: E402
 from comps.providers.stubs import FixtureProvider, default_stubs, register_defaults  # noqa: E402
 
-NOW = datetime(2026, 7, 28, tzinfo=timezone.utc)
+# The wall clock, not a fixed date: `CompsEngine.lookup` ages comps against
+# `datetime.now()` and drops any past the 90-day window. A fixed date here
+# made every engine test fail once it was 90 days old (2026-10-21).
+NOW = datetime.now(timezone.utc)
 
 
 def comp(price, *, days_ago=5, title="Nike Air Max 97", provider=Marketplace.EBAY,
