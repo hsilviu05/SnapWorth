@@ -227,6 +227,14 @@ same questions (`listingclaims.py`) when `LISTING_CLAIM_CHECK` is on, and
 swaps a flagged draft's words for the deterministic listing's; it is off until
 this run shows a rate worth the latency.
 
+The first run, on 2026-10-19
+(`eval/data/listing-claims/2026-10-19-before.json`), flagged 13 of 198 drafts
+for authenticity (6.6%; eBay 8 of 22, Poshmark and Xianyu 2 each, Mercari 1)
+and 2 for condition (1.0%, both Vinted). The same run an hour later, after
+ff92d3a told the `/listing` prompt not to vouch for authenticity or upgrade
+condition (`2026-10-19-after.json`), flagged none of 198 on either claim; its
+highest scores were 0.33 and 0.25.
+
 **Gold photos are checked against their labels before approval (#359).**
 `python -m eval.photo_check` sends each unapproved record's primary photo to
 Jev's image model with its label and asks two questions: does the photo show

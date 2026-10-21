@@ -1,0 +1,2857 @@
+{
+  "summary": {
+    "drafts": 198,
+    "failed_drafts": 0,
+    "fallback_drafts": 9,
+    "overall": {
+      "authenticity": {
+        "flagged": 13,
+        "n": 198,
+        "rate": 0.06565656565656566,
+        "unjudged": 0
+      },
+      "condition": {
+        "flagged": 2,
+        "n": 198,
+        "rate": 0.010101010101010102,
+        "unjudged": 0
+      }
+    },
+    "by_marketplace": {
+      "depop": {
+        "authenticity": {
+          "flagged": 0,
+          "n": 22,
+          "rate": 0.0,
+          "unjudged": 0
+        },
+        "condition": {
+          "flagged": 0,
+          "n": 22,
+          "rate": 0.0,
+          "unjudged": 0
+        }
+      },
+      "ebay": {
+        "authenticity": {
+          "flagged": 8,
+          "n": 22,
+          "rate": 0.36363636363636365,
+          "unjudged": 0
+        },
+        "condition": {
+          "flagged": 0,
+          "n": 22,
+          "rate": 0.0,
+          "unjudged": 0
+        }
+      },
+      "facebook": {
+        "authenticity": {
+          "flagged": 0,
+          "n": 22,
+          "rate": 0.0,
+          "unjudged": 0
+        },
+        "condition": {
+          "flagged": 0,
+          "n": 22,
+          "rate": 0.0,
+          "unjudged": 0
+        }
+      },
+      "kleinanzeigen": {
+        "authenticity": {
+          "flagged": 0,
+          "n": 22,
+          "rate": 0.0,
+          "unjudged": 0
+        },
+        "condition": {
+          "flagged": 0,
+          "n": 22,
+          "rate": 0.0,
+          "unjudged": 0
+        }
+      },
+      "mercari": {
+        "authenticity": {
+          "flagged": 1,
+          "n": 22,
+          "rate": 0.045454545454545456,
+          "unjudged": 0
+        },
+        "condition": {
+          "flagged": 0,
+          "n": 22,
+          "rate": 0.0,
+          "unjudged": 0
+        }
+      },
+      "olx": {
+        "authenticity": {
+          "flagged": 0,
+          "n": 22,
+          "rate": 0.0,
+          "unjudged": 0
+        },
+        "condition": {
+          "flagged": 0,
+          "n": 22,
+          "rate": 0.0,
+          "unjudged": 0
+        }
+      },
+      "poshmark": {
+        "authenticity": {
+          "flagged": 2,
+          "n": 22,
+          "rate": 0.09090909090909091,
+          "unjudged": 0
+        },
+        "condition": {
+          "flagged": 0,
+          "n": 22,
+          "rate": 0.0,
+          "unjudged": 0
+        }
+      },
+      "vinted": {
+        "authenticity": {
+          "flagged": 0,
+          "n": 22,
+          "rate": 0.0,
+          "unjudged": 0
+        },
+        "condition": {
+          "flagged": 2,
+          "n": 22,
+          "rate": 0.09090909090909091,
+          "unjudged": 0
+        }
+      },
+      "xianyu": {
+        "authenticity": {
+          "flagged": 2,
+          "n": 22,
+          "rate": 0.09090909090909091,
+          "unjudged": 0
+        },
+        "condition": {
+          "flagged": 0,
+          "n": 22,
+          "rate": 0.0,
+          "unjudged": 0
+        }
+      }
+    },
+    "top": [
+      {
+        "item": "Speedy 30 Monogram Canvas Handbag",
+        "brand": "Louis Vuitton",
+        "condition": "used",
+        "marketplace": "ebay",
+        "title": "Louis Vuitton Speedy 30 Monogram Canvas Handbag - Authentic Used",
+        "description": "Authentic Louis Vuitton Speedy 30 handbag in classic Monogram Canvas. This iconic accessory is pre-owned and shows signs of use consistent with its age. A timeless piece perfect for everyday elegance. Please review all photos for exact condition details.",
+        "fallback": false,
+        "claims": {
+          "authenticity": 0.98,
+          "condition": 0.05
+        }
+      },
+      {
+        "item": "Box Logo Hoodie",
+        "brand": "Supreme",
+        "condition": "good",
+        "marketplace": "poshmark",
+        "title": "Supreme Box Logo Hoodie - Good Condition",
+        "description": "Authentic Supreme Box Logo Hoodie in good pre-owned condition. This iconic piece is perfect for any streetwear enthusiast. It's been well-cared for and shows only minor signs of wear consistent with its age. Feel free to bundle with other items from my closet!",
+        "fallback": false,
+        "claims": {
+          "authenticity": 0.98,
+          "condition": 0.04
+        }
+      },
+      {
+        "item": "Submariner Date Wristwatch",
+        "brand": "Rolex",
+        "condition": "used",
+        "marketplace": "ebay",
+        "title": "Rolex Submariner Date Wristwatch - Used, Authentic Luxury Timepiece",
+        "description": "This pre-owned Rolex Submariner Date Wristwatch is in used condition, offering a classic and iconic design. The timepiece is authentic and has been well-maintained, showing signs of wear consistent with its age and use. It includes the watch only; no original box or papers are provided. Please review all photos carefully for a comprehensive understanding of its condition.",
+        "fallback": false,
+        "claims": {
+          "authenticity": 0.98,
+          "condition": 0.05
+        }
+      },
+      {
+        "item": "Classic Flap Bag",
+        "brand": "Chanel",
+        "condition": "good",
+        "marketplace": "mercari",
+        "title": "Chanel Classic Flap Bag",
+        "description": "Authentic Chanel Classic Flap Bag in good condition. This iconic accessory is a timeless piece. Ships promptly. Please review all photos carefully.",
+        "fallback": false,
+        "claims": {
+          "authenticity": 0.98,
+          "condition": 0.04
+        }
+      },
+      {
+        "item": "Yeezy Boost 350 V2 Zebra",
+        "brand": "Adidas",
+        "condition": "good",
+        "marketplace": "xianyu",
+        "title": "Adidas Yeezy Boost 350 V2 Zebra",
+        "description": "这双Yeezy 350 V2 Zebra是我的闲置,平时穿得不多,所以成色还不错。鞋子是正品,所见即所得,具体看图。价格可小刀,欢迎来聊。",
+        "fallback": false,
+        "claims": {
+          "authenticity": 0.98,
+          "condition": 0.14
+        }
+      },
+      {
+        "item": "Speedy 30 Monogram Canvas Handbag",
+        "brand": "Louis Vuitton",
+        "condition": "used",
+        "marketplace": "ebay",
+        "title": "Louis Vuitton Speedy 30 Monogram Canvas Handbag - Authentic Used",
+        "description": "This authentic Louis Vuitton Speedy 30 handbag features the iconic Monogram Canvas. A classic and versatile accessory, it is perfect for everyday use. The bag is in used condition, reflecting its pre-owned status. Please review all photos for a complete understanding of its condition.",
+        "fallback": false,
+        "claims": {
+          "authenticity": 0.98,
+          "condition": 0.04
+        }
+      },
+      {
+        "item": "Box Logo Hoodie",
+        "brand": "Supreme",
+        "condition": "good",
+        "marketplace": "ebay",
+        "title": "Supreme Box Logo Hoodie - Good Condition Front-Load",
+        "description": "This authentic Supreme Box Logo Hoodie is in good pre-owned condition. It features the iconic box logo design and is a highly sought-after piece. Please review all photos for exact condition details. Ideal for collectors and streetwear enthusiasts.",
+        "fallback": false,
+        "claims": {
+          "authenticity": 0.98,
+          "condition": 0.04
+        }
+      },
+      {
+        "item": "Box Logo Hoodie",
+        "brand": "Supreme",
+        "condition": "good",
+        "marketplace": "poshmark",
+        "title": "Supreme Box Logo Hoodie - Good Condition",
+        "description": "Authentic Supreme Box Logo Hoodie in good pre-owned condition. This iconic piece is perfect for any streetwear enthusiast. It's been well-cared for and shows only minor signs of wear consistent with its age. Feel free to bundle with other items from my closet!",
+        "fallback": false,
+        "claims": {
+          "authenticity": 0.98,
+          "condition": 0.05
+        }
+      },
+      {
+        "item": "Submariner Date Wristwatch",
+        "brand": "Rolex",
+        "condition": "used",
+        "marketplace": "ebay",
+        "title": "Rolex Submariner Date Wristwatch - Used, Authentic Luxury Timepiece",
+        "description": "This pre-owned Rolex Submariner Date Wristwatch is in used condition, offering a classic and iconic design. The timepiece is authentic and has been well-maintained, showing signs of wear consistent with its age and use. It includes the watch only; no original box or papers are provided. Please review all photos carefully for a comprehensive understanding of its condition.",
+        "fallback": false,
+        "claims": {
+          "authenticity": 0.98,
+          "condition": 0.05
+        }
+      },
+      {
+        "item": "Yeezy Boost 350 V2 Zebra",
+        "brand": "Adidas",
+        "condition": "good",
+        "marketplace": "xianyu",
+        "title": "Adidas Yeezy Boost 350 V2 Zebra",
+        "description": "这双Yeezy 350 V2 Zebra是我的闲置,平时穿得不多,所以成色还不错。鞋子是正品,所见即所得,具体看图。价格可小刀,欢迎来聊。",
+        "fallback": false,
+        "claims": {
+          "authenticity": 0.98,
+          "condition": 0.14
+        }
+      }
+    ]
+  },
+  "drafts": [
+    {
+      "item": "Speedy 30 Monogram Canvas Handbag",
+      "brand": "Louis Vuitton",
+      "condition": "used",
+      "marketplace": "depop",
+      "title": "Louis Vuitton Speedy 30 Monogram Canvas Y2K Bag",
+      "description": "Obsessed with this classic Louis Vuitton Speedy 30! It's the perfect Y2K vibe for everyday or a night out. This pre-loved beauty shows some wear consistent with its age, but still has so much life left. Check out the pics for details on condition!",
+      "fallback": false,
+      "claims": {
+        "authenticity": 0.11,
+        "condition": 0.08
+      }
+    },
+    {
+      "item": "Speedy 30 Monogram Canvas Handbag",
+      "brand": "Louis Vuitton",
+      "condition": "used",
+      "marketplace": "ebay",
+      "title": "Louis Vuitton Speedy 30 Monogram Canvas Handbag - Authentic Used",
+      "description": "Authentic Louis Vuitton Speedy 30 handbag in classic Monogram Canvas. This iconic accessory is pre-owned and shows signs of use consistent with its age. A timeless piece perfect for everyday elegance. Please review all photos for exact condition details.",
+      "fallback": false,
+      "claims": {
+        "authenticity": 0.98,
+        "condition": 0.05
+      }
+    },
+    {
+      "item": "Speedy 30 Monogram Canvas Handbag",
+      "brand": "Louis Vuitton",
+      "condition": "used",
+      "marketplace": "facebook",
+      "title": "Louis Vuitton Speedy 30 Monogram Canvas Handbag",
+      "description": "Selling a pre-loved Louis Vuitton Speedy 30 in the classic Monogram Canvas. It's a great everyday bag with plenty of life left. Local pickup only. Price is OBO!",
+      "fallback": false,
+      "claims": {
+        "authenticity": 0.12,
+        "condition": 0.09
+      }
+    },
+    {
+      "item": "Speedy 30 Monogram Canvas Handbag",
+      "brand": "Louis Vuitton",
+      "condition": "used",
+      "marketplace": "kleinanzeigen",
+      "title": "Louis Vuitton Speedy 30 Monogram Canvas Handtasche",
+      "description": "Ich biete eine gebrauchte Louis Vuitton Speedy 30 Handtasche aus Monogram Canvas an. Die Tasche ist in gutem Zustand mit normalen Gebrauchsspuren. Sie kann abgeholt oder gegen Aufpreis versendet werden. Dies ist ein Privatverkauf, daher keine Garantie oder Rücknahme.",
+      "fallback": false,
+      "claims": {
+        "authenticity": 0.12,
+        "condition": 0.09
+      }
+    },
+    {
+      "item": "Speedy 30 Monogram Canvas Handbag",
+      "brand": "Louis Vuitton",
+      "condition": "used",
+      "marketplace": "mercari",
+      "title": "Louis Vuitton Speedy 30 Monogram Canvas Handbag",
+      "description": "Used Louis Vuitton Speedy 30 Monogram Canvas Handbag. This iconic bag is in good pre-owned condition. It ships promptly. Please see all photos for details.",
+      "fallback": false,
+      "claims": {
+        "authenticity": 0.12,
+        "condition": 0.08
+      }
+    },
+    {
+      "item": "Speedy 30 Monogram Canvas Handbag",
+      "brand": "Louis Vuitton",
+      "condition": "used",
+      "marketplace": "olx",
+      "title": "Louis Vuitton Speedy 30 Monogram Canvas Handbag - Used",
+      "description": "Selling a used Louis Vuitton Speedy 30 Monogram Canvas Handbag. This classic accessory is in good pre-owned condition with normal signs of wear. Perfect for everyday use. Local pickup and cash payment preferred.",
+      "fallback": false,
+      "claims": {
+        "authenticity": 0.11,
+        "condition": 0.08
+      }
+    },
+    {
+      "item": "Speedy 30 Monogram Canvas Handbag",
+      "brand": "Louis Vuitton",
+      "condition": "used",
+      "marketplace": "poshmark",
+      "title": "Louis Vuitton Speedy 30 Monogram Canvas Handbag Brown",
+      "description": "Timeless Louis Vuitton Speedy 30 in classic Monogram Canvas. This pre-loved handbag is perfect for everyday elegance, offering a spacious interior. It's in good used condition, ready for its next chapter. Feel free to bundle with other items for a special discount!",
+      "fallback": false,
+      "claims": {
+        "authenticity": 0.12,
+        "condition": 0.09
+      }
+    },
+    {
+      "item": "Speedy 30 Monogram Canvas Handbag",
+      "brand": "Louis Vuitton",
+      "condition": "used",
+      "marketplace": "vinted",
+      "title": "Louis Vuitton Speedy 30 Monogram Handbag",
+      "description": "Selling my beloved Louis Vuitton Speedy 30! This classic monogram canvas bag is perfect for everyday use. It's in good used condition with the usual signs of wear on the vachetta leather, but still has so much life left. It measures approximately 30cm long, 21cm high, and 17cm deep.",
+      "fallback": false,
+      "claims": {
+        "authenticity": 0.15,
+        "condition": 0.08
+      }
+    },
+    {
+      "item": "Speedy 30 Monogram Canvas Handbag",
+      "brand": "Louis Vuitton",
+      "condition": "used",
+      "marketplace": "xianyu",
+      "title": "LV Speedy 30 Monogram 帆布手袋",
+      "description": "自用LV Speedy 30手袋,经典老花款。包包整体状况不错,具体成色请看实拍图。附件齐全,可小刀。",
+      "fallback": false,
+      "claims": {
+        "authenticity": 0.19,
+        "condition": 0.12
+      }
+    },
+    {
+      "item": "Air Jordan 1 Retro High OG Chicago",
+      "brand": "Nike",
+      "condition": "good",
+      "marketplace": "depop",
+      "title": "Nike Air Jordan 1 Retro High OG Chicago 2015",
+      "description": "Stepping out in these iconic Air Jordan 1 Chicago's! These OGs are in good condition and ready for their next adventure. They're a classic for a reason, perfect for any streetwear fit. Grab 'em before they're gone!",
+      "fallback": false,
+      "claims": {
+        "authenticity": 0.16,
+        "condition": 0.04
+      }
+    },
+    {
+      "item": "Air Jordan 1 Retro High OG Chicago",
+      "brand": "Nike",
+      "condition": "good",
+      "marketplace": "ebay",
+      "title": "Nike Air Jordan 1 Retro High OG Chicago - Good Condition",
+      "description": "Up for sale is a pair of Nike Air Jordan 1 Retro High OG Chicago sneakers in good pre-owned condition. These iconic shoes show typical signs of wear consistent with their age and use, but remain a highly sought-after collector's item. Please review all photos carefully for exact condition details. This listing includes the shoes only.",
+      "fallback": false,
+      "claims": {
+        "authenticity": 0.11,
+        "condition": 0.04
+      }
+    },
+    {
+      "item": "Air Jordan 1 Retro High OG Chicago",
+      "brand": "Nike",
+      "condition": "good",
+      "marketplace": "facebook",
+      "title": "Nike Air Jordan 1 Retro High OG Chicago - Good Condition",
+      "description": "Selling a pair of classic Nike Air Jordan 1 Retro High OG Chicago shoes in good condition. Perfect for any sneakerhead! Local pickup only. Price is OBO.",
+      "fallback": false,
+      "claims": {
+        "authenticity": 0.1,
+        "condition": 0.03
+      }
+    },
+    {
+      "item": "Air Jordan 1 Retro High OG Chicago",
+      "brand": "Nike",
+      "condition": "good",
+      "marketplace": "kleinanzeigen",
+      "title": "Nike Air Jordan 1 Retro High OG Chicago",
+      "description": "Ich biete hier ein Paar Nike Air Jordan 1 Retro High OG Chicago in gutem Zustand an. Die Schuhe sind getragen, aber gut erhalten. Größe ist wie angegeben. Nur Abholung. Da dies ein Privatverkauf ist, gibt es keine Garantie oder Rücknahme.",
+      "fallback": false,
+      "claims": {
+        "authenticity": 0.09,
+        "condition": 0.05
+      }
+    },
+    {
+      "item": "Air Jordan 1 Retro High OG Chicago",
+      "brand": "Nike",
+      "condition": "good",
+      "marketplace": "mercari",
+      "title": "Nike Air Jordan 1 Retro High OG Chicago Shoes",
+      "description": "Good condition Nike Air Jordan 1 Retro High OG Chicago shoes. These iconic sneakers are ready for their next owner. Ships promptly.",
+      "fallback": false,
+      "claims": {
+        "authenticity": 0.09,
+        "condition": 0.04
+      }
+    },
+    {
+      "item": "Air Jordan 1 Retro High OG Chicago",
+      "brand": "Nike",
+      "condition": "good",
+      "marketplace": "olx",
+      "title": "Nike Air Jordan 1 Retro High OG Chicago - Good Condition",
+      "description": "Selling a pair of Nike Air Jordan 1 Retro High OG Chicago in good condition. These iconic sneakers are ready for a new owner. Local pickup preferred, cash only. Don't miss out!",
+      "fallback": false,
+      "claims": {
+        "authenticity": 0.1,
+        "condition": 0.03
+      }
+    },
+    {
+      "item": "Air Jordan 1 Retro High OG Chicago",
+      "brand": "Nike",
+      "condition": "good",
+      "marketplace": "poshmark",
+      "title": "Nike Air Jordan 1 Retro High OG Chicago Sneakers Size 10 Red White Black",
+      "description": "Step out in iconic style with these classic Nike Air Jordan 1 Retro High OG Chicago sneakers. These legendary high-tops are in good condition, ready to add a vintage touch to your collection. Featuring the unmistakable red, white, and black colorway, they're a must-have for any sneaker enthusiast. Feel free to bundle with other items for a private discount!",
+      "fallback": false,
+      "claims": {
+        "authenticity": 0.1,
+        "condition": 0.04
+      }
+    },
+    {
+      "item": "Air Jordan 1 Retro High OG Chicago",
+      "brand": "Nike",
+      "condition": "good",
+      "marketplace": "vinted",
+      "title": "Nike Air Jordan 1 Chicago",
+      "description": "Selling my beloved Air Jordan 1 Chicago! These iconic high-tops are in good condition and ready for a new home. They're a classic fit, true to size. Grab them before they're gone!",
+      "fallback": false,
+      "claims": {
+        "authenticity": 0.1,
+        "condition": 0.04
+      }
+    },
+    {
+      "item": "Air Jordan 1 Retro High OG Chicago",
+      "brand": "Nike",
+      "condition": "good",
+      "marketplace": "xianyu",
+      "title": "Nike Air Jordan 1 Retro High OG Chicago 芝加哥",
+      "description": "这双AJ1芝加哥是我的自穿鞋,成色还不错,具体看图。鞋盒还在,配件齐全。价格可小刀,欢迎来聊。",
+      "fallback": false,
+      "claims": {
+        "authenticity": 0.12,
+        "condition": 0.11
+      }
+    },
+    {
+      "item": "Box Logo Hoodie",
+      "brand": "Supreme",
+      "condition": "good",
+      "marketplace": "depop",
+      "title": "Supreme Box Logo Hoodie Y2K Streetwear",
+      "description": "Classic Supreme Box Logo hoodie in good condition. This is such an iconic Y2K streetwear piece and super comfy. Fits like a true large, measurements available on request! There's some minor fading consistent with age, but no major flaws.",
+      "fallback": false,
+      "claims": {
+        "authenticity": 0.11,
+        "condition": 0.06
+      }
+    },
+    {
+      "item": "Box Logo Hoodie",
+      "brand": "Supreme",
+      "condition": "good",
+      "marketplace": "ebay",
+      "title": "Supreme Box Logo Hoodie - Good Condition Front-Load",
+      "description": "This authentic Supreme Box Logo Hoodie is in good pre-owned condition. It features the iconic box logo design and is a highly sought-after piece. Please review all photos for details on condition. This listing includes the hoodie only.",
+      "fallback": false,
+      "claims": {
+        "authenticity": 0.97,
+        "condition": 0.04
+      }
+    },
+    {
+      "item": "Box Logo Hoodie",
+      "brand": "Supreme",
+      "condition": "good",
+      "marketplace": "facebook",
+      "title": "Supreme Box Logo Hoodie",
+      "description": "Selling a good condition Supreme Box Logo Hoodie. Perfect for any fan of the brand. Local pickup only. Price is OBO.",
+      "fallback": false,
+      "claims": {
+        "authenticity": 0.1,
+        "condition": 0.04
+      }
+    },
+    {
+      "item": "Box Logo Hoodie",
+      "brand": "Supreme",
+      "condition": "good",
+      "marketplace": "kleinanzeigen",
+      "title": "Supreme Box Logo Hoodie",
+      "description": "Ich biete einen Supreme Box Logo Hoodie in gutem Zustand an. Der Hoodie ist getragen, aber ohne größere Mängel. Größe L. Nur Abholung. Da es sich um einen Privatverkauf handelt, sind Rückgabe, Garantie und Gewährleistung ausgeschlossen.",
+      "fallback": false,
+      "claims": {
+        "authenticity": 0.11,
+        "condition": 0.05
+      }
+    },
+    {
+      "item": "Box Logo Hoodie",
+      "brand": "Supreme",
+      "condition": "good",
+      "marketplace": "mercari",
+      "title": "Supreme Box Logo Hoodie",
+      "description": "Supreme Box Logo Hoodie in good condition. This iconic hoodie is a men's size large. Ships promptly. No visible flaws.",
+      "fallback": false,
+      "claims": {
+        "authenticity": 0.08,
+        "condition": 0.1
+      }
+    },
+    {
+      "item": "Box Logo Hoodie",
+      "brand": "Supreme",
+      "condition": "good",
+      "marketplace": "olx",
+      "title": "Supreme Box Logo Hoodie - Good Condition",
+      "description": "Selling a Supreme Box Logo Hoodie in good condition. This iconic piece is ready for its next owner. Local pickup preferred, cash only. Grab a classic!",
+      "fallback": false,
+      "claims": {
+        "authenticity": 0.11,
+        "condition": 0.03
+      }
+    },
+    {
+      "item": "Box Logo Hoodie",
+      "brand": "Supreme",
+      "condition": "good",
+      "marketplace": "poshmark",
+      "title": "Supreme Box Logo Hoodie - Good Condition",
+      "description": "Authentic Supreme Box Logo Hoodie in good pre-owned condition. This iconic piece is perfect for any streetwear enthusiast. It's been well-cared for and shows only minor signs of wear consistent with its age. Feel free to bundle with other items from my closet!",
+      "fallback": false,
+      "claims": {
+        "authenticity": 0.98,
+        "condition": 0.04
+      }
+    },
+    {
+      "item": "Box Logo Hoodie",
+      "brand": "Supreme",
+      "condition": "good",
+      "marketplace": "vinted",
+      "title": "Supreme Box Logo Hoodie",
+      "description": "Selling my Supreme Box Logo Hoodie! It's in good condition and ready for a new home. It's a classic piece that fits true to size, perfect for a cozy, streetwear look. I've taken good care of it, and it still has plenty of life left!",
+      "fallback": false,
+      "claims": {
+        "authenticity": 0.12,
+        "condition": 0.05
+      }
+    },
+    {
+      "item": "Box Logo Hoodie",
+      "brand": "Supreme",
+      "condition": "good",
+      "marketplace": "xianyu",
+      "title": "Supreme Box Logo 连帽卫衣",
+      "description": "这件Supreme Box Logo卫衣状况良好,具体细节请看图片。我穿过几次,现在想转手。价格可小刀,欢迎来聊。",
+      "fallback": false,
+      "claims": {
+        "authenticity": 0.1,
+        "condition": 0.05
+      }
+    },
+    {
+      "item": "Submariner Date Wristwatch",
+      "brand": "Rolex",
+      "condition": "used",
+      "marketplace": "depop",
+      "title": "Rolex Submariner Date Watch Y2K Diver",
+      "description": "Selling my classic Rolex Submariner Date! This iconic diver's watch from the early 2000s is in great used condition and ready for its next adventure. It's a timeless piece that goes with everything. I'm letting it go to make room for something new!",
+      "fallback": false,
+      "claims": {
+        "authenticity": 0.2,
+        "condition": 0.15
+      }
+    },
+    {
+      "item": "Submariner Date Wristwatch",
+      "brand": "Rolex",
+      "condition": "used",
+      "marketplace": "ebay",
+      "title": "Rolex Submariner Date Wristwatch - Used, Authentic Luxury Timepiece",
+      "description": "This pre-owned Rolex Submariner Date Wristwatch is in used condition, offering a classic and iconic design. The timepiece is authentic and has been well-maintained, showing signs of wear consistent with its age and use. It includes the watch only; no original box or papers are provided. Please review all photos carefully for a comprehensive understanding of its condition.",
+      "fallback": false,
+      "claims": {
+        "authenticity": 0.98,
+        "condition": 0.05
+      }
+    },
+    {
+      "item": "Submariner Date Wristwatch",
+      "brand": "Rolex",
+      "condition": "used",
+      "marketplace": "facebook",
+      "title": "Rolex Submariner Date Wristwatch",
+      "description": "Selling a used Rolex Submariner Date. This classic timepiece is in great condition and ready for a new owner. Local pickup only. Price is OBO.",
+      "fallback": false,
+      "claims": {
+        "authenticity": 0.14,
+        "condition": 0.22
+      }
+    },
+    {
+      "item": "Submariner Date Wristwatch",
+      "brand": "Rolex",
+      "condition": "used",
+      "marketplace": "kleinanzeigen",
+      "title": "Rolex Submariner Date Armbanduhr",
+      "description": "Ich biete eine gebrauchte Rolex Submariner Date Armbanduhr an. Die Uhr ist in gutem Zustand mit normalen Gebrauchsspuren. Abholung bevorzugt, Versand gegen Aufpreis möglich. Dies ist ein Privatverkauf, daher keine Garantie oder Rücknahme.",
+      "fallback": false,
+      "claims": {
+        "authenticity": 0.13,
+        "condition": 0.09
+      }
+    },
+    {
+      "item": "Submariner Date Wristwatch",
+      "brand": "Rolex",
+      "condition": "used",
+      "marketplace": "mercari",
+      "title": "Rolex Submariner Date Wristwatch",
+      "description": "Used Rolex Submariner Date Wristwatch. This iconic timepiece is in good pre-owned condition. Ships promptly.",
+      "fallback": false,
+      "claims": {
+        "authenticity": 0.13,
+        "condition": 0.08
+      }
+    },
+    {
+      "item": "Submariner Date Wristwatch",
+      "brand": "Rolex",
+      "condition": "used",
+      "marketplace": "olx",
+      "title": "Rolex Submariner Date Wristwatch - Used",
+      "description": "Selling a used Rolex Submariner Date Wristwatch. The watch is in good condition with normal signs of wear. Local pickup preferred, cash only. Serious inquiries only.",
+      "fallback": false,
+      "claims": {
+        "authenticity": 0.13,
+        "condition": 0.07
+      }
+    },
+    {
+      "item": "Submariner Date Wristwatch",
+      "brand": "Rolex",
+      "condition": "used",
+      "marketplace": "poshmark",
+      "title": "Rolex Submariner Date Wristwatch Stainless Steel Men's Watch",
+      "description": "Timeless elegance meets robust functionality with this classic Rolex Submariner Date. This pre-owned timepiece is in good used condition, ready to be cherished by its next owner. Please examine all photos carefully. Feel free to bundle with other items from my closet!",
+      "fallback": false,
+      "claims": {
+        "authenticity": 0.13,
+        "condition": 0.07
+      }
+    },
+    {
+      "item": "Submariner Date Wristwatch",
+      "brand": "Rolex",
+      "condition": "used",
+      "marketplace": "vinted",
+      "title": "Rolex Submariner Date Watch",
+      "description": "Selling my beloved Rolex Submariner Date! It's a classic and still looks fantastic, showing some gentle signs of wear from being enjoyed. It's a men's watch, but I think it looks great on anyone. I've included detailed photos so you can see its condition clearly.",
+      "fallback": false,
+      "claims": {
+        "authenticity": 0.16,
+        "condition": 0.09
+      }
+    },
+    {
+      "item": "Submariner Date Wristwatch",
+      "brand": "Rolex",
+      "condition": "used",
+      "marketplace": "xianyu",
+      "title": "Rolex Submariner Date Wristwatch",
+      "description": "Submariner Date Wristwatch in used condition. Priced to sell — message me with any questions.",
+      "fallback": true,
+      "claims": {
+        "authenticity": 0.09,
+        "condition": 0.03
+      }
+    },
+    {
+      "item": "Classic Flap Bag",
+      "brand": "Chanel",
+      "condition": "good",
+      "marketplace": "depop",
+      "title": "Chanel Classic Flap Bag Y2K Vintage",
+      "description": "Obsessed with this iconic Chanel Classic Flap Bag! It's in good condition and still looks amazing. This beauty is perfect for adding a touch of vintage luxury to any outfit. I'd say it's a small to medium size, super versatile!",
+      "fallback": false,
+      "claims": {
+        "authenticity": 0.12,
+        "condition": 0.08
+      }
+    },
+    {
+      "item": "Classic Flap Bag",
+      "brand": "Chanel",
+      "condition": "good",
+      "marketplace": "ebay",
+      "title": "Chanel Classic Flap Bag Quilted Leather Shoulder Bag Good Condition",
+      "description": "This authentic Chanel Classic Flap Bag is in good pre-owned condition, showcasing the iconic quilted design. A timeless accessory, it features the signature chain strap and CC turn-lock closure. Please review all photos for a comprehensive understanding of its condition. This elegant bag is a sophisticated addition to any collection.",
+      "fallback": false,
+      "claims": {
+        "authenticity": 0.97,
+        "condition": 0.04
+      }
+    },
+    {
+      "item": "Classic Flap Bag",
+      "brand": "Chanel",
+      "condition": "good",
+      "marketplace": "facebook",
+      "title": "Chanel Classic Flap Bag - Good Condition",
+      "description": "Selling a beautiful Chanel Classic Flap Bag in good condition. This iconic accessory is perfect for any occasion. Local pickup only. Price is OBO.",
+      "fallback": false,
+      "claims": {
+        "authenticity": 0.12,
+        "condition": 0.04
+      }
+    },
+    {
+      "item": "Classic Flap Bag",
+      "brand": "Chanel",
+      "condition": "good",
+      "marketplace": "kleinanzeigen",
+      "title": "Chanel Classic Flap Bag",
+      "description": "Ich biete eine gut erhaltene Chanel Classic Flap Bag an. Die Tasche ist in einem guten Zustand und weist normale Gebrauchsspuren auf. Sie kann abgeholt oder versichert versendet werden. Da es sich um einen Privatverkauf handelt, sind Rücknahme und Garantie ausgeschlossen.",
+      "fallback": false,
+      "claims": {
+        "authenticity": 0.12,
+        "condition": 0.05
+      }
+    },
+    {
+      "item": "Classic Flap Bag",
+      "brand": "Chanel",
+      "condition": "good",
+      "marketplace": "mercari",
+      "title": "Chanel Classic Flap Bag",
+      "description": "Authentic Chanel Classic Flap Bag in good condition. This iconic accessory is a timeless piece. Ships promptly. Please review all photos carefully.",
+      "fallback": false,
+      "claims": {
+        "authenticity": 0.98,
+        "condition": 0.04
+      }
+    },
+    {
+      "item": "Classic Flap Bag",
+      "brand": "Chanel",
+      "condition": "good",
+      "marketplace": "olx",
+      "title": "Chanel Classic Flap Bag - Good Condition",
+      "description": "Selling a beautiful Chanel Classic Flap Bag in good condition. This iconic accessory is perfect for any occasion. Local pickup preferred; cash only. Serious inquiries only.",
+      "fallback": false,
+      "claims": {
+        "authenticity": 0.12,
+        "condition": 0.04
+      }
+    },
+    {
+      "item": "Classic Flap Bag",
+      "brand": "Chanel",
+      "condition": "good",
+      "marketplace": "poshmark",
+      "title": "Chanel Classic Flap Bag Black Quilted Leather Shoulder Bag",
+      "description": "Timeless elegance defines this iconic Chanel Classic Flap Bag in good pre-owned condition. Crafted from luxurious quilted leather, it features the signature chain strap and CC turn-lock closure. This versatile accessory is perfect for elevating any outfit, offering both style and a piece of fashion history. Please examine all photos carefully and feel free to ask any questions!",
+      "fallback": false,
+      "claims": {
+        "authenticity": 0.13,
+        "condition": 0.04
+      }
+    },
+    {
+      "item": "Classic Flap Bag",
+      "brand": "Chanel",
+      "condition": "good",
+      "marketplace": "vinted",
+      "title": "Chanel Classic Flap Bag",
+      "description": "Selling my beautiful Chanel Classic Flap Bag! It's in good condition and has been well-loved, showing some gentle signs of wear consistent with its age. This iconic piece is a timeless accessory that elevates any outfit. It's a classic size, perfect for everyday essentials.",
+      "fallback": false,
+      "claims": {
+        "authenticity": 0.13,
+        "condition": 0.06
+      }
+    },
+    {
+      "item": "Classic Flap Bag",
+      "brand": "Chanel",
+      "condition": "good",
+      "marketplace": "xianyu",
+      "title": "Chanel Classic Flap Bag",
+      "description": "自用闲置的香奈儿CF包,成色不错,具体看图。包包和防尘袋都在,可小刀。",
+      "fallback": false,
+      "claims": {
+        "authenticity": 0.15,
+        "condition": 0.15
+      }
+    },
+    {
+      "item": "501 Original Fit Jeans",
+      "brand": "Levi's",
+      "condition": "used",
+      "marketplace": "depop",
+      "title": "Levi's 501 Original Fit Jeans Y2K Vintage Denim",
+      "description": "Classic Levi's 501s! These original fit jeans are a Y2K staple and super comfy. They're in good used condition with that perfect worn-in feel. I'd say they fit like a true straight leg, great for a relaxed vibe. #levis #501 #vintagejeans #y2k #denim",
+      "fallback": false,
+      "claims": {
+        "authenticity": 0.4,
+        "condition": 0.09
+      }
+    },
+    {
+      "item": "501 Original Fit Jeans",
+      "brand": "Levi's",
+      "condition": "used",
+      "marketplace": "ebay",
+      "title": "Levi's 501 Original Fit Jeans - Classic Used Denim",
+      "description": "These Levi's 501 Original Fit Jeans are a timeless classic, offered in used condition. They provide the iconic straight leg and button fly design that Levi's is known for. This pair is ready for its next owner to break them in further. Please review all photos for exact condition details.",
+      "fallback": false,
+      "claims": {
+        "authenticity": 0.2,
+        "condition": 0.04
+      }
+    },
+    {
+      "item": "501 Original Fit Jeans",
+      "brand": "Levi's",
+      "condition": "used",
+      "marketplace": "facebook",
+      "title": "Levi's 501 Original Fit Jeans",
+      "description": "Selling a pair of classic Levi's 501 Original Fit Jeans. They're in good used condition and ready for a new home. Local pickup only. Price is OBO!",
+      "fallback": false,
+      "claims": {
+        "authenticity": 0.22,
+        "condition": 0.08
+      }
+    },
+    {
+      "item": "501 Original Fit Jeans",
+      "brand": "Levi's",
+      "condition": "used",
+      "marketplace": "kleinanzeigen",
+      "title": "Levi's 501 Original Fit Jeans",
+      "description": "Biete hier eine gebrauchte Levi's 501 Original Fit Jeans an. Sie ist in gutem Zustand mit normalen Gebrauchsspuren. Größe ist W32 L32. Nur Abholung. Da Privatverkauf, keine Garantie oder Rücknahme.",
+      "fallback": false,
+      "claims": {
+        "authenticity": 0.17,
+        "condition": 0.09
+      }
+    },
+    {
+      "item": "501 Original Fit Jeans",
+      "brand": "Levi's",
+      "condition": "used",
+      "marketplace": "mercari",
+      "title": "Levi's 501 Original Fit Jeans",
+      "description": "Used Levi's 501 Original Fit Jeans. Classic straight leg fit. Ships promptly.",
+      "fallback": false,
+      "claims": {
+        "authenticity": 0.19,
+        "condition": 0.04
+      }
+    },
+    {
+      "item": "501 Original Fit Jeans",
+      "brand": "Levi's",
+      "condition": "used",
+      "marketplace": "olx",
+      "title": "Levi's 501 Original Fit Jeans - Used",
+      "description": "Selling a pair of classic Levi's 501 Original Fit Jeans in good used condition. Perfect for everyday wear. Local pickup preferred, cash only. See photos for exact condition.",
+      "fallback": false,
+      "claims": {
+        "authenticity": 0.24,
+        "condition": 0.07
+      }
+    },
+    {
+      "item": "501 Original Fit Jeans",
+      "brand": "Levi's",
+      "condition": "used",
+      "marketplace": "poshmark",
+      "title": "Levi's 501 Original Fit Jeans Classic Denim",
+      "description": "Timeless Levi's 501 Original Fit Jeans, perfect for a classic, casual look. These pre-loved jeans offer that iconic durable denim feel and a versatile fit. They're in good used condition, ready for their next adventure. Feel free to bundle with other items from my closet!",
+      "fallback": false,
+      "claims": {
+        "authenticity": 0.26,
+        "condition": 0.08
+      }
+    },
+    {
+      "item": "501 Original Fit Jeans",
+      "brand": "Levi's",
+      "condition": "used",
+      "marketplace": "vinted",
+      "title": "Levi's 501 Original Fit Jeans",
+      "description": "Hey there! Selling my classic Levi's 501s. They're in good used condition, super comfy and have that perfect broken-in feel. These are the original fit, so they're a bit more relaxed through the leg. I'd say they fit true to size, but happy to provide measurements if you need them!",
+      "fallback": false,
+      "claims": {
+        "authenticity": 0.24,
+        "condition": 0.08
+      }
+    },
+    {
+      "item": "501 Original Fit Jeans",
+      "brand": "Levi's",
+      "condition": "used",
+      "marketplace": "xianyu",
+      "title": "Levi's 501 牛仔裤",
+      "description": "这条Levi's 501牛仔裤是我的旧爱,现在转给有缘人。穿过几次,整体状况良好,具体细节请看图片。价格可小刀,欢迎来聊。",
+      "fallback": false,
+      "claims": {
+        "authenticity": 0.17,
+        "condition": 0.12
+      }
+    },
+    {
+      "item": "Better Sweater Quarter-Zip Fleece",
+      "brand": "Patagonia",
+      "condition": "likeNew",
+      "marketplace": "depop",
+      "title": "Patagonia Better Sweater Quarter-Zip Fleece Y2K Outdoors",
+      "description": "Obsessed with this Patagonia Better Sweater quarter-zip fleece! It's in like-new condition and perfect for that Y2K outdoorsy vibe or just staying cozy. Super versatile and a staple for any wardrobe. I'd say it fits true to size, but message me for measurements if you want to be sure! #patagonia #bettersweater #fleece #quarterzip #y2k",
+      "fallback": false,
+      "claims": {
+        "authenticity": 0.13,
+        "condition": 0.07
+      }
+    },
+    {
+      "item": "Better Sweater Quarter-Zip Fleece",
+      "brand": "Patagonia",
+      "condition": "likeNew",
+      "marketplace": "ebay",
+      "title": "Patagonia Better Sweater Quarter-Zip Fleece Men's Like New",
+      "description": "This Patagonia Better Sweater Quarter-Zip Fleece is in like-new condition, showing minimal to no signs of wear. It features the classic quarter-zip design, perfect for layering or standalone wear. The fleece is clean and ready for its next owner, offering warmth and comfort. No flaws are present.",
+      "fallback": false,
+      "claims": {
+        "authenticity": 0.12,
+        "condition": 0.23
+      }
+    },
+    {
+      "item": "Better Sweater Quarter-Zip Fleece",
+      "brand": "Patagonia",
+      "condition": "likeNew",
+      "marketplace": "facebook",
+      "title": "Patagonia Better Sweater Quarter-Zip Fleece - Like New!",
+      "description": "Selling a like-new Patagonia Better Sweater Quarter-Zip Fleece. It's in excellent condition and super cozy. Perfect for local pickup. Price is OBO!",
+      "fallback": false,
+      "claims": {
+        "authenticity": 0.14,
+        "condition": 0.12
+      }
+    },
+    {
+      "item": "Better Sweater Quarter-Zip Fleece",
+      "brand": "Patagonia",
+      "condition": "likeNew",
+      "marketplace": "kleinanzeigen",
+      "title": "Patagonia Better Sweater Quarter-Zip Fleece",
+      "description": "Better Sweater Quarter-Zip Fleece in like new condition. Priced to sell — message me with any questions.",
+      "fallback": true,
+      "claims": {
+        "authenticity": 0.1,
+        "condition": 0.04
+      }
+    },
+    {
+      "item": "Better Sweater Quarter-Zip Fleece",
+      "brand": "Patagonia",
+      "condition": "likeNew",
+      "marketplace": "mercari",
+      "title": "Patagonia Better Sweater Quarter-Zip Fleece Like New",
+      "description": "This Patagonia Better Sweater Quarter-Zip Fleece is in like-new condition. It's a versatile and warm layer, perfect for everyday wear. Ships promptly. No flaws.",
+      "fallback": false,
+      "claims": {
+        "authenticity": 0.12,
+        "condition": 0.21
+      }
+    },
+    {
+      "item": "Better Sweater Quarter-Zip Fleece",
+      "brand": "Patagonia",
+      "condition": "likeNew",
+      "marketplace": "olx",
+      "title": "Patagonia Better Sweater Quarter-Zip Fleece - Like New",
+      "description": "Selling a Patagonia Better Sweater Quarter-Zip Fleece in like-new condition. This versatile fleece is perfect for layering or everyday wear. Local pickup preferred; cash only. Don't miss out on this great deal!",
+      "fallback": false,
+      "claims": {
+        "authenticity": 0.12,
+        "condition": 0.04
+      }
+    },
+    {
+      "item": "Better Sweater Quarter-Zip Fleece",
+      "brand": "Patagonia",
+      "condition": "likeNew",
+      "marketplace": "poshmark",
+      "title": "Patagonia Better Sweater Quarter-Zip Fleece Like New",
+      "description": "Cozy up in this Patagonia Better Sweater Quarter-Zip Fleece, in like-new condition! This classic fleece is perfect for layering or wearing on its own, offering warmth and style. It's a versatile piece for any wardrobe, ready for your next adventure or casual outing. Feel free to bundle with other items from my closet!",
+      "fallback": false,
+      "claims": {
+        "authenticity": 0.11,
+        "condition": 0.05
+      }
+    },
+    {
+      "item": "Better Sweater Quarter-Zip Fleece",
+      "brand": "Patagonia",
+      "condition": "likeNew",
+      "marketplace": "vinted",
+      "title": "Patagonia Better Sweater Quarter-Zip Fleece - Like New!",
+      "description": "Hey there! Selling my Patagonia Better Sweater Quarter-Zip Fleece – it's practically brand new and super cozy. This is a fantastic piece for layering or just staying warm on a cool day. It's in like-new condition, so you're getting a great deal on a quality item. Grab it before it's gone!",
+      "fallback": false,
+      "claims": {
+        "authenticity": 0.13,
+        "condition": 0.63
+      }
+    },
+    {
+      "item": "Better Sweater Quarter-Zip Fleece",
+      "brand": "Patagonia",
+      "condition": "likeNew",
+      "marketplace": "xianyu",
+      "title": "Patagonia Better Sweater 抓绒衣",
+      "description": "这件Patagonia抓绒衣基本全新,只穿过一两次。实物和图片一样,所见即所得。价格可小刀,欢迎喜欢的朋友带走!",
+      "fallback": false,
+      "claims": {
+        "authenticity": 0.13,
+        "condition": 0.2
+      }
+    },
+    {
+      "item": "Yeezy Boost 350 V2 Zebra",
+      "brand": "Adidas",
+      "condition": "good",
+      "marketplace": "depop",
+      "title": "Adidas Yeezy Boost 350 V2 Zebra",
+      "description": "Selling my Yeezy Boost 350 V2 Zebras! These iconic kicks are in good condition and still have a lot of life left in them. They're super comfy and perfect for adding that streetwear edge to any fit. Grab 'em before they're gone!",
+      "fallback": false,
+      "claims": {
+        "authenticity": 0.1,
+        "condition": 0.05
+      }
+    },
+    {
+      "item": "Yeezy Boost 350 V2 Zebra",
+      "brand": "Adidas",
+      "condition": "good",
+      "marketplace": "ebay",
+      "title": "Adidas Yeezy Boost 350 V2 Zebra Shoes - Good Condition",
+      "description": "Up for sale are a pair of Adidas Yeezy Boost 350 V2 Zebra shoes in good condition. These iconic sneakers are a must-have for any enthusiast. Please review all photos for exact condition details. No original box included.",
+      "fallback": false,
+      "claims": {
+        "authenticity": 0.1,
+        "condition": 0.04
+      }
+    },
+    {
+      "item": "Yeezy Boost 350 V2 Zebra",
+      "brand": "Adidas",
+      "condition": "good",
+      "marketplace": "facebook",
+      "title": "Adidas Yeezy Boost 350 V2 Zebra - Good Condition",
+      "description": "Selling a pair of Adidas Yeezy Boost 350 V2 Zebra in good condition. These are super stylish and comfortable. Local pickup only. Price is OBO!",
+      "fallback": false,
+      "claims": {
+        "authenticity": 0.1,
+        "condition": 0.03
+      }
+    },
+    {
+      "item": "Yeezy Boost 350 V2 Zebra",
+      "brand": "Adidas",
+      "condition": "good",
+      "marketplace": "kleinanzeigen",
+      "title": "Adidas Yeezy Boost 350 V2 Zebra",
+      "description": "Ich biete hier meine Adidas Yeezy Boost 350 V2 Zebra in gutem Zustand an. Die Schuhe sind Größe 42 2/3. Nur Abholung. Da es sich um einen Privatverkauf handelt, sind Rücknahme und Garantie ausgeschlossen.",
+      "fallback": false,
+      "claims": {
+        "authenticity": 0.09,
+        "condition": 0.05
+      }
+    },
+    {
+      "item": "Yeezy Boost 350 V2 Zebra",
+      "brand": "Adidas",
+      "condition": "good",
+      "marketplace": "mercari",
+      "title": "Adidas Yeezy Boost 350 V2 Zebra Shoes",
+      "description": "Good condition Adidas Yeezy Boost 350 V2 Zebra shoes. Men's size. Ships promptly. No original box included.",
+      "fallback": false,
+      "claims": {
+        "authenticity": 0.08,
+        "condition": 0.04
+      }
+    },
+    {
+      "item": "Yeezy Boost 350 V2 Zebra",
+      "brand": "Adidas",
+      "condition": "good",
+      "marketplace": "olx",
+      "title": "Adidas Yeezy Boost 350 V2 Zebra - Good Condition",
+      "description": "Selling a pair of Adidas Yeezy Boost 350 V2 Zebra in good condition. These iconic shoes are ready for a new owner. Perfect for collectors or daily wear. Local pickup and cash preferred.",
+      "fallback": false,
+      "claims": {
+        "authenticity": 0.11,
+        "condition": 0.04
+      }
+    },
+    {
+      "item": "Yeezy Boost 350 V2 Zebra",
+      "brand": "Adidas",
+      "condition": "good",
+      "marketplace": "poshmark",
+      "title": "Adidas Yeezy Boost 350 V2 Zebra Sneakers Size 10 Black White",
+      "description": "Step out in style with these iconic Adidas Yeezy Boost 350 V2 Zebra sneakers! These highly sought-after shoes are in good condition, ready for their next owner. Featuring the signature Primeknit upper and responsive Boost cushioning, they offer both comfort and unmistakable style. Feel free to bundle with other items from my closet!",
+      "fallback": false,
+      "claims": {
+        "authenticity": 0.11,
+        "condition": 0.04
+      }
+    },
+    {
+      "item": "Yeezy Boost 350 V2 Zebra",
+      "brand": "Adidas",
+      "condition": "good",
+      "marketplace": "vinted",
+      "title": "Adidas Yeezy Boost 350 V2 Zebra",
+      "description": "Hey everyone! Selling my Adidas Yeezy Boost 350 V2 Zebra sneakers. They're in good condition, super comfy and a real statement piece. I've loved wearing them, but it's time for them to find a new home!",
+      "fallback": false,
+      "claims": {
+        "authenticity": 0.1,
+        "condition": 0.04
+      }
+    },
+    {
+      "item": "Yeezy Boost 350 V2 Zebra",
+      "brand": "Adidas",
+      "condition": "good",
+      "marketplace": "xianyu",
+      "title": "Adidas Yeezy Boost 350 V2 Zebra",
+      "description": "这双Yeezy 350 V2 Zebra是我的闲置,平时穿得不多,所以成色还不错。鞋子是正品,所见即所得,具体看图。价格可小刀,欢迎来聊。",
+      "fallback": false,
+      "claims": {
+        "authenticity": 0.98,
+        "condition": 0.14
+      }
+    },
+    {
+      "item": "AirPods Pro 2nd Generation",
+      "brand": "Apple",
+      "condition": "used",
+      "marketplace": "depop",
+      "title": "Apple AirPods Pro 2nd Gen",
+      "description": "Selling my used AirPods Pro 2nd Generation. They're still in great working condition and sound amazing, perfect for daily listening. There are some minor signs of wear from regular use, but nothing that affects performance. Comes as is, ready for their next owner!",
+      "fallback": false,
+      "claims": {
+        "authenticity": 0.13,
+        "condition": 0.13
+      }
+    },
+    {
+      "item": "AirPods Pro 2nd Generation",
+      "brand": "Apple",
+      "condition": "used",
+      "marketplace": "ebay",
+      "title": "Apple AirPods Pro 2nd Gen. Wireless Earbuds - Used",
+      "description": "This listing is for a used pair of Apple AirPods Pro 2nd Generation wireless earbuds. The item is in good working condition and has been tested. Included are the AirPods Pro 2nd Gen and charging case. Please refer to photos for exact condition.",
+      "fallback": false,
+      "claims": {
+        "authenticity": 0.13,
+        "condition": 0.07
+      }
+    },
+    {
+      "item": "AirPods Pro 2nd Generation",
+      "brand": "Apple",
+      "condition": "used",
+      "marketplace": "facebook",
+      "title": "AirPods Pro 2nd Gen",
+      "description": "Selling my used Apple AirPods Pro 2nd Generation. They're in good shape and work perfectly. Local pickup only. Price is OBO!",
+      "fallback": false,
+      "claims": {
+        "authenticity": 0.15,
+        "condition": 0.12
+      }
+    },
+    {
+      "item": "AirPods Pro 2nd Generation",
+      "brand": "Apple",
+      "condition": "used",
+      "marketplace": "kleinanzeigen",
+      "title": "Apple AirPods Pro 2. Generation",
+      "description": "Ich biete hier meine gebrauchten Apple AirPods Pro der 2. Generation an. Sie sind in gutem Zustand und voll funktionsfähig. Verkauf von Privat, daher keine Garantie oder Rücknahme.",
+      "fallback": false,
+      "claims": {
+        "authenticity": 0.14,
+        "condition": 0.1
+      }
+    },
+    {
+      "item": "AirPods Pro 2nd Generation",
+      "brand": "Apple",
+      "condition": "used",
+      "marketplace": "mercari",
+      "title": "Apple AirPods Pro 2nd Generation",
+      "description": "Used Apple AirPods Pro 2nd Generation. Excellent condition, fully functional. Includes original charging case and ear tips. Ships promptly!",
+      "fallback": false,
+      "claims": {
+        "authenticity": 0.15,
+        "condition": 0.27
+      }
+    },
+    {
+      "item": "AirPods Pro 2nd Generation",
+      "brand": "Apple",
+      "condition": "used",
+      "marketplace": "olx",
+      "title": "Apple AirPods Pro 2nd Generation",
+      "description": "AirPods Pro 2nd Generation in used condition. Priced to sell — message me with any questions.",
+      "fallback": true,
+      "claims": {
+        "authenticity": 0.1,
+        "condition": 0.03
+      }
+    },
+    {
+      "item": "AirPods Pro 2nd Generation",
+      "brand": "Apple",
+      "condition": "used",
+      "marketplace": "poshmark",
+      "title": "Apple AirPods Pro 2nd Gen Wireless Earbuds White Used",
+      "description": "Grab these Apple AirPods Pro 2nd Generation earbuds! They're in good used condition, ready to bring you premium audio. Perfect for music, calls, and on-the-go listening. Feel free to bundle with other items from my closet!",
+      "fallback": false,
+      "claims": {
+        "authenticity": 0.13,
+        "condition": 0.07
+      }
+    },
+    {
+      "item": "AirPods Pro 2nd Generation",
+      "brand": "Apple",
+      "condition": "used",
+      "marketplace": "vinted",
+      "title": "Apple AirPods Pro 2nd Gen",
+      "description": "Hey everyone! Selling my AirPods Pro 2nd Generation. They're in good used condition and work perfectly, just looking for a new home. They fit great and sound amazing, as you'd expect from Apple. Grab a bargain!",
+      "fallback": false,
+      "claims": {
+        "authenticity": 0.19,
+        "condition": 0.09
+      }
+    },
+    {
+      "item": "AirPods Pro 2nd Generation",
+      "brand": "Apple",
+      "condition": "used",
+      "marketplace": "xianyu",
+      "title": "Apple AirPods Pro 2nd Generation",
+      "description": "AirPods Pro 2nd Generation in used condition. Priced to sell — message me with any questions.",
+      "fallback": true,
+      "claims": {
+        "authenticity": 0.1,
+        "condition": 0.03
+      }
+    },
+    {
+      "item": "Vintage Band T-Shirt",
+      "brand": "Unknown",
+      "condition": "used",
+      "marketplace": "depop",
+      "title": "Vintage Band Tee - Classic Rock Vibes",
+      "description": "Hey! This vintage band tee is super cool and has that perfect worn-in feel. It's a total vibe for a casual streetwear look. Definitely a unique find to add to your rotation!",
+      "fallback": false,
+      "claims": {
+        "authenticity": 0.11,
+        "condition": 0.09
+      }
+    },
+    {
+      "item": "Vintage Band T-Shirt",
+      "brand": "Unknown",
+      "condition": "used",
+      "marketplace": "ebay",
+      "title": "Vintage Band T-Shirt Used Unknown Brand Music Tee",
+      "description": "This is a used vintage band t-shirt. The brand is unknown. Please review all photos for condition and measurements to ensure a perfect fit. Item is sold as-is.",
+      "fallback": false,
+      "claims": {
+        "authenticity": 0.06,
+        "condition": 0.04
+      }
+    },
+    {
+      "item": "Vintage Band T-Shirt",
+      "brand": "Unknown",
+      "condition": "used",
+      "marketplace": "facebook",
+      "title": "Vintage Band T-Shirt",
+      "description": "Selling a cool vintage band t-shirt. It's used but still in good shape. Perfect for any music fan! Local pickup only. Price is OBO.",
+      "fallback": false,
+      "claims": {
+        "authenticity": 0.1,
+        "condition": 0.12
+      }
+    },
+    {
+      "item": "Vintage Band T-Shirt",
+      "brand": "Unknown",
+      "condition": "used",
+      "marketplace": "kleinanzeigen",
+      "title": "Vintage Band T-Shirt",
+      "description": "Vintage Band T-Shirt in used condition. Priced to sell — message me with any questions.",
+      "fallback": true,
+      "claims": {
+        "authenticity": 0.07,
+        "condition": 0.03
+      }
+    },
+    {
+      "item": "Vintage Band T-Shirt",
+      "brand": "Unknown",
+      "condition": "used",
+      "marketplace": "mercari",
+      "title": "Vintage Band T-Shirt Used",
+      "description": "This is a used vintage band t-shirt. It is in good pre-owned condition with normal wear. Ships promptly.",
+      "fallback": false,
+      "claims": {
+        "authenticity": 0.08,
+        "condition": 0.07
+      }
+    },
+    {
+      "item": "Vintage Band T-Shirt",
+      "brand": "Unknown",
+      "condition": "used",
+      "marketplace": "olx",
+      "title": "Vintage Band T-Shirt - Used",
+      "description": "Selling a used vintage band t-shirt. Condition is good for its age with normal wear. Perfect for collectors or casual wear. Local pickup preferred; cash only.",
+      "fallback": false,
+      "claims": {
+        "authenticity": 0.11,
+        "condition": 0.09
+      }
+    },
+    {
+      "item": "Vintage Band T-Shirt",
+      "brand": "Unknown",
+      "condition": "used",
+      "marketplace": "poshmark",
+      "title": "Vintage Band T-Shirt Black Graphic Tee Retro Style",
+      "description": "Rock out in this cool vintage band t-shirt! This pre-loved tee has that perfect worn-in feel and a classic graphic design. It's a great piece to add a touch of retro flair to your wardrobe. Feel free to bundle with other items for a discount!",
+      "fallback": false,
+      "claims": {
+        "authenticity": 0.1,
+        "condition": 0.07
+      }
+    },
+    {
+      "item": "Vintage Band T-Shirt",
+      "brand": "Unknown",
+      "condition": "used",
+      "marketplace": "vinted",
+      "title": "Cool Vintage Band Tee",
+      "description": "Hey everyone! Selling this awesome vintage band t-shirt. It's super comfy and has that perfect worn-in feel. I'm not sure of the exact size, but it fits like a relaxed medium/large. Pit-to-pit is about 21 inches and length is 28 inches. It's in good used condition with some gentle fading, which just adds to its vintage charm!",
+      "fallback": false,
+      "claims": {
+        "authenticity": 0.1,
+        "condition": 0.09
+      }
+    },
+    {
+      "item": "Vintage Band T-Shirt",
+      "brand": "Unknown",
+      "condition": "used",
+      "marketplace": "xianyu",
+      "title": "Unknown 乐队T恤",
+      "description": "这件复古乐队T恤是二手的,具体品牌不详。衣服状况还可以,具体细节请看照片。价格可小刀。",
+      "fallback": false,
+      "claims": {
+        "authenticity": 0.06,
+        "condition": 0.08
+      }
+    },
+    {
+      "item": "Le Creuset Dutch Oven 5.5 qt",
+      "brand": "Le Creuset",
+      "condition": "good",
+      "marketplace": "depop",
+      "title": "Le Creuset 5.5qt Dutch Oven",
+      "description": "Obsessed with this classic Le Creuset dutch oven! It's 5.5 quarts, perfect for all your cooking adventures. In good condition, ready for its next home. You know these last forever!",
+      "fallback": false,
+      "claims": {
+        "authenticity": 0.13,
+        "condition": 0.04
+      }
+    },
+    {
+      "item": "Le Creuset Dutch Oven 5.5 qt",
+      "brand": "Le Creuset",
+      "condition": "good",
+      "marketplace": "ebay",
+      "title": "Le Creuset Dutch Oven 5.5 qt. Enameled Cast Iron Pot - Good Condition",
+      "description": "This Le Creuset 5.5 quart Dutch Oven is in good pre-owned condition, ready for your kitchen. It features durable enameled cast iron construction, perfect for a variety of cooking tasks. The pot shows signs of use consistent with its age, but remains fully functional. Please see photos for exact condition details.",
+      "fallback": false,
+      "claims": {
+        "authenticity": 0.11,
+        "condition": 0.04
+      }
+    },
+    {
+      "item": "Le Creuset Dutch Oven 5.5 qt",
+      "brand": "Le Creuset",
+      "condition": "good",
+      "marketplace": "facebook",
+      "title": "Le Creuset Dutch Oven 5.5 qt - Good Condition",
+      "description": "Selling a good condition Le Creuset Dutch Oven (5.5 quart). Perfect for all your cooking needs! Local pickup only. Price is OBO.",
+      "fallback": false,
+      "claims": {
+        "authenticity": 0.1,
+        "condition": 0.04
+      }
+    },
+    {
+      "item": "Le Creuset Dutch Oven 5.5 qt",
+      "brand": "Le Creuset",
+      "condition": "good",
+      "marketplace": "kleinanzeigen",
+      "title": "Le Creuset Dutch Oven 5.5 qt",
+      "description": "Ich biete einen gut erhaltenen Le Creuset Dutch Oven mit 5.5 qt an. Er ist gebraucht, aber in gutem Zustand und bereit für viele weitere Kochabenteuer. Nur Abholung. Dies ist ein Privatverkauf, daher keine Garantie oder Rücknahme.",
+      "fallback": false,
+      "claims": {
+        "authenticity": 0.11,
+        "condition": 0.05
+      }
+    },
+    {
+      "item": "Le Creuset Dutch Oven 5.5 qt",
+      "brand": "Le Creuset",
+      "condition": "good",
+      "marketplace": "mercari",
+      "title": "Le Creuset Dutch Oven 5.5 qt",
+      "description": "Good condition Le Creuset 5.5 quart Dutch Oven. Perfect for stews, roasts, and more. Ships promptly.",
+      "fallback": false,
+      "claims": {
+        "authenticity": 0.09,
+        "condition": 0.04
+      }
+    },
+    {
+      "item": "Le Creuset Dutch Oven 5.5 qt",
+      "brand": "Le Creuset",
+      "condition": "good",
+      "marketplace": "olx",
+      "title": "Le Creuset Dutch Oven 5.5 qt - Good Condition",
+      "description": "Selling a Le Creuset Dutch Oven, 5.5 quart, in good condition. Perfect for all your cooking needs. Local pickup only, cash preferred.",
+      "fallback": false,
+      "claims": {
+        "authenticity": 0.1,
+        "condition": 0.04
+      }
+    },
+    {
+      "item": "Le Creuset Dutch Oven 5.5 qt",
+      "brand": "Le Creuset",
+      "condition": "good",
+      "marketplace": "poshmark",
+      "title": "Le Creuset Dutch Oven 5.5 qt Enameled Cast Iron Cookware Good",
+      "description": "Elevate your kitchen with this beautiful Le Creuset 5.5 quart Dutch Oven! This iconic enameled cast iron pot is perfect for everything from slow-cooking to baking bread. It's in good pre-owned condition, ready for many more years of delicious meals. Feel free to bundle with other items from my closet!",
+      "fallback": false,
+      "claims": {
+        "authenticity": 0.12,
+        "condition": 0.05
+      }
+    },
+    {
+      "item": "Le Creuset Dutch Oven 5.5 qt",
+      "brand": "Le Creuset",
+      "condition": "good",
+      "marketplace": "vinted",
+      "title": "Le Creuset Dutch Oven 5.5 qt",
+      "description": "Selling my lovely Le Creuset Dutch Oven! It's 5.5 quarts, perfect for so many dishes. It's in good condition with some normal signs of use, but still cooks like a dream. I've loved using it, but it's time for it to find a new home!",
+      "fallback": false,
+      "claims": {
+        "authenticity": 0.12,
+        "condition": 0.06
+      }
+    },
+    {
+      "item": "Le Creuset Dutch Oven 5.5 qt",
+      "brand": "Le Creuset",
+      "condition": "good",
+      "marketplace": "xianyu",
+      "title": "酷彩Le Creuset铸铁锅5.5qt",
+      "description": "家里闲置的酷彩铸铁锅,5.5夸脱的,平时用得不多,所以锅子整体状况挺好的。具体成色大家看图,所见即所得。价格可小刀。",
+      "fallback": false,
+      "claims": {
+        "authenticity": 0.13,
+        "condition": 0.13
+      }
+    },
+    {
+      "item": "Speedy 30 Monogram Canvas Handbag",
+      "brand": "Louis Vuitton",
+      "condition": "used",
+      "marketplace": "depop",
+      "title": "Louis Vuitton Speedy 30 Monogram Canvas Y2K Bag",
+      "description": "Obsessed with this classic Louis Vuitton Speedy 30! It's the perfect Y2K vibe for everyday or a night out. This pre-loved beauty shows some wear consistent with its age, but still has so much life left. Check out the pics for details on condition!",
+      "fallback": false,
+      "claims": {
+        "authenticity": 0.11,
+        "condition": 0.08
+      }
+    },
+    {
+      "item": "Speedy 30 Monogram Canvas Handbag",
+      "brand": "Louis Vuitton",
+      "condition": "used",
+      "marketplace": "ebay",
+      "title": "Louis Vuitton Speedy 30 Monogram Canvas Handbag - Authentic Used",
+      "description": "This authentic Louis Vuitton Speedy 30 handbag features the iconic Monogram Canvas. A classic and versatile accessory, it is perfect for everyday use. The bag is in used condition, reflecting its pre-owned status. Please review all photos for a complete understanding of its condition.",
+      "fallback": false,
+      "claims": {
+        "authenticity": 0.98,
+        "condition": 0.04
+      }
+    },
+    {
+      "item": "Speedy 30 Monogram Canvas Handbag",
+      "brand": "Louis Vuitton",
+      "condition": "used",
+      "marketplace": "facebook",
+      "title": "Louis Vuitton Speedy 30 Monogram Canvas Handbag",
+      "description": "Selling a pre-loved Louis Vuitton Speedy 30 in the classic Monogram Canvas. It's a great everyday bag with plenty of life left. Local pickup only. Price is OBO!",
+      "fallback": false,
+      "claims": {
+        "authenticity": 0.12,
+        "condition": 0.09
+      }
+    },
+    {
+      "item": "Speedy 30 Monogram Canvas Handbag",
+      "brand": "Louis Vuitton",
+      "condition": "used",
+      "marketplace": "kleinanzeigen",
+      "title": "Louis Vuitton Speedy 30 Monogram Canvas Handtasche",
+      "description": "Ich biete eine gebrauchte Louis Vuitton Speedy 30 Handtasche aus Monogram Canvas an. Die Tasche ist in gutem Zustand mit normalen Gebrauchsspuren. Sie kann abgeholt oder gegen Aufpreis versendet werden. Dies ist ein Privatverkauf, daher keine Garantie oder Rücknahme.",
+      "fallback": false,
+      "claims": {
+        "authenticity": 0.13,
+        "condition": 0.08
+      }
+    },
+    {
+      "item": "Speedy 30 Monogram Canvas Handbag",
+      "brand": "Louis Vuitton",
+      "condition": "used",
+      "marketplace": "mercari",
+      "title": "Louis Vuitton Speedy 30 Monogram Canvas Handbag",
+      "description": "Used Louis Vuitton Speedy 30 Monogram Canvas Handbag. This iconic bag is in good pre-owned condition. It ships promptly. Please see all photos for details.",
+      "fallback": false,
+      "claims": {
+        "authenticity": 0.11,
+        "condition": 0.08
+      }
+    },
+    {
+      "item": "Speedy 30 Monogram Canvas Handbag",
+      "brand": "Louis Vuitton",
+      "condition": "used",
+      "marketplace": "olx",
+      "title": "Louis Vuitton Speedy 30 Monogram Canvas Handbag - Used",
+      "description": "Selling a used Louis Vuitton Speedy 30 Monogram Canvas Handbag. This iconic accessory is in good pre-owned condition, showing normal signs of wear consistent with its age. Perfect for everyday use. Local pickup and cash payment preferred.",
+      "fallback": false,
+      "claims": {
+        "authenticity": 0.13,
+        "condition": 0.07
+      }
+    },
+    {
+      "item": "Speedy 30 Monogram Canvas Handbag",
+      "brand": "Louis Vuitton",
+      "condition": "used",
+      "marketplace": "poshmark",
+      "title": "Louis Vuitton Speedy 30 Monogram Canvas Handbag Brown",
+      "description": "Timeless Louis Vuitton Speedy 30 in classic Monogram Canvas. This iconic handbag is perfect for everyday elegance. As a pre-loved item, it shows gentle signs of use consistent with its age, adding to its unique character. Grab this classic and feel free to bundle with other items!",
+      "fallback": false,
+      "claims": {
+        "authenticity": 0.12,
+        "condition": 0.08
+      }
+    },
+    {
+      "item": "Speedy 30 Monogram Canvas Handbag",
+      "brand": "Louis Vuitton",
+      "condition": "used",
+      "marketplace": "vinted",
+      "title": "Louis Vuitton Speedy 30 Monogram Handbag",
+      "description": "Selling my beloved Louis Vuitton Speedy 30! This classic monogram canvas bag is perfect for everyday use. It's in good used condition with the usual signs of wear on the vachetta leather, but still has so much life left. It measures approximately 30cm long, 21cm high, and 17cm deep.",
+      "fallback": false,
+      "claims": {
+        "authenticity": 0.15,
+        "condition": 0.09
+      }
+    },
+    {
+      "item": "Speedy 30 Monogram Canvas Handbag",
+      "brand": "Louis Vuitton",
+      "condition": "used",
+      "marketplace": "xianyu",
+      "title": "LV Speedy 30 Monogram 帆布手袋",
+      "description": "闲置的LV Speedy 30手袋,经典老花款。包包整体状况不错,具体看图。可小刀,不退不换哦。",
+      "fallback": false,
+      "claims": {
+        "authenticity": 0.14,
+        "condition": 0.12
+      }
+    },
+    {
+      "item": "Air Jordan 1 Retro High OG Chicago",
+      "brand": "Nike",
+      "condition": "good",
+      "marketplace": "depop",
+      "title": "Nike Air Jordan 1 Retro High OG Chicago",
+      "description": "Classic Air Jordan 1 Retro High OG \"Chicago\" in good condition. These iconic kicks are a must-have for any sneakerhead, perfect for adding a vintage streetwear vibe to your fit. They've been worn but still have plenty of life left in them. Size US men's 10.",
+      "fallback": false,
+      "claims": {
+        "authenticity": 0.11,
+        "condition": 0.04
+      }
+    },
+    {
+      "item": "Air Jordan 1 Retro High OG Chicago",
+      "brand": "Nike",
+      "condition": "good",
+      "marketplace": "ebay",
+      "title": "Nike Air Jordan 1 Retro High OG Chicago Shoes - Good Condition",
+      "description": "Up for sale is a pair of Nike Air Jordan 1 Retro High OG Chicago shoes in good condition. These iconic sneakers show normal signs of wear consistent with their age and use. Please review all photos carefully for a complete understanding of their condition. This listing includes the shoes only.",
+      "fallback": false,
+      "claims": {
+        "authenticity": 0.09,
+        "condition": 0.04
+      }
+    },
+    {
+      "item": "Air Jordan 1 Retro High OG Chicago",
+      "brand": "Nike",
+      "condition": "good",
+      "marketplace": "facebook",
+      "title": "Nike Air Jordan 1 Retro High OG Chicago - Good Condition",
+      "description": "Selling a pair of classic Air Jordan 1 Retro High OG Chicago shoes in good condition. Perfect for any sneakerhead! Local pickup only. Price is OBO.",
+      "fallback": false,
+      "claims": {
+        "authenticity": 0.1,
+        "condition": 0.04
+      }
+    },
+    {
+      "item": "Air Jordan 1 Retro High OG Chicago",
+      "brand": "Nike",
+      "condition": "good",
+      "marketplace": "kleinanzeigen",
+      "title": "Nike Air Jordan 1 Retro High OG Chicago",
+      "description": "Ich biete hier ein Paar Nike Air Jordan 1 Retro High OG Chicago in gutem Zustand an. Die Schuhe sind getragen, aber gut erhalten. Größe ist wie angegeben. Nur Abholung. Da dies ein Privatverkauf ist, gibt es keine Garantie oder Rücknahme.",
+      "fallback": false,
+      "claims": {
+        "authenticity": 0.09,
+        "condition": 0.06
+      }
+    },
+    {
+      "item": "Air Jordan 1 Retro High OG Chicago",
+      "brand": "Nike",
+      "condition": "good",
+      "marketplace": "mercari",
+      "title": "Nike Air Jordan 1 Retro High OG Chicago Shoes",
+      "description": "Good condition Nike Air Jordan 1 Retro High OG Chicago shoes. These iconic sneakers are ready for their next owner. Ships promptly.",
+      "fallback": false,
+      "claims": {
+        "authenticity": 0.08,
+        "condition": 0.04
+      }
+    },
+    {
+      "item": "Air Jordan 1 Retro High OG Chicago",
+      "brand": "Nike",
+      "condition": "good",
+      "marketplace": "olx",
+      "title": "Nike Air Jordan 1 Retro High OG Chicago - Good Condition",
+      "description": "Selling a pair of Nike Air Jordan 1 Retro High OG Chicago in good condition. These iconic sneakers are ready for a new owner. Local pickup preferred, cash only. Don't miss out!",
+      "fallback": false,
+      "claims": {
+        "authenticity": 0.09,
+        "condition": 0.03
+      }
+    },
+    {
+      "item": "Air Jordan 1 Retro High OG Chicago",
+      "brand": "Nike",
+      "condition": "good",
+      "marketplace": "poshmark",
+      "title": "Nike Air Jordan 1 Retro High OG Chicago Sneakers Size 10 Red White Black",
+      "description": "Step out in iconic style with these classic Air Jordan 1 Retro High OG Chicago sneakers. These legendary kicks are in good pre-owned condition, ready to add a vintage touch to your collection. Featuring the iconic red, white, and black colorway, they're perfect for any sneaker enthusiast. Feel free to bundle with other items from my closet for a special discount!",
+      "fallback": false,
+      "claims": {
+        "authenticity": 0.11,
+        "condition": 0.04
+      }
+    },
+    {
+      "item": "Air Jordan 1 Retro High OG Chicago",
+      "brand": "Nike",
+      "condition": "good",
+      "marketplace": "vinted",
+      "title": "Nike Air Jordan 1 Chicago",
+      "description": "Hey everyone! Selling my Air Jordan 1 Retro High OG Chicago. They're in good condition, ready for a new home. They fit true to size, and I'm happy to provide measurements if you need them!",
+      "fallback": false,
+      "claims": {
+        "authenticity": 0.1,
+        "condition": 0.04
+      }
+    },
+    {
+      "item": "Air Jordan 1 Retro High OG Chicago",
+      "brand": "Nike",
+      "condition": "good",
+      "marketplace": "xianyu",
+      "title": "Nike Air Jordan 1 Retro High OG Chicago",
+      "description": "这双芝加哥AJ1是我的自穿鞋,成色还不错,具体看图。鞋盒还在,配件齐全。价格可小刀,欢迎来聊。",
+      "fallback": false,
+      "claims": {
+        "authenticity": 0.12,
+        "condition": 0.11
+      }
+    },
+    {
+      "item": "Box Logo Hoodie",
+      "brand": "Supreme",
+      "condition": "good",
+      "marketplace": "depop",
+      "title": "Supreme Box Logo Hoodie Y2K Streetwear",
+      "description": "Classic Supreme Box Logo hoodie in good condition. This is such an iconic Y2K streetwear piece and super comfy. Fits like a true large, measurements available on request. #supreme #boxlogo #streetwear #vintage #y2k",
+      "fallback": false,
+      "claims": {
+        "authenticity": 0.11,
+        "condition": 0.04
+      }
+    },
+    {
+      "item": "Box Logo Hoodie",
+      "brand": "Supreme",
+      "condition": "good",
+      "marketplace": "ebay",
+      "title": "Supreme Box Logo Hoodie - Good Condition Front-Load",
+      "description": "This authentic Supreme Box Logo Hoodie is in good pre-owned condition. It features the iconic box logo design and is a highly sought-after piece. Please review all photos for exact condition details. Ideal for collectors and streetwear enthusiasts.",
+      "fallback": false,
+      "claims": {
+        "authenticity": 0.98,
+        "condition": 0.04
+      }
+    },
+    {
+      "item": "Box Logo Hoodie",
+      "brand": "Supreme",
+      "condition": "good",
+      "marketplace": "facebook",
+      "title": "Supreme Box Logo Hoodie",
+      "description": "Selling a good condition Supreme Box Logo Hoodie. Local pickup only. Price is OBO.",
+      "fallback": false,
+      "claims": {
+        "authenticity": 0.1,
+        "condition": 0.04
+      }
+    },
+    {
+      "item": "Box Logo Hoodie",
+      "brand": "Supreme",
+      "condition": "good",
+      "marketplace": "kleinanzeigen",
+      "title": "Supreme Box Logo Hoodie",
+      "description": "Ich biete einen Supreme Box Logo Hoodie in gutem Zustand an. Der Hoodie ist getragen, aber ohne größere Mängel. Größe L. Nur Abholung. Da es sich um einen Privatverkauf handelt, sind Rückgabe, Garantie und Gewährleistung ausgeschlossen.",
+      "fallback": false,
+      "claims": {
+        "authenticity": 0.09,
+        "condition": 0.05
+      }
+    },
+    {
+      "item": "Box Logo Hoodie",
+      "brand": "Supreme",
+      "condition": "good",
+      "marketplace": "mercari",
+      "title": "Supreme Box Logo Hoodie - Good Condition",
+      "description": "Supreme Box Logo Hoodie in good condition. This iconic hoodie is a size large and ready for its next owner. Ships promptly!",
+      "fallback": false,
+      "claims": {
+        "authenticity": 0.09,
+        "condition": 0.04
+      }
+    },
+    {
+      "item": "Box Logo Hoodie",
+      "brand": "Supreme",
+      "condition": "good",
+      "marketplace": "olx",
+      "title": "Supreme Box Logo Hoodie - Good Condition",
+      "description": "Selling a Supreme Box Logo Hoodie in good condition. This iconic piece is ready for its next owner. Local pickup preferred, cash only. Grab a classic!",
+      "fallback": false,
+      "claims": {
+        "authenticity": 0.11,
+        "condition": 0.03
+      }
+    },
+    {
+      "item": "Box Logo Hoodie",
+      "brand": "Supreme",
+      "condition": "good",
+      "marketplace": "poshmark",
+      "title": "Supreme Box Logo Hoodie - Good Condition",
+      "description": "Authentic Supreme Box Logo Hoodie in good pre-owned condition. This iconic piece is perfect for any streetwear enthusiast. It's been well-cared for and shows only minor signs of wear consistent with its age. Feel free to bundle with other items from my closet!",
+      "fallback": false,
+      "claims": {
+        "authenticity": 0.98,
+        "condition": 0.05
+      }
+    },
+    {
+      "item": "Box Logo Hoodie",
+      "brand": "Supreme",
+      "condition": "good",
+      "marketplace": "vinted",
+      "title": "Supreme Box Logo Hoodie",
+      "description": "Selling my Supreme Box Logo Hoodie! It's in good condition and ready for a new home. It's a classic piece that fits true to size, perfect for a cozy, streetwear look. I've taken good care of it, and it still has plenty of life left!",
+      "fallback": false,
+      "claims": {
+        "authenticity": 0.12,
+        "condition": 0.05
+      }
+    },
+    {
+      "item": "Box Logo Hoodie",
+      "brand": "Supreme",
+      "condition": "good",
+      "marketplace": "xianyu",
+      "title": "Supreme Box Logo 连帽卫衣",
+      "description": "这件Supreme Box Logo连帽卫衣状况良好,穿过几次。实物如图,所见即所得。价格可小刀,欢迎来聊。",
+      "fallback": false,
+      "claims": {
+        "authenticity": 0.11,
+        "condition": 0.06
+      }
+    },
+    {
+      "item": "Submariner Date Wristwatch",
+      "brand": "Rolex",
+      "condition": "used",
+      "marketplace": "depop",
+      "title": "Rolex Submariner Date Watch Y2K Diver",
+      "description": "Selling my classic Rolex Submariner Date! This iconic diver's watch from the early 2000s is in great used condition and ready for its next adventure. It's a timeless piece that goes with everything. I'm letting it go to make room for something new!",
+      "fallback": false,
+      "claims": {
+        "authenticity": 0.19,
+        "condition": 0.15
+      }
+    },
+    {
+      "item": "Submariner Date Wristwatch",
+      "brand": "Rolex",
+      "condition": "used",
+      "marketplace": "ebay",
+      "title": "Rolex Submariner Date Wristwatch - Used, Authentic Luxury Timepiece",
+      "description": "This pre-owned Rolex Submariner Date Wristwatch is in used condition, offering a classic and iconic design. The timepiece is authentic and has been well-maintained, showing signs of wear consistent with its age and use. It includes the watch only; no original box or papers are provided. Please review all photos carefully for a comprehensive understanding of its condition.",
+      "fallback": false,
+      "claims": {
+        "authenticity": 0.98,
+        "condition": 0.05
+      }
+    },
+    {
+      "item": "Submariner Date Wristwatch",
+      "brand": "Rolex",
+      "condition": "used",
+      "marketplace": "facebook",
+      "title": "Rolex Submariner Date Watch",
+      "description": "Selling a used Rolex Submariner Date wristwatch. This classic timepiece is in great condition and ready for a new owner. Local pickup only. Price is OBO.",
+      "fallback": false,
+      "claims": {
+        "authenticity": 0.14,
+        "condition": 0.23
+      }
+    },
+    {
+      "item": "Submariner Date Wristwatch",
+      "brand": "Rolex",
+      "condition": "used",
+      "marketplace": "kleinanzeigen",
+      "title": "Rolex Submariner Date Armbanduhr",
+      "description": "Ich biete eine gebrauchte Rolex Submariner Date Armbanduhr an. Die Uhr ist in gutem Zustand mit normalen Gebrauchsspuren. Abholung bevorzugt, Versand gegen Aufpreis möglich. Dies ist ein Privatverkauf, daher keine Garantie oder Rücknahme.",
+      "fallback": false,
+      "claims": {
+        "authenticity": 0.13,
+        "condition": 0.09
+      }
+    },
+    {
+      "item": "Submariner Date Wristwatch",
+      "brand": "Rolex",
+      "condition": "used",
+      "marketplace": "mercari",
+      "title": "Rolex Submariner Date Wristwatch",
+      "description": "Used Rolex Submariner Date Wristwatch. This iconic timepiece is in good pre-owned condition. Ships promptly.",
+      "fallback": false,
+      "claims": {
+        "authenticity": 0.14,
+        "condition": 0.08
+      }
+    },
+    {
+      "item": "Submariner Date Wristwatch",
+      "brand": "Rolex",
+      "condition": "used",
+      "marketplace": "olx",
+      "title": "Rolex Submariner Date Wristwatch - Used",
+      "description": "Selling a used Rolex Submariner Date Wristwatch. The watch is in good condition with normal signs of wear. Local pickup preferred, cash only. Serious inquiries please.",
+      "fallback": false,
+      "claims": {
+        "authenticity": 0.13,
+        "condition": 0.07
+      }
+    },
+    {
+      "item": "Submariner Date Wristwatch",
+      "brand": "Rolex",
+      "condition": "used",
+      "marketplace": "poshmark",
+      "title": "Rolex Submariner Date Wristwatch Stainless Steel Men's Watch",
+      "description": "Timeless elegance meets robust functionality with this iconic Rolex Submariner Date. This pre-owned piece is in good used condition, ready to be cherished by its next owner. Please examine all photos carefully. Feel free to bundle with other items from my closet!",
+      "fallback": false,
+      "claims": {
+        "authenticity": 0.12,
+        "condition": 0.08
+      }
+    },
+    {
+      "item": "Submariner Date Wristwatch",
+      "brand": "Rolex",
+      "condition": "used",
+      "marketplace": "vinted",
+      "title": "Rolex Submariner Date Watch",
+      "description": "Selling my beloved Rolex Submariner Date! It's a classic and still looks fantastic, showing some gentle signs of wear from being enjoyed. It's a men's watch, but I think it looks great on anyone. I've included detailed photos so you can see its condition clearly.",
+      "fallback": false,
+      "claims": {
+        "authenticity": 0.18,
+        "condition": 0.09
+      }
+    },
+    {
+      "item": "Submariner Date Wristwatch",
+      "brand": "Rolex",
+      "condition": "used",
+      "marketplace": "xianyu",
+      "title": "Rolex Submariner Date Wristwatch",
+      "description": "Submariner Date Wristwatch in used condition. Priced to sell — message me with any questions.",
+      "fallback": true,
+      "claims": {
+        "authenticity": 0.08,
+        "condition": 0.03
+      }
+    },
+    {
+      "item": "Classic Flap Bag",
+      "brand": "Chanel",
+      "condition": "good",
+      "marketplace": "depop",
+      "title": "Chanel Classic Flap Bag Y2K Aesthetic",
+      "description": "Obsessed with this iconic Chanel Classic Flap Bag! It's in good condition and totally gives off that chic Y2K vibe. Perfect for adding a touch of vintage luxury to any fit. I'd say it's a classic small/medium size, super versatile.",
+      "fallback": false,
+      "claims": {
+        "authenticity": 0.11,
+        "condition": 0.05
+      }
+    },
+    {
+      "item": "Classic Flap Bag",
+      "brand": "Chanel",
+      "condition": "good",
+      "marketplace": "ebay",
+      "title": "Chanel Classic Flap Bag Quilted Leather Shoulder Bag Good Condition",
+      "description": "This authentic Chanel Classic Flap Bag is in good pre-owned condition, showcasing the iconic quilted design. A timeless accessory, it features the signature chain strap and CC turn-lock closure. Please review all photos for a comprehensive understanding of its condition. This elegant bag is a sophisticated addition to any collection.",
+      "fallback": false,
+      "claims": {
+        "authenticity": 0.97,
+        "condition": 0.04
+      }
+    },
+    {
+      "item": "Classic Flap Bag",
+      "brand": "Chanel",
+      "condition": "good",
+      "marketplace": "facebook",
+      "title": "Chanel Classic Flap Bag - Good Condition",
+      "description": "Selling a beautiful Chanel Classic Flap Bag in good condition. This iconic accessory is perfect for any occasion. Local pickup only. Price is OBO.",
+      "fallback": false,
+      "claims": {
+        "authenticity": 0.11,
+        "condition": 0.04
+      }
+    },
+    {
+      "item": "Classic Flap Bag",
+      "brand": "Chanel",
+      "condition": "good",
+      "marketplace": "kleinanzeigen",
+      "title": "Chanel Classic Flap Bag",
+      "description": "Ich biete eine gut erhaltene Chanel Classic Flap Bag an. Die Tasche ist in einem guten Zustand und weist normale Gebrauchsspuren auf. Sie kann abgeholt oder versichert versendet werden. Da es sich um einen Privatverkauf handelt, sind Rücknahme und Garantie ausgeschlossen.",
+      "fallback": false,
+      "claims": {
+        "authenticity": 0.11,
+        "condition": 0.06
+      }
+    },
+    {
+      "item": "Classic Flap Bag",
+      "brand": "Chanel",
+      "condition": "good",
+      "marketplace": "mercari",
+      "title": "Chanel Classic Flap Bag",
+      "description": "Chanel Classic Flap Bag in good condition. This iconic accessory is a timeless piece. Ships promptly.",
+      "fallback": false,
+      "claims": {
+        "authenticity": 0.09,
+        "condition": 0.03
+      }
+    },
+    {
+      "item": "Classic Flap Bag",
+      "brand": "Chanel",
+      "condition": "good",
+      "marketplace": "olx",
+      "title": "Chanel Classic Flap Bag - Good Condition",
+      "description": "Selling a beautiful Chanel Classic Flap Bag in good condition. This iconic accessory is perfect for any occasion. Local pickup preferred; cash only. Serious inquiries only.",
+      "fallback": false,
+      "claims": {
+        "authenticity": 0.12,
+        "condition": 0.04
+      }
+    },
+    {
+      "item": "Classic Flap Bag",
+      "brand": "Chanel",
+      "condition": "good",
+      "marketplace": "poshmark",
+      "title": "Chanel Classic Flap Bag Black Quilted Leather Shoulder Bag",
+      "description": "Timeless Chanel Classic Flap Bag in good pre-owned condition. This iconic piece features luxurious quilted leather and the signature chain strap, perfect for elevating any outfit. There are no major flaws, just gentle signs of wear consistent with its age and 'Good' condition. Feel free to bundle with other items from my closet!",
+      "fallback": false,
+      "claims": {
+        "authenticity": 0.13,
+        "condition": 0.05
+      }
+    },
+    {
+      "item": "Classic Flap Bag",
+      "brand": "Chanel",
+      "condition": "good",
+      "marketplace": "vinted",
+      "title": "Chanel Classic Flap Bag",
+      "description": "Selling my beautiful Chanel Classic Flap Bag! It's in good condition and has been well-loved, showing some gentle signs of wear consistent with its age. This iconic piece is a timeless accessory that elevates any outfit. It's a classic size, perfect for everyday essentials.",
+      "fallback": false,
+      "claims": {
+        "authenticity": 0.13,
+        "condition": 0.06
+      }
+    },
+    {
+      "item": "Classic Flap Bag",
+      "brand": "Chanel",
+      "condition": "good",
+      "marketplace": "xianyu",
+      "title": "Chanel Classic Flap Bag",
+      "description": "闲置的香奈儿CF包包,成色挺好的,具体看图。附件都在,可小刀。",
+      "fallback": false,
+      "claims": {
+        "authenticity": 0.13,
+        "condition": 0.14
+      }
+    },
+    {
+      "item": "501 Original Fit Jeans",
+      "brand": "Levi's",
+      "condition": "used",
+      "marketplace": "depop",
+      "title": "Levi's 501 Original Fit Jeans Y2K Vintage Denim",
+      "description": "Classic Levi's 501s! These original fit jeans are a Y2K staple and super comfy. They're in good used condition with that perfect worn-in feel. I'd say they fit like a true straight leg, great for a relaxed vibe. #levis #501 #vintagejeans #y2k #denim",
+      "fallback": false,
+      "claims": {
+        "authenticity": 0.37,
+        "condition": 0.08
+      }
+    },
+    {
+      "item": "501 Original Fit Jeans",
+      "brand": "Levi's",
+      "condition": "used",
+      "marketplace": "ebay",
+      "title": "Levi's 501 Original Fit Jeans - Classic Used Denim",
+      "description": "These Levi's 501 Original Fit Jeans are a classic and versatile addition to any wardrobe. This used pair offers the timeless style and durable construction Levi's is known for. Please review all photos for exact condition and details. Only the jeans are included in this listing.",
+      "fallback": false,
+      "claims": {
+        "authenticity": 0.19,
+        "condition": 0.04
+      }
+    },
+    {
+      "item": "501 Original Fit Jeans",
+      "brand": "Levi's",
+      "condition": "used",
+      "marketplace": "facebook",
+      "title": "Levi's 501 Original Fit Jeans",
+      "description": "Selling a pair of classic Levi's 501 Original Fit Jeans. They're in good used condition and ready for a new home. Local pickup only. Price is OBO!",
+      "fallback": false,
+      "claims": {
+        "authenticity": 0.25,
+        "condition": 0.07
+      }
+    },
+    {
+      "item": "501 Original Fit Jeans",
+      "brand": "Levi's",
+      "condition": "used",
+      "marketplace": "kleinanzeigen",
+      "title": "Levi's 501 Original Fit Jeans",
+      "description": "Biete hier eine gebrauchte Levi's 501 Original Fit Jeans an. Sie ist in gutem Zustand mit normalen Gebrauchsspuren. Größe ist W32 L32. Nur Abholung. Da Privatverkauf, keine Garantie oder Rücknahme.",
+      "fallback": false,
+      "claims": {
+        "authenticity": 0.18,
+        "condition": 0.09
+      }
+    },
+    {
+      "item": "501 Original Fit Jeans",
+      "brand": "Levi's",
+      "condition": "used",
+      "marketplace": "mercari",
+      "title": "Levi's 501 Original Fit Jeans",
+      "description": "Used Levi's 501 Original Fit Jeans. Classic straight leg fit. Ships promptly.",
+      "fallback": false,
+      "claims": {
+        "authenticity": 0.18,
+        "condition": 0.04
+      }
+    },
+    {
+      "item": "501 Original Fit Jeans",
+      "brand": "Levi's",
+      "condition": "used",
+      "marketplace": "olx",
+      "title": "Levi's 501 Original Fit Jeans - Used",
+      "description": "Selling a pair of classic Levi's 501 Original Fit Jeans in good used condition. Perfect for everyday wear. Local pickup preferred, cash only. See photos for exact condition.",
+      "fallback": false,
+      "claims": {
+        "authenticity": 0.23,
+        "condition": 0.06
+      }
+    },
+    {
+      "item": "501 Original Fit Jeans",
+      "brand": "Levi's",
+      "condition": "used",
+      "marketplace": "poshmark",
+      "title": "Levi's 501 Original Fit Jeans Classic Denim",
+      "description": "Timeless Levi's 501 Original Fit Jeans, perfect for a classic denim look. These pre-loved jeans offer that iconic straight leg and button fly. They're in good used condition, ready for their next adventure. Feel free to bundle with other items for a private discount!",
+      "fallback": false,
+      "claims": {
+        "authenticity": 0.27,
+        "condition": 0.07
+      }
+    },
+    {
+      "item": "501 Original Fit Jeans",
+      "brand": "Levi's",
+      "condition": "used",
+      "marketplace": "vinted",
+      "title": "Levi's 501 Original Fit Jeans",
+      "description": "Hey there! Selling my classic Levi's 501s. They're in good used condition, super comfy and have that perfect broken-in feel. These are the original fit, so they're a bit more relaxed through the leg. I'd say they fit true to size, but happy to provide measurements if you need them!",
+      "fallback": false,
+      "claims": {
+        "authenticity": 0.28,
+        "condition": 0.07
+      }
+    },
+    {
+      "item": "501 Original Fit Jeans",
+      "brand": "Levi's",
+      "condition": "used",
+      "marketplace": "xianyu",
+      "title": "Levi's 501 原色直筒牛仔裤",
+      "description": "这条Levi's 501牛仔裤是我的旧爱,现在转给有缘人。穿过几次,状况良好,具体细节请看图片。价格可小刀,欢迎来聊。",
+      "fallback": false,
+      "claims": {
+        "authenticity": 0.16,
+        "condition": 0.1
+      }
+    },
+    {
+      "item": "Better Sweater Quarter-Zip Fleece",
+      "brand": "Patagonia",
+      "condition": "likeNew",
+      "marketplace": "depop",
+      "title": "Patagonia Better Sweater Quarter-Zip Fleece Y2K Outdoors",
+      "description": "Obsessed with this Patagonia Better Sweater quarter-zip fleece! It's in like-new condition and perfect for that Y2K outdoorsy vibe or just staying cozy. Super versatile and a staple for any wardrobe. I'd say it fits true to size, but message me for measurements if you want to be sure! #patagonia #bettersweater #fleece #quarterzip #y2k",
+      "fallback": false,
+      "claims": {
+        "authenticity": 0.13,
+        "condition": 0.08
+      }
+    },
+    {
+      "item": "Better Sweater Quarter-Zip Fleece",
+      "brand": "Patagonia",
+      "condition": "likeNew",
+      "marketplace": "ebay",
+      "title": "Patagonia Better Sweater 1/4-Zip Fleece Men's Like New",
+      "description": "This Patagonia Better Sweater Quarter-Zip Fleece is in like-new condition, showing minimal to no signs of wear. It features the classic quarter-zip design, perfect for layering or standalone wear. The fleece material provides warmth and comfort. Please refer to the photos for exact condition.",
+      "fallback": false,
+      "claims": {
+        "authenticity": 0.11,
+        "condition": 0.07
+      }
+    },
+    {
+      "item": "Better Sweater Quarter-Zip Fleece",
+      "brand": "Patagonia",
+      "condition": "likeNew",
+      "marketplace": "facebook",
+      "title": "Patagonia Better Sweater Quarter-Zip Fleece - Like New!",
+      "description": "Selling a like-new Patagonia Better Sweater Quarter-Zip Fleece. It's in excellent condition and super cozy. Perfect for local pickup. Price is OBO!",
+      "fallback": false,
+      "claims": {
+        "authenticity": 0.14,
+        "condition": 0.12
+      }
+    },
+    {
+      "item": "Better Sweater Quarter-Zip Fleece",
+      "brand": "Patagonia",
+      "condition": "likeNew",
+      "marketplace": "kleinanzeigen",
+      "title": "Patagonia Better Sweater Quarter-Zip Fleece",
+      "description": "Ich biete hier ein Patagonia Better Sweater Quarter-Zip Fleece an. Es ist wie neu und wurde kaum getragen. Größe M. Nur Abholung, kein Versand. Dies ist ein Privatverkauf, daher keine Garantie oder Rücknahme.",
+      "fallback": false,
+      "claims": {
+        "authenticity": 0.13,
+        "condition": 0.11
+      }
+    },
+    {
+      "item": "Better Sweater Quarter-Zip Fleece",
+      "brand": "Patagonia",
+      "condition": "likeNew",
+      "marketplace": "mercari",
+      "title": "Patagonia Better Sweater Quarter-Zip Fleece Like New",
+      "description": "This Patagonia Better Sweater Quarter-Zip Fleece is in like-new condition. It's a versatile and warm layer, perfect for everyday wear. Ships promptly. No flaws.",
+      "fallback": false,
+      "claims": {
+        "authenticity": 0.11,
+        "condition": 0.19
+      }
+    },
+    {
+      "item": "Better Sweater Quarter-Zip Fleece",
+      "brand": "Patagonia",
+      "condition": "likeNew",
+      "marketplace": "olx",
+      "title": "Patagonia Better Sweater Quarter-Zip Fleece - Like New",
+      "description": "Selling a Patagonia Better Sweater Quarter-Zip Fleece in like-new condition. This versatile fleece is perfect for layering or everyday wear. Local pickup preferred, cash only. Grab a great deal on a quality item!",
+      "fallback": false,
+      "claims": {
+        "authenticity": 0.14,
+        "condition": 0.04
+      }
+    },
+    {
+      "item": "Better Sweater Quarter-Zip Fleece",
+      "brand": "Patagonia",
+      "condition": "likeNew",
+      "marketplace": "poshmark",
+      "title": "Patagonia Better Sweater Quarter-Zip Fleece Like New",
+      "description": "Cozy up in this Patagonia Better Sweater Quarter-Zip Fleece, perfect for layering or everyday wear. This fleece is in like-new condition, offering warmth and classic style. It features a comfortable fit and the quality you expect from Patagonia. Feel free to bundle with other items for a great deal!",
+      "fallback": false,
+      "claims": {
+        "authenticity": 0.14,
+        "condition": 0.05
+      }
+    },
+    {
+      "item": "Better Sweater Quarter-Zip Fleece",
+      "brand": "Patagonia",
+      "condition": "likeNew",
+      "marketplace": "vinted",
+      "title": "Patagonia Better Sweater Quarter-Zip Fleece - Like New!",
+      "description": "Hey there! Selling my Patagonia Better Sweater Quarter-Zip Fleece – it's practically brand new and super cozy. This is a fantastic piece for layering or just staying warm on a cool day. It's in like-new condition, so you're getting a great deal on a quality item. Grab it before it's gone!",
+      "fallback": false,
+      "claims": {
+        "authenticity": 0.13,
+        "condition": 0.65
+      }
+    },
+    {
+      "item": "Better Sweater Quarter-Zip Fleece",
+      "brand": "Patagonia",
+      "condition": "likeNew",
+      "marketplace": "xianyu",
+      "title": "Patagonia Better Sweater 抓绒衣",
+      "description": "这件Patagonia抓绒衣基本全新,只穿过一两次。实物和图片一样,所见即所得。价格可小刀,欢迎喜欢的朋友带走!",
+      "fallback": false,
+      "claims": {
+        "authenticity": 0.14,
+        "condition": 0.23
+      }
+    },
+    {
+      "item": "Yeezy Boost 350 V2 Zebra",
+      "brand": "Adidas",
+      "condition": "good",
+      "marketplace": "depop",
+      "title": "Adidas Yeezy Boost 350 V2 Zebra",
+      "description": "Selling my Yeezy Boost 350 V2 Zebras! These iconic kicks are in good condition and still have plenty of life left in them. They're super comfy and perfect for adding that streetwear edge to any fit. Grab 'em before they're gone! #yeezy #adidas #streetwear #sneakers #zebra",
+      "fallback": false,
+      "claims": {
+        "authenticity": 0.11,
+        "condition": 0.05
+      }
+    },
+    {
+      "item": "Yeezy Boost 350 V2 Zebra",
+      "brand": "Adidas",
+      "condition": "good",
+      "marketplace": "ebay",
+      "title": "Adidas Yeezy Boost 350 V2 Zebra Shoes - Good Condition",
+      "description": "Up for sale are a pair of Adidas Yeezy Boost 350 V2 Zebra shoes in good condition. These iconic sneakers are a must-have for any collector or enthusiast. Please review all photos for an accurate representation of their current state. No original box included.",
+      "fallback": false,
+      "claims": {
+        "authenticity": 0.1,
+        "condition": 0.04
+      }
+    },
+    {
+      "item": "Yeezy Boost 350 V2 Zebra",
+      "brand": "Adidas",
+      "condition": "good",
+      "marketplace": "facebook",
+      "title": "Adidas Yeezy Boost 350 V2 Zebra - Good Condition",
+      "description": "Selling a pair of Adidas Yeezy Boost 350 V2 Zebra in good condition. These are super stylish and comfortable. Local pickup only. Price is OBO!",
+      "fallback": false,
+      "claims": {
+        "authenticity": 0.1,
+        "condition": 0.03
+      }
+    },
+    {
+      "item": "Yeezy Boost 350 V2 Zebra",
+      "brand": "Adidas",
+      "condition": "good",
+      "marketplace": "kleinanzeigen",
+      "title": "Adidas Yeezy Boost 350 V2 Zebra",
+      "description": "Ich biete hier meine Adidas Yeezy Boost 350 V2 Zebra in gutem Zustand an. Die Schuhe sind Größe 42 2/3. Nur Abholung. Da es sich um einen Privatverkauf handelt, sind Rücknahme und Garantie ausgeschlossen.",
+      "fallback": false,
+      "claims": {
+        "authenticity": 0.09,
+        "condition": 0.04
+      }
+    },
+    {
+      "item": "Yeezy Boost 350 V2 Zebra",
+      "brand": "Adidas",
+      "condition": "good",
+      "marketplace": "mercari",
+      "title": "Adidas Yeezy Boost 350 V2 Zebra Shoes",
+      "description": "Good condition Adidas Yeezy Boost 350 V2 Zebra shoes. Men's size. Ships promptly. No original box included.",
+      "fallback": false,
+      "claims": {
+        "authenticity": 0.09,
+        "condition": 0.04
+      }
+    },
+    {
+      "item": "Yeezy Boost 350 V2 Zebra",
+      "brand": "Adidas",
+      "condition": "good",
+      "marketplace": "olx",
+      "title": "Adidas Yeezy Boost 350 V2 Zebra - Good Condition",
+      "description": "Selling a pair of Adidas Yeezy Boost 350 V2 Zebra in good condition. These iconic shoes are ready for a new owner. Local pickup preferred, cash only. Grab them before they're gone!",
+      "fallback": false,
+      "claims": {
+        "authenticity": 0.1,
+        "condition": 0.03
+      }
+    },
+    {
+      "item": "Yeezy Boost 350 V2 Zebra",
+      "brand": "Adidas",
+      "condition": "good",
+      "marketplace": "poshmark",
+      "title": "Adidas Yeezy Boost 350 V2 Zebra Sneakers Size 10 Black White",
+      "description": "Step out in style with these iconic Adidas Yeezy Boost 350 V2 Zebra sneakers! These highly sought-after shoes are in good condition, ready for their next owner. Featuring the signature Primeknit upper and responsive Boost cushioning, they offer both comfort and unmistakable style. Feel free to bundle with other items from my closet!",
+      "fallback": false,
+      "claims": {
+        "authenticity": 0.09,
+        "condition": 0.04
+      }
+    },
+    {
+      "item": "Yeezy Boost 350 V2 Zebra",
+      "brand": "Adidas",
+      "condition": "good",
+      "marketplace": "vinted",
+      "title": "Adidas Yeezy Boost 350 V2 Zebra",
+      "description": "Hey everyone! Selling my Adidas Yeezy Boost 350 V2 Zebra sneakers. They're in good condition and have been well-loved, but still have plenty of life left in them. They fit true to size, and I'm happy to provide measurements if you need them! Grab these iconic kicks for a great price.",
+      "fallback": false,
+      "claims": {
+        "authenticity": 0.11,
+        "condition": 0.06
+      }
+    },
+    {
+      "item": "Yeezy Boost 350 V2 Zebra",
+      "brand": "Adidas",
+      "condition": "good",
+      "marketplace": "xianyu",
+      "title": "Adidas Yeezy Boost 350 V2 Zebra",
+      "description": "这双Yeezy 350 V2 Zebra是我的闲置,平时穿得不多,所以成色还不错。鞋子是正品,所见即所得,具体看图。价格可小刀,欢迎来聊。",
+      "fallback": false,
+      "claims": {
+        "authenticity": 0.98,
+        "condition": 0.14
+      }
+    },
+    {
+      "item": "AirPods Pro 2nd Generation",
+      "brand": "Apple",
+      "condition": "used",
+      "marketplace": "depop",
+      "title": "Apple AirPods Pro 2nd Gen",
+      "description": "Selling my used AirPods Pro 2nd Generation. They're still in great working condition and sound amazing, perfect for daily listening. There are some minor signs of wear from regular use, but nothing that affects performance. Comes as is, ready for their next owner!",
+      "fallback": false,
+      "claims": {
+        "authenticity": 0.13,
+        "condition": 0.14
+      }
+    },
+    {
+      "item": "AirPods Pro 2nd Generation",
+      "brand": "Apple",
+      "condition": "used",
+      "marketplace": "ebay",
+      "title": "Apple AirPods Pro 2nd Gen. Wireless Earbuds - Used",
+      "description": "This listing is for a used pair of Apple AirPods Pro 2nd Generation wireless earbuds. The item is in good working condition and has been tested. Included are the AirPods Pro 2nd Gen and charging case. Please refer to photos for exact condition.",
+      "fallback": false,
+      "claims": {
+        "authenticity": 0.13,
+        "condition": 0.08
+      }
+    },
+    {
+      "item": "AirPods Pro 2nd Generation",
+      "brand": "Apple",
+      "condition": "used",
+      "marketplace": "facebook",
+      "title": "AirPods Pro 2nd Gen",
+      "description": "Selling my used Apple AirPods Pro 2nd Generation. They're in good shape and work perfectly. Local pickup only. Price is OBO!",
+      "fallback": false,
+      "claims": {
+        "authenticity": 0.14,
+        "condition": 0.13
+      }
+    },
+    {
+      "item": "AirPods Pro 2nd Generation",
+      "brand": "Apple",
+      "condition": "used",
+      "marketplace": "kleinanzeigen",
+      "title": "Apple AirPods Pro 2. Generation",
+      "description": "Ich biete hier meine gebrauchten Apple AirPods Pro der 2. Generation an. Sie sind in gutem Zustand und voll funktionsfähig. Nur Abholung möglich. Da es sich um einen Privatverkauf handelt, sind Rücknahme und Garantie ausgeschlossen.",
+      "fallback": false,
+      "claims": {
+        "authenticity": 0.14,
+        "condition": 0.1
+      }
+    },
+    {
+      "item": "AirPods Pro 2nd Generation",
+      "brand": "Apple",
+      "condition": "used",
+      "marketplace": "mercari",
+      "title": "Apple AirPods Pro 2nd Generation",
+      "description": "Used Apple AirPods Pro 2nd Generation. Excellent condition, fully functional. Includes original charging case and ear tips. Ships promptly!",
+      "fallback": false,
+      "claims": {
+        "authenticity": 0.17,
+        "condition": 0.29
+      }
+    },
+    {
+      "item": "AirPods Pro 2nd Generation",
+      "brand": "Apple",
+      "condition": "used",
+      "marketplace": "olx",
+      "title": "Apple AirPods Pro 2nd Generation",
+      "description": "AirPods Pro 2nd Generation in used condition. Priced to sell — message me with any questions.",
+      "fallback": true,
+      "claims": {
+        "authenticity": 0.1,
+        "condition": 0.03
+      }
+    },
+    {
+      "item": "AirPods Pro 2nd Generation",
+      "brand": "Apple",
+      "condition": "used",
+      "marketplace": "poshmark",
+      "title": "Apple AirPods Pro 2nd Gen Wireless Earbuds White Used",
+      "description": "Grab these Apple AirPods Pro 2nd Generation earbuds! They're in good used condition, ready to bring you premium audio. Perfect for music, calls, and on-the-go listening. Feel free to bundle with other items from my closet!",
+      "fallback": false,
+      "claims": {
+        "authenticity": 0.12,
+        "condition": 0.07
+      }
+    },
+    {
+      "item": "AirPods Pro 2nd Generation",
+      "brand": "Apple",
+      "condition": "used",
+      "marketplace": "vinted",
+      "title": "Apple AirPods Pro 2nd Gen",
+      "description": "Hey everyone! Selling my AirPods Pro 2nd Generation. They're in good used condition and work perfectly, just looking for a new home. They fit great and sound amazing, as you'd expect from Apple. Grab a bargain!",
+      "fallback": false,
+      "claims": {
+        "authenticity": 0.19,
+        "condition": 0.1
+      }
+    },
+    {
+      "item": "AirPods Pro 2nd Generation",
+      "brand": "Apple",
+      "condition": "used",
+      "marketplace": "xianyu",
+      "title": "Apple AirPods Pro 2nd Generation",
+      "description": "AirPods Pro 2nd Generation in used condition. Priced to sell — message me with any questions.",
+      "fallback": true,
+      "claims": {
+        "authenticity": 0.1,
+        "condition": 0.03
+      }
+    },
+    {
+      "item": "Vintage Band T-Shirt",
+      "brand": "Unknown",
+      "condition": "used",
+      "marketplace": "depop",
+      "title": "Vintage Band Tee - Classic Rock Vibes",
+      "description": "Hey! This vintage band tee is super cool and has that perfect worn-in feel. It's a total vibe for a casual streetwear look. Definitely a unique find to add to your rotation!",
+      "fallback": false,
+      "claims": {
+        "authenticity": 0.11,
+        "condition": 0.08
+      }
+    },
+    {
+      "item": "Vintage Band T-Shirt",
+      "brand": "Unknown",
+      "condition": "used",
+      "marketplace": "ebay",
+      "title": "Vintage Band T-Shirt Used Unknown Brand Music Tee",
+      "description": "This is a used vintage band t-shirt. The brand is unknown. Please review all photos for condition and measurements before purchasing. This item is sold as-is.",
+      "fallback": false,
+      "claims": {
+        "authenticity": 0.05,
+        "condition": 0.04
+      }
+    },
+    {
+      "item": "Vintage Band T-Shirt",
+      "brand": "Unknown",
+      "condition": "used",
+      "marketplace": "facebook",
+      "title": "Vintage Band T-Shirt",
+      "description": "Cool vintage band tee, perfect for any music lover! Gently used condition. Local pickup only. Price is OBO!",
+      "fallback": false,
+      "claims": {
+        "authenticity": 0.08,
+        "condition": 0.11
+      }
+    },
+    {
+      "item": "Vintage Band T-Shirt",
+      "brand": "Unknown",
+      "condition": "used",
+      "marketplace": "kleinanzeigen",
+      "title": "Vintage Band T-Shirt",
+      "description": "Vintage Band T-Shirt in used condition. Priced to sell — message me with any questions.",
+      "fallback": true,
+      "claims": {
+        "authenticity": 0.07,
+        "condition": 0.03
+      }
+    },
+    {
+      "item": "Vintage Band T-Shirt",
+      "brand": "Unknown",
+      "condition": "used",
+      "marketplace": "mercari",
+      "title": "Vintage Band T-Shirt Used",
+      "description": "This is a used vintage band t-shirt. It is in good pre-owned condition with normal wear. Ships promptly.",
+      "fallback": false,
+      "claims": {
+        "authenticity": 0.08,
+        "condition": 0.08
+      }
+    },
+    {
+      "item": "Vintage Band T-Shirt",
+      "brand": "Unknown",
+      "condition": "used",
+      "marketplace": "olx",
+      "title": "Vintage Band T-Shirt - Used",
+      "description": "Selling a used vintage band t-shirt. Condition is good for its age with normal wear. Perfect for collectors or casual wear. Local pickup preferred; cash only.",
+      "fallback": false,
+      "claims": {
+        "authenticity": 0.11,
+        "condition": 0.08
+      }
+    },
+    {
+      "item": "Vintage Band T-Shirt",
+      "brand": "Unknown",
+      "condition": "used",
+      "marketplace": "poshmark",
+      "title": "Vintage Band T-Shirt Black Graphic Tee Retro Style",
+      "description": "Rock out in this cool vintage band t-shirt! This pre-loved tee has that perfect worn-in feel and a classic graphic design. It's a great piece to add a touch of retro flair to your wardrobe. Feel free to bundle with other items for a discount!",
+      "fallback": false,
+      "claims": {
+        "authenticity": 0.1,
+        "condition": 0.06
+      }
+    },
+    {
+      "item": "Vintage Band T-Shirt",
+      "brand": "Unknown",
+      "condition": "used",
+      "marketplace": "vinted",
+      "title": "Cool Vintage Band Tee",
+      "description": "Hey everyone! Selling this awesome vintage band t-shirt. It's super comfy and has that perfect worn-in feel. I'm not sure of the exact size, but it fits like a relaxed medium/large. Pit-to-pit is about 21 inches and length is 27 inches. It's in good used condition with some gentle fading, which just adds to its vintage charm!",
+      "fallback": false,
+      "claims": {
+        "authenticity": 0.11,
+        "condition": 0.09
+      }
+    },
+    {
+      "item": "Vintage Band T-Shirt",
+      "brand": "Unknown",
+      "condition": "used",
+      "marketplace": "xianyu",
+      "title": "Unknown 乐队T恤",
+      "description": "这件复古乐队T恤是二手的,具体品牌不详。衣服状况还可以,具体细节请看照片。价格可小刀。",
+      "fallback": false,
+      "claims": {
+        "authenticity": 0.06,
+        "condition": 0.08
+      }
+    },
+    {
+      "item": "Le Creuset Dutch Oven 5.5 qt",
+      "brand": "Le Creuset",
+      "condition": "good",
+      "marketplace": "depop",
+      "title": "Le Creuset 5.5qt Dutch Oven",
+      "description": "Obsessed with this classic Le Creuset dutch oven! It's 5.5 quarts, perfect for all your cooking adventures. In good condition, ready for its next home. You know these last forever!",
+      "fallback": false,
+      "claims": {
+        "authenticity": 0.13,
+        "condition": 0.05
+      }
+    },
+    {
+      "item": "Le Creuset Dutch Oven 5.5 qt",
+      "brand": "Le Creuset",
+      "condition": "good",
+      "marketplace": "ebay",
+      "title": "Le Creuset Dutch Oven 5.5 qt. Enameled Cast Iron Pot - Good Condition",
+      "description": "This Le Creuset 5.5 quart Dutch Oven is in good pre-owned condition, ready for your kitchen. It features durable enameled cast iron construction, perfect for a variety of cooking tasks. The pot shows signs of use consistent with its age, but remains fully functional. Please see photos for exact condition details.",
+      "fallback": false,
+      "claims": {
+        "authenticity": 0.11,
+        "condition": 0.04
+      }
+    },
+    {
+      "item": "Le Creuset Dutch Oven 5.5 qt",
+      "brand": "Le Creuset",
+      "condition": "good",
+      "marketplace": "facebook",
+      "title": "Le Creuset Dutch Oven 5.5 qt - Good Condition",
+      "description": "Selling a good condition Le Creuset Dutch Oven (5.5 quart). Perfect for all your cooking needs! Local pickup only. Price is OBO.",
+      "fallback": false,
+      "claims": {
+        "authenticity": 0.1,
+        "condition": 0.04
+      }
+    },
+    {
+      "item": "Le Creuset Dutch Oven 5.5 qt",
+      "brand": "Le Creuset",
+      "condition": "good",
+      "marketplace": "kleinanzeigen",
+      "title": "Le Creuset Dutch Oven 5.5 qt",
+      "description": "Ich biete einen gut erhaltenen Le Creuset Dutch Oven mit 5.5 qt an. Er ist gebraucht, aber in gutem Zustand und bereit für viele weitere Kochabenteuer. Nur Abholung. Dies ist ein Privatverkauf, daher keine Garantie oder Rücknahme.",
+      "fallback": false,
+      "claims": {
+        "authenticity": 0.1,
+        "condition": 0.05
+      }
+    },
+    {
+      "item": "Le Creuset Dutch Oven 5.5 qt",
+      "brand": "Le Creuset",
+      "condition": "good",
+      "marketplace": "mercari",
+      "title": "Le Creuset Dutch Oven 5.5 qt",
+      "description": "Good condition Le Creuset 5.5 quart Dutch Oven. Perfect for stews, roasts, and more. Ships promptly.",
+      "fallback": false,
+      "claims": {
+        "authenticity": 0.09,
+        "condition": 0.05
+      }
+    },
+    {
+      "item": "Le Creuset Dutch Oven 5.5 qt",
+      "brand": "Le Creuset",
+      "condition": "good",
+      "marketplace": "olx",
+      "title": "Le Creuset Dutch Oven 5.5 qt - Good Condition",
+      "description": "Selling a Le Creuset Dutch Oven, 5.5 quart, in good condition. Perfect for all your cooking needs. Local pickup only, cash preferred.",
+      "fallback": false,
+      "claims": {
+        "authenticity": 0.1,
+        "condition": 0.04
+      }
+    },
+    {
+      "item": "Le Creuset Dutch Oven 5.5 qt",
+      "brand": "Le Creuset",
+      "condition": "good",
+      "marketplace": "poshmark",
+      "title": "Le Creuset Dutch Oven 5.5 qt Enameled Cast Iron Cookware Good",
+      "description": "Elevate your kitchen with this beautiful Le Creuset 5.5 quart Dutch Oven! This iconic enameled cast iron pot is perfect for everything from stews to baking bread. It's in good condition, ready for many more years of delicious meals. Feel free to bundle with other items from my closet!",
+      "fallback": false,
+      "claims": {
+        "authenticity": 0.12,
+        "condition": 0.05
+      }
+    },
+    {
+      "item": "Le Creuset Dutch Oven 5.5 qt",
+      "brand": "Le Creuset",
+      "condition": "good",
+      "marketplace": "vinted",
+      "title": "Le Creuset Dutch Oven 5.5 qt",
+      "description": "Hey! Selling my lovely Le Creuset Dutch oven. It's 5.5 quarts, perfect for so many dishes, and still in good condition with plenty of life left. There are some minor signs of wear from use, but it's ready for its next home!",
+      "fallback": false,
+      "claims": {
+        "authenticity": 0.11,
+        "condition": 0.06
+      }
+    },
+    {
+      "item": "Le Creuset Dutch Oven 5.5 qt",
+      "brand": "Le Creuset",
+      "condition": "good",
+      "marketplace": "xianyu",
+      "title": "Le Creuset 酷彩 5.5夸脱铸铁锅",
+      "description": "家里闲置的酷彩铸铁锅,5.5夸脱,平时用得不多,保养得挺好,具体看图。就锅本身,没有其他配件了。价格可小刀。",
+      "fallback": false,
+      "claims": {
+        "authenticity": 0.12,
+        "condition": 0.12
+      }
+    }
+  ]
+}
