@@ -260,7 +260,13 @@ class TestBrand:
         assert result["precision_when_attempted"] == pytest.approx(2 / 3)
 
     def test_unknown_truths_are_not_scored(self):
-        assert metrics.brand_accuracy([("Nike", "unknown"), ("Nike", "")]) is None
+        assert metrics.brand_accuracy([("Nike", "unknown"), ("Nike", ""), ("Nike", "Missing"),
+                                       ("Nike", "Not in the list")]) is None
+
+    def test_the_datasets_no_brand_values_are_not_brands(self):
+        for value in ("Missing", "Not in the list", "unknown"):
+            item = secondhand.Item(id="x", station="station1", label_path="", brand=value)
+            assert not item.has_brand
 
 
 class TestCondition:

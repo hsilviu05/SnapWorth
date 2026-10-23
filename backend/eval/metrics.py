@@ -487,7 +487,7 @@ def negative_control_accuracy(outcomes: list[bool]) -> dict | None:
 # and fuzzily, so the gap between the two is visible rather than hidden.
 
 _UNKNOWN_BRANDS = {"", "unknown", "n/a", "na", "none", "null", "no brand", "nobrand",
-                   "unbranded", "generic", "no label", "missing"}
+                   "unbranded", "generic", "no label", "missing", "not in the list"}
 #: Words that name the company rather than the brand. Dropped only when other
 #: words remain, so a brand that *is* one of them survives.
 _CORPORATE_WORDS = {"inc", "ltd", "llc", "co", "corp", "company", "gmbh", "ab", "as", "sa",
@@ -507,6 +507,12 @@ def normalise_brand(value: str | None) -> str:
     return " ".join(kept or words)
 
 
+def _no_brand(value: str | None) -> bool:
+    """Whether a brand field says there is none ("Unknown", "Not in the list")."""
+    return ((value or "").strip().lower() in _UNKNOWN_BRANDS
+            or normalise_brand(value) in _UNKNOWN_BRANDS)
+
+
 def brand_verdict(predicted: str | None, truth: str | None,
                   threshold: float = FUZZY_BRAND_THRESHOLD) -> str:
     """`exact`, `fuzzy`, `wrong` or `abstained` (the scan said Unknown).
@@ -517,7 +523,7 @@ def brand_verdict(predicted: str | None, truth: str | None,
     "levistrauss"). "and" and spaces are ignored, so "H & M" meets "HM".
     """
     p, t = normalise_brand(predicted), normalise_brand(truth)
-    if p in _UNKNOWN_BRANDS:
+    if _no_brand(predicted):
         return "abstained"
     p_words = [w for w in p.split() if w != "and"]
     t_words = [w for w in t.split() if w != "and"]
@@ -538,7 +544,7 @@ def brand_accuracy(pairs: Sequence[tuple[str | None, str | None]],
                    threshold: float = FUZZY_BRAND_THRESHOLD) -> dict | None:
     """(predicted, truth) pairs scored with `brand_verdict`. A pair whose truth
     is itself unknown is not scored. `fuzzy_accuracy` counts exact matches too."""
-    graded = [(p, t) for p, t in pairs if normalise_brand(t) not in _UNKNOWN_BRANDS]
+    graded = [(p, t) for p, t in pairs if not _no_brand(t)]
     if not graded:
         return None
     verdicts = [brand_verdict(p, t, threshold) for p, t in graded]

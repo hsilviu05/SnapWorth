@@ -76,7 +76,8 @@ IMAGE_SUFFIXES = (".jpg", ".jpeg", ".png")
 KINDS = ("front", "back", "brand")
 #: Values a sorter typed for "no brand". Such an item has no brand to score.
 NO_BRAND = {"", "unknown", "no brand", "nobrand", "no label", "missing", "n/a", "na",
-            "none", "-", "unbranded", "okänt", "okant", "inget"}
+            "none", "-", "unbranded", "okänt", "okant", "inget",
+            "not in the list"}   # the sorters' pick when the brand was not on their list
 
 
 # ── reading the download ─────────────────────────────────────────────────────
