@@ -674,6 +674,19 @@ class TestRun:
         code = evalrun.main(["--split", "id_gold", "--manifests", str(built)], out=out)
         assert code == 2 and "--allow-remote" in out.getvalue()
 
+    def test_no_server_sends_nothing(self, built, tmp_path):
+        sent: list[str] = []
+
+        def refuse(request: httpx.Request) -> httpx.Response:
+            sent.append(request.url.path)
+            raise httpx.ConnectError("connection refused", request=request)
+        out = io.StringIO()
+        code = evalrun.main(["--split", "id_gold", "--subset", "all", "--manifests", str(built),
+                             "--out", str(tmp_path / "run")],
+                            transport=httpx.MockTransport(refuse), out=out)
+        assert code == 2 and "Nothing answered" in out.getvalue()
+        assert sent == ["/health"]
+
     def test_a_spent_allowance_stops_the_run(self, built, tmp_path):
         def handle(request: httpx.Request) -> httpx.Response:
             if request.url.path == "/health":

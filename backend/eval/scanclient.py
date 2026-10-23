@@ -162,6 +162,8 @@ class ScanClient:
     sleep: Callable[[float], Awaitable[None]] = asyncio.sleep
     server_commit: str = "unknown"
     halted: str | None = field(default=None, init=False)
+    #: False when `/health` could not be reached at all: no server is listening
+    reachable: bool = field(default=True, init=False)
 
     def _headers(self) -> dict[str, str]:
         headers = {"x-device-id": self.device_id}
@@ -182,6 +184,8 @@ class ScanClient:
                 response = await client.get("/health")
                 body = response.json()
                 commit = body.get("commit") if isinstance(body, dict) else None
+            except httpx.TransportError:
+                commit, self.reachable = None, False
             except (httpx.HTTPError, ValueError, AttributeError):
                 commit = None
         self.server_commit = str(commit or "unknown")

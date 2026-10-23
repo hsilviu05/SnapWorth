@@ -646,12 +646,18 @@ def main(argv: list[str] | None = None, transport=None, out=None) -> int:
         if done["n"] % 25 == 0 or done["n"] == len(requests):
             print(f"  {done['n']}/{len(requests)}", file=out)
 
-    async def go():
+    async def go() -> list[scanclient.ScanOutcome] | None:
         await client.read_commit()
+        if not client.reachable:
+            return None
         return await client.scan_all(requests, on_done=progress)
 
     print(f"{args.split}: {len(cases)} items, {len(requests)} to send to {url}", file=out)
     outcomes = asyncio.run(go()) if requests else []
+    if outcomes is None:
+        print(f"Nothing answered at {url}/health, so nothing was sent. Start the backend "
+              "first (eval/README.md, Setup) and leave it running.", file=out)
+        return 2
     by_id = {o.item_id: o for o in outcomes}
 
     if args.split == "id_gold":
