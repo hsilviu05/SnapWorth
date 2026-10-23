@@ -249,6 +249,9 @@ async def _lifespan(_app: FastAPI):
     # reason: `referral` cannot import this module.
     referral.limiter = _enforce_referral_limit
     outcomes.limiter = _enforce_outcomes_limit
+    # The TikTok link callback is unauthenticated and was the one such route
+    # with no limit. It shares the standard `ip:` bucket.
+    social.limiter = _enforce_ip_limit
     auth.deps.signer = tokens.signer_from_env()
     auth.deps.device_check = dc
     auth.deps.entitlements = EntitlementService(

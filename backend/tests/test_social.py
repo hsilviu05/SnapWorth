@@ -141,6 +141,80 @@ class TestCallbackRoute:
         assert denied.status_code == 400
 
 
+
+class TestCallbackLimit:
+    """The callback is unauthenticated, so it draws on the standard per-IP
+    bucket (`main._enforce_ip_limit`), injected as `social.limiter`."""
+
+    @staticmethod
+    def bare_app() -> TestClient:
+        app = FastAPI()
+        app.include_router(social.router)
+        return TestClient(app)
+
+    def test_the_limiter_is_consulted_with_the_resolved_client_ip(self, monkeypatch):
+        seen: list[str | None] = []
+
+        async def recording(ip):
+            seen.append(ip)
+        monkeypatch.setattr(social, "limiter", recording)
+        r = self.bare_app().get("/social/tiktok/callback?error=access_denied",
+                                headers={"x-forwarded-for": "198.51.100.23, 95.173.10.20"})
+        assert r.status_code == 400
+        assert seen == ["198.51.100.23"]
+
+    def test_the_limiter_runs_before_any_link_work(self, monkeypatch, cache, platforms):
+        import asyncio
+        from fastapi import HTTPException
+        s = make_social(cache, platforms)
+        monkeypatch.setattr(social, "_social", s)
+        state = parse_qs(urlparse(asyncio.run(s.tiktok.begin_link())).query)["state"][0]
+
+        async def refusing(ip):
+            raise HTTPException(status_code=418)
+        monkeypatch.setattr(social, "limiter", refusing)
+        client = self.bare_app()
+        refused = client.get(f"/social/tiktok/callback?code=abc&state={state}")
+        assert refused.status_code == 418
+        assert platforms.token_requests == []
+
+        # The refused call did not spend the state nonce.
+        monkeypatch.setattr(social, "limiter", None)
+        ok = client.get(f"/social/tiktok/callback?code=abc&state={state}")
+        assert ok.status_code == 200 and "linked" in ok.text
+
+    def test_the_standard_ip_bucket_throttles_it_and_is_shared(self, monkeypatch):
+        import main
+        from tests.test_main import client
+        limit = 3
+        monkeypatch.setattr(social, "limiter", main._enforce_ip_limit)
+        monkeypatch.setattr(main, "_ip_limiter", None)
+        monkeypatch.setattr(main, "IP_RATE_MAX_REQUESTS", limit)
+        main._ip_rate_store.clear()
+        try:
+            headers = {"x-forwarded-for": "198.51.100.7"}
+            responses = [client.get("/social/tiktok/callback?error=access_denied", headers=headers)
+                         for _ in range(limit + 1)]
+            assert [r.status_code for r in responses] == [400] * limit + [429]
+            last = responses[-1]
+            assert last.headers.get("Retry-After")
+            assert last.json()["code"] == "rate_limited"
+            # `_enforce_ip_limit`'s in-memory key: the bare address, no new prefix.
+            assert "198.51.100.7" in main._ip_rate_store
+
+            # One bucket: the callbacks spent it for the address's other routes too.
+            shared = client.post("/apple/notifications", json={"signedPayload": "not-a-jws"},
+                                 headers=headers)
+            assert shared.status_code == 429
+        finally:
+            main._ip_rate_store.clear()
+
+    def test_startup_wires_it(self):
+        import inspect
+        import main
+        assert "social.limiter = _enforce_ip_limit" in inspect.getsource(main._lifespan)
+
+
 class TestSocialInBot:
     @pytest_asyncio.fixture
     async def bot(self, cache, platforms):

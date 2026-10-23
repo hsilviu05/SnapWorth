@@ -30,11 +30,14 @@ import logging
 import os
 import secrets
 import time
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from urllib.parse import urlencode
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Query, Request
 from fastapi.responses import HTMLResponse
+
+from security import ratelimit
 
 log = logging.getLogger("snapworth.social")
 
@@ -255,10 +258,19 @@ def from_env(cache, client=None) -> Social:
     )
 
 
-# The TikTok redirect target. Unauthenticated by necessity — TikTok's servers
-# call it — and harmless without a live state nonce the bot minted minutes ago.
+# The TikTok redirect target. Unauthenticated by necessity: TikTok redirects the
+# operator's browser here, with no credential of ours. Harmless without a live
+# state nonce the bot minted minutes ago, but every call still costs a cache
+# round trip, so it draws on the standard per-IP bucket like every other
+# limited route.
 _social: Social | None = None
 router = APIRouter(prefix="/social", tags=["social"])
+
+# `main._enforce_ip_limit`, the shared `ip:` bucket. Injected by `main._lifespan`
+# because this module cannot import `main` (`main` imports it), the way
+# `referral.limiter` and `outcomes.limiter` are. None only before startup and
+# in tests.
+limiter: Callable[[str | None], Awaitable[None]] | None = None
 
 
 def configure(social: Social | None) -> None:
@@ -267,8 +279,10 @@ def configure(social: Social | None) -> None:
 
 
 @router.get("/tiktok/callback", response_class=HTMLResponse)
-async def tiktok_callback(code: str = Query(default=""), state: str = Query(default=""),
-                          error: str = Query(default="")):
+async def tiktok_callback(request: Request, code: str = Query(default=""),
+                          state: str = Query(default=""), error: str = Query(default="")):
+    if limiter is not None:
+        await limiter(ratelimit.client_ip(request))
     page = "<!doctype html><meta charset='utf-8'><title>SnapWorth</title>" \
            "<body style='font-family:-apple-system,sans-serif;max-width:32em;margin:15vh auto;text-align:center'>{}</body>"
     if error or not code or _social is None:
