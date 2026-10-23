@@ -140,6 +140,19 @@ with its `sha256` in the record. `--dry-run` checks every row and writes
 nothing. A draft counts toward nothing until a reviewer sets its evidence and
 label confidence and approves it (`review_state: approved`, `reviewed_by`).
 
+The review is a command too, so no one edits `gold.jsonl` by hand:
+
+```bash
+python -m eval.review              # every open draft; --only G-0007 for one
+```
+
+It opens each draft's photo, shows its labels and whatever `validate()`
+objects to, and asks to edit, approve, reject or skip. It won't approve a
+record that doesn't validate, takes evidence only as a `private:` reference,
+and saves each decision as it is made, so stopping loses nothing. A rejected
+record stays in the file, so the intake never imports its photo again.
+`reviewed_by` is `git config user.name` unless `--reviewer` says otherwise.
+
 **What lives where.** The repository is public. `gold.jsonl` holds labels only
 — price, currency, category, brand, condition, date, region, difficulty, tags,
 image paths and hashes — and is in git, because the drift check reads it from
@@ -576,6 +589,7 @@ if any shipped sample record ever becomes scoreable again.
 | CLI wrapper (`eval/cli.py`) | ✅ Implemented and tested |
 | Calibration fitting | ✅ Implemented, ⚠️ never fitted on real data |
 | Gold-set intake (`eval/intake.py`) | ✅ Implemented and tested, no records yet |
+| Gold-set review (`eval/review.py`) | ✅ Implemented and tested, no records yet |
 | CI gates | ✅ Wired, ⏭️ skip until a gold set exists |
 | Dashboard models | ✅ Implemented, no frontend |
 | **Gold dataset** | ❌ **Does not exist** |
