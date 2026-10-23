@@ -149,6 +149,21 @@ class TestScanClient:
         assert [o.error for o in outcomes[1:]] == ["halted:quota_exhausted"] * 3
         assert len(backend.requests) == 1
 
+    def test_an_unreachable_quota_store_halts_the_rest(self):
+        backend = FakeBackend([(503, {"code": "quota_unavailable", "detail": "x"})])
+        client, sleeps = client_for(backend, concurrency=1)
+        outcomes = run(client, [request(f"i{n}", photo=bytes([n])) for n in range(3)])
+        assert outcomes[0].error == "quota_unavailable" and outcomes[0].attempts == 1
+        assert [o.error for o in outcomes[1:]] == ["halted:quota_unavailable"] * 2
+        assert len(backend.requests) == 1 and sleeps == []
+
+    def test_the_commit_is_read_from_a_degraded_health(self):
+        def answer(req: httpx.Request) -> httpx.Response:
+            return httpx.Response(503, json={"status": "unhealthy", "commit": "abc123"})
+        client = scanclient.ScanClient(base_url="http://127.0.0.1:8000",
+                                       transport=httpx.MockTransport(answer))
+        assert asyncio.run(client.read_commit()) == "abc123"
+
     def test_an_unparseable_200_is_counted(self):
         def answer(req: httpx.Request) -> httpx.Response:
             if req.url.path == "/health":

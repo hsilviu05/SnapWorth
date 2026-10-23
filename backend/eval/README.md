@@ -29,10 +29,14 @@ price on `price_silver`. It goes over HTTP, so it measures `/scan` as served
    EVAL_SCAN_TOKEN=            # optional: a Pro bearer token for the local server
    ```
 3. Start the backend locally with the limits raised for the run, since every
-   request without a token is the same free caller:
+   request without a token is the same free caller. `REDIS_URL=` clears a
+   production Redis address the `.env` may hold: the free quota fails closed
+   (`quota_unavailable`, 503) when its Redis is unreachable, and an empty
+   value makes the in-process counter authoritative. A variable set in the
+   shell wins over `.env`.
    ```sh
-   FREE_SCANS_PER_DAY=100000 RATE_MAX_REQUESTS=100000 IP_RATE_MAX_REQUESTS=100000 \
-     uvicorn main:app --port 8000
+   REDIS_URL= FREE_SCANS_PER_DAY=100000 RATE_MAX_REQUESTS=100000 IP_RATE_MAX_REQUESTS=100000 \
+     .venv/bin/python -m uvicorn main:app --port 8000
    ```
 
 ### Use

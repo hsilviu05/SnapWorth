@@ -690,6 +690,11 @@ def main(argv: list[str] | None = None, transport=None, out=None) -> int:
     (out_dir / "report.md").write_text(report, encoding="utf-8")
     print(report, file=out)
     print(f"Wrote {out_dir / 'results.json'} and report.md", file=out)
+    if client.halted == "quota_unavailable":
+        print("Stopped early: the backend answered quota_unavailable. Its REDIS_URL names a "
+              "Redis it cannot reach; start it with REDIS_URL= (empty) for a local run, or "
+              "set EVAL_SCAN_TOKEN to a Pro token.", file=out)
+        return 1
     if client.halted:
         print(f"Stopped early: the backend answered {client.halted}. Check the token and "
               "the local server's FREE_SCANS_PER_DAY / rate limits.", file=out)

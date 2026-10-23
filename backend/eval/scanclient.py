@@ -55,6 +55,9 @@ DETERMINISTIC_CODES = frozenset({
 })
 #: Statuses that mean the run itself is misconfigured.
 HALTING_STATUSES = frozenset({401, 402, 426})
+#: Error codes that no later request will get past either: a local server
+#: whose `REDIS_URL` names a Redis it cannot reach refuses every free scan.
+HALTING_CODES = frozenset({"quota_unavailable"})
 RETRYABLE_STATUSES = frozenset({429, 500, 502, 503, 504})
 
 
@@ -171,12 +174,14 @@ class ScanClient:
                                  timeout=self.timeout_s, transport=self.transport)
 
     async def read_commit(self) -> str:
-        """The backend's commit from `/health`, which keys the cache. A server
-        that does not report one keys it as `unknown`."""
+        """The backend's commit from `/health`, which keys the cache. It is read
+        from a 503 too, which a server with an unreachable cache still answers
+        with its commit. A server that reports none keys it as `unknown`."""
         async with self._client() as client:
             try:
                 response = await client.get("/health")
-                commit = response.json().get("commit") if response.status_code == 200 else None
+                body = response.json()
+                commit = body.get("commit") if isinstance(body, dict) else None
             except (httpx.HTTPError, ValueError, AttributeError):
                 commit = None
         self.server_commit = str(commit or "unknown")
@@ -248,7 +253,7 @@ class ScanClient:
                     return outcome
                 code = _code_of(outcome.body) or f"http_{response.status_code}"
                 outcome.error = code
-                if response.status_code in HALTING_STATUSES:
+                if response.status_code in HALTING_STATUSES or code in HALTING_CODES:
                     self.halted = code
                     return outcome
                 if code in DETERMINISTIC_CODES or response.status_code not in RETRYABLE_STATUSES:
