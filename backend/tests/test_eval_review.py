@@ -47,7 +47,7 @@ def store(tmp_path: Path):
     images = tmp_path / "images"
     images.mkdir()
     approved = draft("G-0003", review_state="approved", reviewed_by="Ana",
-                     label_confidence="certain", evidence_note="private:evidence/x.png",
+                     label_confidence="certain", evidence_note="private:receipts/x.png",
                      tags=["my_flips"])
     lines = [COMMENT] + [json.dumps(r, sort_keys=True)
                          for r in (draft("G-0001"), draft("G-0002"), approved)]
@@ -93,8 +93,8 @@ class TestApprove:
         assert record["review_state"] == "approved"
         assert record["reviewed_by"] == "Silviu" and record["reviewed_at"]
         assert record["label_confidence"] == "certain"
-        assert record["evidence_note"] == "private:evidence/G-0001-evidence1.png"
-        assert (images / "evidence" / "G-0001-evidence1.png").read_bytes() == b"png"
+        assert record["evidence_note"] == "private:receipts/G-0001-evidence1.png"
+        assert (images / "receipts" / "G-0001-evidence1.png").read_bytes() == b"png"
         assert "currency_assumed" not in record["tags"]
         item = schema.item_from_dict(record)
         assert item is not None and item.counts_toward_headline

@@ -12,8 +12,8 @@ what a reviewer has to decide.
 * **Approve** asks for the label confidence (`certain` for your own sale with
   a receipt or screenshot, `high` for a captured completed listing) and, when
   that needs evidence the record lacks, the receipt itself: drag the file in
-  and it is copied into the private store as `evidence/<id>-evidence1.png`,
-  named in the record as `private:evidence/…`. A web address is refused, as
+  and it is copied into the private store as `receipts/<id>-evidence1.png`,
+  named in the record as `private:receipts/…`. A web address is refused, as
   in the intake. A sale tagged `currency_assumed` asks for the real currency
   first, and the tag goes once someone has confirmed it.
 * **Edit** corrects the label fields on a draft. An approved record is never
@@ -52,7 +52,7 @@ DIFFICULTIES = [d.value for d in schema.Difficulty]
 #: Label fields a reviewer may correct on a draft, in the order asked.
 EDITABLE = ("category", "brand", "model", "variant", "condition",
             "actual_sale_price", "currency", "region", "sold_date", "marketplace")
-EVIDENCE_DIR = "evidence"
+EVIDENCE_DIR = "receipts"
 
 Ask = Callable[[str], str]
 Opener = Callable[[Path], None]

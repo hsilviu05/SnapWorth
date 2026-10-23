@@ -146,7 +146,7 @@ label confidence and approves it (`review_state: approved`, `reviewed_by`).
 shows the label, and offers approve, edit, reject or skip. Approving asks for
 the label confidence and, for `certain` or `high` without evidence, the
 receipt or screenshot: dragged in, it is copied into the private store as
-`evidence/<id>-evidence1.png` and named in the record as `private:evidence/…`.
+`receipts/<id>-evidence1.png` and named in the record as `private:receipts/…`.
 A web address is refused, a `currency_assumed` sale asks for the real
 currency, and nothing is approved that `GoldItem.validate` objects to or whose
 photo is missing. Each decision is saved as it is made, and an approved record
