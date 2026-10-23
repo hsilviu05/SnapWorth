@@ -59,13 +59,16 @@ RETRYABLE_STATUSES = frozenset({429, 500, 502, 503, 504})
 
 
 def prepare_photo(path: Path) -> bytes:
+    return prepare_bytes(path.read_bytes())
+
+
+def prepare_bytes(data: bytes) -> bytes:
     """The photo as the app would upload it: a JPEG with at most a 1568 px
     long edge at quality 80 (`intake.MAX_EDGE`, `intake.JPEG_QUALITY`).
 
     A JPEG already within that is sent byte for byte, as the intake does;
     anything larger, or not a JPEG, is re-encoded with Pillow.
     """
-    data = path.read_bytes()
     size = intake.jpeg_size(data)
     if size is not None and max(size) <= intake.MAX_EDGE:
         return data

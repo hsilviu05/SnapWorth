@@ -41,6 +41,16 @@ backend/BUILD_COMMIT
 # mounted here. The repo is public; only labels live in git.
 backend/eval/data/images/
 
+# Second-hand clothing eval: the /scan answer cache and run outputs. The
+# dataset itself (26.8 GB, read in place from EVAL_DATA_DIR) never enters the
+# repo; only the label manifests beside these folders are committed.
+backend/eval/data/secondhand/cache/
+backend/eval/data/secondhand/runs/
+backend/eval/data/secondhand/**/*.jpg
+backend/eval/data/secondhand/**/*.jpeg
+backend/eval/data/secondhand/**/*.png
+backend/eval/data/secondhand/**/*.zip
+
 # Rack scan's test photos and their marked-up runs (#89): shop photos, which
 # can show other people. Only the review file lives in git.
 backend/eval/data/rack/images/
