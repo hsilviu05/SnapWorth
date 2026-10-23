@@ -32,6 +32,7 @@ from security import auth
 import main
 from security import ratelimit
 from billing import referral
+from insights import social
 from tests.test_main import client
 
 # The app as the container serves it: uvicorn runs with --proxy-headers and
@@ -457,6 +458,19 @@ class TestEveryCallerUsesIt:
         monkeypatch.setattr(main, "_enforce_ip_limit", recording)
         r = client.post("/apple/notifications", json={},
                         headers={"x-forwarded-for": xff})
+        assert r.status_code == 418
+        assert seen == [expected]
+
+    @pytest.mark.parametrize("xff, expected", CASES)
+    def test_the_tiktok_callback_route(self, monkeypatch, xff, expected):
+        seen = []
+
+        async def recording(ip):
+            seen.append(ip)
+            raise HTTPException(status_code=418)
+        monkeypatch.setattr(social, "limiter", recording)
+        r = client.get("/social/tiktok/callback?error=access_denied",
+                       headers={"x-forwarded-for": xff})
         assert r.status_code == 418
         assert seen == [expected]
 

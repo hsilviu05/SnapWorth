@@ -488,8 +488,8 @@ availability one.
    fires. Change `client_ip` for the new shape first, then run the owner
    probe through the proxy.
 3. The IP bucket is one for every route with a limit — `/scan`, `/rack`,
-   `/listing`, `/legit`, `/trends`, `/auth/entitlement`, and the unauthenticated `/auth` routes and
-   `/apple/notifications` — so from one address they stop together. The
+   `/listing`, `/legit`, `/trends`, `/auth/entitlement`, and the unauthenticated `/auth` routes,
+   `/apple/notifications` and `/social/tiktok/callback` — so from one address they stop together. The
    per-device buckets are one per route, per hour (`ratelimit.py`):
 
    | Route | Bucket (Redis key) | Default | Env |
