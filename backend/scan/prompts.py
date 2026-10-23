@@ -94,6 +94,21 @@ used with scuffs and footprints. Everything else is v2.1's wording.
   `_CONDITION_RULE` names the factory features that are not wear and what to
   grade when none is visible; the price rule says a secondhand sale in the
   graded condition, still not retail, instead of a used item.
+
+Design of v2.3
+--------------
+v2.2 plus a brand rule, from the second-hand clothing eval (`eval/run.py`,
+2026-10-23): 261 garments with a sorter's brand label, front photo only. The
+scan named a brand for 121 of them and 91 were wrong (L.L.Bean for a Lindex
+sweater, Tommy Hilfiger for a Vero Moda shirt), mostly with nothing legible
+in the photo. A child's size was also read from an adult XS.
+
+* **A brand only when it can be read.** "If something is not legible in the
+  photo, it is unknown" sits in step 2, below the honesty block, and said
+  nothing about what a brand guess is made from. `_BRAND_RULE` asks for a
+  legible name or logo cited in `visual_evidence`, says that a style, cut or
+  look is not one, and reads letter sizes as adult unless the label says
+  otherwise. Everything else is v2.2's wording.
 """
 
 from __future__ import annotations
@@ -362,12 +377,25 @@ _CONDITION_RULE = (
 )
 
 
+_BRAND_RULE = (
+    "- **Name a brand only when you can read it.** Put a brand in `brand`, "
+    "`item_name` and `listing_title` only when its name or logo is legible on "
+    "the item, its label or its packaging in this photo, and cite what you read "
+    "in `visual_evidence`. A label you can see but not read is not a brand. A "
+    "style, cut, colour, pattern or familiar look is not evidence of a brand: "
+    "many brands make a black cable-knit sweater or a check shirt. Otherwise set "
+    "`brand` to \"Unknown\" and name the item by type, material and colour. "
+    "Read a letter size (XS, S, M, L) on a label as an adult size unless the "
+    "label itself gives a child's age or height."
+)
+
+
 def _edit_once(text: str, old: str, new: str) -> str:
     """`text` with `old` replaced by `new`, failing at import unless `old`
-    occurs exactly once: a v2.1 edit that moved the anchor must not leave
-    v2.2 silently without its rule."""
+    occurs exactly once: an edit to the base prompt that moved the anchor
+    must not leave a derived version (v2.2, v2.3) silently without its rule."""
     if text.count(old) != 1:
-        raise ValueError(f"v2.2 anchor not found exactly once: {old[:60]!r}")
+        raise ValueError(f"prompt anchor not found exactly once: {old[:60]!r}")
     return text.replace(old, new)
 
 
@@ -386,6 +414,14 @@ SCAN_PROMPT_V2_2 = _edit_once(
     "item),")
 
 
+# v2.2 with the brand rule after the naming rule. Derived, as v2.2 is from
+# v2.1, so a comparison between the two measures the rule alone.
+SCAN_PROMPT_V2_3 = _edit_once(
+    SCAN_PROMPT_V2_2,
+    _NAMING_RULE + "\n",
+    _NAMING_RULE + "\n" + _BRAND_RULE + "\n")
+
+
 # Prompt registry. Selected at request time so a rollback is an env var, not a
 # code deploy, and so the eval harness can run any two against the same dataset.
 PROMPTS: dict[str, str] = {
@@ -393,6 +429,7 @@ PROMPTS: dict[str, str] = {
     "v2": SCAN_PROMPT_V2,
     "v2.1": SCAN_PROMPT_V2_1,
     "v2.2": SCAN_PROMPT_V2_2,
+    "v2.3": SCAN_PROMPT_V2_3,
 }
 
 # Still v2. The owner's condition for changing it, verbatim: "make v2.1 the
@@ -421,7 +458,8 @@ PROMPTS: dict[str, str] = {
 #
 # v2.2 (v2.1 plus the naming and condition rules) switches the same way,
 # SCAN_PROMPT_VERSION=v2.2, and is compared against v2.1 rather than v2 so
-# that the run measures the two rules alone.
+# that the run measures the two rules alone. v2.3 (v2.2 plus the brand rule)
+# likewise, SCAN_PROMPT_VERSION=v2.3, compared against v2.2.
 DEFAULT_PROMPT_VERSION = "v2"
 
 # Appended when the client sent a close-up of the label as well (#88). Kept
