@@ -487,7 +487,8 @@ def negative_control_accuracy(outcomes: list[bool]) -> dict | None:
 # and fuzzily, so the gap between the two is visible rather than hidden.
 
 _UNKNOWN_BRANDS = {"", "unknown", "n/a", "na", "none", "null", "no brand", "nobrand",
-                   "unbranded", "generic", "no label", "missing", "not in the list"}
+                   "unbranded", "generic", "no label", "missing", "not in the list",
+                   "not applicable"}
 #: Words that name the company rather than the brand. Dropped only when other
 #: words remain, so a brand that *is* one of them survives.
 _CORPORATE_WORDS = {"inc", "ltd", "llc", "co", "corp", "company", "gmbh", "ab", "as", "sa",

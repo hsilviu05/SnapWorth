@@ -57,9 +57,9 @@ GOLD_PATH = Path(__file__).resolve().parent / "data" / "gold.jsonl"
 #: A group smaller than this shows its n and no figures (`eval/field.py`).
 MIN_GROUP = 5
 WORST = 20
-PRICE_SILVER_BASIS = ("Myrorna (station3) shelf prices, currency assumed SEK, converted "
-                      "at the item's annotation date. A thrift price, not a sale: a sanity "
-                      "check, never a gate input.")
+PRICE_SILVER_BASIS = ("Myrorna (station3) shelf-price bands, currency assumed SEK; the "
+                      "scan's USD converted at the item's annotation date. A thrift price, "
+                      "not a sale: a sanity check, never a gate input.")
 PRICE_GOLD_BASIS = "approved gold.jsonl sales, certain/high label confidence"
 
 #: Dataset garment type → the app's category (`scan/categories.py`). A type
@@ -93,7 +93,10 @@ TYPE_WORDS: dict[str, tuple[str, ...]] = {
     "hoodie": ("hoodie", "hooded", "sweatshirt"),
     "sweatshirt": ("sweatshirt", "hoodie", "crewneck"),
     "jacket": ("jacket", "parka", "anorak", "windbreaker", "bomber", "blazer"),
-    "jacker": ("jacket", "parka", "anorak", "windbreaker", "bomber", "blazer"),  # sic, in the data
+    "winter jacket": ("jacket", "parka", "anorak", "coat", "puffer"),
+    "rain jacket": ("jacket", "raincoat", "rain", "anorak", "shell"),
+    "denim jacket": ("jacket", "denim"),
+    "outerwear": ("jacket", "coat", "parka", "anorak", "windbreaker", "gilet", "vest"),
     "coat": ("coat", "parka", "trench", "overcoat", "peacoat"),
     "blazer": ("blazer", "suit jacket", "sport coat"),
     "suit": ("suit",),
@@ -102,6 +105,12 @@ TYPE_WORDS: dict[str, tuple[str, ...]] = {
     "overall": ("overall", "jumpsuit", "dungarees", "coverall"),
     "swimwear": ("swim", "bikini", "swimsuit", "trunks"),
     "pyjamas": ("pajama", "pyjama", "sleepwear", "nightgown"),
+    "pajamas": ("pajama", "pyjama", "sleepwear", "nightgown"),
+    "nightgown": ("nightgown", "nightdress", "nightie", "night dress", "sleepwear", "slip"),
+    "robe": ("robe", "bathrobe", "dressing gown", "kimono"),
+    "training top": ("top", "t-shirt", "tee", "shirt", "jersey", "sports", "athletic"),
+    "rain trousers": ("trousers", "pants", "rain"),
+    "winter trousers": ("trousers", "pants", "snow", "ski"),
     "underwear": ("underwear", "briefs", "boxers", "bra", "panties"),
     "socks": ("socks",),
     "tights": ("tights", "stockings", "leggings"),
@@ -115,13 +124,13 @@ TYPE_WORDS: dict[str, tuple[str, ...]] = {
 
 
 def app_category(dataset_type: str | None) -> str:
-    return TYPE_CATEGORY.get((dataset_type or "").strip().lower(), "clothing")
+    return TYPE_CATEGORY.get(secondhand.canonical("type", dataset_type), "clothing")
 
 
 def type_verdict(dataset_type: str | None, item_name: str | None,
                  model_name: str | None = None) -> str | None:
     """`match`, `miss`, or None when the dataset type is not in `TYPE_WORDS`."""
-    words = TYPE_WORDS.get((dataset_type or "").strip().lower())
+    words = TYPE_WORDS.get(secondhand.canonical("type", dataset_type))
     if not words:
         return None
     text = f" {item_name or ''} {model_name or ''} ".lower()
@@ -145,6 +154,9 @@ class Case:
     condition: int | None = None
     price_usd: float | None = None
     price_raw: str | None = None
+    #: price_silver: the band in its own currency, and that currency per USD
+    band: tuple[float, float | None] | None = None
+    local_per_usd: float | None = None
 
 
 @dataclass
@@ -173,21 +185,24 @@ def load_cases(split: str, subset: str, manifest_dir: Path, data: str | None,
     for row in rows:
         if split == "id_gold" and subset != "all" and row.get("split") != subset:
             continue
-        case = Case(id=str(row["id"]), group=str(row.get("type") or "unknown"),
+        case = Case(id=str(row["id"]), group=secondhand.canonical("type", row.get("type"))
+                    or "unknown",
                     front=row.get("front"), brand_photo=row.get("brand_photo"),
                     split=row.get("split"), brand=row.get("brand"), type=row.get("type"),
                     condition=row.get("condition"), price_raw=row.get("price_raw"))
         if split == "price_silver":
-            price, day = row.get("price"), row.get("date")
-            if not isinstance(price, (int, float)) or price <= 0 or not day:
-                loaded.skipped["price or date missing in manifest"] += 1
+            low, high, day = row.get("price_low"), row.get("price_high"), row.get("date")
+            if (not isinstance(low, (int, float)) or low < 0 or not day
+                    or (high is not None and (not isinstance(high, (int, float)) or high < low))):
+                loaded.skipped["price band or date missing in manifest"] += 1
                 continue
             try:
-                case.price_usd = round(rates.to_usd(float(price), "SEK",
-                                                    datetime.fromisoformat(day).date()), 2)
+                usd_per_local = rates.to_usd(1.0, "SEK", datetime.fromisoformat(day).date())
             except (fx.FxUnavailable, ValueError) as exc:
                 loaded.skipped[f"no SEK rate: {str(exc)[:60]}"] += 1
                 continue
+            case.band = (float(low), None if high is None else float(high))
+            case.local_per_usd = 1 / usd_per_local
         loaded.cases.append(case)
     return loaded
 
@@ -365,6 +380,83 @@ def score_prices(cases: list[Case], outcomes: dict[str, scanclient.ScanOutcome]
     return result, worst
 
 
+def score_bands(cases: list[Case], outcomes: dict[str, scanclient.ScanOutcome]
+                ) -> tuple[dict, list[dict]]:
+    """The scan's price against a price band, compared in the band's currency.
+
+    `in_band`: the point price lies in the band (an open top has no ceiling).
+    `band_error`: the scan's band minus the true one, in `BAND_EDGES` steps;
+    positive is priced high. `outside_pct`: how far past the nearer edge the
+    point lies, as a percentage of that edge, 0 inside: the band's MdAPE."""
+    rows: list[dict] = []
+    for case in cases:
+        outcome = outcomes.get(case.id)
+        if (outcome is None or not outcome.ok or case.band is None
+                or case.local_per_usd is None):
+            continue
+        body = outcome.body or {}
+        point, basis = predicted_point(body)
+        low, high = _number(body.get("est_value_low_usd")), _number(body.get("est_value_high_usd"))
+        if point is None or low is None or high is None:
+            continue
+        band_low, band_high = case.band
+        local = point * case.local_per_usd
+        if local < band_low:
+            outside = (band_low - local) / band_low * 100
+        elif band_high is not None and local > band_high:
+            outside = (local - band_high) / band_high * 100 if band_high else None
+        else:
+            outside = 0.0
+        true_index = secondhand.band_index(band_low)
+        predicted_index = secondhand.band_index(local)
+        overlaps = (high * case.local_per_usd >= band_low
+                    and (band_high is None or low * case.local_per_usd <= band_high))
+        rows.append({"id": case.id, "group": case.group, "price_raw": case.price_raw,
+                     "band": [band_low, band_high], "predicted_usd": round(point, 2),
+                     "predicted_local": round(local, 1), "point": basis,
+                     "low_usd": low, "high_usd": high, "in_band": outside == 0,
+                     "true_band": secondhand.band_label(true_index),
+                     "predicted_band": secondhand.band_label(predicted_index),
+                     "band_error": predicted_index - true_index,
+                     "outside_pct": outside, "range_overlaps": overlaps,
+                     "item_name": body.get("item_name"), "brand": body.get("brand")})
+
+    def summary(subset: list[dict]) -> dict:
+        if len(subset) < MIN_GROUP:
+            return {"n": len(subset)}
+        n = len(subset)
+        outside = [r["outside_pct"] for r in subset if r["outside_pct"] is not None]
+        widths = [r["high_usd"] - r["low_usd"] for r in subset if r["high_usd"] >= r["low_usd"]]
+        relative = [(r["high_usd"] - r["low_usd"]) / r["predicted_usd"] for r in subset
+                    if r["predicted_usd"] > 0 and r["high_usd"] >= r["low_usd"]]
+        return {
+            "n": n,
+            "in_band": sum(r["in_band"] for r in subset) / n,
+            "band_exact": sum(r["band_error"] == 0 for r in subset) / n,
+            "band_within_one": sum(abs(r["band_error"]) <= 1 for r in subset) / n,
+            "median_band_error": statistics.median(r["band_error"] for r in subset),
+            "median_outside_pct": statistics.median(outside) if outside else None,
+            "range_overlaps_band": sum(r["range_overlaps"] for r in subset) / n,
+            "median_range_width_usd": statistics.median(widths) if widths else None,
+            "median_range_width_relative": statistics.median(relative) if relative else None,
+            "midpoint_fallbacks": sum(1 for r in subset if r["point"] == "midpoint"),
+        }
+
+    by_group: dict[str, list[dict]] = defaultdict(list)
+    for row in rows:
+        by_group[row["group"]].append(row)
+    confusion: dict[str, Counter] = defaultdict(Counter)
+    for row in rows:
+        confusion[row["true_band"]][row["predicted_band"]] += 1
+    result = {"kind": "bands", "overall": summary(rows),
+              "by_category": {g: summary(rs) for g, rs in sorted(by_group.items())},
+              "confusion": {t: dict(c) for t, c in sorted(
+                  confusion.items(), key=lambda kv: secondhand.BAND_ORDER.get(kv[0], 99))}}
+    worst = sorted(rows, key=lambda r: (r["outside_pct"] or 0, abs(r["band_error"]), r["id"]),
+                   reverse=True)[:WORST]
+    return result, worst
+
+
 # ── report ───────────────────────────────────────────────────────────────────
 
 def _pct(value) -> str:
@@ -414,7 +506,9 @@ def render_report(results: dict) -> str:
                 f"{_pct(s['category_accuracy'])} | {_pct(s['type_accuracy'])} "
                 f"({s['type_scored']}) | {_num(c.get('mae'))} | {_pct(c.get('exact'))} |")
         lines.append("")
-    if "by_category" in m:
+    if m.get("kind") == "bands":
+        lines += _band_report(m)
+    elif "by_category" in m:
         lines += ["## Price", "",
                   "| Category | n | MdAPE | In range | Median width (USD) | Width / point | "
                   "Median bias (USD) |",
@@ -431,7 +525,16 @@ def render_report(results: dict) -> str:
 
     worst = results["worst"]
     lines += [f"## Worst {len(worst)}", ""]
-    if worst and "true_usd" in worst[0]:
+    if worst and "true_band" in worst[0]:
+        lines += ["| Item | Type | Band | Predicted (USD) | In band currency | Scan's band | "
+                  "Range (USD) | Outside by |",
+                  "| --- | --- | --- | --- | --- | --- | --- | --- |"]
+        for r in worst:
+            lines.append(f"| {r['id']} | {r['group']} | {r['price_raw']} | "
+                         f"{r['predicted_usd']:.2f} | {r['predicted_local']:.0f} | "
+                         f"{r['predicted_band']} | {r['low_usd']:.0f}–{r['high_usd']:.0f} | "
+                         f"{_num(r['outside_pct'], 0)}% |")
+    elif worst and "true_usd" in worst[0]:
         lines += ["| Item | Category | Expected (USD) | Predicted (USD) | Range | APE |",
                   "| --- | --- | --- | --- | --- | --- |"]
         for r in worst:
@@ -449,6 +552,34 @@ def render_report(results: dict) -> str:
         lines.append("None.")
     lines.append("")
     return "\n".join(lines)
+
+
+def _band_report(m: dict) -> list[str]:
+    lines = ["## Price against the band", "",
+             "| Type | n | In band | Right band | Within one band | Median band error | "
+             "Median outside band | Range overlaps band | Median width (USD) |",
+             "| --- | --- | --- | --- | --- | --- | --- | --- | --- |"]
+    for name, s in [("All", m["overall"]), *m["by_category"].items()]:
+        if "in_band" not in s:
+            lines.append(f"| {name} | {s['n']} | fewer than {MIN_GROUP}: no figures "
+                         "| | | | | | |")
+            continue
+        lines.append(
+            f"| {name} | {s['n']} | {_pct(s['in_band'])} | {_pct(s['band_exact'])} | "
+            f"{_pct(s['band_within_one'])} | {s['median_band_error']:+g} | "
+            f"{_num(s['median_outside_pct'], 1)}% | {_pct(s['range_overlaps_band'])} | "
+            f"{_num(s['median_range_width_usd'])} |")
+    lines.append("")
+    if m.get("confusion"):
+        labels = sorted({p for c in m["confusion"].values() for p in c} | set(m["confusion"]),
+                        key=lambda b: secondhand.BAND_ORDER.get(b, 99))
+        lines += ["Band confusion (rows: true band, columns: the scan's):", "",
+                  "| | " + " | ".join(labels) + " |",
+                  "| --- |" + " --- |" * len(labels)]
+        for true, row in m["confusion"].items():
+            lines.append(f"| {true} | " + " | ".join(str(row.get(b, 0)) for b in labels) + " |")
+        lines.append("")
+    return lines
 
 
 # ── CLI ──────────────────────────────────────────────────────────────────────
@@ -525,6 +656,8 @@ def main(argv: list[str] | None = None, transport=None, out=None) -> int:
 
     if args.split == "id_gold":
         scored, worst = score_identification(cases, by_id)
+    elif args.split == "price_silver":
+        scored, worst = score_bands(cases, by_id)
     else:
         scored, worst = score_prices(cases, by_id)
     errors = Counter(o.error for o in outcomes if o.error)

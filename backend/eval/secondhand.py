@@ -1,8 +1,7 @@
 """The "Clothing Dataset for Second-Hand Fashion" as SnapWorth eval splits.
 
     python -m eval.secondhand profile                  # what the copy holds
-    python -m eval.secondhand build --price-min 10 --price-max 2000 \\
-                                    --price-drop 49 99  # write the manifests
+    python -m eval.secondhand build                    # write the manifests
 
 `EVAL_DATA_DIR` is the Zenodo v3 download (`clothing_v3.zip`, DOI
 10.5281/zenodo.12518734, CC-BY 4.0): either the zip itself or the folder it
@@ -32,10 +31,10 @@ Splits (manifests in `eval/data/secondhand/`, committed; labels only):
   ~500 sampled with a fixed seed, stratified by category x type. Each item is
   `dev` or `test` by a hash of its id, as `schema.GoldItem.assigned_split`
   does: iterate on dev, confirm on test, never tune on test.
-* `price_silver`: station3 items with a parseable price inside the cutoffs
-  chosen after `profile`. The price is kept raw and its currency marked
-  unconfirmed. It is a thrift shelf price, not a sale: never gold, never a
-  gate input.
+* `price_silver`: station3 items with a price band (`BAND_EDGES`). Every
+  station3 price in v3 is a band such as `"50-100"`, not a number, so the
+  band is kept as its two bounds, raw, with its currency marked unconfirmed.
+  It is a thrift shelf price, not a sale: never gold, never a gate input.
 
 `price_gold` is not built here: it is the existing `eval/data/gold.jsonl`.
 """
@@ -54,7 +53,7 @@ import sys
 import zipfile
 from collections import Counter, defaultdict
 from collections.abc import Iterable
-from dataclasses import asdict, dataclass, field
+from dataclasses import dataclass, field
 from datetime import date
 from pathlib import Path, PurePosixPath
 
@@ -69,7 +68,11 @@ POOL_BELOW = 5
 TEST_FRACTION = 0.5
 PRICE_STATION = "station3"
 PRICE_CURRENCY = "unconfirmed (likely SEK)"
-BUILDER_VERSION = 1
+BUILDER_VERSION = 2
+#: Where Myrorna's price bands meet (`<50`, `50-100`, … `>400`), in its
+#: currency. A band is placed by its lower bound, so the one-off `150-200`
+#: counts as `150-250`.
+BAND_EDGES = (50.0, 100.0, 150.0, 250.0, 400.0)
 
 ITEM_ID = re.compile(r"(\d{4}_\d{2}_\d{2}_\d{2}_\d{2}_\d{2})")
 IMAGE_SUFFIXES = (".jpg", ".jpeg", ".png")
@@ -77,7 +80,19 @@ KINDS = ("front", "back", "brand")
 #: Values a sorter typed for "no brand". Such an item has no brand to score.
 NO_BRAND = {"", "unknown", "no brand", "nobrand", "no label", "missing", "n/a", "na",
             "none", "-", "unbranded", "okänt", "okant", "inget",
-            "not in the list"}   # the sorters' pick when the brand was not on their list
+            "not in the list",   # the sorters' pick when the brand was not on their list
+            "not applicable"}
+#: Spelling variants in the sorters' labels, folded before stratifying and scoring.
+CANONICAL = {
+    "category": {"ladys": "ladies", "lady": "ladies", "women": "ladies"},
+    "type": {"night gown": "nightgown", "jacker": "jacket"},
+}
+
+
+def canonical(field_name: str, value: str | None) -> str:
+    """`value` lowercased, with the variant spellings of `CANONICAL` folded."""
+    low = " ".join((value or "").split()).lower()
+    return CANONICAL.get(field_name, {}).get(low, low)
 
 
 # ── reading the download ─────────────────────────────────────────────────────
@@ -220,7 +235,7 @@ _BAND = re.compile(r"^\s*(?:([<>])\s*(\d+)|(\d+)\s*-\s*(\d+))\s*$")
 
 
 def parse_price_band(value) -> tuple[float, float | None] | None:
-    """A price band as station1 records it, `"<50"`, `"50-100"` or `">500"`,
+    """A price band as station1 and station3 record it, `"<50"`, `"50-100"` or `">500"`,
     as (low, high); high is None for an open top. None when it is not a band."""
     text = _text(value)
     match = _BAND.match(text.replace(" ", "")) if text else None
@@ -232,6 +247,32 @@ def parse_price_band(value) -> tuple[float, float | None] | None:
     if sign == ">":
         return float(bound), None
     return float(low), float(high)
+
+
+def band_index(value: float) -> int:
+    """Which of the `BAND_EDGES` bands `value` falls in, from 0 (`<50`)."""
+    return sum(1 for edge in BAND_EDGES if value >= edge)
+
+
+def band_label(index: int) -> str:
+    if index <= 0:
+        return f"<{BAND_EDGES[0]:g}"
+    if index >= len(BAND_EDGES):
+        return f">{BAND_EDGES[-1]:g}"
+    return f"{BAND_EDGES[index - 1]:g}-{BAND_EDGES[index]:g}"
+
+
+#: band label → its position, for ordering reports
+BAND_ORDER = {band_label(i): i for i in range(len(BAND_EDGES) + 1)}
+
+
+def price_bounds(value) -> tuple[float, float | None] | None:
+    """(low, high) from a band, or (p, p) from a single positive price; None
+    for missing, zero or unparseable."""
+    if (band := parse_price_band(value)) is not None:
+        return band
+    price = parse_price(value)
+    return (price, price) if price else None
 
 
 def parse_price(value) -> float | None:
@@ -348,7 +389,8 @@ def parse(source: Source) -> Parsed:
 # ── profile ──────────────────────────────────────────────────────────────────
 
 def price_profile(items: list[Item]) -> dict:
-    """What station3's prices look like, so cutoffs are chosen from the data."""
+    """What station3's prices look like, and over which days (the exchange
+    rates have to reach back that far)."""
     raw = [i.price_raw for i in items]
     numbers = [p for r in raw if (p := parse_price(r)) is not None]
     positive = sorted(p for p in numbers if p > 0)
@@ -361,6 +403,8 @@ def price_profile(items: list[Item]) -> dict:
         histogram[label] = sum(1 for p in positive if low <= p < high)
     return {
         "items": len(items),
+        "first_day": min(days).isoformat() if (days := [i.day for i in items if i.day]) else None,
+        "last_day": max(days).isoformat() if days else None,
         "missing": sum(1 for r in raw if r is None),
         "bands": sum(bands.values()),
         "unparseable": sum(1 for r in raw if r is not None and parse_price(r) is None
@@ -421,7 +465,7 @@ def stratified_sample(items: list[Item], target: int, seed: int = SEED,
     ordered = sorted(items, key=lambda i: i.id)
     strata: dict[tuple[str, str], list[Item]] = defaultdict(list)
     for item in ordered:
-        strata[((item.category or "").lower(), (item.type or "").lower())].append(item)
+        strata[(canonical("category", item.category), canonical("type", item.type))].append(item)
     pooled: dict[tuple[str, str], list[Item]] = defaultdict(list)
     for key, members in strata.items():
         pooled[key if len(members) >= pool_below else ("other", "other")].extend(members)
@@ -449,34 +493,27 @@ def stratified_sample(items: list[Item], target: int, seed: int = SEED,
     return sorted(chosen, key=lambda i: i.id)
 
 
-@dataclass(frozen=True)
-class PriceCutoffs:
-    minimum: float
-    maximum: float
-    drop: tuple[float, ...] = ()
+def _band_key(value: str | None) -> str:
+    return (value or "").replace(" ", "")
 
 
-def price_rows(items: Iterable[Item], cutoffs: PriceCutoffs) -> tuple[list[Item], Counter]:
-    """Station3 items whose price survives the cutoffs, and why the rest did not."""
+def price_rows(items: Iterable[Item], bands: Iterable[str] = ()) -> tuple[list[Item], Counter]:
+    """Station3 items with a usable price, and why the rest were left out.
+    `bands`, when given, keeps only those bands (`"50-100"`, `"<50"`)."""
     kept: list[Item] = []
     dropped: Counter = Counter()
-    drop = set(cutoffs.drop)
+    keep = {_band_key(b) for b in bands}
     for item in sorted(items, key=lambda i: i.id):
         if item.station != PRICE_STATION:
             continue
-        price = parse_price(item.price_raw)
-        if price is None and parse_price_band(item.price_raw) is not None:
-            dropped["a price band, not a price"] += 1
-        elif price is None:
-            dropped["no parseable price"] += 1
-        elif price == 0:
+        if item.price_raw is None:
+            dropped["no price"] += 1
+        elif parse_price(item.price_raw) == 0:
             dropped["zero"] += 1
-        elif price in drop:
-            dropped[f"fixed value {price:g}"] += 1
-        elif price < cutoffs.minimum:
-            dropped[f"below {cutoffs.minimum:g}"] += 1
-        elif price > cutoffs.maximum:
-            dropped[f"above {cutoffs.maximum:g}"] += 1
+        elif price_bounds(item.price_raw) is None:
+            dropped["no parseable price"] += 1
+        elif keep and _band_key(item.price_raw) not in keep:
+            dropped[f"band {item.price_raw} not kept"] += 1
         elif not item.front:
             dropped["front photo missing"] += 1
         elif item.day is None:
@@ -492,7 +529,8 @@ def manifest_row(item: Item, with_price: bool = False) -> dict:
            "brand": item.brand, "type": item.type, "category": item.category,
            "condition": item.condition}
     if with_price:
-        row.update({"price_raw": item.price_raw, "price": parse_price(item.price_raw),
+        low, high = price_bounds(item.price_raw) or (None, None)
+        row.update({"price_raw": item.price_raw, "price_low": low, "price_high": high,
                     "currency": PRICE_CURRENCY,
                     "date": item.day.isoformat() if item.day else None})
     return row
@@ -549,10 +587,9 @@ def main(argv: list[str] | None = None, out=None) -> int:
     p_profile.add_argument("--json-out", help="also write the profile here")
     p_build = sub.add_parser("build", help="write the id_gold and price_silver manifests")
     p_build.add_argument("--target", type=int, default=ID_GOLD_TARGET)
-    p_build.add_argument("--price-min", type=float, required=True)
-    p_build.add_argument("--price-max", type=float, required=True)
-    p_build.add_argument("--price-drop", type=float, nargs="*", default=[],
-                         help="fixed prices to leave out, e.g. 49 99")
+    p_build.add_argument("--price-bands", nargs="*", default=[],
+                         help="keep only these station3 bands, e.g. '<50' 50-100 "
+                              "(default: every band)")
     p_build.add_argument("--out", default=str(MANIFEST_DIR))
     args = parser.parse_args(argv)
 
@@ -572,11 +609,12 @@ def main(argv: list[str] | None = None, out=None) -> int:
                    _meta(source, "id_gold", len(sample), target=args.target,
                          pool_below=POOL_BELOW, test_fraction=TEST_FRACTION,
                          by_split=dict(Counter(i.split for i in sample))), out_dir)
-    cutoffs = PriceCutoffs(args.price_min, args.price_max, tuple(args.price_drop))
-    kept, dropped = price_rows(parsed.items, cutoffs)
+    kept, dropped = price_rows(parsed.items, args.price_bands)
     write_manifest("price_silver", [manifest_row(i, with_price=True) for i in kept],
-                   _meta(source, "price_silver", len(kept), cutoffs=asdict(cutoffs),
-                         currency=PRICE_CURRENCY, dropped=dict(sorted(dropped.items()))),
+                   _meta(source, "price_silver", len(kept), bands_kept=args.price_bands or "all",
+                         band_edges=list(BAND_EDGES), currency=PRICE_CURRENCY,
+                         by_band=dict(Counter(i.price_raw for i in kept).most_common()),
+                         dropped=dict(sorted(dropped.items()))),
                    out_dir)
     print(f"id_gold: {len(sample)} items "
           f"({sum(1 for i in sample if i.split == 'dev')} dev, "

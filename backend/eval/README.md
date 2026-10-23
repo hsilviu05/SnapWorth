@@ -39,7 +39,7 @@ price on `price_silver`. It goes over HTTP, so it measures `/scan` as served
 
 ```sh
 python -m eval.secondhand profile                     # what the download holds, price distribution
-python -m eval.secondhand build --price-min 10 --price-max 2000 --price-drop 49 99
+python -m eval.secondhand build                       # add --price-bands '<50' 50-100 to keep only some
 python -m eval.run --split id_gold --limit 20         # dev half by default
 python -m eval.run --split id_gold --subset test      # confirm a change; never tune on test
 python -m eval.run --split price_silver
@@ -55,10 +55,12 @@ Each run writes `eval/data/secondhand/runs/<split>-<time>/results.json` and
   front photo, sampled with a fixed seed and stratified by category × type.
   Each item is `dev` or `test` by a hash of its id. Despite the name it is not
   part of the gold set (`gold.jsonl`), which holds verified sales.
-- **`price_silver`**: station3 (Myrorna) items whose price survives the
-  cutoffs passed to `build`. The price is kept raw, its currency marked
-  `unconfirmed (likely SEK)`, and converted to USD at the item's annotation
-  date from the pinned ECB table (`fx.py`).
+- **`price_silver`**: station3 (Myrorna) items with a price. Every station3
+  price in v3 is a band (`<50`, `50-100`, `100-150`, `150-250`, `250-400`,
+  `>400`, and one `150-200`), not a number, so each row keeps the band raw
+  and as `price_low` / `price_high` (no high for `>400`), its currency marked
+  `unconfirmed (likely SEK)`. Items with no price, a zero or an unreadable
+  one are left out and counted in `price_silver.meta.json`.
 - **`price_gold`**: the existing `gold.jsonl`, scored over HTTP. Its columns
   are `id`, `images[]`, `brand`, `category`, `condition`, `actual_sale_price`,
   `currency`, `marketplace`, `sold_date` and `evidence_note`; `eval.intake`
@@ -86,10 +88,19 @@ download only: never image bytes, never the annotator field.
 - **Condition.** `condition_grade` on the dataset's 1-5 scale (`new` 5,
   `likeNew` 4, `good` 3, `used` 2): MAE, exact, within one, and a confusion
   table.
-- **Price.** MdAPE of `likely_price_usd` (the range's middle when absent,
-  counted), the share of true prices inside `est_value_low_usd` to
-  `est_value_high_usd`, and the range width, overall and per garment type.
-  A group under 5 items shows its size and no figures.
+- **Price, `price_silver`.** The scan's `likely_price_usd` (the range's
+  middle when absent, counted) is converted to the band's currency at the
+  item's annotation date from the pinned ECB table (`fx.py`) and compared
+  with the band: the share inside it; the share in the right band of the
+  scheme and within one band; the median band error (positive is priced
+  high); how far outside the band it lands, as a percentage of the nearer
+  edge (0 inside: the band's stand-in for MdAPE); whether the scan's range
+  overlaps the band; the range width in USD; and a band confusion table.
+  Overall and per garment type.
+- **Price, `price_gold`.** MdAPE, the share of true prices inside
+  `est_value_low_usd` to `est_value_high_usd`, and the range width, overall
+  and per category.
+- A group under 5 items shows its size and no figures.
 
 Every item that is not scored is counted with its reason: a missing front or
 brand photo, a malformed annotation or manifest line, no exchange rate, a
@@ -97,9 +108,13 @@ timeout, or the backend's error code.
 
 ### Known limitations
 
-- **The price labels are not resale prices.** They are shelf prices set by a
-  Swedish charity-shop chain, sometimes by weight or a fixed rule, and their
-  currency is assumed. `price_silver` is a sanity check, never a gate input.
+- **The price labels are not resale prices.** They are shelf-price bands set
+  by a Swedish charity-shop chain, and their currency is assumed.
+  `price_silver` is a sanity check, never a gate input. A band is coarse: a
+  50-100 band cannot tell a good estimate of 60 from a poor one of 95.
+- The exchange-rate table has to cover the station3 annotation dates
+  (`profile` prints the first and last day); an item outside it is skipped
+  and counted, never converted at today's rate.
 - The backend has no garment-type field, so type accuracy is a keyword match.
 - The 1-5 scale and the app's four grades do not line up; grade 1 has no
   counterpart.

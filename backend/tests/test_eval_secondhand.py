@@ -261,10 +261,11 @@ class TestBrand:
 
     def test_unknown_truths_are_not_scored(self):
         assert metrics.brand_accuracy([("Nike", "unknown"), ("Nike", ""), ("Nike", "Missing"),
-                                       ("Nike", "Not in the list")]) is None
+                                       ("Nike", "Not in the list"),
+                                       ("Nike", "Not Applicable")]) is None
 
     def test_the_datasets_no_brand_values_are_not_brands(self):
-        for value in ("Missing", "Not in the list", "unknown"):
+        for value in ("Missing", "Not in the list", "Not Applicable", "unknown"):
             item = secondhand.Item(id="x", station="station1", label_path="", brand=value)
             assert not item.has_brand
 
@@ -318,13 +319,14 @@ def download(tmp_path) -> Path:
     write_item(root, "station1", 51, photos=("back", "brand"))                 # no front
     write_item(root, "station1", 52, brand="Unknown")                         # no brand
     write_item(root, "station1", 53, condition=None)
-    write_item(root, "station3", 60, price="149")
-    write_item(root, "station3", 61, price="49")
+    write_item(root, "station3", 60, price="100-150")    # station3's prices are bands
+    write_item(root, "station3", 61, price="<50")
     write_item(root, "station3", 62, price="0")
     write_item(root, "station3", 63, price="")
-    write_item(root, "station3", 64, price="5 000 kr")
-    write_item(root, "station3", 65, price="79,50")
+    write_item(root, "station3", 64, price="gratis")
+    write_item(root, "station3", 65, price=">400", day=7)
     write_item(root, "station3", 66, price="50-100")
+    write_item(root, "station3", 67, price="150-200")     # the one-off band in v3
     bad = root / "station2" / "x" / f"labels_{item_id(70)}.json"
     bad.parent.mkdir(parents=True)
     bad.write_text("{not json")
@@ -341,6 +343,26 @@ class TestParsing:
         ("<50", None), ("50-100", None)])
     def test_prices(self, raw, value):
         assert secondhand.parse_price(raw) == value
+
+    @pytest.mark.parametrize("raw, bounds", [
+        ("50-100", (50.0, 100.0)), (">400", (400.0, None)), ("79,50", (79.5, 79.5)),
+        ("0", None), ("", None), ("gratis", None)])
+    def test_price_bounds(self, raw, bounds):
+        assert secondhand.price_bounds(raw) == bounds
+
+    @pytest.mark.parametrize("value, index, label", [
+        (0, 0, "<50"), (49.9, 0, "<50"), (50, 1, "50-100"), (150, 3, "150-250"),
+        (399, 4, "250-400"), (400, 5, ">400"), (5000, 5, ">400")])
+    def test_bands(self, value, index, label):
+        assert secondhand.band_index(value) == index
+        assert secondhand.band_label(index) == label
+
+    def test_label_variants_are_folded(self):
+        assert secondhand.canonical("category", " Ladys ") == "ladies"
+        assert secondhand.canonical("category", "Women") == "ladies"
+        assert secondhand.canonical("type", "Night  gown") == "nightgown"
+        assert secondhand.canonical("type", "Jacker") == "jacket"
+        assert secondhand.canonical("type", None) == ""
 
     @pytest.mark.parametrize("raw, band", [
         ("<50", (0.0, 50.0)), ("50-100", (50.0, 100.0)), ("100 - 150", (100.0, 150.0)),
@@ -375,7 +397,7 @@ class TestParsing:
 
     def test_a_folder_download(self, download):
         parsed = secondhand.parse(secondhand.DirSource(download))
-        assert len(parsed.items) == 23
+        assert len(parsed.items) == 24
         assert parsed.problems["malformed JSON"] == 1
         assert parsed.problems["file in json_errors/ (skipped)"] == 1
         assert parsed.problems["front photo missing"] == 1
@@ -425,11 +447,11 @@ class TestProfileAndSplits:
     def test_profile_shows_the_price_distribution(self, download):
         report = secondhand.profile(secondhand.parse(secondhand.DirSource(download)))
         prices = report["price_station3"]
-        assert prices["items"] == 7 and prices["missing"] == 1 and prices["zero"] == 1
-        assert prices["positive"] == 4 and prices["max"] == 5000.0
-        assert prices["bands"] == 1 and prices["most_common_bands"] == [["50-100", 1]]
-        assert prices["unparseable"] == 0
-        assert report["by_station"] == {"station1": 16, "station3": 7}
+        assert prices["items"] == 8 and prices["missing"] == 1 and prices["zero"] == 1
+        assert prices["positive"] == 0 and prices["max"] is None
+        assert prices["bands"] == 5 and prices["unparseable"] == 1
+        assert (prices["first_day"], prices["last_day"]) == ("2024-03-05", "2024-03-07")
+        assert report["by_station"] == {"station1": 16, "station3": 8}
 
     def test_id_gold_eligibility(self, download):
         parsed = secondhand.parse(secondhand.DirSource(download))
@@ -456,18 +478,21 @@ class TestProfileAndSplits:
                  for n in range(10)]
         assert len(secondhand.stratified_sample(items, 4, pool_below=1)) == 4
 
-    def test_price_cutoffs(self, download):
+    def test_price_rows_keep_every_band(self, download):
         parsed = secondhand.parse(secondhand.DirSource(download))
-        kept, dropped = secondhand.price_rows(
-            parsed.items, secondhand.PriceCutoffs(10, 1000, (49.0,)))
-        assert sorted(secondhand.parse_price(i.price_raw) for i in kept) == [79.5, 149.0]
-        assert dropped == {"zero": 1, "no parseable price": 1, "fixed value 49": 1,
-                           "above 1000": 1, "a price band, not a price": 1}
+        kept, dropped = secondhand.price_rows(parsed.items)
+        assert sorted(i.price_raw for i in kept) == ["100-150", "150-200", "50-100", "<50", ">400"]
+        assert dropped == {"zero": 1, "no price": 1, "no parseable price": 1}
+
+    def test_price_rows_can_keep_some_bands(self, download):
+        parsed = secondhand.parse(secondhand.DirSource(download))
+        kept, dropped = secondhand.price_rows(parsed.items, ["<50", "50 - 100"])
+        assert sorted(i.price_raw for i in kept) == ["50-100", "<50"]
+        assert dropped["band >400 not kept"] == 1
 
     def test_build_writes_manifests_without_images(self, download, tmp_path):
         out = tmp_path / "manifests"
         code = secondhand.main(["--data", str(download), "build", "--target", "8",
-                                "--price-min", "10", "--price-max", "1000",
                                 "--out", str(out)], out=io.StringIO())
         assert code == 0
         rows, problems = secondhand.load_manifest(out / "id_gold.jsonl")
@@ -475,8 +500,11 @@ class TestProfileAndSplits:
         assert {r["split"] for r in rows} <= {"dev", "test"}
         meta = json.loads((out / "price_silver.meta.json").read_text())
         assert meta["doi"] == secondhand.DOI and meta["currency"] == secondhand.PRICE_CURRENCY
+        assert meta["by_band"]["<50"] == 1 and meta["bands_kept"] == "all"
         prices, _ = secondhand.load_manifest(out / "price_silver.jsonl")
         assert {r["currency"] for r in prices} == {secondhand.PRICE_CURRENCY}
+        by_raw = {r["price_raw"]: (r["price_low"], r["price_high"]) for r in prices}
+        assert by_raw["<50"] == (0.0, 50.0) and by_raw[">400"] == (400.0, None)
         assert "annotator" not in (out / "id_gold.jsonl").read_text()
         assert not list(out.rglob("*.jpg"))
 
@@ -498,6 +526,8 @@ class TestTypes:
         ("T-shirt", "Graphic tee, white", "match"),
         ("Jacker", "Quilted jacket", "match"),
         ("Tank top", "Ribbed camisole", "match"),
+        ("Night gown", "Cotton nightdress", "match"),
+        ("Pajamas", "Striped pyjama set", "match"),
         ("Mystery", "Anything", None),
     ])
     def test_type_verdicts(self, dataset_type, name, verdict):
@@ -526,8 +556,8 @@ class TestUrls:
 @pytest.fixture
 def built(download, tmp_path, monkeypatch):
     out = tmp_path / "manifests"
-    secondhand.main(["--data", str(download), "build", "--target", "100", "--price-min", "10",
-                     "--price-max", "1000", "--out", str(out)], out=io.StringIO())
+    secondhand.main(["--data", str(download), "build", "--target", "100", "--out", str(out)],
+                    out=io.StringIO())
     monkeypatch.setattr(evalrun, "CACHE_DIR", tmp_path / "cache")
     monkeypatch.setattr("eval.identity.load_env", lambda: None)
     monkeypatch.setenv("EVAL_BACKEND_URL", "http://127.0.0.1:8000")
@@ -603,15 +633,19 @@ class TestRun:
         assert "tok" not in out.replace("token", "")
 
     def test_prices_end_to_end(self, built, tmp_path):
+        # 14 USD is about 145 SEK in March 2024; the default 18 USD about 187.
         transport = answers({"front60": httpx.Response(200, json=SCAN_BODY | {
             "likely_price_usd": 14.0, "est_value_low_usd": 10.0, "est_value_high_usd": 20.0})})
         code, results, _ = self.run(built, tmp_path, transport, "--split", "price_silver")
-        assert code == 0 and results["counts"]["ok"] == 3     # 49, 79.50 and 149 SEK
+        assert code == 0 and results["counts"]["ok"] == 5
         assert results["basis"] == evalrun.PRICE_SILVER_BASIS
         assert results["config"]["fx_table"].startswith("ecb-")
-        assert {w["id"] for w in results["worst"]} == {item_id(60), item_id(61), item_id(65)}
-        assert results["metrics"]["overall"] == {"n": 3}       # below MIN_GROUP: no figures
-        assert "## Price" in (tmp_path / "run" / "report.md").read_text()
+        overall = results["metrics"]["overall"]
+        assert overall["n"] == 5 and overall["in_band"] == pytest.approx(2 / 5)  # 100-150, 150-200
+        assert results["worst"][0]["id"] == item_id(61)       # "<50", priced at ~187
+        assert results["metrics"]["confusion"]["<50"] == {"150-250": 1}
+        report = (tmp_path / "run" / "report.md").read_text()
+        assert "## Price against the band" in report and "Band confusion" in report
 
     def test_a_rerun_is_served_from_the_cache(self, built, tmp_path):
         self.run(built, tmp_path, answers({}), "--split", "id_gold", "--subset", "all")
@@ -661,6 +695,51 @@ class TestPriceScoring:
     def test_failed_scans_are_not_scored(self):
         case = evalrun.Case(id="p", group="g", front="f", price_usd=10.0)
         result, worst = evalrun.score_prices(
+            [case], {"p": scanclient.ScanOutcome("p", 502, {"code": "ai_no_price"},
+                                                 error="ai_no_price")})
+        assert result["overall"] == {"n": 0} and worst == []
+
+
+class TestBandScoring:
+    @staticmethod
+    def score(specs):
+        cases, outcomes = [], {}
+        for n, (band, likely, low, high) in enumerate(specs):
+            case = evalrun.Case(id=f"p{n}", group="Jeans", front="f", band=band,
+                                local_per_usd=10.0)
+            cases.append(case)
+            body = SCAN_BODY | {"likely_price_usd": likely, "est_value_low_usd": low,
+                                "est_value_high_usd": high}
+            outcomes[case.id] = scanclient.ScanOutcome(case.id, 200, body)
+        return evalrun.score_bands(cases, outcomes)
+
+    def test_the_figures(self):
+        result, worst = self.score([          # band (SEK), likely, low, high (USD); 10 SEK/USD
+            ((50.0, 100.0), 7.0, 5.0, 9.0),     # 70: in band
+            ((50.0, 100.0), 12.0, 10.0, 14.0),  # 120: 20% over, one band high
+            ((0.0, 50.0), 30.0, 20.0, 40.0),    # 300: 500% over, four bands high, no overlap
+            ((400.0, None), 50.0, 30.0, 60.0),  # 500: open top, in band
+            ((150.0, 200.0), None, 20.0, 24.0),  # midpoint 220: 10% over, right band by scheme
+        ])
+        overall = result["overall"]
+        assert overall["n"] == 5
+        assert overall["in_band"] == pytest.approx(2 / 5)
+        assert overall["band_exact"] == pytest.approx(3 / 5)
+        assert overall["band_within_one"] == pytest.approx(4 / 5)
+        assert overall["median_band_error"] == 0
+        assert overall["median_outside_pct"] == pytest.approx(10.0)
+        assert overall["range_overlaps_band"] == pytest.approx(4 / 5)
+        assert overall["midpoint_fallbacks"] == 1
+        assert worst[0]["id"] == "p2" and worst[0]["band_error"] == 4
+        assert result["confusion"]["<50"] == {"250-400": 1}
+
+    def test_a_small_group_has_no_figures(self):
+        result, _ = self.score([((50.0, 100.0), 7.0, 5.0, 9.0)])
+        assert result["overall"] == {"n": 1}
+
+    def test_failed_scans_are_not_scored(self):
+        case = evalrun.Case(id="p", group="g", front="f", band=(50.0, 100.0), local_per_usd=10.0)
+        result, worst = evalrun.score_bands(
             [case], {"p": scanclient.ScanOutcome("p", 502, {"code": "ai_no_price"},
                                                  error="ai_no_price")})
         assert result["overall"] == {"n": 0} and worst == []
