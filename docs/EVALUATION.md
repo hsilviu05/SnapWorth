@@ -153,6 +153,20 @@ photo is missing. Each decision is saved as it is made, and an approved record
 is never offered again, since editing its label afterwards is the drift the
 schema guards against.
 
+**eBay sold listings** come in the same way, through the official API only
+(`backend/eval/ebay_sold.py`). eBay's Marketplace Insights API returns items
+sold in the last 90 days, and only to an app eBay has approved for it; the
+collector never reads ebay.com's pages. With the app's keys in `backend/.env`
+(`EBAY_CLIENT_ID`, `EBAY_CLIENT_SECRET`), `python -m eval.ebay_sold --probe`
+says whether the keys work and the app may read sold data, `--dry-run` shows
+what the built-in search plan would add, and a plain run adds the sales as
+drafts through the intake: label `high`, tagged `ebay` and `listing_photo`,
+difficulty `easy`. Each sale as eBay returned it is the evidence, saved as
+`ebay/<itemId>.json` in the private store; the public file gets no item id,
+title or link. It refuses to run unless the private store is cloned in place.
+A person still approves each draft with `eval.review`, checking the photo
+shows the item named.
+
 **What lives where.** The repository is public. `gold.jsonl` holds labels only
 — price, currency, category, brand, condition, date, region, difficulty, tags,
 image paths and hashes — and is in git, because the drift check reads it from
