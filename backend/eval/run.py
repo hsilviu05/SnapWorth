@@ -84,6 +84,8 @@ TYPE_WORDS: dict[str, tuple[str, ...]] = {
     "dress": ("dress", "gown"),
     "t-shirt": ("t-shirt", "tee", "t shirt", "tshirt"),
     "top": ("top", "tank", "camisole", "blouse", "t-shirt", "tee"),
+    "tank top": ("tank", "camisole", "top", "singlet", "vest top"),
+    "tunic": ("tunic", "dress", "top", "blouse"),
     "blouse": ("blouse", "shirt", "top"),
     "shirt": ("shirt", "button-down", "button-up", "flannel", "polo"),
     "sweater": ("sweater", "jumper", "pullover", "knit", "cardigan"),
@@ -91,6 +93,7 @@ TYPE_WORDS: dict[str, tuple[str, ...]] = {
     "hoodie": ("hoodie", "hooded", "sweatshirt"),
     "sweatshirt": ("sweatshirt", "hoodie", "crewneck"),
     "jacket": ("jacket", "parka", "anorak", "windbreaker", "bomber", "blazer"),
+    "jacker": ("jacket", "parka", "anorak", "windbreaker", "bomber", "blazer"),  # sic, in the data
     "coat": ("coat", "parka", "trench", "overcoat", "peacoat"),
     "blazer": ("blazer", "suit jacket", "sport coat"),
     "suit": ("suit",),

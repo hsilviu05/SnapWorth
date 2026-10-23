@@ -12,16 +12,18 @@ reads it from there.
 
 What the download is, from its Zenodo page: about 31,600 garments sorted at
 three stations, each with a front photo, a back photo, a brand-label close-up
-and a `labels_<item id>.json` holding a list of annotations. The item id is
+and a `labels_<item id>.json`: one annotation object (the Zenodo page says
+a list; both are read). The item id is
 the time the item was annotated (`2024_04_05_08_47_35`). `station1` and
 `station2` are Wargön Innovation, whose prices are suggestions only;
 `station3` is Myrorna, a charity-shop chain that sets the prices it sells at.
 About 4,000-5,000 brand photos were removed for privacy, and `test100` holds
 about 100 items annotated more than once.
 
-The photo file names are not documented, so a photo is matched to its item
-by the item id in its name and its kind by the word `front`, `back` or
-`brand` in it. `profile` prints what it found, including every annotation key,
+Photos are `front_<item id>.jpg`, `back_<item id>.jpg` and
+`brand_<item id>.jpg` beside the labels (checked on the first 100 MB of the
+v3 zip). A photo is matched to its item by the id in its name and its kind by
+the word in it, so a variation in that pattern still matches. `profile` prints what it found, including every annotation key,
 so a difference from these assumptions shows before anything is built on it.
 
 Splits (manifests in `eval/data/secondhand/`, committed; labels only):
@@ -213,11 +215,30 @@ def parse_condition(value) -> int | None:
     return int(match.group(1)) if match else None
 
 
+_BAND = re.compile(r"^\s*(?:([<>])\s*(\d+)|(\d+)\s*-\s*(\d+))\s*$")
+
+
+def parse_price_band(value) -> tuple[float, float | None] | None:
+    """A price band as station1 records it, `"<50"`, `"50-100"` or `">500"`,
+    as (low, high); high is None for an open top. None when it is not a band."""
+    text = _text(value)
+    match = _BAND.match(text.replace(" ", "")) if text else None
+    if not match:
+        return None
+    sign, bound, low, high = match.groups()
+    if sign == "<":
+        return 0.0, float(bound)
+    if sign == ">":
+        return float(bound), None
+    return float(low), float(high)
+
+
 def parse_price(value) -> float | None:
     """A number from a raw price: `49`, `"49"`, `"49,50"`, `"49 kr"`. None for
-    empty, non-numeric, negative or non-finite."""
+    empty, non-numeric, negative or non-finite, and for a band such as
+    `"50-100"`, which is not one price (`parse_price_band`)."""
     text = _text(value)
-    if text is None:
+    if text is None or parse_price_band(text) is not None:
         return None
     match = re.search(r"-?\d+(?:[.,]\d+)?", text.replace(" ", ""))
     if not match:
@@ -331,6 +352,7 @@ def price_profile(items: list[Item]) -> dict:
     numbers = [p for r in raw if (p := parse_price(r)) is not None]
     positive = sorted(p for p in numbers if p > 0)
     counts = Counter(numbers)
+    bands = Counter(r for r in raw if r is not None and parse_price_band(r) is not None)
     buckets = [0, 10, 20, 30, 50, 75, 100, 150, 200, 300, 500, 1000, float("inf")]
     histogram = {}
     for low, high in zip(buckets, buckets[1:]):
@@ -339,7 +361,9 @@ def price_profile(items: list[Item]) -> dict:
     return {
         "items": len(items),
         "missing": sum(1 for r in raw if r is None),
-        "unparseable": sum(1 for r in raw if r is not None and parse_price(r) is None),
+        "bands": sum(bands.values()),
+        "unparseable": sum(1 for r in raw if r is not None and parse_price(r) is None
+                           and parse_price_band(r) is None),
         "zero": counts.get(0.0, 0),
         "positive": len(positive),
         "min": positive[0] if positive else None,
@@ -347,6 +371,7 @@ def price_profile(items: list[Item]) -> dict:
         "p90": positive[int(len(positive) * 0.9)] if positive else None,
         "max": positive[-1] if positive else None,
         "most_common": [[value, n] for value, n in counts.most_common(25)],
+        "most_common_bands": [[value, n] for value, n in bands.most_common(10)],
         "histogram": histogram,
     }
 
@@ -439,7 +464,9 @@ def price_rows(items: Iterable[Item], cutoffs: PriceCutoffs) -> tuple[list[Item]
         if item.station != PRICE_STATION:
             continue
         price = parse_price(item.price_raw)
-        if price is None:
+        if price is None and parse_price_band(item.price_raw) is not None:
+            dropped["a price band, not a price"] += 1
+        elif price is None:
             dropped["no parseable price"] += 1
         elif price == 0:
             dropped["zero"] += 1

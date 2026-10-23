@@ -297,7 +297,7 @@ def write_item(root: Path, station: str, n: int, *, photos=("front", "back", "br
     record = {"brand": "Lindex", "type": "Jeans", "category": "Ladies", "condition": 4,
               "price": "", "usage": "Reuse"}
     record.update(labels)
-    (folder / f"labels_{ident}.json").write_text(json.dumps([record]))
+    (folder / f"labels_{ident}.json").write_text(json.dumps(record))  # one object, as in v3
     for kind in photos:
         (folder / f"{kind}_{ident}.jpg").write_bytes(fake_jpeg(1280, 720, f"{kind}{n}".encode()))
     return ident
@@ -318,6 +318,7 @@ def download(tmp_path) -> Path:
     write_item(root, "station3", 63, price="")
     write_item(root, "station3", 64, price="5 000 kr")
     write_item(root, "station3", 65, price="79,50")
+    write_item(root, "station3", 66, price="50-100")
     bad = root / "station2" / "x" / f"labels_{item_id(70)}.json"
     bad.parent.mkdir(parents=True)
     bad.write_text("{not json")
@@ -330,9 +331,16 @@ def download(tmp_path) -> Path:
 class TestParsing:
     @pytest.mark.parametrize("raw, value", [
         ("149", 149.0), (49, 49.0), ("79,50", 79.5), ("49 kr", 49.0), ("5 000 kr", 5000.0),
-        ("", None), (None, None), ("gratis", None), ("-5", None), ({"a": 1}, None)])
+        ("", None), (None, None), ("gratis", None), ("-5", None), ({"a": 1}, None),
+        ("<50", None), ("50-100", None)])
     def test_prices(self, raw, value):
         assert secondhand.parse_price(raw) == value
+
+    @pytest.mark.parametrize("raw, band", [
+        ("<50", (0.0, 50.0)), ("50-100", (50.0, 100.0)), ("100 - 150", (100.0, 150.0)),
+        (">500", (500.0, None)), ("149", None), ("", None), (None, None)])
+    def test_price_bands(self, raw, band):
+        assert secondhand.parse_price_band(raw) == band
 
     @pytest.mark.parametrize("raw, value", [
         (4, 4), ("3", 3), ("5.0", 5), ("2 - Fair", 2), ("0", None), ("6", None), ("", None),
@@ -361,7 +369,7 @@ class TestParsing:
 
     def test_a_folder_download(self, download):
         parsed = secondhand.parse(secondhand.DirSource(download))
-        assert len(parsed.items) == 22
+        assert len(parsed.items) == 23
         assert parsed.problems["malformed JSON"] == 1
         assert parsed.problems["file in json_errors/ (skipped)"] == 1
         assert parsed.problems["front photo missing"] == 1
@@ -411,9 +419,11 @@ class TestProfileAndSplits:
     def test_profile_shows_the_price_distribution(self, download):
         report = secondhand.profile(secondhand.parse(secondhand.DirSource(download)))
         prices = report["price_station3"]
-        assert prices["items"] == 6 and prices["missing"] == 1 and prices["zero"] == 1
+        assert prices["items"] == 7 and prices["missing"] == 1 and prices["zero"] == 1
         assert prices["positive"] == 4 and prices["max"] == 5000.0
-        assert report["by_station"] == {"station1": 16, "station3": 6}
+        assert prices["bands"] == 1 and prices["most_common_bands"] == [["50-100", 1]]
+        assert prices["unparseable"] == 0
+        assert report["by_station"] == {"station1": 16, "station3": 7}
 
     def test_id_gold_eligibility(self, download):
         parsed = secondhand.parse(secondhand.DirSource(download))
@@ -446,7 +456,7 @@ class TestProfileAndSplits:
             parsed.items, secondhand.PriceCutoffs(10, 1000, (49.0,)))
         assert sorted(secondhand.parse_price(i.price_raw) for i in kept) == [79.5, 149.0]
         assert dropped == {"zero": 1, "no parseable price": 1, "fixed value 49": 1,
-                           "above 1000": 1}
+                           "above 1000": 1, "a price band, not a price": 1}
 
     def test_build_writes_manifests_without_images(self, download, tmp_path):
         out = tmp_path / "manifests"
@@ -480,6 +490,8 @@ class TestTypes:
         ("Trousers", "Wool slacks", "match"),
         ("Jacket", "Denim jeans", "miss"),
         ("T-shirt", "Graphic tee, white", "match"),
+        ("Jacker", "Quilted jacket", "match"),
+        ("Tank top", "Ribbed camisole", "match"),
         ("Mystery", "Anything", None),
     ])
     def test_type_verdicts(self, dataset_type, name, verdict):
@@ -646,3 +658,29 @@ class TestPriceScoring:
             [case], {"p": scanclient.ScanOutcome("p", 502, {"code": "ai_no_price"},
                                                  error="ai_no_price")})
         assert result["overall"] == {"n": 0} and worst == []
+
+
+class TestRealRecord:
+    """One station1 record exactly as the v3 zip holds it (CC-BY 4.0), so the
+    field names the parser reads are pinned to the real data."""
+
+    RECORD = {"brand": "Sharp (lindex)", "category": "Ladies", "type": "Blouse", "size": "L",
+              "colors": ["Multicolor", "Black", "Yellow"], "pilling": 5, "condition": 5,
+              "price": "100-150", "damage": "0", "season": "None", "cut": ["Collar"],
+              "pattern": "Floral print", "trend": "No trend", "stains": "No", "usage": "Reuse",
+              "weight": 0, "material": "100% Poly", "comment": ""}
+
+    def test_it_parses(self, tmp_path):
+        ident = "2022_09_23_06_53_07"
+        folder = tmp_path / "station1" / "sep2022"
+        folder.mkdir(parents=True)
+        (folder / f"labels_{ident}.json").write_text(json.dumps(self.RECORD))
+        (folder / f"front_{ident}.jpg").write_bytes(fake_jpeg(1280, 720))
+        [item] = secondhand.parse(secondhand.DirSource(tmp_path)).items
+        assert (item.station, item.brand, item.category, item.type, item.condition) == (
+            "station1", "Sharp (lindex)", "Ladies", "Blouse", 5)
+        assert item.price_raw == "100-150" and secondhand.parse_price(item.price_raw) is None
+        assert item.front == f"station1/sep2022/front_{ident}.jpg" and item.brand_photo is None
+
+    def test_a_sub_brand_label_meets_its_parent(self):
+        assert metrics.brand_verdict("Lindex", "Sharp (lindex)") == "fuzzy"
