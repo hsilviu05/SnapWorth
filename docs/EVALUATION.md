@@ -131,6 +131,8 @@ Records come in through the intake, never by hand-copying the template
 python -m eval.intake zip ~/Downloads/SnapWorth-Flips-2026-10-05.zip
 # Sales that never went through the app: a CSV, one photo per row
 python -m eval.intake csv sales.csv --photos ~/Pictures/sold
+# Approve the drafts one at a time
+python -m eval.review --reviewer Silviu
 python -m eval.cli dataset --path eval/data/gold.jsonl
 ```
 
@@ -139,6 +141,17 @@ Each sale becomes a **draft** with the next id (`G-0001`, …), appended to
 with its `sha256` in the record. `--dry-run` checks every row and writes
 nothing. A draft counts toward nothing until a reviewer sets its evidence and
 label confidence and approves it (`review_state: approved`, `reviewed_by`).
+
+`python -m eval.review` does that one record at a time. It opens the photo,
+shows the label, and offers approve, edit, reject or skip. Approving asks for
+the label confidence and, for `certain` or `high` without evidence, the
+receipt or screenshot: dragged in, it is copied into the private store as
+`evidence/<id>-evidence1.png` and named in the record as `private:evidence/…`.
+A web address is refused, a `currency_assumed` sale asks for the real
+currency, and nothing is approved that `GoldItem.validate` objects to or whose
+photo is missing. Each decision is saved as it is made, and an approved record
+is never offered again, since editing its label afterwards is the drift the
+schema guards against.
 
 **What lives where.** The repository is public. `gold.jsonl` holds labels only
 — price, currency, category, brand, condition, date, region, difficulty, tags,

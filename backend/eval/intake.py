@@ -475,8 +475,8 @@ def main(argv: list[str] | None = None, convert: Converter = sips_converter) -> 
               f"  {item.brand or '-'}  [{item.label_confidence.value}]"
               + (f"  ({flags})" if flags else ""))
     if records and not args.dry_run:
-        print("Next: review each draft, set label_confidence and evidence_note "
-              "(private:<ref>), then approve it with review_state and reviewed_by.")
+        print("Next: python -m eval.review --reviewer <your name> — it opens each "
+              "photo and asks for the label confidence and the receipt.")
     return 0
 
 
