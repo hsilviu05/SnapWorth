@@ -41,7 +41,7 @@ def test_no_date_is_never_converted_at_todays_rate():
 
 def test_a_date_outside_the_table_is_refused():
     with pytest.raises(fx.FxUnavailable):
-        RATES.to_usd(120, "RON", date(2023, 6, 1))
+        RATES.to_usd(120, "RON", date(2022, 6, 1))
 
 
 def test_the_lev_converts_at_its_fixed_rate_after_the_euro():
@@ -50,7 +50,7 @@ def test_the_lev_converts_at_its_fixed_rate_after_the_euro():
 
 
 def test_the_table_version_names_the_file_and_its_hash():
-    assert RATES.version.startswith("ecb-2026-10-06.csv@") and len(RATES.version.split("@")[1]) == 12
+    assert RATES.version.startswith("ecb-2026-10-23.csv@") and len(RATES.version.split("@")[1]) == 12
 
 
 # ── In the runner ────────────────────────────────────────────────────────────

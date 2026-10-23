@@ -18,7 +18,8 @@ Bulgaria adopted the euro on 2026-01-01 and the ECB stopped publishing BGN;
 from then on the lev converts at its fixed conversion rate, 1.95583 per euro.
 
 To refresh: download https://www.ecb.europa.eu/stats/eurofxref/eurofxref-hist.zip,
-keep the columns of `CURRENCIES` from 2024-01-01, and commit the result as
+keep the columns of the current table from 2023-01-01 (the second-hand
+eval's Myrorna prices date from 2023-06), and commit the result as
 `data/fx/ecb-<last date>.csv` beside the old one; `DEFAULT_TABLE` names the
 one runs use. A refresh changes no historical rate the ECB has published, so
 scores of existing sales do not move.
@@ -34,7 +35,7 @@ from functools import lru_cache
 from pathlib import Path
 
 DATA = Path(__file__).resolve().parent / "data" / "fx"
-DEFAULT_TABLE = DATA / "ecb-2026-10-06.csv"
+DEFAULT_TABLE = DATA / "ecb-2026-10-23.csv"
 
 #: How far back a weekend or holiday may look for the last published rate.
 MAX_LOOKBACK_DAYS = 7
