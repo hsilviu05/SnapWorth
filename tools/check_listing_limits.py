@@ -106,6 +106,27 @@ def words(text: str) -> set[str]:
     return {w for w in re.findall(r"[^\W\d_]+", text.lower()) if w not in STOPWORDS}
 
 
+def check_keywords(file: str, field: str, line: str, title_words: set[str],
+                   row, failures: list[str], warnings: list[str]) -> None:
+    row(field, len(line.encode("utf-8")), KEYWORDS_MAX_BYTES, "bytes")
+    print(f"       ({len(line)} characters)")
+    terms = line.split(",")
+    if any(t != t.strip() for t in terms):
+        failures.append(f"{file}: {field}: a space beside a comma wastes a byte")
+    terms = [t.strip().lower() for t in terms]
+    if len(set(terms)) != len(terms):
+        failures.append(f"{file}: {field}: a keyword is repeated")
+    companies = sorted(t for t in terms if t in OTHER_COMPANIES)
+    if companies:
+        failures.append(f"{file}: {field}: other companies (2.3.7): {', '.join(companies)}")
+    short = [t for t in terms if len(t) <= 2]
+    if short:
+        warnings.append(f"{file}: {field}: two characters or fewer: {', '.join(short)}")
+    repeats = sorted(t for t in terms if t in title_words)
+    if repeats:
+        warnings.append(f"{file}: {field}: already in the name or subtitle: {', '.join(repeats)}")
+
+
 def check(path: Path) -> tuple[list[str], list[str]]:
     text = path.read_text(encoding="utf-8")
     failures: list[str] = []
@@ -144,25 +165,15 @@ def check(path: Path) -> tuple[list[str], list[str]]:
     else:
         failures.append(f"{path.name}: no Description found")
 
-    if keywords:
-        row("Keywords", len(keywords.encode("utf-8")), KEYWORDS_MAX_BYTES, "bytes")
-        print(f"       ({len(keywords)} characters)")
-        terms = keywords.split(",")
-        if any(t != t.strip() for t in terms):
-            failures.append(f"{path.name}: a space beside a comma in Keywords wastes a byte")
-        terms = [t.strip().lower() for t in terms]
-        if len(set(terms)) != len(terms):
-            failures.append(f"{path.name}: a keyword is repeated")
-        companies = sorted(t for t in terms if t in OTHER_COMPANIES)
-        if companies:
-            failures.append(f"{path.name}: other companies in Keywords (2.3.7): {', '.join(companies)}")
-        short = [t for t in terms if len(t) <= 2]
-        if short:
-            warnings.append(f"{path.name}: keywords of two characters or fewer: {', '.join(short)}")
-        title_words = words(f"{name or ''} {subtitle or ''}")
-        repeats = sorted(t for t in terms if t in title_words)
-        if repeats:
-            warnings.append(f"{path.name}: already in the name or subtitle: {', '.join(repeats)}")
+    title_words = words(f"{name or ''} {subtitle or ''}")
+    lines = [("Keywords", keywords)] if keywords else []
+    # A localization with its own line (Spanish (Mexico) beside Spanish
+    # (Spain)) gives it under a bold label that says "keywords".
+    lines += [(f"Keywords ({label[:22]})", text)
+              for label, text in promo_texts(section(text, "Keywords"))
+              if "keywords" in label.lower()]
+    for field, line in lines:
+        check_keywords(path.name, field, line, title_words, row, failures, warnings)
     print()
     return failures, warnings
 

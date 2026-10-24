@@ -90,6 +90,12 @@ terms worth having.
 
 ## Promotional Text (170 chars — update anytime without resubmitting)
 
+**Proposed — search-led (156 chars), 2026-10-24.** Opens with the question
+a buyer types, as the English page's does. Needs a native reader before it
+replaces the primary.
+
+Was ist es wert? Fotografier jeden Second-Hand-Fund und sieh in Sekunden eine KI-Schätzung für den Wiederverkauf – bevor du zahlst. Ein Gratis-Scan pro Tag.
+
 **Primary — pain-led (162 chars).**
 
 Die Jacke für 4 € kann 90 wert sein. Scann jeden Second-Hand-Fund und sieh in Sekunden, was er im Wiederverkauf bringt – bevor du zahlst. Ein Gratis-Scan pro Tag.
@@ -184,22 +190,23 @@ snapworth.eu
 ---
 
 ## Keywords (100 chars max)
-kleinanzeigen,vinted,ebay,kleidung,vintage,flohmarkt,verkaufen,gewinn,gebraucht,schätzen,marke
+flohmarkt,trödel,kleidung,vintage,gebraucht,verkaufen,gewinn,schätzen,preis,sneaker,schnäppchen
 
-94 characters, 95 bytes (the *ä* in `schätzen` is two). Words already in the
-name or subtitle (wiederverkauf, wert, second, hand, scannen) are indexed from
-there and are not repeated.
+**Changed 2026-10-24.** `kleinanzeigen`, `vinted` and `ebay` are out: App
+Store Connect Help, *Platform version information*: "Names of other apps or
+companies aren't allowed" in Keywords (Guideline 2.3.7 says the same). The
+description still names all three as marketplaces the app writes listings
+for. In their place, the words a German buyer searches with rather than the
+platform they sell on: `flohmarkt` leads, `trödel` is back, and `preis`,
+`sneaker` and `schnäppchen` are new. `marke` came out to fit.
 
-**Kleinanzeigen leads**, and it earned the position: it is the biggest
-secondhand platform in Germany, and the app supports it properly now — its own
-fee entry (no commission on a private ad) and a backend prompt that writes the
-ad in German. On the first version of this page it was deliberately absent,
-because the app had no fee table for it and a keyword is a claim. That is what
-changed.
+Words already in the name or subtitle (wiederverkaufswert, wert, second, hand,
+scannen) are not repeated. Byte count by `tools/check_listing_limits.py`: each
+*ä* and *ö* is two bytes. **TODO(owner):** a native reader, as for the rest.
 
-Vinted and eBay follow for the same reason they always could: real fee tables,
-both dominant here. `trödel` came out to make room — it is a narrower word than
-anything it displaced.
+The previous line, kept for the record:
+`kleinanzeigen,vinted,ebay,kleidung,vintage,flohmarkt,verkaufen,gewinn,gebraucht,schätzen,marke`
+(95 bytes).
 
 ---
 
