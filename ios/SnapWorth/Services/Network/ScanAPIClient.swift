@@ -556,6 +556,7 @@ enum AuthenticityRead: String, CaseIterable {
 enum ConfidenceReason: String, CaseIterable {
     case brandIdentified        = "brand_identified"
     case brandUnidentified      = "brand_unidentified"
+    case brandNotFromLabel      = "brand_not_from_label"
     case rangeUnusable          = "range_unusable"
     case rangeTight             = "range_tight"
     case rangeVeryWide          = "range_very_wide"
@@ -587,6 +588,8 @@ enum ConfidenceReason: String, CaseIterable {
             return String(localized: "the brand is identified", comment: "Confidence reason")
         case .brandUnidentified:
             return String(localized: "the brand could not be identified", comment: "Confidence reason")
+        case .brandNotFromLabel:
+            return String(localized: "the brand was not confirmed from a label photo", comment: "Confidence reason")
         case .rangeUnusable:
             return String(localized: "the price range is not usable", comment: "Confidence reason")
         case .rangeTight:

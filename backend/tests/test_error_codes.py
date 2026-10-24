@@ -282,7 +282,7 @@ class TestConfidenceReasonCodes:
             {"identification_certainty": "uncertain"},
             {"authenticity": "cannot_verify"}, {"authenticity": "likely_replica"},
             {"demand": None}, {"model_field_count": 1},
-            {"was_clamped": True},
+            {"was_clamped": True}, {"label_photo": False},
         ]
         produced: set[str] = set()
         for variant in variants:

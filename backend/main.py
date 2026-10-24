@@ -2552,6 +2552,7 @@ async def _analyse(image_bytes: bytes, content_type: str, *, subject: str,
         expected_field_count=len(valuation_module.EXPECTED_OPTIONAL_FIELDS),
         range_synthesised=val.prices.single_price,
         unread_specifics=val.unread_specifics,
+        label_photo=tag_bytes is not None,
     )
     val.confidence = conf
     metrics.confidence_score.observe(conf.score)
