@@ -173,6 +173,13 @@ searches with, and it is two words that no single term replaces. `escanea` and
 
 ## Promotional Text (170 chars — update anytime without resubmitting)
 
+**Proposed — search-led (164 chars), 2026-10-24.** Spanish (Spain) and
+Spanish (Mexico) alike: it names no currency. Opens with the question a buyer
+types, as the English page's does. Needs a native reader before it replaces
+the primary.
+
+¿Cuánto vale? Fotografía cualquier cosa de segunda mano y obtén en segundos una estimación con IA de su precio de reventa, antes de pagar. Un escaneo gratis al día.
+
 **Primary — pain-led (163 chars).** Spanish (Spain) only: see *What differs in
 Spanish (Mexico)* above.
 
@@ -269,17 +276,35 @@ snapworth.eu
 ---
 
 ## Keywords (100 chars max)
-vinted,ebay,ropa,vintage,tasar,valor,ganancia,mercadillo,usado,chollo,revender,segundamano
+ropa,vintage,tasar,valor,ganancia,mercadillo,rastro,usado,chollo,revender,segundamano,zapatillas
 
-90 characters. Words already in the name or subtitle (precio, reventa,
-escanea, revende, segunda, mano) are indexed from there and are not repeated.
-`segundamano` as one word is a real search and a different token from the
-two-word phrase in the subtitle.
+**Spanish (Spain).** Keywords belong to a localization, so Spain and Mexico
+can each search their own words while sharing everything else in this file.
+**Changed 2026-10-24:** `vinted` and `ebay` are out. App Store Connect Help,
+*Platform version information*: "Names of other apps or companies aren't
+allowed" in Keywords (Guideline 2.3.7 says the same); the description still
+names both as marketplaces the app writes listings for. In Spain's line,
+`rastro` (the Sunday flea market, and the word for one) and `zapatillas`
+took their place, beside `mercadillo` and `chollo`.
 
-Vinted and eBay are here because they are the two Spanish-market platforms the
-app actually supports, with real fee tables. **Wallapop and Milanuncios are
-deliberately absent** — they dominate Spanish resale and it is tempting, but
-the app has no fee table for either, and a keyword is a claim.
+**Spanish (Mexico) keywords**
+
+ropa,vintage,tasar,valor,ganancia,tianguis,paca,bazar,usado,revender,segundamano,tenis,marcas
+
+`tianguis` and `bazar` are where Mexico buys second-hand, `paca` is the
+bale of used clothing a reseller buys from, and `tenis` is the Mexican word
+for trainers. `mercadillo`, `rastro` and `chollo` are Spain's words and are
+not in this line.
+
+Words already in the name or subtitle (precio, reventa, escanea, revende,
+segunda, mano) are not repeated in either line. `segundamano` as one word is
+a real search and a different token from the subtitle's two-word phrase.
+Byte counts by `tools/check_listing_limits.py`. **TODO(owner):** a native
+reader for each, ideally one from Spain and one from Mexico.
+
+The previous shared line, kept for the record:
+`vinted,ebay,ropa,vintage,tasar,valor,ganancia,mercadillo,usado,chollo,revender,segundamano`
+(90).
 
 ---
 

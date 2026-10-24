@@ -179,9 +179,19 @@ snapworth.eu
 ---
 
 ## Keywords (100 chars max)
-闲鱼,二手,估价,转卖,中古,古着,球鞋,名牌,包包,潮牌,闲置,旧货,捡漏,回收,奢侈品,值多少,卖闲置,二手交易,拍照识物
+中古,古着,球鞋,名牌,包包,潮牌,闲置,旧货,捡漏,回收,奢侈品,值多少,卖闲置
 
-63 characters. Chinese keywords are short, so this field goes much
+41 characters, **99 bytes. Changed 2026-10-24**, for two reasons, both from
+App Store Connect Help, *Platform version information* (read 2026-10-24):
+the limit is "up to 100 bytes", which the line before was over at 153, and
+"Names of other apps or companies aren't allowed", which rules out 闲鱼. This
+is the old fallback line below without 闲鱼, plus 卖闲置 back in the byte it
+freed. The description still names 闲鱼 as a marketplace the app writes
+listings for. The previous line, kept for the record:
+`闲鱼,二手,估价,转卖,中古,古着,球鞋,名牌,包包,潮牌,闲置,旧货,捡漏,回收,奢侈品,值多少,卖闲置,二手交易,拍照识物`
+(63 characters, 153 bytes). What follows is the reasoning written for it.
+
+The old line: 63 characters. Chinese keywords are short, so this field goes much
 further than in any Latin language — nineteen terms fit where the Spanish page
 managed twelve. Commas are ASCII: App Store Connect splits on those, not on
 `、`.
@@ -210,9 +220,9 @@ unlike every other locale's line. That may be right for Chinese, where the
 name is not split on spaces, or it may be three wasted terms; nothing here
 measures which. 二手交易 carries 二手 in a different compound.
 
-闲鱼 is here because the app genuinely supports it now, with a fee entry and a
-Chinese listing generator. It would have been the single highest-value keyword
-on this page and it would have been a lie a week ago.
+闲鱼 was here because the app genuinely supports it, with a fee entry and a
+Chinese listing generator. Support makes it true; it does not make it allowed
+in the keyword field (above).
 
 Deliberately absent: 转转 and 得物, both large Chinese resale platforms the app
 has no fee table for. Also absent: 鉴定 (authentication), which is searched

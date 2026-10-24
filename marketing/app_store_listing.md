@@ -67,17 +67,31 @@ the listing mirrors the app: change "Read the care tag for a sharper estimate"
 in `ios/Localization/App.json` first if it changes.
 
 ## App name (30 chars max)
-SnapWorth: Resell & Flip
+SnapWorth: Thrift Resale Value
 
-24 characters. The live name, kept for 1.5.1 (owner, 2026-09-28). The
-alternative was "SnapWorth: Resale Value", which would have put `resale` and
-`value` in the name; with this name they have to be in the keywords, so the
-keyword line below carries them.
+30 characters. **Proposed 2026-10-24 for the version after 1.6.0** (name,
+subtitle and keywords are per version; a version in review cannot take them).
+The name is the most heavily weighted search field, and the category's two
+main terms, `resale` and `value`, were in neither it nor the subtitle; `thrift`
+names who it is for. Counts: `python3 tools/check_listing_limits.py`.
+
+Was "SnapWorth: Resell & Flip" (24), kept for 1.5.1 (owner, 2026-09-28). Its
+`resell` and `flip` move to the keywords below. The alternative considered
+then, "SnapWorth: Resale Value", is this one without `thrift`.
 
 ## Subtitle (30 chars max)
-Thrift Store Flip Scanner
+What's It Worth? Price Checker
 
-25 characters.
+30 characters. **Proposed 2026-10-24**, with the name above. It is the
+question a thrifter types, word for word, and `price checker` is the other
+phrase this audience searches. None of its words repeat the name.
+
+**TODO(owner):** 1.6.0 went to review with a new subtitle from the
+2026-10-19 analytics review (`RELEASE-NOTES-1.6.0.md`), and that subtitle is
+not recorded here. Write it here before replacing it, and compare
+Acquisition → Sources → Search terms before and after.
+
+Was "Thrift Store Flip Scanner" (25), which repeated the name's "Flip".
 
 The previous subtitle, "Resale Value in Seconds", repeated the two words
 already in the app name — the one field Apple both indexes for search *and*
@@ -95,6 +109,12 @@ change.
 This field is not tied to a build. It can be swapped any time from App Store
 Connect, which makes it the right place to test hooks and to carry anything
 seasonal or time-limited. Keep the standing terms in the Description instead.
+
+**Proposed — search-led (145 chars).** Opens with the subtitle's question,
+and carries `thrift`, `resale value` and `estimate` in the first line. Can be
+pasted any time, without a new version.
+
+What's it worth? Snap any thrift find and get an AI resale value estimate in seconds, before you pay. One free scan every day, no account needed.
 
 **Live — pain-led (153 chars).** Reuses the onboarding headline, so the
 store page and first launch say the same thing. The strongest hook of the three.
@@ -114,13 +134,15 @@ or market data — SnapWorth has no such source.
 
 ---
 
-## Description (4000 chars max; 3,126 with line breaks)
+## Description (4000 chars max; 3,349 with line breaks)
 
-Ever picked up something at a thrift store and wondered if it's actually worth something? SnapWorth tells you instantly.
+What's it worth? Ever picked up something at a thrift store and wondered if it's worth reselling? SnapWorth is a thrift scanner and price checker for resellers: one photo, and you know in seconds.
 
-Point your camera at any secondhand item — a jacket, a pair of sneakers, a vintage camera, a designer bag — and our AI identifies it and estimates a resale value range in seconds.
+Point your camera at any secondhand item — a jacket, a pair of sneakers, a vintage camera, a designer bag — and our AI identifies it and estimates its resale value as a price range, with a confidence level.
 
-No more guessing. No more leaving $100 flips on the shelf.
+Clothing, shoes, accessories, electronics, books, furniture, homeware, sports gear, toys and collectibles.
+
+No more guessing at the till. No more leaving $100 flips on the shelf.
 
 --------------------------
 
@@ -191,9 +213,25 @@ snapworth.eu
 ---
 
 ## Keywords (100 chars max)
-resale,value,secondhand,vintage,goodwill,poshmark,mercari,depop,ebay,thrifting,worth,price,profit
+scanner,flip,flipping,resell,reseller,item,secondhand,vintage,estimate,profit,clothes,sneakers,haul
 
-97 characters, for the name "SnapWorth: Resell & Flip". `resale` and `value`,
+99 bytes, for the proposed name and subtitle above, and none of their words
+repeated (thrift, resale, value, what's, worth, price, checker). **No other
+company's name.** App Store Connect Help, *Platform version information*
+(read 2026-10-24), on Keywords: "Names of other apps or companies aren't
+allowed", and Guideline 2.3.7 says the same of all metadata. The line before
+this one led with goodwill, poshmark, mercari, depop and ebay; the
+description still names the marketplaces the app writes listings for, which
+is a feature, not a keyword. `tools/check_listing_limits.py` now fails on
+another company in any locale's Keywords.
+
+`resell` and `flip` come down from the old name. `item` pairs with the
+name's `value` for "item value". Check Acquisition → Sources → Search terms
+a week after it goes live.
+
+The previous line, kept for the record:
+`resale,value,secondhand,vintage,goodwill,poshmark,mercari,depop,ebay,thrifting,worth,price,profit`
+(97 characters), for the name "SnapWorth: Resell & Flip". `resale` and `value`,
 the category's two main search terms, are in neither the name nor the
 subtitle, so they lead here. Words already in the name or subtitle (resell,
 flip, thrift, store, scanner) are indexed from there and are not repeated.
@@ -203,6 +241,46 @@ the name's "Resell". That is a judgment, not a measurement: check Acquisition
 Depop are searched by exactly this audience and are honest claims from 1.3.4.
 Vinted was dropped as a keyword only; it is still supported and still named in
 the description.
+
+## Screenshots — proposed order (2026-10-24)
+
+The value result moves to first: the name and subtitle above ask "what's it
+worth?", and the first frame should answer it on the search card. Thrift
+Flip, first in `SCREENSHOT-SPEC.md` §1, follows it directly. Frames 1–4 and
+7–10 are the spec's existing frames with their existing captions where
+unchanged; 5 and 6 are the 1.6.0 Pro features. Every Pro frame says Pro on
+the frame (Guideline 2.3.2), every free frame is captured on the free tier,
+and every screen must be the app as it ships (2.3.3). The accent word is in
+*italics*, as `build_screenshots.py` sets it.
+
+| # | Frame | Tier | Headline | Line under it |
+|---|---|---|---|---|
+| 1 | Result | Free | What's it *worth?* | An AI resale estimate from one photo, with its confidence level. |
+| 2 | Thrift Flip | Free | Profit, after *fees.* | Shop price in, fees out: a verdict before you buy. Free with your daily scan. |
+| 3 | Haul mode | **Pro** | Scan a whole *haul.* | With Pro: snap item after item while each is valued, with a running total. |
+| 4 | Snap → Sell | **Pro** | Your listing, already *written.* | With Pro: a title and description tailored to where you sell, on nine marketplaces. |
+| 5 | Rack scan | **Pro** | Which one's *worth it?* | With Pro: one photo of a rail, shelf or bin, and the items most worth a closer look. |
+| 6 | Legit check | **Pro** | Check the *details.* | With Pro: guided close-ups, read for the usual signs of a replica. Not a certification. |
+| 7 | My Flips | Free | Every flip, *tracked.* | What you paid, what it sold for, and what you made after fees. |
+| 8 | Widgets | Free | Your finds, at a *glance.* | Home Screen and Lock Screen widgets: total value, recent finds, one-tap scan. |
+| 9 | Privacy | Free | Your photos stay *yours.* | Never stored on our servers. No account. Your scan history stays on your device. |
+| 10 | Plans | — | One *free* scan, every day. | Then Pro, when you want more. Cancel anytime. |
+
+* **Frame 1's headline is new**; the screen is the spec's frame 3 (range,
+  confidence band, *AI estimate*), and its line is unchanged. The result
+  shows *AI estimate*, never sold listings or comps (`SCREENSHOT-SPEC.md`,
+  *Never show*).
+* **Frames 5 and 6 need capturing**: the Rack scan picks screen and a Legit
+  check verdict with its disclaimer visible. Frame 6's line repeats the
+  app's own "not a certification" wording, so the frame cannot read as an
+  authentication service.
+* 1.6.0's first screenshot may already have changed (*Subtitle*, TODO above).
+  If it did, record which before replacing it, so the two can be compared in
+  Acquisition → Sources.
+* The localized captions follow `SCREENSHOT-SPEC.md` §5: a caption in a
+  language goes only over a screen captured in that language.
+
+---
 
 ## Category
 Primary: Shopping
