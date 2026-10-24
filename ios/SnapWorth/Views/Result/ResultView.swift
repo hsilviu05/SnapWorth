@@ -356,11 +356,16 @@ struct ResultView: View {
         // runs when a fresh sheet opens uncovered (guess-first off) and again
         // at the reveal; a sheet dismissed inside the pause cancels it rather
         // than prompting over the camera.
+        //
+        // Checked again after the pause: the paywall, a share sheet or the tag
+        // camera opened inside it covers the result without cancelling this
+        // task, and the system prompt would land on top of that screen.
         .task(id: priceCovered) {
             guard Self.asksForReview(isFreshScan: isFreshScan, priceCovered: priceCovered,
-                                     confidence: result.confidence) else { return }
+                                     confidence: result.confidence,
+                                     isCovered: isCoveredByAnotherScreen) else { return }
             try? await Task.sleep(for: .seconds(2))
-            guard !Task.isCancelled else { return }
+            guard !Task.isCancelled, !isCoveredByAnotherScreen else { return }
             ReviewPrompt.requestIfDue()
         }
         // `Double(newValue)` here discarded every comma-decimal amount — see
@@ -654,8 +659,18 @@ struct ResultView: View {
     /// Whether to ask for a rating once this result is on screen: a fresh
     /// scan, after the price has been uncovered (never while a guess is
     /// still hiding it), and not on an estimate too weak to be pleased by.
-    static func asksForReview(isFreshScan: Bool, priceCovered: Bool, confidence: String) -> Bool {
-        isFreshScan && !priceCovered && ReviewPrompt.isWorthAskingAbout(confidence: confidence)
+    /// `isCovered`: something is presented over the result (see
+    /// `isCoveredByAnotherScreen`), so the result is not what the user sees.
+    static func asksForReview(isFreshScan: Bool, priceCovered: Bool, confidence: String,
+                              isCovered: Bool = false) -> Bool {
+        isFreshScan && !priceCovered && !isCovered
+            && ReviewPrompt.isWorthAskingAbout(confidence: confidence)
+    }
+
+    /// Every screen, sheet or dialog this view presents over the result.
+    var isCoveredByAnotherScreen: Bool {
+        showPaywall || showShareSheet || showListingShare || showShareChoice
+            || showTagCamera || showLegitCheck || vm.showSubscriptionUnconfirmed
     }
 
     /// What the paywall opened from this result leads with.

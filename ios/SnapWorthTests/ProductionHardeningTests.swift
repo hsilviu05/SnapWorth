@@ -9409,6 +9409,12 @@ final class ReviewPromptTimingTests: XCTestCase {
                                                 confidence: "Low"), "must skip a Low estimate")
         XCTAssertFalse(ResultView.asksForReview(isFreshScan: false, priceCovered: false,
                                                 confidence: "High"), "a reopened find")
+        XCTAssertFalse(ResultView.asksForReview(isFreshScan: true, priceCovered: false,
+                                                confidence: "High", isCovered: true),
+                       "never over the paywall or a share sheet")
+        // And re-checked after the pause, when a sheet may have opened.
+        let view = try source("Views/Result/ResultView.swift")
+        XCTAssertTrue(view.contains("guard !Task.isCancelled, !isCoveredByAnotherScreen else { return }"))
     }
 
     func test_theRequestIsCounted() {
