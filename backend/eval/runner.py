@@ -706,6 +706,8 @@ async def _predict_one(model, item: EvalItem, prompt_text: str, version: str, ro
         expected_field_count=len(valuation_module.EXPECTED_OPTIONAL_FIELDS),
         range_synthesised=val.prices.single_price,
         unread_specifics=val.unread_specifics,
+        # The runner sends the item photo alone, as a free /scan does.
+        label_photo=False,
     )
 
     prediction.predicted_expected = val.prices.expected

@@ -112,6 +112,20 @@ _AUTHENTICITY_SCORE = {
 REPLICA_CEILING = 30
 UNCERTAIN_ID_CEILING = HIGH_THRESHOLD - 1
 
+#: A garment's brand named without a label photo caps here, just below High.
+#: On the second-hand clothing eval (2026-10-23, 261 garments, front photo
+#: only) the scan named 121 brands and 91 were wrong; the right ones scored
+#: 61–94 and the wrong ones 65–94, so no weight on the brand signal separates
+#: them, and every High answer was one that named a brand. Telling the model
+#: to name only what it reads (prompt v2.3) and holding the brand to its own
+#: `visual_evidence` (#382) each removed under a fifth of the wrong ones,
+#: because it writes tag readings it cannot see ("'OLD NAVY' wordmark visible
+#: on neck tag" on a print a few pixels high). A label photo is the reading it
+#: cannot invent. Clothing only: that is what was measured.
+UNLABELLED_CLOTHING_BRAND_CEILING = HIGH_THRESHOLD - 1
+UNLABELLED_BRAND_REASON = "the brand was not confirmed from a label photo"
+UNLABELLED_BRAND_CODE = "brand_not_from_label"
+
 #: The identification signal when the model named a size or style number it
 #: did not show it read (`compute`'s `unread_specifics`).
 UNREAD_CERTAINTY = 0.4
@@ -134,7 +148,7 @@ UNVERIFIED_AUTHENTICITY_CODE = "authenticity_unverified"
 #: drive every branch of `compute` and require this to be exactly what they
 #: produce, so a code added below without being added here fails them.
 REASON_CODES = frozenset({
-    "brand_identified", "brand_unidentified",
+    "brand_identified", "brand_unidentified", UNLABELLED_BRAND_CODE,
     "range_unusable", "range_tight", "range_very_wide", "range_moderately_wide",
     "range_single_price",
     "photo_soft", "photo_lighting_uneven", "photo_low_resolution", "photo_low_contrast",
@@ -237,6 +251,7 @@ def compute(
     expected_field_count: int = 0,
     range_synthesised: bool = False,
     unread_specifics: bool = False,
+    label_photo: bool | None = None,
 ) -> ConfidenceResult:
     """Compute confidence from observable signals.
 
@@ -251,6 +266,11 @@ def compute(
     them, but a model that claims more than it read has identified the item
     less surely than it says: the identification reads as "the exact model
     could not be pinned down", and the score stays below High.
+
+    `label_photo` says whether a label photo came with the item photo. False
+    keeps a garment whose brand was named below High
+    (`UNLABELLED_CLOTHING_BRAND_CEILING`); None, a caller that does not say,
+    applies no cap.
     """
     signals: list[ConfidenceSignal] = []
 
@@ -411,6 +431,15 @@ def compute(
         score = min(score, UNCERTAIN_ID_CEILING)
     if auth_key == "likely_replica":
         score = min(score, REPLICA_CEILING)
+
+    # ── A garment's brand without a label photo ─────────────────────────────
+    # See UNLABELLED_CLOTHING_BRAND_CEILING. The signal is added only when the
+    # cap binds, so it is the reason shown for the badge it lowered.
+    if (label_photo is False and cat == "clothing" and brand_known
+            and score > UNLABELLED_CLOTHING_BRAND_CEILING):
+        score = UNLABELLED_CLOTHING_BRAND_CEILING
+        signals.append(ConfidenceSignal(
+            "label", 0.0, 0.0, UNLABELLED_BRAND_REASON, UNLABELLED_BRAND_CODE))
 
     # ── Hard override ───────────────────────────────────────────────────────
     # Clamping means the model produced a number outside the plausible band for

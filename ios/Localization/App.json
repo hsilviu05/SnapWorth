@@ -6345,6 +6345,14 @@
       "de": "die Marke konnte nicht erkannt werden",
       "zh-Hans": "无法识别品牌"
     },
+    "the brand was not confirmed from a label photo": {
+      "comment": "One reason under the confidence score in \"Why this price\": a lower-case clause, no full stop, shown as a bullet. In English the server's own clause is shown instead.",
+      "en": "the brand was not confirmed from a label photo",
+      "ro": "marca nu a fost confirmată dintr-o poză a etichetei",
+      "es": "la marca no se ha confirmado con una foto de la etiqueta",
+      "de": "die Marke wurde nicht durch ein Etikettfoto bestätigt",
+      "zh-Hans": "品牌未经标签照片确认"
+    },
     "the brand is identified": {
       "comment": "One reason under the confidence score in \"Why this price\": a lower-case clause, no full stop, shown as a bullet. In English the server's own clause is shown instead.",
       "en": "the brand is identified",
