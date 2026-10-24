@@ -33,7 +33,7 @@ from dataclasses import dataclass, field
 
 from scan import categories
 from scan import promptsafety
-from scan.confidence import ConfidenceResult
+from scan.confidence import ConfidenceResult, brand_is_known
 from scan.imagequality import ImageQuality
 
 log = logging.getLogger("snapworth.valuation")
@@ -364,6 +364,14 @@ def _footwear_as_shoes(val: Valuation) -> Valuation:
 # design, so they are the two specifics checked here: each must appear in the
 # evidence the model cited. A named style ("Better Sweater") can be known on
 # sight and is left to the prompt.
+#
+# The brand is checked the same way. The second-hand clothing eval
+# (2026-10-23, 261 garments, front photo only) got 91 wrong brands out of 121
+# named, L.L.Bean for a Lindex sweater among them, 89 under a High badge; a
+# prompt rule asking for a legible name (v2.3) removed only 18 of them. Every
+# prompt since v2 already says a brand must trace to `visual_evidence`, and a
+# logo the model can name is cited by name ("Patagonia wordmark on left
+# chest"), so the brand's own words have to be in it.
 
 _WORD = re.compile(r"[a-z0-9]+(?:\.[0-9]+)?")
 
@@ -383,6 +391,11 @@ _SIZE_MENTION = re.compile(
     r"[a-z0-9][a-z0-9./]*\)?", re.IGNORECASE)
 
 
+#: Words a brand's name can carry that say nothing about which brand it is:
+#: "The North Face" is cited as "North Face logo", "Ellie & Mae" as "ELLIE AND MAE".
+_BRAND_FILLER = frozenset({"the", "and", "co", "company", "inc", "ltd"})
+
+
 def _words(text: str) -> list[str]:
     return _WORD.findall(text.lower())
 
@@ -399,11 +412,12 @@ def _tidy(text: str) -> str:
 
 
 def hold_to_evidence(val: Valuation) -> Valuation:
-    """Drop a size and any style number the cited evidence does not show.
+    """Drop a size, any style number and a brand the cited evidence does not show.
 
     The size goes from `size`, and its "Size …" mention from `item_name` and
-    `listing_title`; a style number goes from those two and from `model`.
-    `unread_specifics` records that either happened. A reply with no
+    `listing_title`; a style number goes from those two and from `model`; a
+    brand becomes "Unknown" and leaves `item_name` and `listing_title`.
+    `unread_specifics` records that any of them happened. A reply with no
     `visual_evidence` at all (v1 asks for none) is left as it is: there is
     nothing to check it against.
     """
@@ -438,6 +452,16 @@ def hold_to_evidence(val: Valuation) -> Valuation:
         val.listing_title = _tidy(pattern.sub("", val.listing_title))
         if val.model:
             val.model = _tidy(pattern.sub("", val.model)) or None
+
+    if brand_is_known(val.brand):
+        wanted = [w for w in _words(val.brand) if w not in _BRAND_FILLER]
+        if wanted and not all(w in seen for w in wanted):
+            unread = True
+            pattern = re.compile(r"(?<!\w)" + re.escape(val.brand) + r"(?:'s)?(?!\w)",
+                                 re.IGNORECASE)
+            val.item_name = _tidy(pattern.sub("", val.item_name)) or val.item_name
+            val.listing_title = _tidy(pattern.sub("", val.listing_title))
+            val.brand = "Unknown"
 
     val.unread_specifics = unread
     return val

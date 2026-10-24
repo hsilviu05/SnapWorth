@@ -1,8 +1,10 @@
-"""A size or style number the photo does not show, and footwear filed as clothing.
+"""A size, style number or brand the photo does not show, and footwear filed as clothing.
 
 From a customer's scans on 2026-10-20: one pair of sandals came back as sizes
 7.5 and 8, a pair of boots as 9 and 6 with style numbers like "EMI-7857" no
 photo showed, and two of the boots under "clothing", every one of them High.
+The brand from the second-hand clothing eval (2026-10-23): L.L.Bean for a
+Lindex sweater with no brand legible, under a High badge.
 """
 
 from __future__ import annotations
@@ -44,7 +46,7 @@ class TestSize:
 
     def test_a_size_the_evidence_reads_is_kept(self):
         v = _val(item_name="Myra Ankle Boots, Size US 9", size="US 9",
-                 visual_evidence=["insole stamp reads 9"])
+                 visual_evidence=["Myra logo on the insole", "insole stamp reads 9"])
         assert v.size == "US 9"
         assert v.item_name == "Myra Ankle Boots, Size US 9"
         assert not v.unread_specifics
@@ -67,7 +69,7 @@ class TestStyleNumber:
 
     def test_a_style_number_the_evidence_reads_is_kept(self):
         v = _val(item_name="Myra S-0279 Ankle Boots", model="S-0279",
-                 visual_evidence=["box label reads S-0279"])
+                 visual_evidence=["box label reads Myra S-0279"])
         assert v.model == "S-0279"
         assert "S-0279" in v.item_name
         assert not v.unread_specifics
@@ -77,9 +79,62 @@ class TestStyleNumber:
         "Levi's 501 Jeans, 2015-2020",        # no letters in it
     ])
     def test_hyphenated_words_that_are_not_style_numbers_stay(self, name):
-        v = _val(item_name=name, visual_evidence=["wordmark on chest"])
+        v = _val(item_name=name, visual_evidence=["Myra wordmark on chest"])
         assert v.item_name == name
         assert not v.unread_specifics
+
+
+class TestBrand:
+    def test_a_brand_the_evidence_does_not_name_is_dropped(self):
+        v = _val(brand="L.L.Bean", category="clothing",
+                 item_name="L.L.Bean Women's Cable Knit Sweater, Navy",
+                 listing_title="L.L.Bean Cable Knit Sweater Navy Wool",
+                 visual_evidence=["cable-knit pattern on front", "ribbed cuffs and hem"])
+        assert v.brand == "Unknown"
+        assert v.item_name == "Women's Cable Knit Sweater, Navy"
+        assert v.listing_title == "Cable Knit Sweater Navy Wool"
+        assert v.unread_specifics
+
+    @pytest.mark.parametrize("brand, evidence", [
+        ("Vero Moda", "neck label reads VERO MODA"),
+        ("H&M", "H&M care label"),
+        ("Levi's", "Levi's red tab on back pocket"),
+        ("The North Face", "North Face logo on left chest"),
+        ("Ellie & Mae", "label reads ELLIE AND MAE"),
+        ("Polarn O. Pyret", "Polarn O. Pyret label at neck"),
+    ])
+    def test_a_brand_the_evidence_names_is_kept(self, brand, evidence):
+        v = _val(brand=brand, item_name=f"{brand} Top", visual_evidence=[evidence])
+        assert v.brand == brand
+        assert v.item_name == f"{brand} Top"
+        assert not v.unread_specifics
+
+    def test_every_word_of_the_brand_has_to_be_there(self):
+        """"Navy" in a colour is not "Old Navy"."""
+        v = _val(brand="Old Navy", item_name="Old Navy Cardigan",
+                 visual_evidence=["navy blue knit cardigan"])
+        assert v.brand == "Unknown"
+        assert v.item_name == "Cardigan"
+
+    def test_a_possessive_goes_with_the_brand(self):
+        v = _val(brand="Tommy Hilfiger", item_name="Tommy Hilfiger's Check Shirt",
+                 visual_evidence=["red and navy check"])
+        assert v.item_name == "Check Shirt"
+
+    def test_a_name_that_would_be_empty_is_kept(self):
+        v = _val(brand="Gap", item_name="Gap", visual_evidence=["grey hoodie"])
+        assert v.brand == "Unknown"
+        assert v.item_name == "Gap"
+
+    @pytest.mark.parametrize("brand", ["Unknown", "Unbranded", "Generic", ""])
+    def test_no_brand_is_nothing_to_check(self, brand):
+        v = _val(brand=brand, item_name="Black Wool Coat", visual_evidence=["wool coat"])
+        assert v.item_name == "Black Wool Coat"
+        assert not v.unread_specifics
+
+    def test_a_brand_inside_another_word_stays(self):
+        v = _val(brand="Gap", item_name="Gapless Seam Tee", visual_evidence=["seams"])
+        assert v.item_name == "Gapless Seam Tee"
 
 
 class TestNothingToCheckAgainst:
@@ -140,6 +195,14 @@ class TestConfidence:
 
 
 class TestServed:
+    def test_scan_drops_an_unread_brand_and_is_not_high(self, monkeypatch):
+        payload = {**V2_PAYLOAD,
+                   "visual_evidence": ["navy quarter-zip fleece", "interior tag reads M"]}
+        body = _scan(monkeypatch, payload, version="v2")[0].json()
+        assert body["brand"] == "Unknown"
+        assert "Patagonia" not in body["item_name"]
+        assert body["confidence"] != "High"
+
     def test_scan_drops_the_unread_size_and_is_not_high(self, monkeypatch):
         payload = {**V2_PAYLOAD,
                    "item_name": "Patagonia Better Sweater 1/4-Zip, Size L", "size": "L",
