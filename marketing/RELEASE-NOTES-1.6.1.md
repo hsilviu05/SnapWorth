@@ -2,17 +2,10 @@
 
 ## Scope
 
-1.6.0 (24) went to App Review on 2026-10-21 (**Waiting for Review** at
-18:47, `RELEASE-NOTES-1.6.0.md`). 1.6.1 (25) is a patch release: two small
-app fixes, plus the store listing rework from #386, which could not go onto
-1.6.0 because a version in review cannot take a new name, subtitle or
+1.6.0 (24) is **live** (owner, 2026-10-24). 1.6.1 (25) is a patch release:
+two small app fixes, plus the store listing rework from #386, which could not
+go onto 1.6.0 because a version in review cannot take a new name, subtitle or
 keywords.
-
-**1.6.1 cannot be created until 24 leaves review.** App Store Connect takes
-one version at a time. If 24 is **rejected** and needs a new binary, do not
-create 1.6.1: archive 25 as **1.6.0 (25)** instead (set `MARKETING_VERSION`
-back to 1.6.0 in this branch), and paste this file's listing steps onto 1.6.0
-while it is editable again.
 
 **What 24 contains is recorded.** It was archived from `2d33f7a` (the merge
 of #373). Every app change below is new since then, from
@@ -141,10 +134,7 @@ In order. Nothing here is submitted until the last step, and that one is yours.
 
 ### 0. Before touching 1.6.1
 
-- [ ] **Check 24's status** (App Store Connect → SnapWorth → iOS App). The
-      rest of this assumes it is *Ready for Distribution* (approved and
-      released, or approved and waiting for a manual release). If it is
-      still *Waiting for Review* or *In Review*, stop here.
+- [x] **24 is live** (owner, 2026-10-24), so 1.6.1 can be created.
 - [ ] **Record what 1.6.0 shipped with** in `app_store_listing.md`: its
       subtitle (the TODO under *Subtitle*) and its first screenshot. Neither
       is in git, and the search-term comparison needs the before value.
