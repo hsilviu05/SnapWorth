@@ -8,6 +8,10 @@
 # repo next to the tool that wants them. Ignored by extension so that reflex is
 # harmless; .gitleaks.toml carries the matching rule for one committed anyway.
 *.p8
+# .p12 is the other shape an Apple credential comes in: a signing or push
+# certificate exported from Keychain with its private key. Nothing here uses
+# one, which is the point: there is no reason for one ever to be in the tree.
+*.p12
 
 # Python
 __pycache__/
