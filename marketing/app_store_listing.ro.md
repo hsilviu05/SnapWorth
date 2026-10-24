@@ -201,18 +201,22 @@ snapworth.eu
 ---
 
 ## Keywords (100 chars max)
-talcioc,haine,vintage,olx,vinted,okazii,chilipir,valoare,profit,evaluare,revinde,scaner,estimare
+talcioc,haine,vintage,chilipir,valoare,profit,evaluare,revinde,scaner,estimare,anticariat,bazar
 
-96 characters. Words already in the Romanian name or subtitle (preț, revânzare, scanner,
+95 characters. **Changed 2026-10-24:** `olx`, `vinted` and `okazii` are out —
+App Store Connect Help, *Platform version information*: "Names of other apps
+or companies aren't allowed" in Keywords (Guideline 2.3.7 says the same).
+`anticariat` and `bazar`, the first two of the add-backs below, took their
+place. The description still names OLX and Vinted as marketplaces the app
+writes listings for. Was:
+`talcioc,haine,vintage,olx,vinted,okazii,chilipir,valoare,profit,evaluare,revinde,scaner,estimare`
+(96). Words already in the Romanian name or subtitle (preț, revânzare, scanner,
 second, hand, flip) are indexed from there and are not repeated. `scaner` is
 here as the correct-spelling twin of the subtitle's `scanner`; Apple normalises
 diacritics in most locales, but the two spellings differ by a letter, not an
-accent, so both are worth the characters. OLX and Vinted are the two Romanian
-marketplaces this audience sells on and both are genuinely supported — same
-rule the English list follows for Poshmark, Mercari and Depop.
+accent, so both are worth the characters.
 
-Dropped for space, in the order I would add them back: `anticariat`,
-`bazar`, `sneakers`, `licitatie`.
+Dropped for space, in the order to add them back: `sneakers`, `licitatie`.
 
 ---
 
