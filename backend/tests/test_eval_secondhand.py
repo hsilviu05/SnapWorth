@@ -699,6 +699,154 @@ class TestRun:
         assert results["counts"]["errors"]["quota_exhausted"] == 1
 
 
+def id_case(n, brand, condition=3):
+    return evalrun.Case(id=f"c{n}", group="Jeans", front="f", brand=brand, type="Jeans",
+                        condition=condition)
+
+
+def id_score(specs):
+    """(true brand, scanned brand, badge[, true condition, grade]) → scored."""
+    cases, outcomes = [], {}
+    for n, (truth, said, badge, *cond) in enumerate(specs):
+        condition, grade = cond or (3, "good")
+        cases.append(id_case(n, truth, condition))
+        outcomes[f"c{n}"] = scanclient.ScanOutcome(
+            f"c{n}", 200, SCAN_BODY | {"brand": said, "confidence": badge,
+                                       "condition_grade": grade, "item_name": "Jeans"})
+    return evalrun.score_identification(cases, outcomes)
+
+
+class TestIdentificationDetail:
+    def test_brand_by_badge(self):
+        result, _ = id_score([
+            ("Lindex", "Lindex", "High"), ("Lindex", "Old Navy", "High"),
+            ("Gant", "GANT AB", "High"), ("Zara", "Unknown", "Low"),
+            ("Zara", "Gap", "Medium"),
+            ("Unknown", "Levi's", "High"),           # no truth: not scored
+        ])
+        badges = result["brand_by_confidence"]
+        assert list(badges) == ["High", "Medium", "Low"]
+        assert badges["High"] == {"n": 3, "named": 3, "right": 2, "wrong": 1,
+                                  "right_when_named": pytest.approx(2 / 3)}
+        assert badges["Medium"]["right_when_named"] == 0
+        assert badges["Low"] == {"n": 1, "named": 0, "right": 0, "wrong": 0,
+                                 "right_when_named": None}
+
+    def test_a_missing_badge_is_its_own_row(self):
+        result, _ = id_score([("Lindex", "Lindex", None)])
+        assert list(result["brand_by_confidence"]) == ["none"]
+
+    def test_brands_named_most_often_wrong_first(self):
+        result, _ = id_score([
+            ("Newbody", "Old Navy", "High"), ("Lindex", "OLD NAVY", "High"),
+            ("Newbody", "Old Navy", "High"), ("Lindex", "Lindex", "High"),
+            ("Gap", "Gap", "High"), ("Zara", "Unknown", "Low"),
+        ])
+        named = result["brands_named"]
+        assert named[0] == {"brand": "Old Navy", "named": 3, "right": 0, "wrong": 3,
+                            "most_often_really": "Newbody"}
+        assert {r["brand"] for r in named} == {"Old Navy", "Lindex", "Gap"}
+        assert all(r["most_often_really"] is None for r in named[1:])
+
+    def test_the_report_has_the_tables(self):
+        result, worst = id_score([
+            ("Lindex", "Old Navy", "High", 5, "good"), ("Lindex", "Lindex", "High", 4, "likeNew"),
+            ("Gap", "Unknown", "Low", 2, "used"), ("Gap", "Unknown", "Low", 2, "new"),
+        ])
+        report = evalrun.render_report({
+            "split": "id_gold", "subset": "dev", "run_at": "t",
+            "backend": {"commit": "c"}, "config": {"send_tag": False}, "basis": None,
+            "counts": {"cases": 4, "sent": 4, "cached": 0, "ok": 4, "skipped": {},
+                       "not_sent": {}, "errors": {}},
+            "metrics": result, "worst": worst})
+        assert "### Brand by confidence badge" in report
+        assert "| High | 2 | 2 | 1 | 1 | 50.0% |" in report
+        assert "| Old Navy | 1 | 0 | 1 | Lindex |" in report
+        assert "| | new | likeNew | good | used | n |" in report
+        assert "| 5 | 0 | 0 | 1 | 0 | 1 |" in report
+        assert "| 2 | 1 | 0 | 0 | 1 | 2 |" in report
+        table = report[report.index("### Condition"):]
+        assert table.index("| 5 | ") < table.index("| 4 | ") < table.index("| 2 | ")
+
+    def test_a_report_from_before_these_tables_still_renders(self):
+        result, worst = id_score([("Lindex", "Lindex", "High")])
+        for key in ("brand_by_confidence", "brands_named"):
+            del result[key]
+        report = evalrun.render_report({
+            "split": "id_gold", "subset": "dev", "run_at": "t",
+            "backend": {"commit": "c"}, "config": {"send_tag": False}, "basis": None,
+            "counts": {"cases": 1, "sent": 1, "cached": 0, "ok": 1, "skipped": {},
+                       "not_sent": {}, "errors": {}},
+            "metrics": result, "worst": worst})
+        assert "## Identification" in report and "Brand by confidence" not in report
+
+
+class TestRescore:
+    def saved_run(self, built, tmp_path):
+        transport = answers({
+            "front0": httpx.Response(200, json=SCAN_BODY | {"brand": "Gant", "item_name": "Coat",
+                                                            "condition_grade": "used",
+                                                            "confidence": "High"}),
+        })
+        code = evalrun.main(["--split", "id_gold", "--subset", "all", "--manifests", str(built),
+                             "--out", str(tmp_path / "run")], transport=transport,
+                            out=io.StringIO())
+        assert code == 0
+        return tmp_path / "run"
+
+    def test_it_scores_the_saved_answers_with_nothing_sent(self, built, tmp_path,
+                                                           monkeypatch):
+        run_dir = self.saved_run(built, tmp_path)
+        original = json.loads((run_dir / "results.json").read_text())
+        # No backend, no download: neither is needed.
+        monkeypatch.delenv("EVAL_BACKEND_URL")
+        monkeypatch.delenv("EVAL_DATA_DIR")
+        monkeypatch.setattr(httpx.AsyncClient, "send", lambda *a, **k: pytest.fail("sent"))
+        out = io.StringIO()
+        code = evalrun.main(["--rescore", str(run_dir), "--manifests", str(built)], out=out)
+        assert code == 0
+        rescored = json.loads((run_dir / "rescored" / "results.json").read_text())
+        assert rescored["metrics"] == original["metrics"]
+        assert rescored["outcomes"] == original["outcomes"]
+        assert rescored["rescored_missing"] == 0 and rescored["rescored_at"]
+        assert "### Brand by confidence badge" in (run_dir / "rescored" / "report.md").read_text()
+        # The saved run itself is untouched.
+        assert json.loads((run_dir / "results.json").read_text()) == original
+
+    def test_it_writes_where_told(self, built, tmp_path):
+        run_dir = self.saved_run(built, tmp_path)
+        code = evalrun.main(["--rescore", str(run_dir), "--manifests", str(built),
+                             "--out", str(tmp_path / "elsewhere")], out=io.StringIO())
+        assert code == 0 and (tmp_path / "elsewhere" / "report.md").is_file()
+
+    def test_an_item_gone_from_the_manifest_is_counted(self, built, tmp_path):
+        run_dir = self.saved_run(built, tmp_path)
+        saved = json.loads((run_dir / "results.json").read_text())
+        saved["outcomes"][0]["item_id"] = "not-in-the-manifest"
+        (run_dir / "results.json").write_text(json.dumps(saved))
+        out = io.StringIO()
+        assert evalrun.main(["--rescore", str(run_dir), "--manifests", str(built)],
+                            out=out) == 0
+        assert "1 of the run's items are no longer in the id_gold manifest" in out.getvalue()
+        rescored = json.loads((run_dir / "rescored" / "results.json").read_text())
+        assert rescored["rescored_missing"] == 1
+
+    def test_no_run_there(self, tmp_path):
+        out = io.StringIO()
+        assert evalrun.main(["--rescore", str(tmp_path)], out=out) == 2
+        assert "No results.json" in out.getvalue()
+
+    def test_not_a_run(self, tmp_path):
+        (tmp_path / "results.json").write_text('{"split": "id_gold"}')
+        out = io.StringIO()
+        assert evalrun.main(["--rescore", str(tmp_path)], out=out) == 2
+        assert "is not a saved run" in out.getvalue()
+
+    def test_split_is_still_required_without_it(self):
+        with pytest.raises(SystemExit):
+            evalrun.main([], out=io.StringIO())
+
+
 class TestPriceScoring:
     def test_figures_once_a_group_is_big_enough(self):
         cases = [evalrun.Case(id=f"p{n}", group="Jeans", front="f", price_usd=10.0)
