@@ -33,8 +33,10 @@ from __future__ import annotations
 
 import math
 import statistics
+import unicodedata
 from collections.abc import Sequence
 from dataclasses import dataclass, field
+from difflib import SequenceMatcher
 
 from scan.confidence import brand_is_known
 
@@ -475,3 +477,122 @@ def negative_control_accuracy(outcomes: list[bool]) -> dict | None:
     if not outcomes:
         return None
     return {"declined_correctly": sum(outcomes) / len(outcomes), "n": len(outcomes)}
+
+
+# ── Brand and condition against a labelled dataset ─────────────────────────────
+#
+# `field_accuracy` compares text exactly, which scores "H&M" against "H & M" or
+# "Levi's" against "Levi Strauss & Co." as wrong. For a dataset whose brands
+# were typed by sorters, a brand is scored twice: exactly after normalising,
+# and fuzzily, so the gap between the two is visible rather than hidden.
+
+_UNKNOWN_BRANDS = {"", "unknown", "n/a", "na", "none", "null", "no brand", "nobrand",
+                   "unbranded", "generic", "no label", "missing", "not in the list",
+                   "not applicable"}
+#: Words that name the company rather than the brand. Dropped only when other
+#: words remain, so a brand that *is* one of them survives.
+_CORPORATE_WORDS = {"inc", "ltd", "llc", "co", "corp", "company", "gmbh", "ab", "as", "sa",
+                    "srl", "plc", "group", "the"}
+FUZZY_BRAND_THRESHOLD = 0.85
+
+
+def normalise_brand(value: str | None) -> str:
+    """Case, accents, punctuation, `&` and corporate suffixes folded away:
+    "Levi's" → "levis", "H & M" → "h and m", "Fjällräven AB" → "fjallraven"."""
+    text = unicodedata.normalize("NFKD", value or "")
+    text = "".join(c for c in text if not unicodedata.combining(c)).lower()
+    text = text.replace("&", " and ").replace("'", "").replace("’", "")
+    text = "".join(c if c.isalnum() else " " for c in text)
+    words = text.split()
+    kept = [w for w in words if w not in _CORPORATE_WORDS]
+    return " ".join(kept or words)
+
+
+def _no_brand(value: str | None) -> bool:
+    """Whether a brand field says there is none ("Unknown", "Not in the list")."""
+    return ((value or "").strip().lower() in _UNKNOWN_BRANDS
+            or normalise_brand(value) in _UNKNOWN_BRANDS)
+
+
+def brand_verdict(predicted: str | None, truth: str | None,
+                  threshold: float = FUZZY_BRAND_THRESHOLD) -> str:
+    """`exact`, `fuzzy`, `wrong` or `abstained` (the scan said Unknown).
+
+    Fuzzy is a difflib ratio at or above `threshold` on the normalised names,
+    one name's words all appearing in the other ("levi" in "levi strauss"),
+    or one name a prefix of the other of at least four letters ("levis" and
+    "levistrauss"). "and" and spaces are ignored, so "H & M" meets "HM".
+    """
+    p, t = normalise_brand(predicted), normalise_brand(truth)
+    if _no_brand(predicted):
+        return "abstained"
+    p_words = [w for w in p.split() if w != "and"]
+    t_words = [w for w in t.split() if w != "and"]
+    if p == t or "".join(p_words) == "".join(t_words):
+        return "exact"
+    if p_words and t_words and (set(p_words) <= set(t_words) or set(t_words) <= set(p_words)):
+        return "fuzzy"
+    p_compact, t_compact = "".join(p_words), "".join(t_words)
+    shorter, longer = sorted((p_compact, t_compact), key=len)
+    if len(shorter) >= 4 and longer.startswith(shorter):
+        return "fuzzy"
+    if SequenceMatcher(None, p_compact, t_compact).ratio() >= threshold:
+        return "fuzzy"
+    return "wrong"
+
+
+def brand_accuracy(pairs: Sequence[tuple[str | None, str | None]],
+                   threshold: float = FUZZY_BRAND_THRESHOLD) -> dict | None:
+    """(predicted, truth) pairs scored with `brand_verdict`. A pair whose truth
+    is itself unknown is not scored. `fuzzy_accuracy` counts exact matches too."""
+    graded = [(p, t) for p, t in pairs if not _no_brand(t)]
+    if not graded:
+        return None
+    verdicts = [brand_verdict(p, t, threshold) for p, t in graded]
+    n = len(verdicts)
+    exact = verdicts.count("exact")
+    fuzzy = verdicts.count("fuzzy")
+    abstained = verdicts.count("abstained")
+    attempted = n - abstained
+    return {
+        "exact_accuracy": exact / n,
+        "fuzzy_accuracy": (exact + fuzzy) / n,
+        "precision_when_attempted": (exact + fuzzy) / attempted if attempted else None,
+        "abstained": abstained, "abstention_rate": abstained / n,
+        "wrong": verdicts.count("wrong"), "n": n, "threshold": threshold,
+    }
+
+
+#: The app's four condition grades (`scan/valuation.py`) on a 1–5 scale where
+#: 5 is best. 1 has no grade: an item the app would call `used` and a sorter
+#: would send to recycling are scored one apart.
+CONDITION_ORDINAL = {"new": 5, "likeNew": 4, "good": 3, "used": 2}
+
+
+def condition_error(pairs: Sequence[tuple[str | None, int | None]],
+                    scale: dict[str, int] | None = None) -> dict | None:
+    """(predicted grade, true 1–5 grade) pairs: MAE, exact-hit rate, and a
+    confusion table keyed `"<truth>→<grade>"`. A missing or unknown grade is
+    an abstention, counted apart from the error."""
+    scale = scale or CONDITION_ORDINAL
+    graded = [(p, t) for p, t in pairs if isinstance(t, int) and 1 <= t <= 5]
+    if not graded:
+        return None
+    errors: list[int] = []
+    confusion: dict[str, int] = {}
+    abstained = 0
+    for predicted, truth in graded:
+        ordinal = scale.get(predicted or "")
+        if ordinal is None:
+            abstained += 1
+            continue
+        errors.append(abs(ordinal - truth))
+        key = f"{truth}→{predicted}"
+        confusion[key] = confusion.get(key, 0) + 1
+    return {
+        "mae": sum(errors) / len(errors) if errors else None,
+        "exact": sum(1 for e in errors if e == 0) / len(errors) if errors else None,
+        "within_one": sum(1 for e in errors if e <= 1) / len(errors) if errors else None,
+        "abstained": abstained, "n": len(graded), "scored": len(errors),
+        "confusion": dict(sorted(confusion.items())),
+    }

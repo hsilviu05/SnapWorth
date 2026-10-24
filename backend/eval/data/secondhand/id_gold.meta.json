@@ -1,0 +1,17 @@
+{
+  "builder_version": 2,
+  "by_split": {
+    "dev": 261,
+    "test": 239
+  },
+  "dataset": "Clothing Dataset for Second-Hand Fashion, v3",
+  "doi": "10.5281/zenodo.12518734",
+  "license": "CC-BY-4.0",
+  "pool_below": 5,
+  "rows": 500,
+  "seed": 20261023,
+  "source": "clothing_v3.zip",
+  "split": "id_gold",
+  "target": 500,
+  "test_fraction": 0.5
+}

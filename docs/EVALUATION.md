@@ -54,6 +54,7 @@ Zero is never used for "unmeasured": for an error metric, `0.0` reads as
 | `eval/cli.py` | Unified CLI |
 | `eval/dataset.py` | v1 benchmark loader |
 | `eval/runner.py` | Live runner: reads gold-v2 (and v1) sets, writes the metric file `eval.cli gate` reads, and runs unlabelled photo folders |
+| `eval/secondhand.py`, `eval/run.py`, `eval/scanclient.py` | The second-hand clothing eval: a public dataset's labels scored against a running backend's `/scan` over HTTP. Identification and a thrift-price sanity check, never a gate input. See `backend/eval/README.md` |
 
 Pure Python throughout — no numpy, scipy or sklearn. A quality gate that needs a
 60 MB scientific stack to start is a gate people disable.

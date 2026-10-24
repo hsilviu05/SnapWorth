@@ -1,0 +1,29 @@
+{
+  "band_edges": [
+    50.0,
+    100.0,
+    150.0,
+    250.0,
+    400.0
+  ],
+  "bands_kept": "all",
+  "builder_version": 2,
+  "by_band": {
+    "100-150": 1398,
+    "150-200": 1,
+    "150-250": 673,
+    "250-400": 202,
+    "50-100": 3776,
+    "<50": 1298,
+    ">400": 46
+  },
+  "currency": "unconfirmed (likely SEK)",
+  "dataset": "Clothing Dataset for Second-Hand Fashion, v3",
+  "doi": "10.5281/zenodo.12518734",
+  "dropped": {},
+  "license": "CC-BY-4.0",
+  "rows": 7394,
+  "seed": 20261023,
+  "source": "clothing_v3.zip",
+  "split": "price_silver"
+}
