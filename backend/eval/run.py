@@ -4,6 +4,8 @@
         python -m eval.run --split id_gold --limit 20
     python -m eval.run --split price_silver
     python -m eval.run --split price_gold          # the approved gold.jsonl sales
+    python -m eval.run --rescore eval/data/secondhand/runs/id_gold-<stamp>
+                                                   # a saved run, scored again; no scans
 
 `eval.runner` is the in-process harness for the gold set; this one goes over
 HTTP, so it measures `/scan` as served. Configuration comes from the
@@ -40,7 +42,7 @@ import statistics
 import sys
 from collections import Counter, defaultdict
 from collections.abc import Callable
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, fields
 from datetime import datetime, timezone
 from pathlib import Path
 from urllib.parse import urlparse
@@ -170,15 +172,17 @@ class Loaded:
 
 
 def load_cases(split: str, subset: str, manifest_dir: Path, data: str | None,
-               rates: fx.RateTable | None = None) -> Loaded:
+               rates: fx.RateTable | None = None, photos: bool = True) -> Loaded:
+    """`photos=False` reads the manifest alone, for rescoring a saved run on a
+    machine without the download."""
     loaded = Loaded()
     if split == "price_gold":
         return _load_gold(loaded, rates or fx.load())
 
     rows, problems = secondhand.load_manifest(manifest_dir / f"{split}.jsonl")
     loaded.skipped.update(problems)
-    source = secondhand.open_source(data)
-    loaded.read = source.read
+    if photos:
+        loaded.read = secondhand.open_source(data).read
     rates = rates or fx.load()
     if split == "price_silver":
         loaded.basis, loaded.fx_table = PRICE_SILVER_BASIS, rates.version
@@ -291,7 +295,7 @@ def score_identification(cases: list[Case], outcomes: dict[str, scanclient.ScanO
                          "category": app_category(case.type), "condition": case.condition},
             "predicted": {"brand": body.get("brand"), "item_name": body.get("item_name"),
                           "category": body.get("category"), "condition_grade": grade},
-            "brand": brand_v, "type": type_v,
+            "brand": brand_v, "type": type_v, "confidence": body.get("confidence"),
             "category_ok": (body.get("category") or "").lower() == app_category(case.type),
             "condition_error": (abs(ordinal - case.condition)
                                 if ordinal is not None and case.condition else None),
@@ -322,6 +326,8 @@ def score_identification(cases: list[Case], outcomes: dict[str, scanclient.ScanO
         "brand_photo_absent": summary([r for r in rows if not r["brand_photo"]]),
         "by_type": {g: (summary(rs) if len(rs) >= MIN_GROUP else {"n": len(rs)})
                     for g, rs in sorted(by_group.items())},
+        "brand_by_confidence": brand_by_confidence(rows),
+        "brands_named": brands_named(rows),
     }
 
     def severity(row: dict) -> tuple:
@@ -331,6 +337,55 @@ def score_identification(cases: list[Case], outcomes: dict[str, scanclient.ScanO
     worst = sorted((r for r in rows if severity(r)[:4] != (False, 0, False, False)),
                    key=severity, reverse=True)[:WORST]
     return result, worst
+
+
+BADGES = ("High", "Medium", "Low")
+#: The named-brand table lists this many, most often wrong first.
+BRANDS_SHOWN = 15
+
+
+def _brand_scored(rows: list[dict]) -> list[dict]:
+    """Rows whose true brand is known, so a named brand can be right or wrong."""
+    return [r for r in rows if not metrics._no_brand(r["expected"]["brand"])]
+
+
+def brand_by_confidence(rows: list[dict]) -> dict[str, dict]:
+    """Per confidence badge: how often a brand was named, and how often it was
+    right. What a High badge on a named brand is worth."""
+    by_badge: dict[str, list[dict]] = defaultdict(list)
+    for row in _brand_scored(rows):
+        by_badge[row.get("confidence") or "none"].append(row)
+    order = {b: i for i, b in enumerate(BADGES)}
+    result = {}
+    for badge in sorted(by_badge, key=lambda b: (order.get(b, len(order)), b)):
+        subset = by_badge[badge]
+        named = [r for r in subset if r["brand"] != "abstained"]
+        right = sum(1 for r in named if r["brand"] in ("exact", "fuzzy"))
+        result[badge] = {"n": len(subset), "named": len(named), "right": right,
+                         "wrong": len(named) - right,
+                         "right_when_named": right / len(named) if named else None}
+    return result
+
+
+def brands_named(rows: list[dict]) -> list[dict]:
+    """Each brand the scan named: how often, how often right, and the true
+    brand it most often stood in for. A brand the model reaches for when it
+    cannot read the label is named often and rarely right."""
+    groups: dict[str, list[dict]] = defaultdict(list)
+    for row in _brand_scored(rows):
+        if row["brand"] != "abstained":
+            groups[metrics.normalise_brand(row["predicted"]["brand"])].append(row)
+    table = []
+    for subset in groups.values():
+        wrong = [r for r in subset if r["brand"] == "wrong"]
+        truths = Counter(r["expected"]["brand"] for r in wrong)
+        table.append({
+            "brand": Counter(r["predicted"]["brand"] for r in subset).most_common(1)[0][0],
+            "named": len(subset), "right": len(subset) - len(wrong), "wrong": len(wrong),
+            "most_often_really": truths.most_common(1)[0][0] if truths else None,
+        })
+    table.sort(key=lambda r: (-r["wrong"], -r["named"], r["brand"] or ""))
+    return table
 
 
 def score_prices(cases: list[Case], outcomes: dict[str, scanclient.ScanOutcome]
@@ -506,6 +561,7 @@ def render_report(results: dict) -> str:
                 f"{_pct(s['category_accuracy'])} | {_pct(s['type_accuracy'])} "
                 f"({s['type_scored']}) | {_num(c.get('mae'))} | {_pct(c.get('exact'))} |")
         lines.append("")
+        lines += _identification_detail(m)
     if m.get("kind") == "bands":
         lines += _band_report(m)
     elif "by_category" in m:
@@ -554,6 +610,51 @@ def render_report(results: dict) -> str:
     return "\n".join(lines)
 
 
+CONDITION_GRADES = sorted(metrics.CONDITION_ORDINAL,
+                          key=lambda g: metrics.CONDITION_ORDINAL[g], reverse=True)
+
+
+def _identification_detail(m: dict) -> list[str]:
+    lines: list[str] = []
+    badges = m.get("brand_by_confidence")
+    if badges:
+        lines += ["### Brand by confidence badge", "",
+                  "Items with a known brand. Right counts fuzzy matches.", "",
+                  "| Badge | n | Named a brand | Right | Wrong | Right when named |",
+                  "| --- | --- | --- | --- | --- | --- |"]
+        for badge, s in badges.items():
+            lines.append(f"| {badge} | {s['n']} | {s['named']} | {s['right']} | {s['wrong']} | "
+                         f"{_pct(s['right_when_named'])} |")
+        lines.append("")
+    named = m.get("brands_named")
+    if named:
+        shown = named[:BRANDS_SHOWN]
+        lines += [f"### Brands the scan named ({len(shown)} of {len(named)}, most often "
+                  "wrong first)", "",
+                  "| Brand | Named | Right | Wrong | Most often really |",
+                  "| --- | --- | --- | --- | --- |"]
+        for r in shown:
+            lines.append(f"| {r['brand']} | {r['named']} | {r['right']} | {r['wrong']} | "
+                         f"{r['most_often_really'] or '—'} |")
+        lines.append("")
+    confusion = ((m.get("overall") or {}).get("condition") or {}).get("confusion")
+    if confusion:
+        counts: dict[str, Counter] = defaultdict(Counter)
+        for key, n in confusion.items():
+            truth, _, grade = key.partition("→")
+            counts[truth][grade] += n
+        lines += ["### Condition (rows: the dataset's 1–5, 5 best; columns: the scan's grade)",
+                  "",
+                  "| | " + " | ".join(CONDITION_GRADES) + " | n |",
+                  "| --- |" + " --- |" * (len(CONDITION_GRADES) + 1)]
+        for truth in sorted(counts, reverse=True):
+            row = counts[truth]
+            lines.append(f"| {truth} | " + " | ".join(str(row.get(g, 0)) for g in CONDITION_GRADES)
+                         + f" | {sum(row.values())} |")
+        lines.append("")
+    return lines
+
+
 def _band_report(m: dict) -> list[str]:
     lines = ["## Price against the band", "",
              "| Type | n | In band | Right band | Within one band | Median band error | "
@@ -596,11 +697,67 @@ def check_url(url: str, allow_remote: bool) -> str | None:
     return None
 
 
+def score(split: str, cases: list[Case], by_id: dict[str, scanclient.ScanOutcome]
+          ) -> tuple[dict, list[dict]]:
+    if split == "id_gold":
+        return score_identification(cases, by_id)
+    if split == "price_silver":
+        return score_bands(cases, by_id)
+    return score_prices(cases, by_id)
+
+
+def write_run(results: dict, out_dir: Path, out) -> None:
+    out_dir.mkdir(parents=True, exist_ok=True)
+    (out_dir / "results.json").write_text(
+        json.dumps(results, indent=2, ensure_ascii=False, default=str) + "\n", encoding="utf-8")
+    report = render_report(results)
+    (out_dir / "report.md").write_text(report, encoding="utf-8")
+    print(report, file=out)
+    print(f"Wrote {out_dir / 'results.json'} and report.md", file=out)
+
+
+_OUTCOME_FIELDS = {f.name for f in fields(scanclient.ScanOutcome)}
+
+
+def rescore(run_dir: Path, manifest_dir: Path, out_dir: Path | None, out) -> int:
+    """Score a saved run's answers again with today's scoring. Nothing is sent
+    and the photos are not read: the answers are in results.json and the
+    labels in the manifest. Writes beside the run, never over it."""
+    path = run_dir / "results.json"
+    try:
+        saved = json.loads(path.read_text(encoding="utf-8"))
+        split = saved["split"]
+        outcomes = [scanclient.ScanOutcome(**{k: v for k, v in o.items() if k in _OUTCOME_FIELDS})
+                    for o in saved["outcomes"]]
+    except FileNotFoundError:
+        print(f"No results.json in {run_dir}.", file=out)
+        return 2
+    except (ValueError, KeyError, TypeError) as exc:
+        print(f"{path} is not a saved run ({type(exc).__name__}: {exc}).", file=out)
+        return 2
+    if split not in SPLITS:
+        print(f"{path} is a run of {split!r}, not one of {', '.join(SPLITS)}.", file=out)
+        return 2
+    loaded = load_cases(split, saved.get("subset") or "all", manifest_dir, None, photos=False)
+    by_id = {o.item_id: o for o in outcomes}
+    cases = [c for c in loaded.cases if c.id in by_id]
+    missing = len(by_id) - len(cases)
+    if missing:
+        print(f"{missing} of the run's items are no longer in the {split} manifest; "
+              "they are not scored.", file=out)
+    scored, worst = score(split, cases, by_id)
+    results = {**saved, "metrics": scored, "worst": worst,
+               "rescored_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+               "rescored_missing": missing}
+    write_run(results, out_dir or run_dir / "rescored", out)
+    return 0
+
+
 def main(argv: list[str] | None = None, transport=None, out=None) -> int:
     out = out or sys.stdout
     parser = argparse.ArgumentParser(prog="python -m eval.run", description=__doc__,
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--split", choices=SPLITS, required=True)
+    parser.add_argument("--split", choices=SPLITS)
     parser.add_argument("--subset", choices=("dev", "test", "all"), default="dev",
                         help="id_gold half to run (default dev)")
     parser.add_argument("--limit", type=int, default=None)
@@ -616,7 +773,15 @@ def main(argv: list[str] | None = None, transport=None, out=None) -> int:
     parser.add_argument("--manifests", default=str(secondhand.MANIFEST_DIR))
     parser.add_argument("--data", help="the download (default: $EVAL_DATA_DIR)")
     parser.add_argument("--out", help="output folder (default: a timestamped one under runs/)")
+    parser.add_argument("--rescore", metavar="RUN_DIR",
+                        help="score a saved run's results.json again, with no scans sent; "
+                             "writes to RUN_DIR/rescored unless --out is given")
     args = parser.parse_args(argv)
+    if args.rescore:
+        return rescore(Path(args.rescore), Path(args.manifests),
+                       Path(args.out) if args.out else None, out)
+    if not args.split:
+        parser.error("--split is required unless --rescore is given")
 
     from eval import identity
     identity.load_env()
@@ -660,12 +825,7 @@ def main(argv: list[str] | None = None, transport=None, out=None) -> int:
         return 2
     by_id = {o.item_id: o for o in outcomes}
 
-    if args.split == "id_gold":
-        scored, worst = score_identification(cases, by_id)
-    elif args.split == "price_silver":
-        scored, worst = score_bands(cases, by_id)
-    else:
-        scored, worst = score_prices(cases, by_id)
+    scored, worst = score(args.split, cases, by_id)
     errors = Counter(o.error for o in outcomes if o.error)
     results = {
         "split": args.split,
@@ -688,14 +848,7 @@ def main(argv: list[str] | None = None, transport=None, out=None) -> int:
         "outcomes": [o.to_dict() for o in outcomes],
     }
     stamp = results["run_at"].replace(":", "").replace("-", "")
-    out_dir = Path(args.out) if args.out else RUNS_DIR / f"{args.split}-{stamp}"
-    out_dir.mkdir(parents=True, exist_ok=True)
-    (out_dir / "results.json").write_text(
-        json.dumps(results, indent=2, ensure_ascii=False, default=str) + "\n", encoding="utf-8")
-    report = render_report(results)
-    (out_dir / "report.md").write_text(report, encoding="utf-8")
-    print(report, file=out)
-    print(f"Wrote {out_dir / 'results.json'} and report.md", file=out)
+    write_run(results, Path(args.out) if args.out else RUNS_DIR / f"{args.split}-{stamp}", out)
     if client.halted == "quota_unavailable":
         print("Stopped early: the backend answered quota_unavailable. Its REDIS_URL names a "
               "Redis it cannot reach; start it with REDIS_URL= (empty) for a local run, or "

@@ -399,6 +399,9 @@ Where rules cannot decide, the case is `UNCLASSIFIED`, and the unclassified
 share is itself reported — a taxonomy explaining 40% of failures should not be
 presented as if it explains them all.
 
+The first second-hand clothing runs, and what each failure led to, are in
+[`experiments/secondhand-clothing-2026-10.md`](experiments/secondhand-clothing-2026-10.md).
+
 Failures are ranked by **value at risk** (absolute currency error) as well as by
 percentage. Being 200% wrong on a $4 item matters less than 40% wrong on a $600
 one, and percentage-ranked reports bury the second behind the first.
@@ -659,4 +662,6 @@ The platform is not the bottleneck. Labelling is.
 - **Regression triage bot.** Post the error-analysis diff on failing PRs.
 - **Counterfactual replay.** Store raw model output so a scoring change can be
   re-evaluated without re-calling the model — the single biggest cost saver once
-  the set reaches 1,000 items.
+  the set reaches 1,000 items. The HTTP eval has half of this: `eval.run
+  --rescore` re-scores a run's saved responses, which covers a change to the
+  eval's own scoring but not to the server's post-processing.

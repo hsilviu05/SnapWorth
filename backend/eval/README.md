@@ -48,10 +48,20 @@ python -m eval.run --split id_gold --limit 20         # dev half by default
 python -m eval.run --split id_gold --subset test      # confirm a change; never tune on test
 python -m eval.run --split price_silver
 python -m eval.run --split price_gold                 # the approved sales in gold.jsonl
+python -m eval.run --rescore eval/data/secondhand/runs/<run>   # score a saved run again
 ```
 
 Each run writes `eval/data/secondhand/runs/<split>-<time>/results.json` and
 `report.md`. Both folders, and the `cache/` beside them, are gitignored.
+
+`--rescore` reads a run's `results.json` and the manifest, and writes a new
+report to `<run>/rescored/` (or `--out`). It sends nothing and needs neither
+the backend nor the download, so a scoring change can be read on an old run
+for free. It scores the answers the server gave then: a server-side change,
+such as to the confidence badge, needs a new run.
+
+First results on the dev half are in
+[`docs/experiments/secondhand-clothing-2026-10.md`](../../docs/experiments/secondhand-clothing-2026-10.md).
 
 ### Splits
 
@@ -83,6 +93,11 @@ download only: never image bytes, never the annotator field.
   company suffixes), and fuzzy (word containment, a prefix of four or more
   letters, or a `difflib` ratio of 0.85 or more). "Unknown" counts as an
   abstention, reported apart. Split by whether the item has a brand photo.
+  Two more tables: per confidence badge, how often a brand was named and how
+  often it was right; and each brand the scan named, with how often it was
+  right and the true brand it most often stood in for (the brands the model
+  reaches for when it cannot read a label). Both leave out items whose true
+  brand is unknown.
 - **Category.** The dataset's garment type mapped to the app's categories
   (`TYPE_CATEGORY` in `run.py`), compared with `category`. Close to trivial:
   nearly every garment is `clothing`.
@@ -91,7 +106,7 @@ download only: never image bytes, never the annotator field.
   scored.
 - **Condition.** `condition_grade` on the dataset's 1-5 scale (`new` 5,
   `likeNew` 4, `good` 3, `used` 2): MAE, exact, within one, and a confusion
-  table.
+  table, printed as the dataset's grade against the scan's.
 - **Price, `price_silver`.** The scan's `likely_price_usd` (the range's
   middle when absent, counted) is converted to the band's currency at the
   item's annotation date from the pinned ECB table (`fx.py`) and compared
