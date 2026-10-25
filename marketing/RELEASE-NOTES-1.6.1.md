@@ -30,7 +30,7 @@ and the new screenshot order with Rack scan and Legit check frames.
 
 ### Not in this build
 
-* Anything merged after the archive commit recorded below.
+* Anything merged after `f889ac8`, the archive commit recorded below.
 
 ---
 
@@ -150,8 +150,8 @@ In order. Nothing here is submitted until the last step, and that one is yours.
       a build number already used.
 - [ ] Archive with **Xcode 27** (`.xcode-version`), Release configuration.
       Check Organizer shows **1.6.1 (25)**.
-- [ ] Record the commit and Organizer's creation date under *Build 25* below,
-      then tag it.
+- [x] Record the commit and Organizer's creation date under *Build 25* below
+      (`f889ac8`, 2026-10-25 19:39 EET). Tagging it is still open.
 - [ ] Distribute → App Store Connect → Upload, **once**. If a rejection needs
       a new archive, bump to 26 first.
 - [ ] Wait for the "has completed processing" email (usually 5–30 minutes)
@@ -234,14 +234,16 @@ The `1.6.1, build 25` commit in this PR is a lower bound, not the build
 (CLAUDE.md). This record is the build.
 
 - **Archive commit** (`git rev-parse HEAD` at archive time):
-  `f889ac857f11a4634f34b31b3b12c3d62ed79f74`, the merge of #389. Read from
-  the owner's checkout on 2026-10-25: clean working tree, and `main` had not
-  moved past it. It also carries #390 (`.gitignore` only, nothing in the
-  binary).
-- **Organizer creation date:** 2026-10-25 19:39:31 (EET, +02:00), from the
-  archive's `Info.plist` (1.6.1, 25). Submitted to App Review the same
-  evening.
-- **Tag** it:
+  `f889ac857f11a4634f34b31b3b12c3d62ed79f74` (the merge of #389)
+- **Organizer creation date:** 2026-10-25 19:39:31 EET (17:39:31 UTC),
+  `SnapWorth 25-10-26, 7.39 PM.xcarchive`, `Info.plist` reads 1.6.1 (25)
+- **How the commit is known:** the archive records no commit. The main
+  checkout's reflog shows `pull --tags origin main` fast-forwarding to
+  `f889ac8` at 19:38:48, 43 seconds before the archive, with no later move
+  and a clean working tree. `f889ac8` was also `origin/main`'s tip all day,
+  and it contains `73274d6` (`chore: 1.6.1, build 25`) and #390
+  (`.gitignore` only, nothing in the binary).
+- **Tag** it (not done yet):
 
   ```sh
   git tag build-25 f889ac857f11a4634f34b31b3b12c3d62ed79f74 && git push origin build-25
