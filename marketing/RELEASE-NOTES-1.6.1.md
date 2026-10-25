@@ -233,12 +233,18 @@ From `app_store_listing.md` and one file per locale. Run
 The `1.6.1, build 25` commit in this PR is a lower bound, not the build
 (CLAUDE.md). This record is the build.
 
-- **Archive commit** (`git rev-parse HEAD` at archive time): _to fill_
-- **Organizer creation date:** _to fill_
+- **Archive commit** (`git rev-parse HEAD` at archive time):
+  `f889ac857f11a4634f34b31b3b12c3d62ed79f74`, the merge of #389. Read from
+  the owner's checkout on 2026-10-25: clean working tree, and `main` had not
+  moved past it. It also carries #390 (`.gitignore` only, nothing in the
+  binary).
+- **Organizer creation date:** 2026-10-25 19:39:31 (EET, +02:00), from the
+  archive's `Info.plist` (1.6.1, 25). Submitted to App Review the same
+  evening.
 - **Tag** it:
 
   ```sh
-  git tag build-25 <archive-commit> && git push origin build-25
+  git tag build-25 f889ac857f11a4634f34b31b3b12c3d62ed79f74 && git push origin build-25
   ```
 
 ---
