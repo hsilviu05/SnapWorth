@@ -822,7 +822,7 @@ class TestPaywallDefaultPlan:
     lever is unset, so the response is what it was before the field."""
 
     def test_unset_lever_leaves_the_field_out(self, monkeypatch):
-        async def unset():
+        async def unset(subject=None, build=None):
             return None
         monkeypatch.setattr(levers, "paywall_default_plan", unset)
         build_deps(enforce=True)
@@ -834,7 +834,7 @@ class TestPaywallDefaultPlan:
         assert "paywall_default_plan" not in response.model_dump(exclude_none=True)
 
     def test_a_set_lever_is_sent(self, monkeypatch):
-        async def monthly():
+        async def monthly(subject=None, build=None):
             return "monthly"
         monkeypatch.setattr(levers, "paywall_default_plan", monthly)
         build_deps(enforce=True)

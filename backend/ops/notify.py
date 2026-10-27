@@ -91,6 +91,8 @@ from ops import levers
 from ops import opsformat
 from ops import opsexperiment
 from ops import opsindex
+from ops import opsrevenue
+from ops import planexperiment
 from ops import opsspend
 from ops import opsstats
 from ops import opssupport
@@ -222,6 +224,7 @@ COMMANDS: tuple[tuple[str, str], ...] = (
                    "/experiment export for a CSV to keep"),
     ("lever", "Arm or disarm the free-scan allowance without a redeploy"),
     ("paywall", "28 days: trial starts and direct purchases per paywall, trial → paid"),
+    ("revenue", "MRR over time, and each month's payments, refunds and churn"),
     ("minbuild", "Tell app builds below a number to update, without a redeploy"),
     ("referrals", "Referrals on or off, and the oldest build shown them"),
     ("social", "TikTok: followers, likes and the latest videos"),
@@ -317,6 +320,8 @@ def configure(cache, notifier: telegram.TelegramNotifier | None = None,
     opsindex.bind(cache)
     opssupport.bind(cache)
     opsspend.bind(cache)
+    opsrevenue.bind(cache)
+    planexperiment.bind(cache)
     trends.bind(cache)
     _status_provider = status_provider
     _social = social
@@ -667,6 +672,7 @@ async def subscription_event(note, *, reinstated=None) -> None:
 
         before = await opsindex.index_subscription(None, ent, note.auto_renew,
                                            current=note.is_refund_reversal)
+        await opsrevenue.record_notification(note)
         # None: the index could not be read, so there is no previous row to
         # judge a paid period against. It is then neither a conversion nor a
         # new payer — an ordinary renewal would otherwise be announced, and
@@ -689,7 +695,7 @@ async def subscription_event(note, *, reinstated=None) -> None:
             # Whichever half sees the first paid period counts it, once. The
             # device may have synced the paid transaction before Apple's
             # notification arrived, so `was` can already read "paid" here.
-            await _count_trial_conversion(otid)
+            await _count_trial_conversion(otid, ent)
 
         if note.is_paid_period and was and was != "paid":
             # The headline event. We knew this subscription as a trial or a
@@ -845,7 +851,7 @@ async def _count_paywall_trigger(otid: str, started_as: str | None,
         log.warning("paywall trigger counter failed for %s: %s", otid, exc)
 
 
-async def _count_trial_conversion(otid: str) -> None:
+async def _count_trial_conversion(otid: str, ent=None) -> None:
     """Count a trial's first paid period, once. Never raises.
 
     Called by whichever half sees it: Apple's DID_RENEW, or the device syncing
@@ -858,6 +864,10 @@ async def _count_trial_conversion(otid: str) -> None:
             await _cache.incr(opsstats.stat_key(opsstats.day(), opsstats.TRIAL_CONVERSIONS), STATS_TTL)
     except Exception as exc:                      # pragma: no cover - defensive
         log.warning("trial_conversions counter failed for %s: %s", otid, exc)
+    if ent is not None:
+        # Its own guard, so a conversion the counter above already took is
+        # still credited to the A/B arm the trial started in.
+        await planexperiment.note_conversion(ent)
 
 
 async def entitlement_recorded(subject: str, ent, *,
@@ -920,10 +930,12 @@ async def entitlement_recorded(subject: str, ent, *,
                 await _count_new_subscription(otid, acq)
                 await _count_paywall_trigger(
                     otid, _started_as(previous) or acq, paywall_trigger)
+                await planexperiment.note_new_subscription(
+                    await levers.read(), subject, ent, _started_as(previous) or acq)
             if acq == "paid" and _started_as(previous) == "trial":
                 # The device synced the first paid period before Apple's
                 # notification arrived, or instead of it.
-                await _count_trial_conversion(otid)
+                await _count_trial_conversion(otid, ent)
             if _notifier is None:
                 return
             if not await _cache.add(f"opsseen:sub:{otid}", "1", SUB_SEEN_TTL):
@@ -1302,6 +1314,9 @@ async def send_digest(now: datetime | None = None) -> bool:
     if _notifier is None or _cache is None:
         return False
     now = now or datetime.now(timezone.utc)
+    # Before the guard, so a replica that loses the race still takes the
+    # day's snapshot if nobody has. `/revenue`'s MRR history is these.
+    await opsrevenue.snapshot(now)
     yesterday = now - timedelta(days=1)
     day = opsstats.day(yesterday)
     try:
@@ -1633,7 +1648,12 @@ async def handle_command_with_buttons(text: str) -> tuple[str, opsformat.Buttons
     if command == "/lever":
         return await levers.lever_command(argument, rest)
     if command == "/paywall":
-        return await opsexperiment.paywall_text(), await _buttons()
+        split = await planexperiment.readout_text(await levers.read())
+        return ((await opsexperiment.paywall_text()) + (f"\n\n{split}" if split else ""),
+                await _buttons())
+    if command == "/revenue":
+        text, offers = await opsrevenue.revenue_command(argument, rest)
+        return text, offers + await _buttons()
     if command == "/minbuild":
         text, offers, menu = await levers.minbuild_command(argument, rest)
         return text, offers + (await _buttons() if menu else [])

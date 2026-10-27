@@ -19,6 +19,7 @@ from typing import TYPE_CHECKING, Literal
 
 from ops import opsformat
 from ops import opsstats
+from ops import planexperiment
 
 if TYPE_CHECKING:
     from core.cache import ResilientCache
@@ -326,26 +327,38 @@ def _plan_value(doc: dict) -> PaywallPlan | None:
     return None
 
 
-async def paywall_default_plan() -> PaywallPlan | None:
+async def paywall_default_plan(subject: str | None = None,
+                               build: int | None = None) -> PaywallPlan | None:
     """The plan the operator set, or None for the app's own default (yearly).
+
+    While the lever is on `split`, the device's arm of the A/B test instead
+    (`planexperiment.assign`), which needs the subject and the calling build.
 
     Read on every token mint. Raises nothing: an unreadable levers document is
     None, which is what every user saw before the lever existed."""
-    return _plan_value(await read())
+    doc = await read()
+    if subject is not None and planexperiment.active_experiment(doc) is not None:
+        return await planexperiment.assign(doc, subject, build)
+    return _plan_value(doc)
 
 
-async def _set_paywall_default_plan(value: PaywallPlan | None) -> dict | None:
+async def _set_paywall_default_plan(value: str | None) -> dict | None:
     """Set or clear the plan lever, recording the day. None, with nothing
-    written, when the document could not be read — as `_set_free_scan_lever`."""
+    written, when the document could not be read — as `_set_free_scan_lever`.
+
+    `split` starts a new A/B experiment named by today, unless one is already
+    running; any other value ends it, and its id stays for `/paywall`."""
     try:
         doc = await read(required=True)
     except Exception as exc:
         log.warning("levers unreadable, not changing the plan: %s", type(exc).__name__)
         return None
-    before = _plan_value(doc)
+    before = _lever_plan(doc)
     if value is None:
         doc.pop("paywall_default_plan", None)
     else:
+        if value == planexperiment.SPLIT and before != planexperiment.SPLIT:
+            doc["plan_split_id"] = opsstats.day()
         doc["paywall_default_plan"] = value
     changes = [c for c in (doc.get("plan_changes") or [])
                if isinstance(c, list) and len(c) == 3]
@@ -358,7 +371,16 @@ async def _set_paywall_default_plan(value: PaywallPlan | None) -> dict | None:
     return doc
 
 
+def _lever_plan(doc: dict) -> str | None:
+    """What the lever is set to: a plan, `split`, or None for the app default."""
+    if doc.get("paywall_default_plan") == planexperiment.SPLIT:
+        return planexperiment.SPLIT
+    return _plan_value(doc)
+
+
 def _plan_label(value: str | None) -> str:
+    if value == planexperiment.SPLIT:
+        return "split (A/B: half yearly, half monthly)"
     return f"{value}" if value else "yearly (app default)"
 
 
@@ -371,13 +393,14 @@ async def _plan_command(parts: list[str]) -> tuple[str, opsformat.Buttons]:
     wanted_raw = parts[1].lower() if len(parts) > 1 else ""
     confirmed = any(token.lower() == "yes" for token in parts[2:])
     doc = await read()
-    current = _plan_value(doc)
+    current = _lever_plan(doc)
     history = [c for c in (doc.get("plan_changes") or []) if isinstance(c, list) and len(c) == 3]
     buttons: opsformat.Buttons = [[("📅 Yearly", "lever plan yearly"),
-                         ("🗓 Monthly", "lever plan monthly"),
+                         ("🗓 Monthly", "lever plan monthly")],
+                        [("🧪 A/B split", "lever plan split"),
                          ("↩️ App default", "lever plan default")]]
 
-    if wanted_raw not in (*PAYWALL_PLANS, "default"):
+    if wanted_raw not in (*PAYWALL_PLANS, planexperiment.SPLIT, "default"):
         lines = ["💳 <b>Paywall default plan</b>",
                  f"Now: <b>{_plan_label(current)}</b>",
                  "Preselected on the paywall by builds 1.5.2 and later, from "
@@ -389,15 +412,21 @@ async def _plan_command(parts: list[str]) -> tuple[str, opsformat.Buttons]:
                          f"{_plan_label(before)} → {_plan_label(after)}")
         return "\n".join(lines), buttons
 
-    # None for "default", the plan itself otherwise (checked just above).
-    wanted = _plan_value({"paywall_default_plan": wanted_raw})
+    # None for "default", the plan or `split` otherwise (checked just above).
+    wanted = _lever_plan({"paywall_default_plan": wanted_raw})
     if wanted == current:
         return f"💳 Nothing changed: the default is already <b>{_plan_label(current)}</b>.", buttons
     if not confirmed:
+        what = ("Starts a new A/B test: each 1.5.2+ device gets one plan, kept "
+                "across tokens. Results under /paywall."
+                if wanted == planexperiment.SPLIT else
+                "This is an experiment arm (#220): change it only at an arm "
+                "boundary, and log the date in the growth log.")
+        if current == planexperiment.SPLIT:
+            what += " This ends the running A/B test."
         return (f"💳 <b>Change the paywall's default plan?</b>\n"
                 f"<b>{_plan_label(current)}</b> → <b>{_plan_label(wanted)}</b>.\n"
-                "This is an experiment arm (#220): change it only at an arm "
-                "boundary, and log the date in the growth log.",
+                + what,
                 [[("✅ Yes, change it", f"lever plan {wanted_raw} yes"),
                   ("Cancel", "lever plan")]])
     if await _set_paywall_default_plan(wanted) is None:

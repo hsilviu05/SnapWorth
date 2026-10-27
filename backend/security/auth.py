@@ -39,6 +39,7 @@ from security import appattest
 from security import auditlog
 from ops import levers
 from ops import metrics
+from ops import observability
 from ops import notify
 from ops import opsstats
 from security import ratelimit
@@ -262,7 +263,8 @@ def _mint(signer: TokenSigner, subject: str, ent: Entitlement) -> tuple[str, dic
     return signer.mint(subject, tier=ent.tier, extra=extra)
 
 
-async def _issue_token(subject: str, device_token: str | None) -> TokenResponse:
+async def _issue_token(subject: str, device_token: str | None,
+                       build: int | None = None) -> TokenResponse:
     # `signer` is legitimately Optional — the callers below guard on it — but
     # reaching here without one means the service is misconfigured rather than
     # the request being bad, so fail loudly rather than 500 on a None attribute.
@@ -299,7 +301,8 @@ async def _issue_token(subject: str, device_token: str | None) -> TokenResponse:
         tier=ent.tier,
         free_scans_remaining=min(remaining, 10_000),
         support_id=auditlog.pseudonymise(subject),
-        paywall_default_plan=await levers.paywall_default_plan(),
+        # `build`: a split A/B test enrols only builds that read the field.
+        paywall_default_plan=await levers.paywall_default_plan(subject, build),
     )
 
 
@@ -414,7 +417,8 @@ async def attest(req: AttestRequest, request: Request) -> TokenResponse:
             log.warning("could not persist devicecheck token: %s", exc)
 
     auditlog.record(AuditEvent.ATTEST_SUCCEEDED, subject, environment=result.environment)
-    return await _issue_token(subject, req.device_token)
+    return await _issue_token(subject, req.device_token,
+                              observability.client_build(request.headers)[0])
 
 
 @router.post("/refresh", response_model=TokenResponse, response_model_exclude_none=True)
@@ -469,7 +473,8 @@ async def refresh(req: AssertRequest, request: Request) -> TokenResponse:
     # only advances its counter. A counter left behind admits nothing the
     # single-use challenge consumed above does not already refuse.
     await deps.cache.set(_state_key(subject), json.dumps(state), ATTEST_STATE_TTL)
-    return await _issue_token(subject, None)
+    return await _issue_token(subject, None,
+                              observability.client_build(request.headers)[0])
 
 
 async def require_auth(

@@ -802,7 +802,7 @@ class TestPolling:
             (menu,) = bot.command_menus
             assert [c["command"] for c in menu] == [
                 "status", "subs", "sub", "users", "costs", "experiment", "lever",
-                "paywall", "minbuild", "referrals", "social", "finds",
+                "paywall", "revenue", "minbuild", "referrals", "social", "finds",
                 "post", "calendar",
                 "caption", "hooks", "reply", "price", "trend", "user", "checkup", "clear",
                 "history", "feed", "digest", "week", "help"]
