@@ -8255,7 +8255,7 @@ final class ThriftFlipLedgerFeesTests: XCTestCase {
 
     /// `feesEstimate` is a `Double` on the model while the verdict is `Decimal`,
     /// so the round trip through storage is not bit-exact — eBay on $50 is
-    /// $7.025 of fee, and 12.025 has no exact binary form. The tolerance is
+    /// $7.20 of fee (13.6% + $0.40), and 12.2 has no exact binary form. The tolerance is
     /// that conversion and nothing else; a fee-blind row is out by $12.03.
     private let storageRounding = 0.0001
 
@@ -8270,7 +8270,7 @@ final class ThriftFlipLedgerFeesTests: XCTestCase {
         let saved = try XCTUnwrap(vm.scanResult)
         let expected = NSDecimalNumber(
             decimal: calculation.platformFees + calculation.shippingCost).doubleValue
-        XCTAssertEqual(expected, 12.025, accuracy: storageRounding, "sanity: $7.025 + $5")
+        XCTAssertEqual(expected, 12.2, accuracy: storageRounding, "sanity: $7.20 + $5")
         XCTAssertEqual(try XCTUnwrap(saved.feesEstimate), expected, accuracy: storageRounding)
         XCTAssertEqual(saved.paidPrice, 10)
     }
@@ -8313,7 +8313,7 @@ final class ThriftFlipLedgerFeesTests: XCTestCase {
         XCTAssertEqual(ledger,
                        NSDecimalNumber(decimal: verdict.netProfit).doubleValue,
                        accuracy: storageRounding)
-        XCTAssertEqual(ledger, 27.975, accuracy: storageRounding)
+        XCTAssertEqual(ledger, 27.8, accuracy: storageRounding)
     }
 
     func test_theOldBehaviourWouldHaveOverstatedByTheFees() {
