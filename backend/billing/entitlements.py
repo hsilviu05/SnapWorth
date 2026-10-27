@@ -21,10 +21,13 @@ proof store costs a re-POST, never someone's subscription.
 
 from __future__ import annotations
 
+import asyncio
 import base64
+import contextlib
 import json
 import logging
 import os
+import secrets
 import time
 from dataclasses import dataclass, replace
 from datetime import datetime, timezone
@@ -75,6 +78,14 @@ at+qIxUCMG1mihDK1A3UT82NQz60imOlM27jbdoXt2QfyFMm+YhidDkLF1vLUagM
 # it is, honouring it needs the renewal info's grace expiry (or an App Store
 # Server API lookup), not a longer constant here.
 EXPIRY_GRACE_SECONDS = 3600
+
+# The per-subscription lock around a tombstone's read-merge-write (#398). The
+# section it guards is one read and one write, so the TTL only bounds how long
+# a crashed holder can block; a waiter that cannot get it in time raises, and
+# the webhook answers 503 so Apple retries.
+TOMBSTONE_LOCK_TTL = 10
+TOMBSTONE_LOCK_WAIT_SECONDS = 5.0
+TOMBSTONE_LOCK_POLL_SECONDS = 0.05
 
 ENTITLEMENT_CACHE_TTL = 900          # 15 min — free, and the refund window
 
@@ -724,6 +735,43 @@ class EntitlementService:
             return f"entrevoked:sandbox:{otid}"
         return cls._revoked_key(otid)
 
+    @contextlib.asynccontextmanager
+    async def _tombstone_lock(self, key: str):
+        """Hold `key`'s lock while its tombstone is read and rewritten.
+
+        Apple sends one REFUND per refunded transaction, in no promised order,
+        and two can be handled at once — on two replicas, or interleaved on one
+        event loop between the read and the write. Unguarded, the second write
+        could replace the first's later expiry with its own earlier one, and
+        `_rederive` would restore the refunded term from the pre-refund proof.
+        A refund reversal reads and deletes the same key, so it takes this too.
+
+        `required` throughout: a lock that fell back to one process's memory
+        would exclude nothing on the other replicas.
+        """
+        lock_key = f"{key}:lock"
+        token = secrets.token_hex(8)
+        deadline = time.monotonic() + TOMBSTONE_LOCK_WAIT_SECONDS
+        while not await self._cache.add(lock_key, token, TOMBSTONE_LOCK_TTL,
+                                        required=True):
+            if time.monotonic() >= deadline:
+                raise CacheUnavailable("the refund tombstone is locked by another "
+                                       "notification; Apple will retry")
+            await asyncio.sleep(TOMBSTONE_LOCK_POLL_SECONDS)
+        try:
+            yield
+        finally:
+            try:
+                # Only our own: a holder that overran the TTL must not release
+                # the lock a later caller now holds.
+                if await self._cache.get(lock_key, required=True) == token:
+                    await self._cache.delete(lock_key, required=True)
+            except Exception as exc:
+                # The TTL releases it; the tombstone write already landed or
+                # already raised.
+                log.warning("refund tombstone lock release failed: %s",
+                            type(exc).__name__)
+
     async def revoke(self, ent: Entitlement, revoked_at: int | None = None) -> bool:
         """Record that Apple has taken a subscription back.
 
@@ -773,6 +821,17 @@ class EntitlementService:
                         "original transaction id")
             return False
         key = self._tombstone_key(ent)
+        async with self._tombstone_lock(key):
+            await self._write_tombstone(ent, key, revoked_at)
+        log.info("subscription revoked by Apple",
+                 extra={"product_id": ent.product_id,
+                        "environment": ent.environment})
+        return True
+
+    async def _write_tombstone(self, ent: Entitlement, key: str,
+                               revoked_at: int | None) -> None:
+        """`revoke`'s read-merge-write, called under the tombstone's lock."""
+        otid = ent.original_transaction_id or ""
         when = revoked_at or ent.revoked_at or int(time.time())
         # None for a non-expiring purchase, which is then treated as fully
         # revoked — there is no later term it could be confused with.
@@ -825,10 +884,6 @@ class EntitlementService:
             # fell back to memory left the claim in Redis for the rest of its
             # TTL, up to a day of Pro after a refund Apple was told we handled.
             await self._cache.delete(self._sandbox_key(otid), required=True)
-        log.info("subscription revoked by Apple",
-                 extra={"product_id": ent.product_id,
-                        "environment": ent.environment})
-        return True
 
     async def reinstate(self, ent: Entitlement) -> Reinstatement:
         """Lift the tombstone `revoke` wrote, because Apple reversed the refund.
@@ -861,7 +916,15 @@ class EntitlementService:
         if not otid:
             log.warning("a refund reversal carried no original transaction id")
             return Reinstatement.NOT_BLOCKED
-        key = self._revoked_key(otid)
+        # The key `revoke` wrote: a Sandbox tombstone has its own namespace,
+        # and reading the Production key here left a Sandbox reversal unable
+        # to find it (#398).
+        key = self._tombstone_key(ent)
+        async with self._tombstone_lock(key):
+            return await self._lift_tombstone(ent, key)
+
+    async def _lift_tombstone(self, ent: Entitlement, key: str) -> Reinstatement:
+        """`reinstate`'s read-and-delete, called under the tombstone's lock."""
         raw = await self._cache.get(key, required=True)
         if not raw:
             return Reinstatement.NOT_BLOCKED
