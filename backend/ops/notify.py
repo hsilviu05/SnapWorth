@@ -92,6 +92,7 @@ from ops import opsformat
 from ops import opsexperiment
 from ops import opsindex
 from ops import opsrevenue
+from ops import planexperiment
 from ops import opsspend
 from ops import opsstats
 from ops import opssupport
@@ -320,6 +321,7 @@ def configure(cache, notifier: telegram.TelegramNotifier | None = None,
     opssupport.bind(cache)
     opsspend.bind(cache)
     opsrevenue.bind(cache)
+    planexperiment.bind(cache)
     trends.bind(cache)
     _status_provider = status_provider
     _social = social
@@ -693,7 +695,7 @@ async def subscription_event(note, *, reinstated=None) -> None:
             # Whichever half sees the first paid period counts it, once. The
             # device may have synced the paid transaction before Apple's
             # notification arrived, so `was` can already read "paid" here.
-            await _count_trial_conversion(otid)
+            await _count_trial_conversion(otid, ent)
 
         if note.is_paid_period and was and was != "paid":
             # The headline event. We knew this subscription as a trial or a
@@ -849,7 +851,7 @@ async def _count_paywall_trigger(otid: str, started_as: str | None,
         log.warning("paywall trigger counter failed for %s: %s", otid, exc)
 
 
-async def _count_trial_conversion(otid: str) -> None:
+async def _count_trial_conversion(otid: str, ent=None) -> None:
     """Count a trial's first paid period, once. Never raises.
 
     Called by whichever half sees it: Apple's DID_RENEW, or the device syncing
@@ -862,6 +864,10 @@ async def _count_trial_conversion(otid: str) -> None:
             await _cache.incr(opsstats.stat_key(opsstats.day(), opsstats.TRIAL_CONVERSIONS), STATS_TTL)
     except Exception as exc:                      # pragma: no cover - defensive
         log.warning("trial_conversions counter failed for %s: %s", otid, exc)
+    if ent is not None:
+        # Its own guard, so a conversion the counter above already took is
+        # still credited to the A/B arm the trial started in.
+        await planexperiment.note_conversion(ent)
 
 
 async def entitlement_recorded(subject: str, ent, *,
@@ -924,10 +930,12 @@ async def entitlement_recorded(subject: str, ent, *,
                 await _count_new_subscription(otid, acq)
                 await _count_paywall_trigger(
                     otid, _started_as(previous) or acq, paywall_trigger)
+                await planexperiment.note_new_subscription(
+                    await levers.read(), subject, ent, _started_as(previous) or acq)
             if acq == "paid" and _started_as(previous) == "trial":
                 # The device synced the first paid period before Apple's
                 # notification arrived, or instead of it.
-                await _count_trial_conversion(otid)
+                await _count_trial_conversion(otid, ent)
             if _notifier is None:
                 return
             if not await _cache.add(f"opsseen:sub:{otid}", "1", SUB_SEEN_TTL):
@@ -1640,7 +1648,9 @@ async def handle_command_with_buttons(text: str) -> tuple[str, opsformat.Buttons
     if command == "/lever":
         return await levers.lever_command(argument, rest)
     if command == "/paywall":
-        return await opsexperiment.paywall_text(), await _buttons()
+        split = await planexperiment.readout_text(await levers.read())
+        return ((await opsexperiment.paywall_text()) + (f"\n\n{split}" if split else ""),
+                await _buttons())
     if command == "/revenue":
         return await opsrevenue.revenue_text(), await _buttons()
     if command == "/minbuild":
