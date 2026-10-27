@@ -41,6 +41,7 @@ import logging
 import math
 from typing import TYPE_CHECKING, Literal
 
+from core.cache import add_to_json_set
 from ops import opsformat
 from security import auditlog
 
@@ -147,14 +148,9 @@ async def _add_value(experiment: str, arm: str, ent) -> None:
         return
     cents, currency = value
     await _incr(experiment, arm, f"value:{currency}", cents)
-    key = f"planab:{experiment}:currencies"
-    try:
-        known = set(json.loads(await _cache.get(key) or "[]"))
-    except Exception:
-        known = set()
-    if currency not in known:
-        known.add(currency)
-        await _cache.set(key, json.dumps(sorted(known)), TTL)
+    # Locked, as `opsrevenue._add_currency` is: unlocked, two arms' first
+    # payments in different currencies could drop one from the readout.
+    await add_to_json_set(_cache, f"planab:{experiment}:currencies", currency, TTL)
 
 
 async def note_new_subscription(levers_doc: dict, subject: str, ent, acq: str) -> None:

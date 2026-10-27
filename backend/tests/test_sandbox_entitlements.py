@@ -651,6 +651,25 @@ class TestSandboxNotificationRoute:
         assert r.json()["status"] == "revoked"
         assert run(store.current("reviewer")).tier == "free"
 
+    def test_a_sandbox_refund_reversal_lifts_the_block(self, pinned):
+        # #398 taught `reinstate` to find Sandbox tombstones, but this route
+        # answered REFUND_REVERSED "ignored" (AUDIT-2026-10-27).
+        store = auth.deps.entitlements
+        run(store.record("reviewer-rev", sandbox(pinned), authenticated=True))
+        assert client.post("/apple/notifications/sandbox", json={
+            "signedPayload": self._refund(pinned, uuid="sbx-rev-refund")}).status_code == 200
+        assert run(store.current("reviewer-rev")).tier == "free"
+
+        leaf_key, chain = pinned
+        reversal = make_notification(
+            leaf_key, chain, notification_type="REFUND_REVERSED",
+            uuid="sbx-rev-reversed", environment="Sandbox")
+        r = client.post("/apple/notifications/sandbox", json={"signedPayload": reversal})
+        assert r.status_code == 200, r.text
+        assert r.json()["status"] == "reinstated"
+        assert run(store.record("reviewer-rev", sandbox(pinned),
+                                authenticated=True)).tier == "pro"
+
     def test_every_other_type_is_acknowledged_and_ignored(self, operator, pinned):
         leaf_key, chain = pinned
         r = client.post("/apple/notifications/sandbox", json={
@@ -705,8 +724,9 @@ class TestSandboxNotificationRoute:
     ])
     def test_a_failed_revoke_is_a_503_and_leaves_the_retry_real(
             self, pinned, monkeypatch, route, seen):
-        """Both routes share the helper that hands the idempotency key back;
-        a 503 that kept it would turn Apple's retry into a no-op 'duplicate'."""
+        """Both routes share the helper that applies the change before the
+        idempotency key is claimed; a 503 that left a claim behind would turn
+        Apple's retry into a no-op 'duplicate'."""
         environment = "Sandbox" if route.endswith("sandbox") else "Production"
         uuid = f"fail-{environment}"
         payload = self._refund(pinned, uuid=uuid, environment=environment)

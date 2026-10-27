@@ -31,6 +31,8 @@ struct ScanView: View {
     /// Sent from the sheet, scanned once it has finished closing: a paywall
     /// raised while a sheet is still going away is dropped by SwiftUI.
     @State private var typedAwaitingScan: String?
+    /// A photo picked in the Type it sheet, scanned once the sheet is gone.
+    @State private var photoAwaitingScan: PhotosPickerItem?
 
     /// Value-first paywall: the intro paywall is deferred until the user has
     /// actually seen their first result. Shown once, then never again here.
@@ -575,11 +577,19 @@ struct ScanView: View {
             resultSheet
         }
         .sheet(isPresented: $showTypeIt, onDismiss: {
+            // "Add a photo instead": handed to the library path only now, for
+            // the reason the typed scan waits — a paywall the scan raises
+            // while the sheet is still going away is dropped by SwiftUI.
+            if let item = photoAwaitingScan {
+                photoAwaitingScan = nil
+                vm.selectedPhotoItem = item
+                return
+            }
             guard let description = typedAwaitingScan else { return }
             typedAwaitingScan = nil
             Task { await triggerTextScan(description) }
         }) {
-            TypeItSheet(text: $typedDescription, photoItem: $vm.selectedPhotoItem,
+            TypeItSheet(text: $typedDescription, photoItem: $photoAwaitingScan,
                         isPro: purchaseService.isSubscribed) { description in
                 typedAwaitingScan = description
                 showTypeIt = false
@@ -807,12 +817,17 @@ struct TypeItSheet: View {
                         .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous)
                             .strokeBorder(Color.snapControlBorder, lineWidth: 1))
                         .accessibilityLabel("Describe the item")
-                        .onChange(of: text) { _, new in
+                        .onChange(of: text) { old, new in
                             // Return sends: a vertical field would otherwise
-                            // put a line break in a one-line description.
+                            // put a line break in a one-line description. Only
+                            // Return, though: pasted text with line breaks is
+                            // flattened and left to be read, since sending it
+                            // spends a free scan nobody confirmed.
                             if new.contains("\n") {
+                                let pressedReturn =
+                                    new.replacingOccurrences(of: "\n", with: "") == old
                                 text = new.replacingOccurrences(of: "\n", with: " ")
-                                submit()
+                                if pressedReturn { submit() }
                             } else if new.count > ScanAPIClient.maxDescriptionLength {
                                 text = String(new.prefix(ScanAPIClient.maxDescriptionLength))
                             }

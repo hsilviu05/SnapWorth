@@ -10668,6 +10668,28 @@ final class SaleSharingTests: XCTestCase {
         XCTAssertNotEqual(shared.contributorToken, token)
     }
 
+    func test_aShareStillSendingWhenEverythingIsDeletedIsDeletedAfterIt() async throws {
+        // The DELETE can land before a share already on the wire, which then
+        // re-creates the record under a token the app has just discarded
+        // (AUDIT-2026-10-27).
+        let sharing = service(enabled: true)
+        let find = soldFind()
+        var tapDeleteAll: (() async -> Void)? = { try? await sharing.deleteAll() }
+        sharing.send = { [unowned self] request in
+            sent.append(request)
+            if case .share = request, let tap = tapDeleteAll {
+                tapDeleteAll = nil
+                await tap()
+            }
+        }
+        await sharing.sync(find)
+        guard case .share(let shared)? = sent.first else { return XCTFail("the sale is shared") }
+        XCTAssertEqual(sent.dropFirst().first, .delete(contributionID: nil, token: shared.contributorToken))
+        XCTAssertEqual(sent.last, .delete(contributionID: shared.contributionID,
+                                          token: shared.contributorToken),
+                       "the share that may have landed second is deleted after it")
+    }
+
     func test_deleteAllWithdrawsASaleWhoseFirstSendFailed() async throws {
         // It may have reached the server: it is withdrawn with the rest.
         let sharing = service(enabled: true)

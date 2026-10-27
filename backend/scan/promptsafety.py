@@ -78,8 +78,9 @@ def sanitize_text(value: object, max_length: int, field: str = "field") -> str:
 
 
 #: Either fence tag, so a value can neither close the fence nor open a new
-#: one: `<untrusted_data>`, `</UNTRUSTED_DATA >` and the like.
-_FENCE_TAG = re.compile(r"(?i)<\s*/?\s*untrusted_data\s*>")
+#: one: `<untrusted_data>`, `</UNTRUSTED_DATA >`, `</untrusted_data x>`,
+#: `</untrusted_data/>`, and one left unclosed at the end of the value.
+_FENCE_TAG = re.compile(r"(?i)<\s*/?\s*untrusted_data\b[^<>]*>?")
 
 
 def fence(value: str) -> str:

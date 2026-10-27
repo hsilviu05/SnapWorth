@@ -17,8 +17,10 @@ declare which they are via `required=`.
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import os
+import secrets
 import time
 from typing import Any, Callable, Protocol
 
@@ -340,6 +342,34 @@ class ResilientCache:
 
 #: Default pool ceiling. Overridable, but never at the cost of booting.
 DEFAULT_REDIS_MAX_CONNECTIONS = 50
+
+
+async def add_to_json_set(cache: "ResilientCache", key: str, member: str,
+                          ttl: int | None, *, wait_seconds: float = 2.0) -> None:
+    """Add `member` to the sorted JSON list at `key`, under a short lock.
+
+    For the few small lists that stand in for listing keys, such as which
+    currencies a month has money in. Unlocked, two writers each read the list
+    without the other's member and the second write dropped the first's.
+    Raises `CacheUnavailable` if the lock cannot be had in `wait_seconds`.
+    """
+    lock, token = f"{key}:lock", secrets.token_hex(8)
+    deadline = time.monotonic() + wait_seconds
+    while not await cache.add(lock, token, 5):
+        if time.monotonic() >= deadline:
+            raise CacheUnavailable(f"{key} is locked")
+        await asyncio.sleep(0.02)
+    try:
+        try:
+            known = set(json.loads(await cache.get(key) or "[]"))
+        except ValueError:
+            known = set()
+        if member not in known:
+            known.add(member)
+            await cache.set(key, json.dumps(sorted(known)), ttl)
+    finally:
+        if await cache.get(lock) == token:
+            await cache.delete(lock)
 
 
 def _max_connections() -> int:

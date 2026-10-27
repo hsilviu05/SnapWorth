@@ -322,6 +322,10 @@ final class SaleSharing {
     var hasShared: Bool { defaults.string(forKey: Self.tokenKey) != nil }
 
     /// A random per-install token, used only to delete this install's records.
+    /// Bumped by each completed `deleteAll`, so a share that was already
+    /// sending can tell it may have landed after the delete.
+    private var deletions = 0
+
     var contributorToken: String {
         if let token = defaults.string(forKey: Self.tokenKey) { return token }
         var bytes = [UInt8](repeating: 0, count: 32)
@@ -408,10 +412,20 @@ final class SaleSharing {
             build: build, storefront: await storefront()) else { return }
         let fingerprint = Self.fingerprint(payload)
         guard sent[id] != fingerprint else { return }
+        let generation = deletions
         do {
             try await send(.share(payload))
-            sent[id] = fingerprint
-        } catch {}
+        } catch { return }
+        guard deletions == generation else {
+            // "Delete my shared sales" ran while this was on the wire, and
+            // its DELETE may have landed first, so the share re-created the
+            // record after it. The token that owns it has just been
+            // discarded, so this is the last chance to remove it
+            // (AUDIT-2026-10-27). Harmless when the share landed first.
+            try? await send(.delete(contributionID: id, token: payload.contributorToken))
+            return
+        }
+        sent[id] = fingerprint
     }
 
     /// "Delete my shared sales": every record this install made.
@@ -425,6 +439,7 @@ final class SaleSharing {
     func deleteAll() async throws {
         guard hasShared else { return }
         try await send(.delete(contributionID: nil, token: contributorToken))
+        deletions += 1
         isEnabled = false
         hasAsked = true
         withdrawn.formUnion(sent.keys)
