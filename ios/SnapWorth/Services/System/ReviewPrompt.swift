@@ -24,9 +24,14 @@ enum ReviewPrompt {
     private static let promptedVersionKey = "snapworth_review_prompted_version"
     private static let lastRequestKey = "snapworth_review_last_requested"
 
-    /// Ask from the Nth successful scan — late enough to have proven value,
-    /// early enough that most engaged users still hit it.
-    nonisolated private static var promptAtScan: Int { 3 }
+    /// Ask from the first successful scan. The confidence and reveal gates
+    /// already make it a moment of value; the count only has to reach users.
+    ///
+    /// It was 3. The free tier is one scan a day (`FREE_SCANS_PER_DAY`), so a
+    /// free user's third scan is on their third day of use at the earliest,
+    /// and day-7 retention was about 2% in October 2026: almost nobody was
+    /// ever asked, and the store page sat on two ratings.
+    nonisolated private static var promptAtScan: Int { 1 }
 
     /// The shortest time between two requests. iOS shows at most three prompts
     /// a year and drops the rest silently, so asking more often than this only

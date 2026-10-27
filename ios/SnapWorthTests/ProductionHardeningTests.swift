@@ -9321,9 +9321,11 @@ final class ReviewPromptTimingTests: XCTestCase {
         defaults = UserDefaults(suiteName: "ReviewPromptTests-\(UUID().uuidString)")
     }
 
-    func test_notBeforeTheThirdScan() {
-        XCTAssertFalse(ReviewPrompt.isDue(scanCount: 2, lastRequest: nil, now: now))
-        XCTAssertTrue(ReviewPrompt.isDue(scanCount: 3, lastRequest: nil, now: now))
+    /// The first scan, not the third: free users get one a day, so a later
+    /// threshold is only reached by the few who come back for days.
+    func test_dueFromTheFirstScan() {
+        XCTAssertFalse(ReviewPrompt.isDue(scanCount: 0, lastRequest: nil, now: now))
+        XCTAssertTrue(ReviewPrompt.isDue(scanCount: 1, lastRequest: nil, now: now))
     }
 
     func test_notAgainInsideTheGap_whateverTheVersion() {
