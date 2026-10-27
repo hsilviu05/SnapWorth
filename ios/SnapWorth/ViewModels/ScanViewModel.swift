@@ -104,6 +104,44 @@ final class ScanViewModel {
         try await ScanAPIClient.shared.scan(image: $0)
     }
 
+    /// "Type it instead": the same paid scan from a description.
+    @ObservationIgnored var textScanner: (String) async throws -> ScanAPIResponse = {
+        try await ScanAPIClient.shared.scan(description: $0)
+    }
+
+    /// What the result on screen was made from. A typed item has no photo,
+    /// so the result sheet offers neither photo re-read (`ResultView.hasPhoto`).
+    private(set) var lastScanHadPhoto = true
+
+    /// A typed description, priced like a photo: the same allowance, the
+    /// same result sheet, saved to My Finds without a picture.
+    ///
+    /// The one difference in the flow is the paywall. A photo is held and
+    /// scanned once a purchase lands (`takePhotoForResume`); a description
+    /// is not, because the sheet it was typed in has closed by then and a
+    /// scan the user cannot see being asked for should not start on its own.
+    func startTextScan(description: String, purchaseService: any PurchaseService,
+                       repository: ScanRepository) async {
+        await run(.description(description), purchaseService: purchaseService,
+                  repository: repository, afterPurchase: false)
+    }
+
+    /// The copy of the photo kept in My Finds, or nil for a typed item.
+    nonisolated private static func storedCopy(of image: UIImage?) async -> Data? {
+        guard let image else { return nil }
+        return await ScanAPIClient.encodeForStorage(image)
+    }
+
+    private enum ScanInput {
+        case photo(UIImage)
+        case description(String)
+
+        var image: UIImage? {
+            if case .photo(let image) = self { return image }
+            return nil
+        }
+    }
+
     /// - Parameter afterPurchase: the scan a purchase has just unblocked.
     ///   The purchase tells the server in a detached task, so this one waits
     ///   for the server to have heard first — otherwise the new subscriber's
@@ -111,14 +149,22 @@ final class ScanViewModel {
     ///   without the Pro detail.
     func startScan(image: UIImage, purchaseService: any PurchaseService, repository: ScanRepository,
                    afterPurchase: Bool = false) async {
+        await run(.photo(image), purchaseService: purchaseService, repository: repository,
+                  afterPurchase: afterPurchase)
+    }
+
+    private func run(_ input: ScanInput, purchaseService: any PurchaseService,
+                     repository: ScanRepository, afterPurchase: Bool) async {
         guard !isAnalyzing else { return }
+        let image = input.image
         guard purchaseService.isSubscribed || hasFreeScanRemaining else {
             Analytics.shared.track(.freeScanLimitHit)
             paywallTrigger = .scanLimit
             showPaywall = true
-            await holdForPurchase(image)
+            if let image { await holdForPurchase(image) }
             return
         }
+        lastScanHadPhoto = image != nil
 
         // Read once, before `ScanTally.record()` moves it, so every event this
         // scan emits agrees about whether it was the first.
@@ -135,7 +181,7 @@ final class ScanViewModel {
         // and started now rather than after the response, so it runs while
         // the request is in flight instead of between the response and the
         // result sheet. On a failed scan it is simply not used.
-        async let storedJPEG = ScanAPIClient.encodeForStorage(image)
+        async let storedJPEG = Self.storedCopy(of: image)
         if afterPurchase {
             // Its outcome is not needed here: a server that still refuses
             // answers 402, which `confirmingSubscription` below handles.
@@ -146,7 +192,7 @@ final class ScanViewModel {
         // Declared after the `isAnalyzing` defer above so it runs first:
         // whatever the exit, the window is shut and the appraisal gone before
         // the overlay is.
-        let watch = watchForRareFind(in: image)
+        let watch = image.flatMap { watchForRareFind(in: $0) }
         rareFindWatch = watch
         defer {
             watch?.close()
@@ -160,7 +206,11 @@ final class ScanViewModel {
 
         do {
             let response = try await purchaseService.confirmingSubscription {
-                try await scanner(image)
+                () async throws -> ScanAPIResponse in
+                switch input {
+                case .photo(let image):         return try await scanner(image)
+                case .description(let text):    return try await textScanner(text)
+                }
             }
             // The estimate is in, so the race is decided here: a match that has
             // not landed by now never will, as far as this scan is concerned.
@@ -306,7 +356,7 @@ final class ScanViewModel {
                 Analytics.shared.track(.freeScanLimitHit)
                 paywallTrigger = .scanLimit
                 showPaywall = true
-                await holdForPurchase(image)
+                if let image { await holdForPurchase(image) }
                 return
             }
 

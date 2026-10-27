@@ -433,7 +433,7 @@ def status_class(code: int) -> str:
 # so all were counted as "other" — indistinguishable from a scanner's probes.
 # One path covers every method on it: `method` is its own label.
 KNOWN_ENDPOINTS = frozenset({
-    "/scan", "/listing", "/legit", "/rack", "/trends", "/health", "/health/live", "/health/ready",
+    "/scan", "/scan/text", "/listing", "/legit", "/rack", "/trends", "/health", "/health/live", "/health/ready",
     "/metrics", "/privacy", "/terms",
     "/auth/challenge", "/auth/attest", "/auth/refresh", "/auth/entitlement",
     "/apple/notifications", "/apple/notifications/sandbox", "/referral/status", "/referral/claim",

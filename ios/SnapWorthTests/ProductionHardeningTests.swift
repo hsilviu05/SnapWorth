@@ -11084,3 +11084,112 @@ final class FeedbackClipboardTests: XCTestCase {
         XCTAssertTrue(text.hasSuffix("It crashed.\n\nApp 1.5.3 (23)"), "and the message, whole")
     }
 }
+
+// MARK: - Type it instead
+
+/// An item described in words rather than photographed (`POST /scan/text`).
+/// The same allowance and result sheet as a photo; no photo to keep, hold for
+/// a purchase, or re-read.
+@MainActor
+final class TypeItInsteadTests: XCTestCase {
+
+    func test_theSendButtonFollowsTheServersRule() {
+        // `main._clean_description`: 3 to 200 characters once trimmed, a letter
+        // among them. Anything else comes back 400, so the button is off.
+        for sendable in ["Levi's 501 jeans", "  iPod  ", "abc",
+                         String(repeating: "a", count: ScanAPIClient.maxDescriptionLength)] {
+            XCTAssertTrue(ScanAPIClient.isSendableDescription(sendable), sendable)
+        }
+        for refused in ["", "   \n", "ab", " ab ", "123 456 !!!",
+                        String(repeating: "a", count: ScanAPIClient.maxDescriptionLength + 1)] {
+            XCTAssertFalse(ScanAPIClient.isSendableDescription(refused), refused)
+        }
+    }
+
+    func test_aTypedItemIsPricedFromTheTextAndSavedWithoutAPhoto() async throws {
+        ScanEntryPoints.isolateDefaults(in: self)
+        let vm = ScanViewModel()
+        var photoScans = 0
+        var sent: [String] = []
+        vm.scanner = { _ in photoScans += 1; return HaulFixtures.response() }
+        vm.textScanner = { sent.append($0); return HaulFixtures.response("Sony Walkman WM-2") }
+        let repository = try ScanEntryPoints.repository()
+
+        await vm.startTextScan(description: "Sony Walkman WM-2",
+                               purchaseService: MockPurchaseService(forcedSubscribed: true),
+                               repository: repository)
+
+        XCTAssertEqual(sent, ["Sony Walkman WM-2"])
+        XCTAssertEqual(photoScans, 0)
+        XCTAssertEqual(vm.scanResult?.itemName, "Sony Walkman WM-2")
+        XCTAssertNil(vm.scanResult?.imageData, "there is no photo to keep")
+        XCTAssertFalse(vm.saveFailed, "a find with no photo still saves")
+        XCTAssertFalse(vm.lastScanHadPhoto)
+
+        // The next photo scan's sheet offers its re-reads again.
+        vm.reset()
+        await vm.startScan(image: HaulFixtures.photo(),
+                           purchaseService: MockPurchaseService(forcedSubscribed: true),
+                           repository: repository)
+        XCTAssertTrue(vm.lastScanHadPhoto)
+    }
+
+    /// Out of free scans: the paywall opens as for a photo, but nothing is held
+    /// to run once a purchase lands. The sheet the text was typed in has gone.
+    func test_aTypedScanPastTheAllowanceOpensThePaywallAndHoldsNothing() async throws {
+        ScanEntryPoints.isolateDefaults(in: self)
+        FreeScanCounter.serverRemaining = 0
+        let vm = ScanViewModel()
+        var sent = 0
+        vm.textScanner = { _ in sent += 1; return HaulFixtures.response() }
+
+        await vm.startTextScan(description: "Levi's 501 jeans", purchaseService: MockPurchaseService(),
+                               repository: try ScanEntryPoints.repository())
+
+        XCTAssertTrue(vm.showPaywall)
+        XCTAssertEqual(sent, 0)
+        XCTAssertNil(vm.takePhotoForResume(purchaseService: MockPurchaseService(forcedSubscribed: true)))
+    }
+
+    private func typedFind(_ detail: ValuationDetail?) -> ScanResult {
+        ScanResult(itemName: "Sony Walkman WM-2", brand: "Sony", category: "electronics",
+                   conditionNotes: "Good", valueLow: 80, valueHigh: 140, confidence: "Medium",
+                   soldListingsCount: 0, listingTitle: "T", listingDescription: "D",
+                   valuationDetailData: detail?.encoded())
+    }
+
+    func test_aTypedResultOffersNeitherPhotoReRead() {
+        var thin = ValuationDetail()
+        thin.confidenceScore = 60
+        thin.confidenceSummary = "From a description."
+        XCTAssertTrue(thin.lacksProDetail)
+
+        // Built the way the scan sheet builds it after "Type it instead".
+        let pro = ResultView(result: typedFind(thin),
+                             purchaseService: MockPurchaseService(forcedSubscribed: true),
+                             onDismiss: {}, didSave: true, coverPrice: true,
+                             isFreshScan: true, hasPhoto: false)
+        XCTAssertFalse(pro.offersTagReread)
+        XCTAssertNotEqual(pro.fullDetailOffer, .reread, "there is no photo to re-read")
+
+        // A free user's teaser must not sell this find's breakdown either:
+        // buying cannot re-read it.
+        let free = ResultView(result: typedFind(thin), purchaseService: MockPurchaseService(),
+                              onDismiss: {}, didSave: true, coverPrice: true,
+                              isFreshScan: true, hasPhoto: false)
+        XCTAssertEqual(free.fullDetailOffer, .teaserNewScansOnly)
+
+        // A photo scan is unchanged.
+        let photo = ResultView(result: typedFind(thin),
+                               purchaseService: MockPurchaseService(forcedSubscribed: true),
+                               onDismiss: {}, isFreshScan: true)
+        XCTAssertTrue(photo.offersTagReread)
+        XCTAssertEqual(photo.fullDetailOffer, .reread)
+    }
+
+    func test_theDescribedReasonIsWorded() {
+        let reason = ConfidenceReason(rawValue: "described_not_photographed")
+        XCTAssertEqual(reason, .describedNotPhotographed)
+        XCTAssertEqual(reason?.label, "the estimate is from a description, not a photo")
+    }
+}

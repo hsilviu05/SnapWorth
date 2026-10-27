@@ -557,6 +557,7 @@ enum ConfidenceReason: String, CaseIterable {
     case brandIdentified        = "brand_identified"
     case brandUnidentified      = "brand_unidentified"
     case brandNotFromLabel      = "brand_not_from_label"
+    case describedNotPhotographed = "described_not_photographed"
     case rangeUnusable          = "range_unusable"
     case rangeTight             = "range_tight"
     case rangeVeryWide          = "range_very_wide"
@@ -590,6 +591,8 @@ enum ConfidenceReason: String, CaseIterable {
             return String(localized: "the brand could not be identified", comment: "Confidence reason")
         case .brandNotFromLabel:
             return String(localized: "the brand was not confirmed from a label photo", comment: "Confidence reason")
+        case .describedNotPhotographed:
+            return String(localized: "the estimate is from a description, not a photo", comment: "Confidence reason")
         case .rangeUnusable:
             return String(localized: "the price range is not usable", comment: "Confidence reason")
         case .rangeTight:
@@ -760,6 +763,42 @@ actor ScanAPIClient {
             return try await mockScan(sharpened: tagImage != nil)
         }
         return try await liveScan(image: image, tagImage: tagImage)
+    }
+
+    /// The longest description `/scan/text` takes (`prompts.MAX_DESCRIPTION`).
+    /// The server refuses past it rather than truncating, so the field stops
+    /// here.
+    static let maxDescriptionLength = 200
+
+    /// Whether `text` is worth sending: at least three characters once
+    /// trimmed, a letter among them, and within `maxDescriptionLength`. The
+    /// server's own rule (`main._clean_description`), checked here so the
+    /// button is off rather than a request coming back 400.
+    nonisolated static func isSendableDescription(_ text: String) -> Bool {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.count >= 3 && trimmed.count <= maxDescriptionLength
+            && trimmed.contains(where: \.isLetter)
+    }
+
+    /// "Type it instead": an item described in words, priced like a photo.
+    /// Same allowance and the same response as `scan(image:)`; confidence
+    /// stops below High and says why (`described_not_photographed`).
+    func scan(description: String) async throws -> ScanAPIResponse {
+        let text = description.trimmingCharacters(in: .whitespacesAndNewlines)
+        if Config.mockScans {
+            return try await mockScan()
+        }
+        var request = URLRequest(url: Config.baseURL.appendingPathComponent("scan/text"))
+        request.httpMethod = "POST"
+        try await request.requireBearerToken()
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONEncoder().encode(["description": text])
+
+        let (data, http) = try await request.sendRetryingAuth(on: session)
+        guard (200..<300).contains(http.statusCode) else {
+            throw ScanAPIError.from(http, data: data)
+        }
+        return try JSONDecoder().decode(ScanAPIResponse.self, from: data)
     }
 
     /// Legit check (#90): two to four close-ups, one model call, a read on

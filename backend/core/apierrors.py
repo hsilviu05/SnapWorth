@@ -70,6 +70,9 @@ QUOTA_UNAVAILABLE = "quota_unavailable"
 UNSUPPORTED_MARKETPLACE = "unsupported_marketplace"
 #: `/legit` was sent fewer than two photos, or a field it does not know (400).
 LEGIT_PHOTOS_INVALID = "legit_photos_invalid"
+#: `/scan/text` was sent a description too short, too long or with no
+#: letters in it once sanitised (400).
+DESCRIPTION_INVALID = "description_invalid"
 
 # The upload itself (400). `imagevalidation.ImageValidationError.code`.
 IMAGE_EMPTY = "image_empty"

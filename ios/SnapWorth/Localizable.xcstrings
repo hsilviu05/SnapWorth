@@ -4693,6 +4693,42 @@
         }
       }
     },
+    "A typed item is never rated High confidence. A photo can be." : {
+      "comment" : "Footnote on the \"Type it instead\" sheet. \"High confidence\" is the result badge: use the same words as that badge.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ein eingetippter Artikel bekommt nie Hohe Sicherheit. Ein Foto schon."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A typed item is never rated High confidence. A photo can be."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Un artículo escrito nunca recibe Confianza alta. Una foto sí puede."
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Un obiect descris în scris nu primește niciodată Încredere mare. O poză poate primi."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "文字描述的物品不会被评为「置信度高」，照片可以。"
+          }
+        }
+      }
+    },
     "A zipper pull, snap or button, with any engraving facing the camera." : {
       "comment" : "Legit check step instruction.",
       "extractionState" : "manual",
@@ -4938,6 +4974,42 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "账户"
+          }
+        }
+      }
+    },
+    "Add a photo instead" : {
+      "comment" : "Opens the photo library from the \"Type it instead\" sheet; the photo is then valued as a normal scan.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Stattdessen ein Foto hinzufügen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add a photo instead"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mejor añade una foto"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Adaugă o poză în schimb"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "改为添加照片"
           }
         }
       }
@@ -9578,6 +9650,42 @@
         }
       }
     },
+    "Describe the item" : {
+      "comment" : "Title of the \"Type it instead\" sheet, and the label of its text field.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Beschreibe den Artikel"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Describe the item"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Describe el artículo"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Descrie obiectul"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "描述这件物品"
+          }
+        }
+      }
+    },
     "Did %@ sell? Update your ledger to keep your profit accurate." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -12022,6 +12130,42 @@
         }
       }
     },
+    "Get the value" : {
+      "comment" : "Button that sends the typed description to be valued.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wert ermitteln"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Get the value"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ver el valor"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Află valoarea"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "查看估价"
+          }
+        }
+      }
+    },
     "Give a friend a week of Pro, get a week of Pro" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -12958,6 +13102,42 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "内购还没配置好。"
+          }
+        }
+      }
+    },
+    "Include the brand, model, size and condition if you know them." : {
+      "comment" : "Under the title of the \"Type it instead\" sheet.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gib Marke, Modell, Größe und Zustand an, wenn du sie kennst."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Include the brand, model, size and condition if you know them."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Incluye la marca, el modelo, la talla y el estado si los sabes."
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Adaugă marca, modelul, mărimea și starea, dacă le știi."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "如果知道，请写上品牌、型号、尺码和成色。"
           }
         }
       }
@@ -25139,6 +25319,42 @@
         }
       }
     },
+    "Type it instead" : {
+      "comment" : "Button on the camera screen: value an item from a typed description instead of a photo.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Stattdessen eintippen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Type it instead"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mejor escríbelo"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Scrie-l în schimb"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "改为输入文字"
+          }
+        }
+      }
+    },
     "Unknown — add what it sold for to calculate it" : {
       "comment" : "VoiceOver value of the result sheet's Profit row when the sold price is missing.",
       "extractionState" : "manual",
@@ -25990,6 +26206,42 @@
         }
       }
     },
+    "Uses today's free scan." : {
+      "comment" : "Under the \"Get the value\" button, for a free user: a typed item spends the same daily scan as a photo.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Verbraucht deinen kostenlosen Scan von heute."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Uses today's free scan."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Usa el escaneo gratis de hoy."
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Folosește scanarea gratuită de azi."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "会用掉今天的免费扫描。"
+          }
+        }
+      }
+    },
     "Value history" : {
       "comment" : "VoiceOver label for the portfolio sparkline on My Finds (Pro). Its value is the first and last total, e.g. '$45 to $1,240'.",
       "extractionState" : "manual",
@@ -26026,6 +26278,42 @@
         }
       }
     },
+    "Values an item from a description instead of a photo" : {
+      "comment" : "VoiceOver hint for the \"Type it instead\" button.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bewertet einen Artikel anhand einer Beschreibung statt eines Fotos"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Values an item from a description instead of a photo"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Valora un artículo a partir de una descripción en lugar de una foto"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Evaluează un obiect după o descriere, nu după o poză"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "根据文字描述而不是照片来估价"
+          }
+        }
+      }
+    },
     "Values an item from a photo you already have" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -26057,6 +26345,42 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "用你已有的照片估一件物品"
+          }
+        }
+      }
+    },
+    "Values the item from a photo you already have" : {
+      "comment" : "VoiceOver hint for \"Add a photo instead\".",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bewertet den Artikel anhand eines Fotos, das du schon hast"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Values the item from a photo you already have"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Valora el artículo a partir de una foto que ya tienes"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Evaluează obiectul dintr-o poză pe care o ai deja"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "用你已有的照片给这件物品估价"
           }
         }
       }
@@ -28821,6 +29145,42 @@
         }
       }
     },
+    "e.g. Levi's 501 jeans, size 32, good condition" : {
+      "comment" : "Placeholder in the description field. Keep the example a real, widely known item; the brand name stays as is.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "z. B. Levi's 501 Jeans, Größe 32, guter Zustand"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "e.g. Levi's 501 jeans, size 32, good condition"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "p. ej., vaqueros Levi's 501, talla 32, buen estado"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ex. blugi Levi's 501, mărimea 32, stare bună"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "例如：Levi's 501 牛仔裤，32 码，成色良好"
+          }
+        }
+      }
+    },
     "free scan left today" : {
       "comment" : "The number is the widget's headline; this is the noun under it.",
       "extractionState" : "manual",
@@ -29999,6 +30359,42 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "品牌未经标签照片确认"
+          }
+        }
+      }
+    },
+    "the estimate is from a description, not a photo" : {
+      "comment" : "One reason under the confidence score in \"Why this price\": a lower-case clause, no full stop, shown as a bullet. In English the server's own clause is shown instead.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "die Schätzung beruht auf einer Beschreibung, nicht auf einem Foto"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "the estimate is from a description, not a photo"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "la estimación se basa en una descripción, no en una foto"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "estimarea vine dintr-o descriere, nu dintr-o poză"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "估价来自文字描述，而不是照片"
           }
         }
       }

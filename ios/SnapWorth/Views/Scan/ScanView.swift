@@ -24,6 +24,13 @@ struct ScanView: View {
     /// Rack scan (#89), and the item its "Scan this one" sent the user to.
     @State private var showRack = false
     @State private var rackTarget: RackCandidate?
+    /// "Type it instead", and what has been typed. The text is kept here, not
+    /// in the sheet, so a paywall in between does not make anyone type it again.
+    @State private var showTypeIt = false
+    @State private var typedDescription = ""
+    /// Sent from the sheet, scanned once it has finished closing: a paywall
+    /// raised while a sheet is still going away is dropped by SwiftUI.
+    @State private var typedAwaitingScan: String?
 
     /// Value-first paywall: the intro paywall is deferred until the user has
     /// actually seen their first result. Shown once, then never again here.
@@ -76,6 +83,7 @@ struct ScanView: View {
     /// Anything presented on top of the camera. See the `onChange` below.
     private var isCameraObscured: Bool {
         showResult || showThriftFlip || showNotifPriming || vm.showPaywall || showHaul || showRack
+            || showTypeIt
     }
 
     var body: some View {
@@ -253,6 +261,22 @@ struct ScanView: View {
                     .clipShape(Capsule())
                     .padding(.horizontal, 20)
                     .padding(.top, 16)
+
+                // No photo needed: for a find already at home, an item behind
+                // glass, or a camera the user has not allowed.
+                Button { showTypeIt = true } label: {
+                    Label("Type it instead", systemImage: "keyboard")
+                        .font(.snapCaption.bold())
+                        .foregroundStyle(Color.snapOnCharcoal)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
+                        .background(Color.snapCharcoal.opacity(0.5))
+                        .clipShape(Capsule())
+                }
+                .disabled(vm.isAnalyzing || captureInFlight)
+                .snapHitTarget()
+                .accessibilityHint("Values an item from a description instead of a photo")
+                .padding(.top, 8)
 
                 Spacer()
 
@@ -550,6 +574,17 @@ struct ScanView: View {
         }) {
             resultSheet
         }
+        .sheet(isPresented: $showTypeIt, onDismiss: {
+            guard let description = typedAwaitingScan else { return }
+            typedAwaitingScan = nil
+            Task { await triggerTextScan(description) }
+        }) {
+            TypeItSheet(text: $typedDescription, photoItem: $vm.selectedPhotoItem,
+                        isPro: purchaseService.isSubscribed) { description in
+                typedAwaitingScan = description
+                showTypeIt = false
+            }
+        }
         .sheet(isPresented: $vm.showPaywall, onDismiss: paywallDismissed) {
             PaywallView(purchaseService: purchaseService, trigger: vm.paywallTrigger)
         }
@@ -630,7 +665,8 @@ struct ScanView: View {
                     // estimate", the tag re-read and the full breakdown on
                     // offer, and the rating request after the number.
                     Self.resultView(for: result, purchaseService: purchaseService,
-                                    saved: !vm.saveFailed, revealed: vm.rareFindReveal != nil) {
+                                    saved: !vm.saveFailed, revealed: vm.rareFindReveal != nil,
+                                    hasPhoto: vm.lastScanHadPhoto) {
                         showResult = false
                     }
                 }
@@ -644,12 +680,13 @@ struct ScanView: View {
     /// cover, offers both re-reads and asks for a rating after the number.
     /// `revealed`: a rare find's reveal has already shown the estimate and
     /// reported it (`priceAlreadyShown`).
+    /// `hasPhoto`: false for a typed item, which offers neither re-read.
     static func resultView(for result: ScanResult, purchaseService: any PurchaseService,
-                           saved: Bool, revealed: Bool,
+                           saved: Bool, revealed: Bool, hasPhoto: Bool = true,
                            onDismiss: @escaping () -> Void) -> ResultView {
         ResultView(result: result, purchaseService: purchaseService, onDismiss: onDismiss,
                    didSave: saved, coverPrice: true, priceAlreadyShown: revealed,
-                   isFreshScan: true)
+                   isFreshScan: true, hasPhoto: hasPhoto)
     }
 
     /// The analysing overlay, or the rare-find appraisal that stands in for it
@@ -687,6 +724,22 @@ struct ScanView: View {
         Task { await triggerScan(image: photo, afterPurchase: true) }
     }
 
+    /// "Type it instead": the scan, from words. Holds the shutter like a
+    /// capture does, so a photo cannot start beside it.
+    private func triggerTextScan(_ description: String) async {
+        guard !captureInFlight else { return }
+        captureInFlight = true
+        defer { captureInFlight = false }
+        rackTarget = nil
+        let repository = ScanRepository(context: modelContext)
+        await vm.startTextScan(description: description, purchaseService: purchaseService,
+                               repository: repository)
+        if vm.scanResult != nil {
+            typedDescription = ""
+            showResult = true
+        }
+    }
+
     private func triggerScan(image: UIImage, afterPurchase: Bool = false) async {
         // Released on every exit, success or failure, so the shutter comes
         // back exactly once per capture.
@@ -710,6 +763,107 @@ struct ScanView: View {
         }
     }
 
+}
+
+// MARK: - Type it instead
+
+/// A description in place of a photo. Sends nothing itself: `onSubmit` hands
+/// the text to the scan screen, and a picked photo goes through the scan
+/// screen's own library path (`photoItem`), so both end on the same result.
+struct TypeItSheet: View {
+    @Binding var text: String
+    @Binding var photoItem: PhotosPickerItem?
+    let isPro: Bool
+    let onSubmit: (String) -> Void
+
+    @Environment(\.dismiss) private var dismiss
+    @FocusState private var focused: Bool
+
+    private var canSend: Bool { ScanAPIClient.isSendableDescription(text) }
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 16) {
+                    Text("Describe the item")
+                        .font(.snapTitle)
+                        .foregroundStyle(Color.snapEspresso)
+                        .accessibilityAddTraits(.isHeader)
+                    Text("Include the brand, model, size and condition if you know them.")
+                        .font(.snapBody)
+                        .foregroundStyle(Color.snapWarmGray)
+                        .fixedSize(horizontal: false, vertical: true)
+
+                    TextField("e.g. Levi's 501 jeans, size 32, good condition",
+                              text: $text, axis: .vertical)
+                        .lineLimit(3...6)
+                        .font(.snapBody)
+                        .foregroundStyle(Color.snapEspresso)
+                        .focused($focused)
+                        .submitLabel(.go)
+                        .padding(12)
+                        .background(Color.snapCard)
+                        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                        .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .strokeBorder(Color.snapControlBorder, lineWidth: 1))
+                        .accessibilityLabel("Describe the item")
+                        .onChange(of: text) { _, new in
+                            // Return sends: a vertical field would otherwise
+                            // put a line break in a one-line description.
+                            if new.contains("\n") {
+                                text = new.replacingOccurrences(of: "\n", with: " ")
+                                submit()
+                            } else if new.count > ScanAPIClient.maxDescriptionLength {
+                                text = String(new.prefix(ScanAPIClient.maxDescriptionLength))
+                            }
+                        }
+
+                    PrimaryButton(title: "Get the value") { submit() }
+                        .disabled(!canSend)
+
+                    if !isPro {
+                        Text("Uses today's free scan.")
+                            .font(.snapCaption)
+                            .foregroundStyle(Color.snapWarmGray)
+                            .frame(maxWidth: .infinity)
+                    }
+
+                    PhotosPicker(selection: $photoItem, matching: .images) {
+                        Label("Add a photo instead", systemImage: "photo.on.rectangle")
+                            .font(.snapBodyMedium)
+                            .foregroundStyle(Color.snapTerracottaText)
+                            .frame(maxWidth: .infinity)
+                    }
+                    .snapHitTarget()
+                    .accessibilityHint("Values the item from a photo you already have")
+
+                    Text("A typed item is never rated High confidence. A photo can be.")
+                        .font(.snapCaption)
+                        .foregroundStyle(Color.snapWarmGray)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .padding(20)
+            }
+            .background(Color.snapBackground)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }
+                }
+            }
+        }
+        .presentationDetents([.large])
+        .presentationDragIndicator(.visible)
+        .onAppear { focused = true }
+        // The scan screen's library path takes it from here.
+        .onChange(of: photoItem) { _, item in
+            if item != nil { dismiss() }
+        }
+    }
+
+    private func submit() {
+        guard canSend else { return }
+        onSubmit(text.trimmingCharacters(in: .whitespacesAndNewlines))
+    }
 }
 
 // MARK: - Permission placeholder

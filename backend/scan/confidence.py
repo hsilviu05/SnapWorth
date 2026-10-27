@@ -126,6 +126,14 @@ UNLABELLED_CLOTHING_BRAND_CEILING = HIGH_THRESHOLD - 1
 UNLABELLED_BRAND_REASON = "the brand was not confirmed from a label photo"
 UNLABELLED_BRAND_CODE = "brand_not_from_label"
 
+#: An estimate from a typed description (`/scan/text`) caps here, just below
+#: High. Nothing was seen: the brand, the model and above all the condition
+#: are the person's own words, and the condition is half of a secondhand
+#: price. Always named as a reason, so the badge says why it is not High.
+DESCRIBED_CEILING = HIGH_THRESHOLD - 1
+DESCRIBED_REASON = "the estimate is from a description, not a photo"
+DESCRIBED_CODE = "described_not_photographed"
+
 #: The identification signal when the model named a size or style number it
 #: did not show it read (`compute`'s `unread_specifics`).
 UNREAD_CERTAINTY = 0.4
@@ -148,7 +156,7 @@ UNVERIFIED_AUTHENTICITY_CODE = "authenticity_unverified"
 #: drive every branch of `compute` and require this to be exactly what they
 #: produce, so a code added below without being added here fails them.
 REASON_CODES = frozenset({
-    "brand_identified", "brand_unidentified", UNLABELLED_BRAND_CODE,
+    "brand_identified", "brand_unidentified", UNLABELLED_BRAND_CODE, DESCRIBED_CODE,
     "range_unusable", "range_tight", "range_very_wide", "range_moderately_wide",
     "range_single_price",
     "photo_soft", "photo_lighting_uneven", "photo_low_resolution", "photo_low_contrast",
@@ -252,6 +260,7 @@ def compute(
     range_synthesised: bool = False,
     unread_specifics: bool = False,
     label_photo: bool | None = None,
+    from_description: bool = False,
 ) -> ConfidenceResult:
     """Compute confidence from observable signals.
 
@@ -271,6 +280,9 @@ def compute(
     keeps a garment whose brand was named below High
     (`UNLABELLED_CLOTHING_BRAND_CEILING`); None, a caller that does not say,
     applies no cap.
+
+    `from_description` means there was no photo: the item was typed
+    (`DESCRIBED_CEILING`). Pass `image_quality=None` with it.
     """
     signals: list[ConfidenceSignal] = []
 
@@ -441,6 +453,14 @@ def compute(
         signals.append(ConfidenceSignal(
             "label", 0.0, 0.0, UNLABELLED_BRAND_REASON, UNLABELLED_BRAND_CODE))
 
+    # ── A typed description instead of a photo ─────────────────────────────
+    # See DESCRIBED_CEILING. Added whether or not the cap binds: it is true of
+    # every such estimate, and it is the first thing the person should read.
+    if from_description:
+        score = min(score, DESCRIBED_CEILING)
+        signals.append(ConfidenceSignal(
+            "described", 0.0, 0.0, DESCRIBED_REASON, DESCRIBED_CODE))
+
     # ── Hard override ───────────────────────────────────────────────────────
     # Clamping means the model produced a number outside the plausible band for
     # its own category — an order-of-magnitude error or an injected value. That
@@ -457,7 +477,9 @@ def compute(
     score = max(0, min(100, score))
 
     # Surface the weakest contributors — those are what the user can act on.
-    shown = sorted((s for s in signals if s.value < 0.6), key=lambda s: s.value)[:3]
+    # A typed description leads: it is the reason behind every other gap.
+    shown = sorted((s for s in signals if s.value < 0.6),
+                   key=lambda s: (s.name != "described", s.value))[:3]
     if not shown:
         shown = sorted(signals, key=lambda s: -s.value)[:2]
 

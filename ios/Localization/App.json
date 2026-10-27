@@ -1042,6 +1042,14 @@
       "de": "Eine Naht oder die Stiche um das Logo, nah genug, um jeden Stich zu sehen.",
       "zh-Hans": "一条接缝或标志周围的缝线，近到能看清每一针。"
     },
+    "A typed item is never rated High confidence. A photo can be.": {
+      "comment": "Footnote on the \"Type it instead\" sheet. \"High confidence\" is the result badge: use the same words as that badge.",
+      "en": "A typed item is never rated High confidence. A photo can be.",
+      "ro": "Un obiect descris în scris nu primește niciodată Încredere mare. O poză poate primi.",
+      "es": "Un artículo escrito nunca recibe Confianza alta. Una foto sí puede.",
+      "de": "Ein eingetippter Artikel bekommt nie Hohe Sicherheit. Ein Foto schon.",
+      "zh-Hans": "文字描述的物品不会被评为「置信度高」，照片可以。"
+    },
     "A zipper pull, snap or button, with any engraving facing the camera.": {
       "comment": "Legit check step instruction.",
       "en": "A zipper pull, snap or button, with any engraving facing the camera.",
@@ -1094,6 +1102,14 @@
       "es": "Cuenta",
       "de": "Konto",
       "zh-Hans": "账户"
+    },
+    "Add a photo instead": {
+      "comment": "Opens the photo library from the \"Type it instead\" sheet; the photo is then valued as a normal scan.",
+      "en": "Add a photo instead",
+      "ro": "Adaugă o poză în schimb",
+      "es": "Mejor añade una foto",
+      "de": "Stattdessen ein Foto hinzufügen",
+      "zh-Hans": "改为添加照片"
     },
     "Add both prices to see your profit.": {
       "en": "Add both prices to see your profit.",
@@ -2063,6 +2079,14 @@
       "de": "Geteilte Verkäufe löschen?",
       "zh-Hans": "删除你分享的售出记录？"
     },
+    "Describe the item": {
+      "comment": "Title of the \"Type it instead\" sheet, and the label of its text field.",
+      "en": "Describe the item",
+      "ro": "Descrie obiectul",
+      "es": "Describe el artículo",
+      "de": "Beschreibe den Artikel",
+      "zh-Hans": "描述这件物品"
+    },
     "Did %@ sell? Update your ledger to keep your profit accurate.": {
       "en": "Did %@ sell? Update your ledger to keep your profit accurate.",
       "ro": "S-a vândut %@? Actualizează-ți registrul ca profitul să rămână corect.",
@@ -2575,6 +2599,14 @@
       "de": "Gratiswoche holen",
       "zh-Hans": "领取免费一周"
     },
+    "Get the value": {
+      "comment": "Button that sends the typed description to be valued.",
+      "en": "Get the value",
+      "ro": "Află valoarea",
+      "es": "Ver el valor",
+      "de": "Wert ermitteln",
+      "zh-Hans": "查看估价"
+    },
     "Give a friend a week of Pro, get a week of Pro": {
       "en": "Give a friend a week of Pro, get a week of Pro",
       "ro": "Dă-i unui prieten o săptămână de Pro și primești și tu una",
@@ -2773,6 +2805,14 @@
       "es": "Las compras dentro de la app aún no están configuradas.",
       "de": "In-App-Käufe sind noch nicht eingerichtet.",
       "zh-Hans": "内购还没配置好。"
+    },
+    "Include the brand, model, size and condition if you know them.": {
+      "comment": "Under the title of the \"Type it instead\" sheet.",
+      "en": "Include the brand, model, size and condition if you know them.",
+      "ro": "Adaugă marca, modelul, mărimea și starea, dacă le știi.",
+      "es": "Incluye la marca, el modelo, la talla y el estado si los sabes.",
+      "de": "Gib Marke, Modell, Größe und Zustand an, wenn du sie kennst.",
+      "zh-Hans": "如果知道，请写上品牌、型号、尺码和成色。"
     },
     "Inside label": {
       "comment": "Legit check step title.",
@@ -5327,6 +5367,14 @@
       "de": "Schaltet eine Erinnerung ein, sobald dein Gratis-Scan wieder da ist",
       "zh-Hans": "开启提醒，免费扫描恢复后通知你"
     },
+    "Type it instead": {
+      "comment": "Button on the camera screen: value an item from a typed description instead of a photo.",
+      "en": "Type it instead",
+      "ro": "Scrie-l în schimb",
+      "es": "Mejor escríbelo",
+      "de": "Stattdessen eintippen",
+      "zh-Hans": "改为输入文字"
+    },
     "Unknown — add what it sold for to calculate it": {
       "comment": "VoiceOver value of the result sheet's Profit row when the sold price is missing.",
       "en": "Unknown — add what it sold for to calculate it",
@@ -5510,6 +5558,14 @@
       "de": "Gebraucht",
       "zh-Hans": "有使用痕迹"
     },
+    "Uses today's free scan.": {
+      "comment": "Under the \"Get the value\" button, for a free user: a typed item spends the same daily scan as a photo.",
+      "en": "Uses today's free scan.",
+      "ro": "Folosește scanarea gratuită de azi.",
+      "es": "Usa el escaneo gratis de hoy.",
+      "de": "Verbraucht deinen kostenlosen Scan von heute.",
+      "zh-Hans": "会用掉今天的免费扫描。"
+    },
     "Value history": {
       "comment": "VoiceOver label for the portfolio sparkline on My Finds (Pro). Its value is the first and last total, e.g. '$45 to $1,240'.",
       "en": "Value history",
@@ -5518,12 +5574,28 @@
       "de": "Wertverlauf",
       "zh-Hans": "价值走势"
     },
+    "Values an item from a description instead of a photo": {
+      "comment": "VoiceOver hint for the \"Type it instead\" button.",
+      "en": "Values an item from a description instead of a photo",
+      "ro": "Evaluează un obiect după o descriere, nu după o poză",
+      "es": "Valora un artículo a partir de una descripción en lugar de una foto",
+      "de": "Bewertet einen Artikel anhand einer Beschreibung statt eines Fotos",
+      "zh-Hans": "根据文字描述而不是照片来估价"
+    },
     "Values an item from a photo you already have": {
       "en": "Values an item from a photo you already have",
       "ro": "Evaluează un obiect dintr-o poză pe care o ai deja",
       "es": "Valora un artículo a partir de una foto que ya tienes",
       "de": "Bewertet einen Artikel anhand eines Fotos, das du schon hast",
       "zh-Hans": "用你已有的照片估一件物品"
+    },
+    "Values the item from a photo you already have": {
+      "comment": "VoiceOver hint for \"Add a photo instead\".",
+      "en": "Values the item from a photo you already have",
+      "ro": "Evaluează obiectul dintr-o poză pe care o ai deja",
+      "es": "Valora el artículo a partir de una foto que ya tienes",
+      "de": "Bewertet den Artikel anhand eines Fotos, das du schon hast",
+      "zh-Hans": "用你已有的照片给这件物品估价"
     },
     "Vintage Frames": {
       "en": "Vintage Frames",
@@ -6103,6 +6175,14 @@
       "de": "%lld Prozent weniger",
       "zh-Hans": "下降百分之%lld"
     },
+    "e.g. Levi's 501 jeans, size 32, good condition": {
+      "comment": "Placeholder in the description field. Keep the example a real, widely known item; the brand name stays as is.",
+      "en": "e.g. Levi's 501 jeans, size 32, good condition",
+      "ro": "ex. blugi Levi's 501, mărimea 32, stare bună",
+      "es": "p. ej., vaqueros Levi's 501, talla 32, buen estado",
+      "de": "z. B. Levi's 501 Jeans, Größe 32, guter Zustand",
+      "zh-Hans": "例如：Levi's 501 牛仔裤，32 码，成色良好"
+    },
     "free scan left today": {
       "comment": "The number is the widget's headline; this is the noun under it.",
       "en": "free scan left today",
@@ -6360,6 +6440,14 @@
       "es": "la marca está identificada",
       "de": "die Marke ist erkannt",
       "zh-Hans": "品牌已识别"
+    },
+    "the estimate is from a description, not a photo": {
+      "comment": "One reason under the confidence score in \"Why this price\": a lower-case clause, no full stop, shown as a bullet. In English the server's own clause is shown instead.",
+      "en": "the estimate is from a description, not a photo",
+      "ro": "estimarea vine dintr-o descriere, nu dintr-o poză",
+      "es": "la estimación se basa en una descripción, no en una foto",
+      "de": "die Schätzung beruht auf einer Beschreibung, nicht auf einem Foto",
+      "zh-Hans": "估价来自文字描述，而不是照片"
     },
     "the estimate was outside the plausible range for this category and was adjusted": {
       "comment": "One reason under the confidence score in \"Why this price\": a lower-case clause, no full stop, shown as a bullet. In English the server's own clause is shown instead.",
