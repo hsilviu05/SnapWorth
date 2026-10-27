@@ -200,7 +200,108 @@ class TestAttribution:
         assert "Default-plan test" in reply and "running" in reply
         assert "<b>yearly</b> preselected: 1 devices" in reply
         assert "<b>monthly</b> preselected: 1 devices" in reply
-        assert "Too few devices" in reply
+        assert "Sample size: fixed once" in reply and "No verdict" in reply
+        assert "p =" not in reply
+
+
+async def seed(experiment: str, arm: str, devices: int, starts: int,
+               value_cents: int = 0) -> None:
+    await notify._cache.set(planexperiment.counter_key(experiment, arm, "devices"),
+                            str(devices))
+    await notify._cache.set(planexperiment.counter_key(experiment, arm, "trial_starts"),
+                            str(starts))
+    if value_cents:
+        await notify._cache.set(planexperiment.counter_key(experiment, arm, "value:USD"),
+                                str(value_cents))
+        await notify._cache.set(f"planab:{experiment}:currencies", '["USD"]')
+
+
+class TestFixedHorizon:
+    """No verdict until a sample fixed in advance is reached (#396)."""
+
+    def test_the_size_is_the_two_proportion_formula(self):
+        # 10% vs 13%, two-sided 5%, 80% power: the textbook ~1,770 per arm.
+        assert planexperiment.planned_devices_per_arm(0.10) == 1772
+        assert planexperiment.planned_devices_per_arm(0.0) is None
+        assert planexperiment.planned_devices_per_arm(1.0) is None
+
+    @pytest.mark.asyncio
+    async def test_a_significant_p_before_the_sample_is_not_a_verdict(self, configured):
+        experiment = await start_split()
+        # p < 0.001 on these counts, but far short of the sample they size.
+        await seed(experiment, "yearly", 200, 5)
+        await seed(experiment, "monthly", 200, 30)
+        text = await planexperiment.readout_text(await levers.read())
+        assert text is not None
+        planned = planexperiment.planned_devices_per_arm(35 / 400)
+        assert f"Sample: 200 of {planned} devices per arm" in text
+        assert "No verdict before then" in text
+        assert "p =" not in text and "real difference" not in text
+
+    @pytest.mark.asyncio
+    async def test_the_size_is_fixed_once_and_does_not_move_with_the_data(self, configured):
+        experiment = await start_split()
+        await seed(experiment, "yearly", 200, 10)
+        await seed(experiment, "monthly", 200, 10)
+        await planexperiment.readout_text(await levers.read())
+        first = await notify._cache.get(f"planab:{experiment}:planned")
+        await seed(experiment, "yearly", 400, 120)
+        await seed(experiment, "monthly", 400, 120)
+        await planexperiment.readout_text(await levers.read())
+        assert await notify._cache.get(f"planab:{experiment}:planned") == first
+
+    @pytest.mark.asyncio
+    async def test_at_the_sample_it_calls_the_test_and_the_value_leader(self, configured):
+        experiment = await start_split()
+        await notify._cache.set(f"planab:{experiment}:planned", "300")
+        # Monthly starts more, yearly earns more per device.
+        await seed(experiment, "yearly", 300, 30, value_cents=30 * 3999)
+        await seed(experiment, "monthly", 300, 60, value_cents=60 * 499 * 3)
+        text = await planexperiment.readout_text(await levers.read())
+        assert text is not None
+        assert "Sample reached (300 per arm). Start rate: p = 0.00, a real difference." in text
+        assert "<b>yearly</b> leads, ≈ $4.00 vs $2.99" in text
+
+    @pytest.mark.asyncio
+    async def test_a_split_ended_short_of_its_sample_reads_inconclusive(self, configured):
+        experiment = await start_split()
+        await notify._cache.set(f"planab:{experiment}:planned", "1000")
+        await seed(experiment, "yearly", 100, 5)
+        await seed(experiment, "monthly", 100, 30)
+        await levers.lever_command("plan", "plan yearly yes")
+        text = await planexperiment.readout_text(await levers.read())
+        assert text is not None and "inconclusive" in text
+
+
+class TestOverlapWarning:
+    @pytest.mark.asyncio
+    async def test_an_armed_free_scan_lever_is_named_before_a_split(
+            self, configured, monkeypatch):
+        doc = await levers.read()
+        doc["free_scans_first_day"] = 3
+        await notify._cache.set(levers.LEVERS_KEY, __import__("json").dumps(doc))
+        text, _ = await levers.lever_command("plan", "plan split")
+        assert "Also running: the free-scan lever is armed (3 first-day scans)" in text
+
+    @pytest.mark.asyncio
+    async def test_referrals_switched_on_are_named(self, configured, monkeypatch):
+        from billing import referral
+
+        async def on():
+            return True
+        monkeypatch.setattr(referral, "switched_on", on)
+        text, _ = await levers.lever_command("plan", "plan split")
+        assert "referrals are switched on" in text
+
+    @pytest.mark.asyncio
+    async def test_nothing_else_running_says_nothing(self, configured, monkeypatch):
+        from billing import referral
+
+        async def off():
+            return False
+        monkeypatch.setattr(referral, "switched_on", off)
+        text, _ = await levers.lever_command("plan", "plan split")
+        assert "Also running" not in text
 
 
 class TestSignificance:

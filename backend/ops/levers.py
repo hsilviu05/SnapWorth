@@ -424,6 +424,8 @@ async def _plan_command(parts: list[str]) -> tuple[str, opsformat.Buttons]:
                 "boundary, and log the date in the growth log.")
         if current == planexperiment.SPLIT:
             what += " This ends the running A/B test."
+        if wanted == planexperiment.SPLIT:
+            what += await _overlap_warning(doc)
         return (f"💳 <b>Change the paywall's default plan?</b>\n"
                 f"<b>{_plan_label(current)}</b> → <b>{_plan_label(wanted)}</b>.\n"
                 + what,
@@ -433,6 +435,32 @@ async def _plan_command(parts: list[str]) -> tuple[str, opsformat.Buttons]:
         return _LEVER_UNREADABLE, buttons
     return (f"💳 Paywall default plan — <b>{_plan_label(wanted)}</b>, "
             "from each 1.5.2+ device's next token.", buttons)
+
+
+async def _overlap_warning(doc: dict) -> str:
+    """What else is moving who reaches the paywall, said before a split starts.
+
+    The roadmap runs one lever at a time (#233, #396): a welcome allowance or
+    referrals switched on mid-test change who sees the paywall, in both arms
+    at once, and a readout cannot tell which change did what. A warning, not
+    a refusal: the operator may mean it, and then the growth log says so.
+    """
+    others = []
+    first_day = lever_value(doc)
+    if first_day:
+        others.append(f"the free-scan lever is armed ({lever_label(first_day)})")
+    try:
+        from billing import referral
+        if await referral.switched_on():
+            others.append("referrals are switched on")
+    except Exception as exc:
+        log.warning("referral switch unreadable for the overlap check: %s",
+                    type(exc).__name__)
+    if not others:
+        return ""
+    return ("\n⚠️ Also running: " + "; ".join(others) + ". One lever at a time "
+            "keeps the readout clean: end that first, or log the overlap in the "
+            "growth log.")
 
 
 def lever_buttons(current: int | None) -> opsformat.Buttons:

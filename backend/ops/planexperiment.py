@@ -20,7 +20,11 @@ How it works:
     per original transaction, and the arm is remembered on the transaction so
     a trial's conversion — which Apple may report with no device at all — can
     be counted to the same arm.
-  * `/paywall` shows the counts per arm.
+  * `/paywall` shows the counts per arm, and value per device in dollars.
+    It gives no verdict until both arms reach a sample size fixed once
+    enough starts exist to size it (#396): a p-value read every day and
+    acted on the first time it dips under 0.05 finds differences that are
+    not there far more often than 5% of the time.
 
 Enrolment is keyed on the audit log's pseudonym, never the raw subject, and
 expires with the index's 400 days. Only counts are kept per arm.
@@ -58,6 +62,16 @@ TTL = 60 * 60 * 24 * 400
 
 # The trial counters `opsindex.acquisition` names, and the two this counts.
 TRIAL, PAID = "trial", "paid"
+
+# The fixed horizon (#396). The test is sized to see a start rate 30% higher
+# in one arm than the pooled rate, two-sided at 5% with 80% power. The pooled
+# rate is unknown when the split starts, so the size is computed once the arms
+# have SIZING_STARTS starts between them and then stored, never recomputed:
+# a target that moved with the data would be peeking by another name.
+MIN_DETECTABLE_LIFT = 0.30
+Z_ALPHA = 1.959964      # two-sided 5%
+Z_POWER = 0.841621      # 80% power
+SIZING_STARTS = 20
 
 _cache: ResilientCache | None = None
 
@@ -205,6 +219,43 @@ def two_proportion_p(a: int, n_a: int, b: int, n_b: int) -> float | None:
     return math.erfc(z / math.sqrt(2))
 
 
+def planned_devices_per_arm(pooled_rate: float,
+                            lift: float = MIN_DETECTABLE_LIFT) -> int | None:
+    """Devices each arm needs to detect `lift` (relative) on `pooled_rate`.
+
+    The normal-approximation size for two proportions. None for a rate
+    that cannot be sized from (none, or every device)."""
+    if not 0 < pooled_rate < 1:
+        return None
+    p1 = pooled_rate
+    p2 = min(p1 * (1 + lift), 0.999)
+    if p2 <= p1:
+        return None
+    n = (Z_ALPHA + Z_POWER) ** 2 * (p1 * (1 - p1) + p2 * (1 - p2)) / (p2 - p1) ** 2
+    return max(30, math.ceil(n))
+
+
+async def _planned(experiment: str, starts: int, devices: int) -> int | None:
+    """The stored sample size, fixing it on the first read that can size it."""
+    if _cache is None:
+        return None
+    key = f"planab:{experiment}:planned"
+    try:
+        stored = await _cache.get(key)
+        if stored:
+            return int(stored)
+        if starts < SIZING_STARTS or devices <= 0:
+            return None
+        planned = planned_devices_per_arm(starts / devices)
+        if planned is None:
+            return None
+        await _cache.add(key, str(planned), TTL)
+        return int(await _cache.get(key) or planned)
+    except Exception as exc:
+        log.warning("plan experiment sizing failed: %s", type(exc).__name__)
+        return None
+
+
 async def _read_int(key: str) -> int:
     if _cache is None:
         return 0
@@ -228,6 +279,7 @@ async def readout_text(levers_doc: dict) -> str | None:
     lines = [f"🧪 <b>Default-plan test</b> since {started}, "
              + ("running" if running else "ended")]
     starts: dict[str, tuple[int, int]] = {}
+    per_device: dict[str, float] = {}
     for arm in ARMS:
         devices = await _read_int(counter_key(experiment, arm, "devices"))
         trials = await _read_int(counter_key(experiment, arm, "trial_starts"))
@@ -243,23 +295,45 @@ async def readout_text(levers_doc: dict) -> str | None:
                     value[currency] = cents / 100
         starts[arm] = (trials + direct, devices)
         rate = f" ({(trials + direct) / devices:.1%})" if devices else ""
-        worth = (" + ".join(opsformat.money(v, c) for c, v in sorted(value.items()))
-                 if value else "0")
-        per_device = (" · " + " + ".join(opsformat.money(v / devices, c)
-                                         for c, v in sorted(value.items())) + "/device"
-                      if value and devices else "")
+        worth = opsformat.money_total(value)
+        usd, missing, _ = opsformat.approx_usd(value)
+        device_text = ""
+        if devices:
+            per_device[arm] = usd / devices
+            device_text = (f" · ≈ {opsformat.usd(per_device[arm])}/device"
+                           + (f" excl. {', '.join(missing)}" if missing else ""))
         lines.append(
             f"<b>{arm}</b> preselected: {devices} devices · {trials} trials + "
             f"{direct} direct{rate} · {converted} trials paid · bought "
-            f"{yearly} yearly, {monthly} monthly · worth {worth}/yr{per_device}")
+            f"{yearly} yearly, {monthly} monthly · worth {worth}/yr{device_text}")
     (a, n_a), (b, n_b) = starts["yearly"], starts["monthly"]
-    p = two_proportion_p(a, n_a, b, n_b)
-    if p is None:
-        lines.append("Too few devices to call yet (needs 30+ per arm, and far more "
-                     "for a small difference).")
+    planned = await _planned(experiment, a + b, n_a + n_b)
+    smaller = min(n_a, n_b)
+    if planned is None:
+        lines.append(f"Sample size: fixed once the arms have {SIZING_STARTS} trials "
+                     f"and purchases between them (now {a + b}). No verdict before then.")
+    elif smaller < planned:
+        lines.append(f"Sample: {smaller} of {planned} devices per arm, enough to see a "
+                     f"{MIN_DETECTABLE_LIFT:.0%} difference in start rate. "
+                     + ("No verdict before then: a p-value checked until it dips under "
+                        "0.05 finds differences that are not there."
+                        if running else
+                        "Ended before its sample: inconclusive, whatever the counts say."))
     else:
-        verdict = "a real difference" if p < 0.05 else "no clear difference yet"
-        lines.append(f"Start rate: p = {p:.2f}, {verdict}.")
+        p = two_proportion_p(a, n_a, b, n_b)
+        if p is not None:
+            verdict = "a real difference" if p < 0.05 else "no clear difference"
+            lines.append(f"Sample reached ({planned} per arm). Start rate: p = {p:.2f}, "
+                         f"{verdict}.")
+        if len(per_device) == len(ARMS):
+            leader = max(ARMS, key=lambda arm: per_device[arm])
+            other = next(arm for arm in ARMS if arm != leader)
+            lines.append(f"Decide on value per device: <b>{leader}</b> leads, "
+                         f"≈ {opsformat.usd(per_device[leader])} vs "
+                         f"{opsformat.usd(per_device[other])}. The start-rate test "
+                         "says whether the arms really differ; value per device "
+                         "says which one earns more.")
     lines.append("Builds 22+ only. Worth per year counts a monthly as 12 charges, an "
-                 "upper bound; a trial adds its value when it converts.")
+                 "upper bound; a trial adds its value when it converts. Dollar "
+                 "figures use a fixed ECB rate.")
     return "\n".join(lines)
