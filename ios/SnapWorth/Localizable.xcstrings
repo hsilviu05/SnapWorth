@@ -24166,6 +24166,42 @@
         }
       }
     },
+    "This description couldn't be analysed. Try describing a single item." : {
+      "comment" : "An error the server sent with a code this build words itself (backend/core/apierrors.py), for a scan made from a typed description rather than a photo. In English the server's own sentence is shown instead.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Diese Beschreibung konnte nicht analysiert werden. Versuch, nur einen Artikel zu beschreiben."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This description couldn't be analysed. Try describing a single item."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No se ha podido analizar esta descripción. Prueba a describir un solo artículo."
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Descrierea asta nu a putut fi analizată. Încearcă să descrii un singur obiect."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这段描述无法分析。请只描述一件物品。"
+          }
+        }
+      }
+    },
     "This device doesn't support secure attestation." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -24233,6 +24269,42 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "这看起来不像有转卖价值的东西。请拍一件你真的会卖的单件物品。"
+          }
+        }
+      }
+    },
+    "This doesn't look like something with a resale value. Try describing a single item you'd actually sell." : {
+      "comment" : "An error the server sent with a code this build words itself (backend/core/apierrors.py), for a scan made from a typed description rather than a photo. In English the server's own sentence is shown instead. The server's English also gives the AI's reason, which is model text in English; this sentence is shown without it.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Das sieht nicht nach etwas mit Wiederverkaufswert aus. Versuch, einen einzelnen Artikel zu beschreiben, den du wirklich verkaufen würdest."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This doesn't look like something with a resale value. Try describing a single item you'd actually sell."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Esto no parece algo con valor de reventa. Prueba a describir un solo artículo que de verdad venderías."
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nu pare să fie ceva ce se poate revinde. Încearcă să descrii un singur obiect pe care chiar l-ai vinde."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这看起来不像有转卖价值的东西。请描述一件你真的会卖的单件物品。"
           }
         }
       }

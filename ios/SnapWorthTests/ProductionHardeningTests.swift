@@ -10245,6 +10245,27 @@ final class ServerErrorCodeRoutingTests: XCTestCase {
                        ServerErrorCode.updateRequired.message)
     }
 
+    func test_aTypedScansRefusalIsAboutTheDescriptionNotAPhoto() {
+        // "Type it instead": outside English this build's words replace the
+        // server's, and the photo sentences told the user to retake a photo
+        // they never took (AUDIT-2026-10-27).
+        let unusable = ScanAPIError.serverError(422, "x", code: "photo_unusable")
+        XCTAssertEqual(AppError.from(unusable, inEnglish: false, typed: true),
+                       .unusablePhoto(ServerErrorCode.photoUnusable.typedMessage!))
+        XCTAssertEqual(AppError.from(unusable, inEnglish: false),
+                       .unusablePhoto(ServerErrorCode.photoUnusable.message))
+        let declined = ScanAPIError.serverError(422, "x", code: "not_resalable")
+        XCTAssertEqual(AppError.from(declined, inEnglish: false, typed: true),
+                       .notResalable(ServerErrorCode.notResalable.typedMessage!))
+        // A paused device is about the device, so it keeps its own words.
+        let paused = ScanAPIError.serverError(422, "x", code: "device_paused")
+        XCTAssertEqual(AppError.from(paused, inEnglish: false, typed: true),
+                       .unusablePhoto(ServerErrorCode.devicePaused.message))
+        // In English the server's words stand, as for a photo.
+        XCTAssertEqual(AppError.from(unusable, inEnglish: true, typed: true),
+                       .unusablePhoto("x"))
+    }
+
     func test_anUnknownCodeShowsTheServersWordsInEveryLanguage() {
         let error = ScanAPIError.serverError(422, "Something new went wrong.", code: "brand_new_failure")
         XCTAssertEqual(AppError.from(error, inEnglish: false), .unusablePhoto("Something new went wrong."))

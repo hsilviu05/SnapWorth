@@ -320,7 +320,7 @@ final class ScanViewModel {
             // screen is still this scan's, as there.
             watch?.close()
             if rareFindWatch === watch { rareFindAppraisal = nil }
-            let appError = AppError.from(error)
+            let appError = AppError.from(error, typed: image == nil)
 
             // A 402 is the paywall, not a failure. It reaches here whenever the
             // pre-flight gate above and the server disagree about which day it

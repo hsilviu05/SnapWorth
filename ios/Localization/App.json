@@ -5138,6 +5138,14 @@
       "de": "Das sieht nicht nach etwas mit Wiederverkaufswert aus. Versuch es mit einem Foto von einem einzelnen Artikel, den du wirklich verkaufen würdest.",
       "zh-Hans": "这看起来不像有转卖价值的东西。请拍一件你真的会卖的单件物品。"
     },
+    "This doesn't look like something with a resale value. Try describing a single item you'd actually sell.": {
+      "comment": "An error the server sent with a code this build words itself (backend/core/apierrors.py), for a scan made from a typed description rather than a photo. In English the server's own sentence is shown instead. The server's English also gives the AI's reason, which is model text in English; this sentence is shown without it.",
+      "en": "This doesn't look like something with a resale value. Try describing a single item you'd actually sell.",
+      "ro": "Nu pare să fie ceva ce se poate revinde. Încearcă să descrii un singur obiect pe care chiar l-ai vinde.",
+      "es": "Esto no parece algo con valor de reventa. Prueba a describir un solo artículo que de verdad venderías.",
+      "de": "Das sieht nicht nach etwas mit Wiederverkaufswert aus. Versuch, einen einzelnen Artikel zu beschreiben, den du wirklich verkaufen würdest.",
+      "zh-Hans": "这看起来不像有转卖价值的东西。请描述一件你真的会卖的单件物品。"
+    },
     "This find was saved without its full breakdown. Re-read its photo to see the price points and what drives the value. The estimate, the item's name and details, and the listing draft may change.": {
       "comment": "Shown to a subscriber under \"Why this price\" when the find was saved with only the free part of the panel (usually scanned before they subscribed). A re-read replaces the estimate, name, brand, category, condition notes and listing draft, so all of them are named.",
       "en": "This find was saved without its full breakdown. Re-read its photo to see the price points and what drives the value. The estimate, the item's name and details, and the listing draft may change.",
@@ -5191,6 +5199,14 @@
       "es": "No se ha podido analizar esta foto. Prueba con una foto nítida de un solo artículo.",
       "de": "Dieses Foto konnte nicht analysiert werden. Versuch es mit einem scharfen Foto von nur einem Artikel.",
       "zh-Hans": "这张照片无法分析。请拍一张清晰的单件物品照片。"
+    },
+    "This description couldn't be analysed. Try describing a single item.": {
+      "comment": "An error the server sent with a code this build words itself (backend/core/apierrors.py), for a scan made from a typed description rather than a photo. In English the server's own sentence is shown instead.",
+      "en": "This description couldn't be analysed. Try describing a single item.",
+      "ro": "Descrierea asta nu a putut fi analizată. Încearcă să descrii un singur obiect.",
+      "es": "No se ha podido analizar esta descripción. Prueba a describir un solo artículo.",
+      "de": "Diese Beschreibung konnte nicht analysiert werden. Versuch, nur einen Artikel zu beschreiben.",
+      "zh-Hans": "这段描述无法分析。请只描述一件物品。"
     },
     "This purchase could not be completed.": {
       "en": "This purchase could not be completed.",

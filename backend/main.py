@@ -1701,7 +1701,7 @@ def privacy():
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Privacy Policy — SnapWorth</title><style>{_STYLE}</style></head><body>
 <h1>Privacy Policy</h1>
-<p>Last updated: October 19, 2026</p>
+<p>Last updated: October 27, 2026</p>
 <p>SnapWorth ("we", "our", or "us") operates the SnapWorth mobile application.
 This page informs you of our policies regarding the collection, use, and
 disclosure of personal data when you use our Service.</p>
@@ -1711,6 +1711,9 @@ disclosure of personal data when you use our Service.</p>
 sent to our server, processed by an AI model to identify the item and estimate
 resale value, or to look for the usual signs of a replica, and are not stored
 after the response is returned.</p>
+<p>If you type a description of an item instead of taking a photo, the text is
+sent to our server and processed by the same AI model in the same way, and is
+not stored after the response is returned.</p>
 <p>We collect an anonymous device identifier (UUID) for rate limiting (20 scans
 per hour) and to limit how many devices can use one subscription. This ID is not
 linked to your identity, except that if you subscribe it is kept with Apple's
@@ -1774,9 +1777,11 @@ with third parties, except for the service providers below and as required by la
 <h2>Service Providers</h2>
 <p><strong>Google (Gemini API).</strong> Photos you submit are transmitted to
 Google's Gemini API, which identifies the item and estimates its resale value,
-or reads a legit check's close-ups.
+or reads a legit check's close-ups. A description you type instead of a photo
+is transmitted the same way.
 Google processes them under its API terms of service and does not use them to
-train its models. Photos are not retained by us after the response is returned.</p>
+train its models. Photos and descriptions are not retained by us after the
+response is returned.</p>
 <p><strong>Apple (DeviceCheck).</strong> Receives the device token described
 above, and stores two bits against your hardware so a reinstall does not reset
 the free allowance.</p>
@@ -2296,10 +2301,14 @@ async def scan(
 
 
 def _deliver_scan(response: "ScanResponse", elapsed: float, principal: Principal,
-                  quota_status, *, reread: bool) -> "ScanResponse":
+                  quota_status, *, reread: bool, typed: bool = False) -> "ScanResponse":
     """The last steps of a scan the client is still waiting for, shared by
     `/scan` and `/scan/text`: trim the Pro detail, charge, tally, and say
-    what is left of the allowance."""
+    what is left of the allowance.
+
+    A typed item is counted but kept out of `/trends`, as a re-read is: it is
+    something someone thought of rather than something seen on a rail, and
+    typing would make a chosen brand or name easy to push into the tallies."""
     # The panel this feeds is Pro-only; until now only the client's blur said
     # so. See `_strip_pro_detail` for what deliberately survives.
     if not principal.is_pro:
@@ -2311,7 +2320,7 @@ def _deliver_scan(response: "ScanResponse", elapsed: float, principal: Principal
         category=response.category, low=response.est_value_low_usd,
         high=response.est_value_high_usd, confidence=response.confidence,
         subject=principal.subject, elapsed_ms=int(elapsed * 1000),
-        reread=reread)
+        reread=reread or typed)
     # Optional and omitted for Pro or when the quota store is unreachable: the
     # client must fall back to its own count rather than be handed a number.
     response.free_scans_remaining = (
@@ -2393,7 +2402,8 @@ async def scan_text(
                  extra={"device": device_short})
         return response
 
-    return _deliver_scan(response, elapsed, principal, quota_status, reread=False)
+    return _deliver_scan(response, elapsed, principal, quota_status, reread=False,
+                         typed=True)
 
 
 #: What to say when the model reports no resale value and gives no reason.
@@ -2401,8 +2411,12 @@ _NOT_RESALABLE_FALLBACK = (
     "This doesn't look like something with a resale value. "
     "Try a photo of a single item you'd actually sell.")
 
+#: The same advice for `/scan/text`, where there is no photo to retake.
+_TRY_AGAIN_PHOTO = "Try a photo of a single item you'd actually sell."
+_TRY_AGAIN_TYPED = "Try describing a single item you'd actually sell."
 
-def _not_resalable_message(val: valuation_module.Valuation) -> str:
+
+def _not_resalable_message(val: valuation_module.Valuation, *, typed: bool = False) -> str:
     """The user-facing text for a deliberate zero valuation.
 
     The prompt asks the model to *explain in `uncertainty_factors`*, and that
@@ -2425,13 +2439,15 @@ def _not_resalable_message(val: valuation_module.Valuation) -> str:
     reason = next((f for f in val.uncertainty_factors
                    if f and f.strip().rstrip(".").casefold()
                    != prompts.MULTIPLE_ITEMS_FACTOR), "")
+    advice = _TRY_AGAIN_TYPED if typed else _TRY_AGAIN_PHOTO
     if not reason:
-        return _NOT_RESALABLE_FALLBACK
+        return ("This doesn't look like something with a resale value. " + advice
+                if typed else _NOT_RESALABLE_FALLBACK)
     if len(reason) > 160:
         reason = reason[:159].rstrip() + "…"
     if reason[-1] not in ".!?…":
         reason += "."
-    return f"{reason} Try a photo of a single item you'd actually sell."
+    return f"{reason} {advice}"
 
 
 #: Image-quality decodes allowed at once (`_analyse`). Each is a full-size
@@ -2526,6 +2542,8 @@ async def _analyse(image_bytes: bytes | None, content_type: str, *, subject: str
             await _note_safety_block(subject)
         raise APIError(
             422, apierrors.PHOTO_UNUSABLE,
+            "This description couldn't be analysed. Try describing a single item."
+            if description is not None else
             "This photo couldn't be analysed. Try a clear photo of a single item.",
         ) from None
     except aiconfig.ModelUnavailable as exc:
@@ -2609,7 +2627,8 @@ async def _analyse(image_bytes: bytes | None, content_type: str, *, subject: str
             # without the model's reason (`ServerCopy.text`; the open question
             # is in ios/Localization/README.md).
             raise APIError(
-                422, apierrors.NOT_RESALABLE, _not_resalable_message(val),
+                422, apierrors.NOT_RESALABLE,
+                _not_resalable_message(val, typed=description is not None),
             ) from None
 
         log.error("scan produced no usable price",

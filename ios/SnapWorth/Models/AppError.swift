@@ -203,7 +203,10 @@ enum AppError: LocalizedError, Equatable {
     ///   decides between the server's words and this build's for a code it
     ///   knows — see `ServerCopy.text`. A parameter so tests can take the
     ///   other branch in an English simulator.
-    static func from(_ error: Error, inEnglish: Bool = ServerCopy.appIsInEnglish) -> AppError {
+    /// - Parameter typed: the request was "Type it instead", so this build's
+    ///   words are about a description, not a photo (`typedMessage`).
+    static func from(_ error: Error, inEnglish: Bool = ServerCopy.appIsInEnglish,
+                     typed: Bool = false) -> AppError {
         if let appErr = error as? AppError { return appErr }
 
         if let scanErr = error as? ScanAPIError {
@@ -226,7 +229,8 @@ enum AppError: LocalizedError, Equatable {
                 if status == 426 || known == .updateRequired { return .updateRequired }
                 // For the cases below that show server copy: the server's
                 // `detail`, or this build's words for its code.
-                let text = ServerCopy.text(server: detail, translated: known?.message,
+                let translated = typed ? (known?.typedMessage ?? known?.message) : known?.message
+                let text = ServerCopy.text(server: detail, translated: translated,
                                            inEnglish: inEnglish)
                 switch status {
                 // Reachable only if something throws a plain `serverError`
@@ -470,6 +474,22 @@ enum ServerErrorCode: String, CaseIterable {
             return String(localized: "The AI response couldn't be read. Please try again.")
         case .aiNoPrice:
             return String(localized: "The AI couldn't price this item. Please try again.")
+        }
+    }
+}
+
+extension ServerErrorCode {
+    /// This build's words for a scan made from a typed description, where
+    /// `message` would tell the user to retake a photo they never took. Nil
+    /// where `message` already fits.
+    var typedMessage: String? {
+        switch self {
+        case .photoUnusable:
+            return String(localized: "This description couldn't be analysed. Try describing a single item.")
+        case .notResalable:
+            return String(localized: "This doesn't look like something with a resale value. Try describing a single item you'd actually sell.")
+        default:
+            return nil
         }
     }
 }
