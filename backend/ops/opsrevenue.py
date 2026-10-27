@@ -316,9 +316,7 @@ async def _money(month_: str, prefix: str) -> dict[str, float]:
 
 
 def _money_text(amounts: dict[str, float]) -> str:
-    if not amounts:
-        return "0"
-    return " + ".join(opsformat.money(v, c) for c, v in sorted(amounts.items()))
+    return opsformat.money_total(amounts)
 
 
 def _month_start(at: datetime) -> datetime:
@@ -415,6 +413,8 @@ async def revenue_text(now: datetime | None = None) -> str:
     lines.append("Customer prices, before Apple's commission and VAT. Churn is "
                  "paid subscriptions that ended, over those paying on the 1st. "
                  "Proceeds and retention cohorts: App Store Connect.")
+    if note := opsformat.fx_note():
+        lines.append(note)
     if len(doc) >= opsindex.SUBS_INDEX_CAP:
         lines.append(f"⚠️ The subscription index is at its {opsindex.SUBS_INDEX_CAP}-row "
                      "cap, so MRR and the paid count leave out the least recently "
