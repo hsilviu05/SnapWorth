@@ -2288,27 +2288,112 @@ async def scan(
                  extra={"device": device_short})
         return response
 
+    # A tag photo only ever arrives as the result screen's re-read of an item
+    # already scanned (ResultView `rescan(withTag:)`), so it is counted as the
+    # model call it is but not tallied into /trends a second time.
+    return _deliver_scan(response, elapsed, principal, quota_status,
+                         reread=tag_bytes is not None)
+
+
+def _deliver_scan(response: "ScanResponse", elapsed: float, principal: Principal,
+                  quota_status, *, reread: bool) -> "ScanResponse":
+    """The last steps of a scan the client is still waiting for, shared by
+    `/scan` and `/scan/text`: trim the Pro detail, charge, tally, and say
+    what is left of the allowance."""
     # The panel this feeds is Pro-only; until now only the client's blur said
     # so. See `_strip_pro_detail` for what deliberately survives.
     if not principal.is_pro:
         response = _strip_pro_detail(response)
 
     record_quota_consumed(principal)
-    # A tag photo only ever arrives as the result screen's re-read of an item
-    # already scanned (ResultView `rescan(withTag:)`), so it is counted as the
-    # model call it is but not tallied into /trends a second time.
     notify.scan_completed(
         tier=principal.tier, item_name=response.item_name, brand=response.brand,
         category=response.category, low=response.est_value_low_usd,
         high=response.est_value_high_usd, confidence=response.confidence,
         subject=principal.subject, elapsed_ms=int(elapsed * 1000),
-        reread=tag_bytes is not None)
+        reread=reread)
     # Optional and omitted for Pro or when the quota store is unreachable: the
     # client must fall back to its own count rather than be handed a number.
     response.free_scans_remaining = (
         None if quota_status is None or quota_status.unlimited
         else quota_status.remaining)
     return response
+
+
+#: The shortest description `/scan/text` will price: "ps5" is three.
+MIN_DESCRIPTION = 3
+
+
+class TextScanRequest(BaseModel):
+    """A typed item for `/scan/text`. The cap here only bounds what is read;
+    the one that matters is `prompts.MAX_DESCRIPTION`, after sanitising."""
+    description: str = Field(max_length=1000)
+
+
+def _clean_description(raw: str) -> str:
+    """The description as the model will see it, or a 400.
+
+    Sanitised exactly as model output is before it is reused in a prompt
+    (`promptsafety.sanitize_text`), so instruction-shaped phrases are already
+    neutralised; `prompts.with_description` then fences it. Refused rather
+    than truncated past the limit, so nobody is priced for half a sentence.
+    """
+    text = promptsafety.sanitize_text(raw, max_length=len(raw) + 1, field="description")
+    if len(text) > prompts.MAX_DESCRIPTION:
+        raise APIError(400, apierrors.DESCRIPTION_INVALID,
+                       f"Describe the item in {prompts.MAX_DESCRIPTION} characters or fewer.")
+    if len(text) < MIN_DESCRIPTION or not any(ch.isalpha() for ch in text):
+        raise APIError(400, apierrors.DESCRIPTION_INVALID,
+                       "Type what the item is, e.g. \"Levi's 501 jeans, size 32\".")
+    return text
+
+
+@app.post("/scan/text", response_model=ScanResponse,
+          dependencies=[Depends(_refuse_outdated_build)])
+async def scan_text(
+    request: Request,
+    req: TextScanRequest,
+    principal: Principal = Depends(require_auth),
+) -> ScanResponse:
+    """Price an item from a typed description instead of a photo.
+
+    The same allowance, limits, model and response as `/scan`, so a free user
+    spends their daily scan either way and the app shows the result on the
+    same screen. What differs: there is no photo to measure, and confidence is
+    capped below High and says why (`confidence.DESCRIBED_CEILING`).
+    """
+    device_short = auditlog.pseudonymise(principal.subject)
+    description = _clean_description(req.description)
+
+    await _enforce_limits(principal.subject, _client_ip(request),
+                          limit=_scan_rate_limit(principal))
+    await _refuse_if_paused(principal.subject)
+
+    quota_status = await reserve_quota(principal)
+    auditlog.record(AuditEvent.SCAN_AUTHORISED, principal.subject, tier=principal.tier)
+    # The length only: what someone typed is what they scanned, and see
+    # "scan ok" for why that never goes on a line that names the device.
+    log.info("scan start", extra={"device": device_short, "described": True,
+                                  "description_chars": len(description)})
+    try:
+        response, elapsed = await _analyse(None, "", subject=principal.subject,
+                                           device_short=device_short,
+                                           deadline=_client_deadline(request),
+                                           tier=principal.tier,
+                                           description=description)
+    except BaseException:
+        await refund_quota(principal, quota_status)
+        raise
+
+    # As /scan: a result the phone gave up waiting for is not charged.
+    if await request.is_disconnected():
+        await refund_quota(principal, quota_status)
+        opsstats.count_scan(principal.tier)
+        log.info("client gone before the result — allowance returned",
+                 extra={"device": device_short})
+        return response
+
+    return _deliver_scan(response, elapsed, principal, quota_status, reread=False)
 
 
 #: What to say when the model reports no resale value and gives no reason.
@@ -2354,11 +2439,12 @@ def _not_resalable_message(val: valuation_module.Valuation) -> str:
 _QUALITY_DECODES = asyncio.Semaphore(2)
 
 
-async def _analyse(image_bytes: bytes, content_type: str, *, subject: str,
+async def _analyse(image_bytes: bytes | None, content_type: str, *, subject: str,
                    device_short: str, tag_bytes: bytes | None = None,
                    tag_type: str = "", count: bool = True,
                    deadline: float | None = None,
-                   tier: str | None = None) -> tuple[ScanResponse, float]:
+                   tier: str | None = None,
+                   description: str | None = None) -> tuple[ScanResponse, float]:
     """The scan itself: model call, parse, normalise, clamp, score.
 
     Everything between "the upload is valid and allowed" and "charge for it":
@@ -2370,11 +2456,15 @@ async def _analyse(image_bytes: bytes, content_type: str, *, subject: str,
     `_generate_with_retry`'s, for both model calls a scan can make, and so is
     `tier`: the caller's, so `/costs` can charge the scan and its reformat to
     Pro or free. The bot's own scans pass none and are the operator's.
+
+    `description` replaces the photo (`/scan/text`): pass `image_bytes=None`
+    and an already-sanitised description. There is then nothing to measure,
+    no tag, and confidence is capped below High (`confidence.DESCRIBED_CEILING`).
     """
 
     t0 = time.monotonic()
-
-    image_part = {"mime_type": content_type, "data": base64.standard_b64encode(image_bytes).decode()}
+    if (image_bytes is None) == (description is None):
+        raise ValueError("_analyse takes a photo or a description, exactly one")
 
     # Measured before the model call and independent of it — see imagequality.py.
     # A blurry photo genuinely carries less information, so it must lower the
@@ -2390,26 +2480,36 @@ async def _analyse(image_bytes: bytes, content_type: str, *, subject: str,
     # other request (scans on a deadline, auth, Apple's notifications, health)
     # for 1-2 s. The semaphore keeps threads from turning that into several
     # full-size decodes in memory at once.
-    async with _QUALITY_DECODES:
-        quality = await asyncio.to_thread(imagequality.analyse, image_bytes)
+    quality: imagequality.ImageQuality | None = None
+    if image_bytes is not None:
+        async with _QUALITY_DECODES:
+            quality = await asyncio.to_thread(imagequality.analyse, image_bytes)
 
     prompt_text, prompt_version = prompts.get_prompt(SCAN_PROMPT_VERSION)
 
-    contents: list = [prompt_text, image_part]
-    if tag_bytes:
-        # Item first, label second — the prompt addendum names them in that
-        # order, and the model has no other way to tell which is which.
-        prompt_text = prompts.with_tag_photo(prompt_text)
-        contents = [prompt_text, image_part,
-                    {"mime_type": tag_type or content_type,
-                     "data": base64.standard_b64encode(tag_bytes).decode()}]
+    contents: list
+    if image_bytes is None:
+        contents = [prompts.with_description(prompt_text, description or "")]
+    else:
+        image_part = {"mime_type": content_type,
+                      "data": base64.standard_b64encode(image_bytes).decode()}
+        contents = [prompt_text, image_part]
+        if tag_bytes:
+            # Item first, label second — the prompt addendum names them in that
+            # order, and the model has no other way to tell which is which.
+            prompt_text = prompts.with_tag_photo(prompt_text)
+            contents = [prompt_text, image_part,
+                        {"mime_type": tag_type or content_type,
+                         "data": base64.standard_b64encode(tag_bytes).decode()}]
 
     try:
         # `count=False` is the operator testing the service through the bot, so
         # it is labelled as such: the cost is real and belongs in the total, but
         # not in "$/scan" or either tier's spend, which are statements
         # about users. At 1-4 real scans a day one test photo moved both.
-        if count:
+        if description is not None:
+            label = "scan_text" if count else "bot_scan_text"
+        elif count:
             label = "scan_with_tag" if tag_bytes else "scan"
         else:
             label = "bot_scan_with_tag" if tag_bytes else "bot_scan"
@@ -2552,7 +2652,10 @@ async def _analyse(image_bytes: bytes, content_type: str, *, subject: str,
         expected_field_count=len(valuation_module.EXPECTED_OPTIONAL_FIELDS),
         range_synthesised=val.prices.single_price,
         unread_specifics=val.unread_specifics,
-        label_photo=tag_bytes is not None,
+        # No photo means no label photo either, and the description cap is
+        # already below the one this would apply.
+        label_photo=None if description is not None else tag_bytes is not None,
+        from_description=description is not None,
     )
     val.confidence = conf
     metrics.confidence_score.observe(conf.score)
@@ -2576,7 +2679,8 @@ async def _analyse(image_bytes: bytes, content_type: str, *, subject: str,
             "confidence_calibrated": conf.calibrated_score}
            if conf.calibrated_score is not None else {}),
         "clamped": was_clamped, "prompt_version": prompt_version,
-        "image_quality": quality.overall, "elapsed_s": round(elapsed, 2),
+        "image_quality": quality.overall if quality is not None else None,
+        "described": description is not None, "elapsed_s": round(elapsed, 2),
         **usage,
     })
 

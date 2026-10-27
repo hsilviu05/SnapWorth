@@ -124,7 +124,7 @@ _PRO_LABELS = ("listing", "scan_with_tag", "legit", "rack")
 
 # A user's scan, the call a thinking budget is for (#217). Retries and
 # reformats are left out, so "thinking per scan call" means what it says.
-_SCAN_LABELS = ("scan", "scan_with_tag")
+_SCAN_LABELS = ("scan", "scan_with_tag", "scan_text")
 
 
 def _usage_tier(label: str, tier: str | None) -> str | None:
@@ -211,7 +211,8 @@ def model_usage(label: str, usage: dict | None, *, tier: str | None = None) -> N
 # reformat retry, which was filed as a user's `reformat` until #219). They are
 # billed like any other call and belong in the total — but not in "$/scan" or
 # in either tier's spend, which are statements about users.
-_OPERATOR_LABELS = ("ideas", "probe", "bot_scan", "bot_scan_with_tag", "bot_reformat")
+_OPERATOR_LABELS = ("ideas", "probe", "bot_scan", "bot_scan_with_tag", "bot_scan_text",
+                    "bot_reformat")
 
 
 async def _operator_spend(days: list[str]) -> float:

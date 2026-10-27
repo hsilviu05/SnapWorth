@@ -36,6 +36,10 @@ struct ResultView: View {
     /// and a second event would count it twice — see `priceAlreadyShown`.
     var isFreshScan: Bool = false
 
+    /// The result was made from a photo. False for "Type it instead": there
+    /// is no photo to re-read, so neither re-read is offered.
+    var hasPhoto: Bool = true
+
 
     @State private var vm = ResultViewModel()
     @State private var photo: UIImage?
@@ -98,13 +102,15 @@ struct ResultView: View {
          didSave: Bool = true,
          coverPrice: Bool = false,
          priceAlreadyShown: Bool = false,
-         isFreshScan: Bool = false) {
+         isFreshScan: Bool = false,
+         hasPhoto: Bool = true) {
         self.result = result
         self.purchaseService = purchaseService
         self.onDismiss = onDismiss
         self.didSave = didSave
         self.coverPrice = coverPrice
         self.isFreshScan = isFreshScan
+        self.hasPhoto = hasPhoto
         self.priceAlreadyShown = priceAlreadyShown
         _priceRevealed = State(initialValue: priceAlreadyShown)
         // A parent can rebuild this view after its find is gone; `body` then
@@ -642,7 +648,9 @@ struct ResultView: View {
     /// rather than private so a test can build this sheet the way each call
     /// site does and read the answer.
     var fullDetailOffer: FullDetailOffer {
-        FullDetailOffer(isPro: isPro, isFreshScan: isFreshScan,
+        // A typed item reads as one reopened: its breakdown cannot be re-read
+        // from a photo it never had.
+        FullDetailOffer(isPro: isPro, isFreshScan: isFreshScan && hasPhoto,
                         detail: result.valuationDetail)
     }
 
@@ -654,7 +662,7 @@ struct ResultView: View {
     /// The tag re-read is offered on a fresh result only, on the same signal
     /// as the full-breakdown re-read (`FullDetailOffer`), so the two cannot
     /// come apart the day either changes.
-    var offersTagReread: Bool { isFreshScan }
+    var offersTagReread: Bool { isFreshScan && hasPhoto }
 
     /// Whether to ask for a rating once this result is on screen: a fresh
     /// scan, after the price has been uncovered (never while a guess is

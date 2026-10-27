@@ -10,6 +10,7 @@
   "auth_required",
   "bad_content_length",
   "challenge_invalid",
+  "description_invalid",
   "device_paused",
   "entitlement_rejected",
   "image_empty",
