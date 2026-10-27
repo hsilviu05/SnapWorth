@@ -90,6 +90,54 @@ def usd(amount: float) -> str:
     return f"${amount:,.2f}"
 
 
+def approx_usd(amounts: dict[str, float]) -> tuple[float, list[str], str | None]:
+    """Mixed-currency amounts summed in US dollars at one fixed rate (#397).
+
+    The rate is the last day of the pinned ECB table the eval harness ships
+    (`eval/fx.py`), not today's: a fixed rate keeps one month comparable with
+    the next, which is what the total is for, and needs no network. Returns
+    the total, the currencies the table has no rate for (left out of it), and
+    the rate day, or None when the table cannot be read.
+    """
+    try:
+        from eval import fx
+        table = fx.load()
+        on = max(table.rates)
+    except Exception:
+        return 0.0, sorted(c for c in amounts if c != "USD"), None
+    total, missing = 0.0, []
+    for currency, amount in amounts.items():
+        try:
+            total += table.to_usd(amount, currency, on)
+        except fx.FxUnavailable:
+            missing.append(currency)
+    return total, sorted(missing), on.isoformat()
+
+
+def money_total(amounts: dict[str, float]) -> str:
+    """Per-currency amounts, then their approximate dollar total when there
+    is anything to convert: "$9.99 + €29.99 (≈ $43.46)"."""
+    if not amounts:
+        return "0"
+    text = " + ".join(money(v, c) for c, v in sorted(amounts.items()))
+    if set(amounts) <= {"USD"}:
+        return text
+    total, missing, on = approx_usd(amounts)
+    if on is None:
+        return text
+    if len(missing) == len(amounts):
+        return text
+    left_out = f" excl. {', '.join(missing)}" if missing else ""
+    return f"{text} (≈ {usd(total)}{left_out})"
+
+
+def fx_note() -> str:
+    """The footnote a `money_total` reader needs once."""
+    _, _, on = approx_usd({"EUR": 1.0})
+    return (f"≈ $ totals use ECB rates of {on}, held fixed so months compare."
+            if on else "")
+
+
 def usd_fine(amount: float) -> str:
     """Per-scan money: three decimals below ten cents, or the number lies."""
     return f"${amount:,.3f}" if amount < 0.10 else f"${amount:,.2f}"

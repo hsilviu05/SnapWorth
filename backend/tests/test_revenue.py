@@ -20,6 +20,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from ops import notify  # noqa: E402
 from ops import opsindex  # noqa: E402
+from ops import opsformat  # noqa: E402
 from ops import opsrevenue  # noqa: E402
 from core.cache import InMemoryCache, ResilientCache  # noqa: E402
 from billing.entitlements import Entitlement  # noqa: E402
@@ -191,6 +192,37 @@ class TestSnapshots:
         monkeypatch.setattr(opsindex, "SUBS_INDEX_CAP", 1)
         await opsindex.index_subscription(None, paid())
         assert "cap" in await opsrevenue.revenue_text()
+
+
+class TestDollarTotal:
+    """One approximate total beside the per-currency amounts (#397)."""
+
+    def test_mixed_currencies_get_a_fixed_rate_dollar_total(self):
+        from eval import fx
+        table = fx.load()
+        on = max(table.rates)
+        expected = 9.99 + table.to_usd(29.99, "EUR", on) + table.to_usd(49.99, "RON", on)
+        text = opsformat.money_total({"USD": 9.99, "EUR": 29.99, "RON": 49.99})
+        assert text.startswith("€29.99 + 49.99 RON + $9.99 (≈ $")
+        assert f"≈ ${expected:,.2f})" in text
+
+    def test_dollars_alone_need_no_total(self):
+        assert opsformat.money_total({"USD": 9.99}) == "$9.99"
+        assert opsformat.money_total({}) == "0"
+
+    def test_a_currency_without_a_rate_is_named_not_guessed(self):
+        assert opsformat.money_total({"USD": 9.99, "JPY": 1500.0}) == (
+            "1,500.00 JPY + $9.99 (≈ $9.99 excl. JPY)")
+        assert opsformat.money_total({"JPY": 1500.0}) == "1,500.00 JPY"
+
+    @pytest.mark.asyncio
+    async def test_revenue_shows_the_total_and_its_rate_day(self, configured):
+        await notify.subscription_event(FakeNotification(paid(), paid_period=True))
+        await notify.subscription_event(FakeNotification(
+            paid("otid-2", price=44.99, currency="EUR"), uuid="u2", paid_period=True))
+        text = await opsrevenue.revenue_text()
+        assert "€44.99 + $39.99 (≈ $" in text
+        assert "ECB rates of " in text
 
 
 class TestChurnRate:

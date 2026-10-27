@@ -520,6 +520,70 @@ class TestEntitlementService:
         assert await service._cache.get("entproof:subject-two") in (None, "")
 
     @pytest.mark.asyncio
+    async def test_two_refunds_handled_at_once_both_stand(self):
+        """The merge above is a read and a write. Two REFUNDs interleaved
+        between them used to let the older term's write land last and replace
+        the current term's expiry (#398)."""
+        import asyncio
+        from core.cache import InMemoryCache, ResilientCache
+
+        class SlowRedis(InMemoryCache):
+            async def get(self, key):
+                value = await super().get(key)
+                await asyncio.sleep(0.02)       # the other handler runs here
+                return value
+
+        service = EntitlementService(
+            ResilientCache(SlowRedis(), InMemoryCache(), configured=True),
+            BUNDLE_ID, PRODUCTS)
+        now = int(time.time())
+        otid = valid_payload()["originalTransactionId"]
+
+        def term(expires_at, revoked_at):
+            return entitlements.Entitlement(
+                tier="pro", product_id="com.snapworth.monthly", expires_at=expires_at,
+                original_transaction_id=otid, environment="Production",
+                revoked_at=revoked_at)
+
+        await asyncio.gather(service.revoke(term(now + 28 * 86_400, now)),
+                             service.revoke(term(now - 2 * 86_400, now - 60)))
+        stored = json.loads(await service._cache.get(f"entrevoked:{otid}"))
+        assert stored == {"revoked_at": now, "expires_at": now + 28 * 86_400}
+        assert await service._cache.get(f"entrevoked:{otid}:lock") is None, (
+            "the lock outlived the write it guarded")
+
+    @pytest.mark.asyncio
+    async def test_a_tombstone_locked_too_long_raises_so_apple_retries(
+            self, service, monkeypatch):
+        from core.cache import CacheUnavailable
+        monkeypatch.setattr(entitlements, "TOMBSTONE_LOCK_WAIT_SECONDS", 0.1)
+        otid = valid_payload()["originalTransactionId"]
+        await service._cache.add(f"entrevoked:{otid}:lock", "someone-else", 10)
+        with pytest.raises(CacheUnavailable):
+            await service.revoke(entitlements.Entitlement(
+                tier="pro", product_id="com.snapworth.yearly", expires_at=None,
+                original_transaction_id=otid, environment="Production"))
+        assert await service._cache.get(f"entrevoked:{otid}") is None
+        assert await service._cache.get(f"entrevoked:{otid}:lock") == "someone-else", (
+            "a waiter released a lock it never held")
+
+    @pytest.mark.asyncio
+    async def test_a_sandbox_refund_reversal_lifts_the_sandbox_tombstone(self, service):
+        """`revoke` writes Sandbox tombstones in their own namespace; the
+        reversal read the Production key and never found them (#398)."""
+        payload = valid_payload()
+        otid = payload["originalTransactionId"]
+        term = entitlements.Entitlement(
+            tier="pro", product_id=payload["productId"],
+            expires_at=payload["expiresDate"] // 1000,
+            original_transaction_id=otid, environment="Sandbox")
+        await service.revoke(term)
+        assert await service._cache.get(f"entrevoked:sandbox:{otid}") is not None
+
+        assert await service.reinstate(term) is entitlements.Reinstatement.LIFTED
+        assert await service._cache.get(f"entrevoked:sandbox:{otid}") is None
+
+    @pytest.mark.asyncio
     async def test_a_non_expiring_refund_is_not_narrowed_by_a_later_one(self, service):
         otid = valid_payload()["originalTransactionId"]
         for expires_at in (None, int(time.time()) + 86_400):

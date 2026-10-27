@@ -622,6 +622,23 @@ class TestActivity:
         assert not any(("a" * 64) in k for k in keys)
 
     @pytest.mark.asyncio
+    async def test_daily_seen_markers_outlive_their_day_by_hours_not_weeks(
+            self, enabled_notify, cache):
+        """The per-device markers only de-duplicate today's counts (#399);
+        the counters they feed keep their own 35 days."""
+        notify.saw_user("a" * 64)
+        scan(tier="free", subject="f" * 64)
+        await drain()
+        data = cache._fallback._data
+        markers = [k for k in data if k.startswith(("opsseen:d:", "opsseen:fd:"))]
+        assert {k.split(":")[1] for k in markers} == {"d", "fd"}
+        for key in markers:
+            _, expires = data[key]
+            assert expires is not None and expires - time.time() <= opsstats.SEEN_DAY_TTL
+        _, counter_expires = data[opsstats.stat_key(opsstats.day(), "active_users")]
+        assert counter_expires - time.time() > opsstats.SEEN_DAY_TTL
+
+    @pytest.mark.asyncio
     async def test_disabled_is_a_no_op(self, cache, monkeypatch):
         monkeypatch.delenv("TELEGRAM_BOT_TOKEN", raising=False)
         monkeypatch.delenv("TELEGRAM_CHAT_ID", raising=False)

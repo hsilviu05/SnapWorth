@@ -1415,6 +1415,14 @@ class TestAppleNotifications:
                 raise ConnectionError("redis timed out")
             return await super().delete(*a, **k)
 
+    @staticmethod
+    def _lapse_tombstone_locks(redis) -> None:
+        """What the lock's TTL does before Apple's retry. A write that failed
+        mid-request cannot release the lock either, and Apple's first retry
+        comes long after `TOMBSTONE_LOCK_TTL`; these tests retry at once."""
+        for key in [k for k in redis._data if k.endswith(":lock")]:
+            redis._data.pop(key, None)
+
     def _partial_store(self, monkeypatch):
         from security import auth as _auth
         redis = self._Partial()
@@ -1453,6 +1461,7 @@ class TestAppleNotifications:
             "a notification that changed nothing was marked handled")
 
         redis.down = False
+        self._lapse_tombstone_locks(redis)
         r = client.post("/apple/notifications", json={"signedPayload": refund})
         assert r.status_code == 200
         assert r.json()["status"] == "ok", "Apple's retry landed on the duplicate branch"
@@ -1492,6 +1501,7 @@ class TestAppleNotifications:
         assert r.status_code == 503
 
         redis.down = False
+        self._lapse_tombstone_locks(redis)
         r = client.post("/apple/notifications", json={"signedPayload": reversal})
         assert r.json() == {"status": "ok", "type": "REFUND_REVERSED"}
         assert asyncio.run(store.record("partial-subject", jws)).tier == "pro", (
