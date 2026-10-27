@@ -91,6 +91,7 @@ from ops import levers
 from ops import opsformat
 from ops import opsexperiment
 from ops import opsindex
+from ops import opsrevenue
 from ops import opsspend
 from ops import opsstats
 from ops import opssupport
@@ -222,6 +223,7 @@ COMMANDS: tuple[tuple[str, str], ...] = (
                    "/experiment export for a CSV to keep"),
     ("lever", "Arm or disarm the free-scan allowance without a redeploy"),
     ("paywall", "28 days: trial starts and direct purchases per paywall, trial → paid"),
+    ("revenue", "MRR over time, and each month's payments, refunds and churn"),
     ("minbuild", "Tell app builds below a number to update, without a redeploy"),
     ("referrals", "Referrals on or off, and the oldest build shown them"),
     ("social", "TikTok: followers, likes and the latest videos"),
@@ -317,6 +319,7 @@ def configure(cache, notifier: telegram.TelegramNotifier | None = None,
     opsindex.bind(cache)
     opssupport.bind(cache)
     opsspend.bind(cache)
+    opsrevenue.bind(cache)
     trends.bind(cache)
     _status_provider = status_provider
     _social = social
@@ -667,6 +670,7 @@ async def subscription_event(note, *, reinstated=None) -> None:
 
         before = await opsindex.index_subscription(None, ent, note.auto_renew,
                                            current=note.is_refund_reversal)
+        await opsrevenue.record_notification(note)
         # None: the index could not be read, so there is no previous row to
         # judge a paid period against. It is then neither a conversion nor a
         # new payer — an ordinary renewal would otherwise be announced, and
@@ -1302,6 +1306,9 @@ async def send_digest(now: datetime | None = None) -> bool:
     if _notifier is None or _cache is None:
         return False
     now = now or datetime.now(timezone.utc)
+    # Before the guard, so a replica that loses the race still takes the
+    # day's snapshot if nobody has. `/revenue`'s MRR history is these.
+    await opsrevenue.snapshot(now)
     yesterday = now - timedelta(days=1)
     day = opsstats.day(yesterday)
     try:
@@ -1634,6 +1641,8 @@ async def handle_command_with_buttons(text: str) -> tuple[str, opsformat.Buttons
         return await levers.lever_command(argument, rest)
     if command == "/paywall":
         return await opsexperiment.paywall_text(), await _buttons()
+    if command == "/revenue":
+        return await opsrevenue.revenue_text(), await _buttons()
     if command == "/minbuild":
         text, offers, menu = await levers.minbuild_command(argument, rest)
         return text, offers + (await _buttons() if menu else [])
