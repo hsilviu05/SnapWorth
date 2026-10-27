@@ -1,0 +1,165 @@
+<!doctype html><html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="apple-itunes-app" content="app-id=6788521307">
+<title>eBay Fee Calculator: What You Keep From a Sale</title>
+<meta name="description" content="eBay takes 13.6% of the sale price plus $0.40 per order, or $0.30 per order on sales of $10 or less. Work out your eBay fee and what you keep, with examples.">
+<link rel="canonical" href="https://www.snapworth.eu/fees/ebay">
+<meta property="og:type" content="article"><meta property="og:title" content="eBay Fee Calculator: What You Keep From a Sale">
+<meta property="og:description" content="eBay takes 13.6% of the sale price plus $0.40 per order, or $0.30 per order on sales of $10 or less. Work out your eBay fee and what you keep, with examples."><meta property="og:url" content="https://www.snapworth.eu/fees/ebay">
+<meta property="og:image" content="https://www.snapworth.eu/og-image.png">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="/favicon-32.png" sizes="32x32">
+<style>
+@font-face{font-family:'Fraunces';font-style:normal;font-weight:100 900;font-display:swap;src:url('/fonts/fraunces-latin.woff2') format('woff2');}
+@font-face{font-family:'Fraunces';font-style:italic;font-weight:100 900;font-display:swap;src:url('/fonts/fraunces-italic-latin.woff2') format('woff2');}
+@font-face{font-family:'DM Sans';font-style:normal;font-weight:100 900;font-display:swap;src:url('/fonts/dmsans-latin.woff2') format('woff2');}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+:root{color-scheme:light;accent-color:#A94E29;--bg:#FAF7F4;--card:#F3EDE8;--surface:#fff;/* --surface is read by build_guess.py, which appends to this STYLE */--band:#1C1410;--ink:#1C1410;--warm-gray:#6E625B;--text-muted:#726860;--terra-fill:#A94E29;--terra-text:#A94E29;--sage-text:#4F7355;--sage-dim:rgba(122,158,126,0.12);--border:#E8DDD7;}
+/* Dark theme. Same palette as index.html, and the same split: --ink is text,
+   --band is the deliberately dark CTA card, and the two used to be one token
+   (--dark) which cannot serve both once the page can invert. --on-band and
+   --terra-fill do not change: both describe white text on a surface that is
+   dark in either theme. */
+@media (prefers-color-scheme:dark){:root{color-scheme:dark;accent-color:#EC8A63;--bg:#1A1512;--card:#231D1A;--surface:#2A2320;--band:#0C0A08;--ink:#F6F1ED;--warm-gray:#ABA098;--text-muted:#A2978F;--terra-text:#EC8A63;--sage-text:#A3C9A8;--sage-dim:rgba(143,184,148,0.18);--border:#3A302A;}}
+body{background:var(--bg);color:var(--ink);font-family:'DM Sans',sans-serif;font-size:17px;line-height:1.65;-webkit-font-smoothing:antialiased;}
+a{color:var(--terra-text);}
+/* ── Motion ─────────────────────────────────────────────────────────────────
+   CSS-only on these pages, deliberately. They are SEO content: the homepage
+   can justify an IntersectionObserver, but here an entrance animation that
+   depends on JavaScript would risk hiding article text from a reader (or a
+   crawler) if the script never runs. A pure keyframe with `both` fill always
+   resolves to the visible state, so the worst case is that the text simply
+   appears.
+   Everything is disabled under prefers-reduced-motion. */
+@media (prefers-reduced-motion: no-preference){
+  @keyframes riseIn{from{opacity:.001;transform:translate3d(0,14px,0)}to{opacity:1;transform:none}}
+  h1,.lede,.crumbs,table,h2,p,ul,.cta,.related{animation:riseIn .5s cubic-bezier(.22,.61,.36,1) both}
+  .crumbs{animation-delay:.02s} h1{animation-delay:.06s} .lede{animation-delay:.12s}
+  table{animation-delay:.18s}
+  .cta{animation-delay:.24s}
+  a,.cta a{transition:transform .18s cubic-bezier(.22,.61,.36,1),opacity .18s ease}
+  .cta a:hover{transform:translateY(-2px)}
+  .related a:hover{transform:translateX(3px)}
+}
+@media (prefers-reduced-motion: reduce){
+  *,*::before,*::after{animation-duration:.001ms!important;transition-duration:.001ms!important}
+}
+a:focus-visible,button:focus-visible,summary:focus-visible{outline:2px solid var(--terra-text);outline-offset:3px;border-radius:4px;}
+/* --terra-fill, not --terracotta: white on the lighter brand tone is 3.39:1,
+   and a selection nobody can read is worse than the default one. */
+::selection{background:var(--terra-fill);color:#fff;}
+/* Ranges and figures sit in aligned columns; proportional digits make the
+   column ragged and shift it as the numbers change. */
+.range,.val{font-variant-numeric:tabular-nums;}
+h1,h2{text-wrap:balance;}
+.lede{text-wrap:pretty;}
+.wrap{max-width:760px;margin:0 auto;padding:0 20px;}
+header.site{border-bottom:1px solid var(--border);background:var(--bg);}
+header.site .wrap{display:flex;align-items:center;justify-content:space-between;height:64px;}
+.logo{font-family:'Fraunces',serif;font-weight:700;font-size:22px;color:var(--ink);text-decoration:none;}
+.nav-cta{background:var(--terra-fill);color:#fff;text-decoration:none;font-weight:600;font-size:14px;padding:9px 18px;border-radius:10px;}
+main{padding:48px 0 24px;}
+.crumbs{font-size:14px;color:var(--warm-gray);margin-bottom:20px;}
+.crumbs a{color:var(--warm-gray);}
+h1{font-family:'Fraunces',serif;font-weight:600;font-size:40px;line-height:1.1;letter-spacing:-1px;color:var(--ink);margin-bottom:12px;}
+h2{font-family:'Fraunces',serif;font-weight:600;font-size:26px;color:var(--ink);margin:36px 0 12px;}
+p{margin-bottom:16px;}
+.lede{font-size:19px;color:var(--ink);}
+.hub-game{margin-top:10px;font-size:15px;color:var(--warm-gray);}
+.hub-game a{color:var(--terra-text);font-weight:600;}
+.range{display:inline-block;background:var(--sage-dim);color:var(--sage-text);font-weight:700;font-family:'Fraunces',serif;font-size:22px;padding:6px 16px;border-radius:12px;margin:6px 0 8px;}
+table{width:100%;border-collapse:collapse;margin:8px 0 4px;}
+th,td{text-align:left;padding:12px 14px;border-bottom:1px solid var(--border);}
+th{font-size:13px;text-transform:uppercase;letter-spacing:.5px;color:var(--warm-gray);}
+td.val{font-weight:700;color:var(--sage-text);text-align:right;}
+ul{margin:0 0 16px 20px;}li{margin-bottom:6px;}
+.cta{background:var(--band);border-radius:20px;padding:28px;margin:36px 0;text-align:center;}
+.cta h3{font-family:'Fraunces',serif;color:#fff;font-size:24px;font-weight:600;margin-bottom:8px;}
+.cta p{color:#C0B6AB;margin-bottom:18px;}
+.cta a{display:inline-block;background:var(--terra-fill);color:#fff;text-decoration:none;font-weight:700;padding:13px 26px;border-radius:12px;}
+.related{background:var(--card);border-radius:16px;padding:22px 24px;margin:28px 0;}
+.related h2{font-size:20px;margin:0 0 10px;}
+.related a{display:block;padding:6px 0;}
+details{border-bottom:1px solid var(--border);padding:14px 0;}
+summary{font-weight:600;cursor:pointer;color:var(--ink);}
+details p{margin:10px 0 0;color:var(--text-muted);}
+footer.site{border-top:1px solid var(--border);margin-top:40px;padding:28px 0;font-size:14px;color:var(--warm-gray);}
+footer.site a{color:var(--warm-gray);margin-right:16px;}
+.disclaimer{font-size:13px;color:var(--warm-gray);margin-top:24px;}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:20px 0;}
+.grid a{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:16px 18px;text-decoration:none;color:var(--ink);font-weight:600;}
+.grid a span{display:block;font-size:13px;color:var(--sage-text);font-weight:700;margin-top:4px;}
+@media(max-width:600px){h1{font-size:32px;}.grid{grid-template-columns:1fr;}}
+
+.fee-calc{background:var(--card);border-radius:16px;padding:22px 24px;margin:20px 0;}
+.fee-calc label{font-weight:600;display:block;margin-bottom:8px;}
+.fee-calc input{font:inherit;font-size:20px;width:100%;max-width:220px;padding:10px 14px;border:1px solid var(--border);border-radius:10px;background:var(--surface);color:var(--ink);}
+.fee-out{display:flex;gap:28px;flex-wrap:wrap;margin-top:16px;font-variant-numeric:tabular-nums;}
+.fee-out div span{display:block;font-size:13px;text-transform:uppercase;letter-spacing:.5px;color:var(--warm-gray);}
+.fee-out div strong{font-family:'Fraunces',serif;font-size:28px;color:var(--ink);}
+.fee-out .keep strong{color:var(--sage-text);}
+.checked{font-size:14px;color:var(--warm-gray);}
+</style>
+<script type="application/ld+json">{"@context": "https://schema.org", "@type": "BreadcrumbList", "itemListElement": [{"@type": "ListItem", "position": 1, "name": "Home", "item": "https://www.snapworth.eu/"}, {"@type": "ListItem", "position": 2, "name": "eBay fees", "item": "https://www.snapworth.eu/fees/ebay"}]}</script>
+</head><body>
+<header class="site"><div class="wrap"><a class="logo" href="/">SnapWorth</a><a class="nav-cta" href="https://apps.apple.com/app/apple-store/id6788521307?pt=129137132&amp;ct=fees_ebay&amp;mt=8">Get the app</a></div></header>
+<main><div class="wrap">
+<nav class="crumbs" aria-label="Breadcrumb"><a href="/">Home</a> › eBay fees</nav>
+<h1>eBay fees: what you keep from a sale</h1>
+<p class="lede">eBay takes 13.6% of the sale price plus $0.40 per order, or $0.30 per order on sales of $10 or less. That is the rate for most categories without an eBay Store; some categories differ, such as books, handbags, jewelry and athletic shoes over $150.</p>
+
+<div class="fee-calc" id="fee-calc" data-mp="ebay" data-pct="0.136" data-fixed="0.40" data-small-max="10" data-small-fixed="0.30">
+<label for="fee-price">Sale price</label>
+<input id="fee-price" inputmode="decimal" value="$40" aria-describedby="fee-result">
+<div class="fee-out" id="fee-result" aria-live="polite">
+<div><span>eBay fee</span><strong id="fee-fee">$5.84</strong></div>
+<div class="keep"><span>You keep</span><strong id="fee-keep">$34.16</strong></div>
+</div>
+<p class='disclaimer'>eBay charges the percentage on the total amount of the sale, including shipping and sales tax. The calculator applies it to the sale price, so on a shipped sale the fee is 13.6% of the postage and tax higher.</p>
+</div>
+
+<h2>eBay fee examples</h2>
+<table><thead><tr><th>Sale price</th><th style="text-align:right">eBay fee</th><th style="text-align:right">You keep</th></tr></thead>
+<tbody><tr><td>$10.00</td><td class='val'>$1.66</td><td class='val'>$8.34</td></tr><tr><td>$40.00</td><td class='val'>$5.84</td><td class='val'>$34.16</td></tr><tr><td>$120.00</td><td class='val'>$16.72</td><td class='val'>$103.28</td></tr></tbody></table>
+<p class="disclaimer">“You keep” is before what you paid for the item and any shipping you cover.</p>
+
+<h2>Is it worth flipping?</h2>
+<p>The fee is only half the answer. The <a href="/#thrift-flip">Thrift Flip calculator</a> takes what you paid and shipping too, across nine marketplaces, and tells you whether a find is worth buying. The SnapWorth app runs the same numbers on a photo, and estimates what the item resells for.</p>
+
+<div class="cta"><h3>Know the resale value before you pay the fee</h3>
+<p>Snap a photo and SnapWorth's AI estimates a resale range for your item and its condition, then works out your profit after eBay's fee.</p>
+<a href="https://apps.apple.com/app/apple-store/id6788521307?pt=129137132&amp;ct=fees_ebay&amp;mt=8">Download SnapWorth — free</a></div>
+
+<p class="checked">Rate checked 2026-10-27 against <a href="https://www.ebay.com/help/selling/fees/selling-fees" rel="nofollow">eBay&#x27;s selling fees page</a>. Fees change: this page is generated from the same fee table the SnapWorth app uses.</p>
+
+<div class="related"><h2>More</h2><a href="/fees/poshmark">Poshmark fees</a><a href="/fees/mercari">Mercari fees</a><a href="/fees/depop">Depop fees</a>
+<a href="/worth">What popular secondhand items resell for</a>
+<a href="/guess">Guess the price: test your eye on ten real items</a></div>
+</div></main>
+<footer class="site"><div class="wrap"><a href="/">Home</a><a href="/worth">Resale Values</a><a href="/support">Support</a><a href="https://api.snapworth.eu/privacy">Privacy</a><div style="margin-top:12px">© 2026 SnapWorth</div></div></footer>
+<script src="/flip.js"></script>
+<script>
+(function () {
+  "use strict";
+  var box = document.getElementById("fee-calc");
+  if (!box || !window.SnapFlip) return;
+  var d = box.dataset;
+  var fee = { pct: parseFloat(d.pct), fixed: parseFloat(d.fixed),
+              flatBelow: d.flatBelow ? parseFloat(d.flatBelow) : 0,
+              flatFee: d.flatFee ? parseFloat(d.flatFee) : 0,
+              smallMax: d.smallMax ? parseFloat(d.smallMax) : 0,
+              smallFixed: d.smallFixed ? parseFloat(d.smallFixed) : 0 };
+  var input = document.getElementById("fee-price");
+  function render() {
+    var price = SnapFlip.num(input.value);
+    var f = SnapFlip.feesOn(fee, price);
+    document.getElementById("fee-fee").textContent = SnapFlip.money(f);
+    document.getElementById("fee-keep").textContent = SnapFlip.money(price - f);
+  }
+  input.addEventListener("input", render);
+  render();
+})();
+</script>
+<script>window.va=window.va||function(){(window.vaq=window.vaq||[]).push(arguments);};</script>
+<script defer src="/_vercel/insights/script.js"></script>
+</body></html>

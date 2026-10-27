@@ -132,7 +132,7 @@ footer.site a{color:var(--warm-gray);margin-right:16px;}
 
 <p class="checked">Rate checked 2026-10-06 against <a href="https://www.mercari.com/us/help_center/article/169" rel="nofollow">Mercari&#x27;s help center</a>. Fees change: this page is generated from the same fee table the SnapWorth app uses.</p>
 
-<div class="related"><h2>More</h2><a href="/fees/poshmark">Poshmark fees</a><a href="/fees/depop">Depop fees</a>
+<div class="related"><h2>More</h2><a href="/fees/ebay">eBay fees</a><a href="/fees/poshmark">Poshmark fees</a><a href="/fees/depop">Depop fees</a>
 <a href="/worth">What popular secondhand items resell for</a>
 <a href="/guess">Guess the price: test your eye on ten real items</a></div>
 </div></main>
@@ -146,7 +146,9 @@ footer.site a{color:var(--warm-gray);margin-right:16px;}
   var d = box.dataset;
   var fee = { pct: parseFloat(d.pct), fixed: parseFloat(d.fixed),
               flatBelow: d.flatBelow ? parseFloat(d.flatBelow) : 0,
-              flatFee: d.flatFee ? parseFloat(d.flatFee) : 0 };
+              flatFee: d.flatFee ? parseFloat(d.flatFee) : 0,
+              smallMax: d.smallMax ? parseFloat(d.smallMax) : 0,
+              smallFixed: d.smallFixed ? parseFloat(d.smallFixed) : 0 };
   var input = document.getElementById("fee-price");
   function render() {
     var price = SnapFlip.num(input.value);

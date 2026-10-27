@@ -1090,6 +1090,35 @@ final class USMarketplaceFeeTests: XCTestCase {
         XCTAssertEqual(c.netProfit, Decimal(string: "4.05")!)
     }
 
+    func test_ebay_thirteenPointSixPercentPlusFortyCentsOverTenDollars() {
+        // $100 sale → 13.6% = $13.60 + $0.40 per order = $14.00.
+        XCTAssertEqual(fee(.ebay).fees(on: 100), 14)
+        // $10.01 is over $10.00, so the $0.40 per-order fee applies.
+        XCTAssertEqual(fee(.ebay).fees(on: Decimal(string: "10.01")!),
+                       Decimal(string: "1.76136")!)
+    }
+
+    func test_ebay_thirtyCentsPerOrderAtTenDollarsOrLess() {
+        // $10.00 exactly is "$10.00 or less": 13.6% = $1.36 + $0.30.
+        XCTAssertEqual(fee(.ebay).fees(on: 10), Decimal(string: "1.66")!)
+        XCTAssertEqual(fee(.ebay).fees(on: 5), Decimal(string: "0.98")!)
+    }
+
+    func test_anOverrideKeepsTheSmallOrderRuleItDidNotMention() {
+        // The same bug class as Poshmark's flat charge: an override that only
+        // moves the percentage must not drop the $0.30 small-order fee.
+        UserDefaults.standard.set(Data(#"{"ebay": {"pct": "0.14"}}"#.utf8),
+                                  forKey: MarketplaceFees.overrideKey)
+        defer { UserDefaults.standard.removeObject(forKey: MarketplaceFees.overrideKey) }
+        let ebay = fee(.ebay)
+        XCTAssertEqual(ebay.sellingFeePercent, Decimal(string: "0.14")!)
+        XCTAssertEqual(ebay.fees(on: 10), Decimal(string: "1.70")!)
+
+        UserDefaults.standard.set(Data(#"{"ebay": {"smallMax": 0}}"#.utf8),
+                                  forKey: MarketplaceFees.overrideKey)
+        XCTAssertNil(fee(.ebay).smallOrderFixedFee, "smallMax 0 removes the rule on purpose")
+    }
+
     func test_mercari_flatTenPercent() {
         // $50 sale → 10% = $5.00, no processing fee since Jan 2025.
         let c = FlipMath.calculate(resalePrice: 50, purchasePrice: 10, shippingCost: 5, fee: fee(.mercari))

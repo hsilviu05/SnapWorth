@@ -11,7 +11,8 @@ one number both call the real one.
 Checked, per marketplace:
 - the same set of marketplaces in the app's table, in FEES, and as calculator
   chips (a FEES entry without a chip is a rate nobody can select);
-- percentage, fixed fee, and the low-price flat charge, compared exactly;
+- percentage, fixed fee, the low-price flat charge and the small-order
+  per-order fee, compared exactly;
 - the note the calculator prints under the arithmetic names those figures, or
   says "no seller fee" when there are none;
 - the prose footnote under the calculator names the same figures;
@@ -56,17 +57,22 @@ def dollars(value: Decimal) -> str:
 
 class Fee:
     def __init__(self, pct: Decimal, fixed: Decimal,
-                 flat: tuple[Decimal, Decimal] | None) -> None:
-        self.pct, self.fixed, self.flat = pct, fixed, flat
+                 flat: tuple[Decimal, Decimal] | None,
+                 small: tuple[Decimal, Decimal] | None = None) -> None:
+        # `small` is (at or below, per-order fee): eBay's $0.30 up to $10.
+        self.pct, self.fixed, self.flat, self.small = pct, fixed, flat, small
 
     def __eq__(self, other: object) -> bool:
         return (isinstance(other, Fee) and self.pct == other.pct
-                and self.fixed == other.fixed and self.flat == other.flat)
+                and self.fixed == other.fixed and self.flat == other.flat
+                and self.small == other.small)
 
     def __repr__(self) -> str:
         flat = (f", or {dollars(self.flat[1])} under {dollars(self.flat[0])}"
                 if self.flat else "")
-        return f"{percent(self.pct)} + {dollars(self.fixed)}{flat}"
+        small = (f" ({dollars(self.small[1])} up to {dollars(self.small[0])})"
+                 if self.small else "")
+        return f"{percent(self.pct)} + {dollars(self.fixed)}{small}{flat}"
 
 
 def amount(match: re.Match[str], group: int) -> Decimal:
@@ -92,11 +98,15 @@ def app_fees() -> dict[str, Fee]:
         pct = re.search(rf"sellingFeePercent:\s*{AMOUNT}", args)
         fixed = re.search(rf"fixedFee:\s*{AMOUNT}", args)
         flat = re.search(rf"lowPriceFlatFee:\s*\.init\(below:\s*{AMOUNT},\s*fee:\s*{AMOUNT}\)", args)
+        small = re.search(rf"smallOrderFixedFee:\s*\.init\(atOrBelow:\s*{AMOUNT},\s*fee:\s*{AMOUNT}\)", args)
         if not pct or not fixed:
             sys.exit(f"could not read the fee for .{entry.group(1)}: {args.strip()}")
+        if "smallOrderFixedFee" in args and not small:
+            sys.exit(f"could not read the small-order fee for .{entry.group(1)}: {args.strip()}")
         fees[entry.group(1)] = Fee(
             amount(pct, 1), amount(fixed, 1),
-            (amount(flat, 1), amount(flat, 3)) if flat else None)
+            (amount(flat, 1), amount(flat, 3)) if flat else None,
+            (amount(small, 1), amount(small, 3)) if small else None)
     if len(fees) < 5:
         sys.exit(f"read only {len(fees)} fees from MarketplaceFees.defaults — "
                  "has the table changed shape?")
@@ -124,6 +134,8 @@ def figures(fee: Fee) -> list[str]:
         out.append(dollars(fee.fixed))
     if fee.flat:
         out += [dollars(fee.flat[1]), dollars(fee.flat[0])]
+    if fee.small:
+        out += [dollars(fee.small[1]), dollars(fee.small[0])]
     return out
 
 
@@ -148,8 +160,10 @@ def fee_page_problems(app: dict[str, Fee]) -> list[str]:
         attrs = dict(re.findall(r'data-([\w-]+)="([^"]*)"', calc.group(1))) if calc else {}
         flat = ((Decimal(attrs["flat-below"]), Decimal(attrs["flat-fee"]))
                 if "flat-below" in attrs else None)
+        small = ((Decimal(attrs["small-max"]), Decimal(attrs["small-fixed"]))
+                 if "small-max" in attrs else None)
         try:
-            web = Fee(Decimal(attrs["pct"]), Decimal(attrs["fixed"]), flat)
+            web = Fee(Decimal(attrs["pct"]), Decimal(attrs["fixed"]), flat, small)
         except (KeyError, ArithmeticError):
             problems.append(f"{where}: the calculator carries no readable rate")
             continue
@@ -190,7 +204,9 @@ def main() -> int:
         entry = site[key]
         flat = ((entry["flatBelow"], entry["flatFee"])
                 if entry.get("flatBelow") else None)
-        web = Fee(entry["pct"], entry["fixed"], flat)
+        small = ((entry["smallMax"], entry["smallFixed"])
+                 if entry.get("smallMax") else None)
+        web = Fee(entry["pct"], entry["fixed"], flat, small)
         if web != app[key]:
             problems.append(f"{key}: the app charges {app[key]!r}, the site {web!r}")
             continue
