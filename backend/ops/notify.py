@@ -1466,7 +1466,7 @@ async def _note_activity(subject: str, tier: str = "free") -> None:
             # write stays rare on a busy device.
             await opsindex.index_user(who, tier=tier)
         day = opsstats.day()
-        if await _cache.add(f"opsseen:d:{day}:{who}", "1", STATS_TTL):
+        if await _cache.add(f"opsseen:d:{day}:{who}", "1", opsstats.SEEN_DAY_TTL):
             await _cache.incr(opsstats.stat_key(day, "active_users"), STATS_TTL)
     except Exception as exc:
         log.debug("activity note failed: %s", type(exc).__name__)

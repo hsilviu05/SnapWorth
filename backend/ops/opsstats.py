@@ -29,6 +29,12 @@ log = logging.getLogger("snapworth.notify")
 # two full weeks, plus slack; they are operational tallies, not records.
 STATS_TTL = 60 * 60 * 24 * 35
 
+# A per-device "already counted today" marker is read only on the day it is
+# written, so it lives for that day and a margin across the UTC boundary, not
+# as long as the counter it guards. Per-device records, however pseudonymous,
+# are kept no longer than their job needs (#399).
+SEEN_DAY_TTL = 60 * 60 * 24 * 2
+
 # The day counters a subscription's first sighting and its first paid period
 # feed (#218). `new_subs` is every first sighting, one per
 # originalTransactionId, and is exactly `trial_starts + paid_direct +

@@ -62,7 +62,8 @@ async def record_scan(*, tier: str, item_name: str, brand: str | None,
         # `/costs`' cost per active free device-day. Beside the spend
         # tally it divides, so it is written whenever that is.
         who = auditlog.pseudonymise(subject)
-        if await _cache.add(f"opsseen:fd:{opsstats.day()}:{who}", "1", opsstats.STATS_TTL):
+        if await _cache.add(f"opsseen:fd:{opsstats.day()}:{who}", "1",
+                            opsstats.SEEN_DAY_TTL):
             await opsstats.bump("free_device_days")
     if not reread:
         await _tally_top(opsstats.day(), normalise_category(category), clean_brand(brand),
