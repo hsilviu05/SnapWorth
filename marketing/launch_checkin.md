@@ -30,7 +30,7 @@ Search Ads keywords yet** — 4 days is too little to judge performance.
 - [ ] Conversion rate holding (~30–40% is healthy).
 
 ### 5. Ratings & Reviews
-- [ ] Any new ratings? (The in-app prompt fires on a user's 3rd scan — so this grows with usage, not instantly.)
+- [ ] Any new ratings? (The in-app prompt is requested after a user's first confident, revealed estimate; iOS decides whether to show it.)
 
 **Day-4 rule: look, don't touch.** Only allowed change = raise a bid if a campaign has 0 impressions.
 
