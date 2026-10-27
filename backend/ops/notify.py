@@ -1772,6 +1772,20 @@ async def poll_once(offset: int | None) -> tuple[int | None, int]:
     return offset, handled
 
 
+def _operator_ids() -> set[str]:
+    """Who may command the bot: `TELEGRAM_OPERATOR_IDS` (comma-separated
+    Telegram user ids) when set, otherwise the chat itself. A private chat's
+    id is its user's id, so the default admits exactly the operator there,
+    and in a group it admits nobody until the variable names someone."""
+    raw = os.environ.get("TELEGRAM_OPERATOR_IDS", "")
+    ids = {part.strip() for part in raw.split(",") if part.strip()}
+    return ids or {_notifier.chat_id}
+
+
+def _is_operator(user_id: object) -> bool:
+    return user_id is not None and str(user_id) in _operator_ids()
+
+
 async def _handle_update(update: dict) -> int:
     """Act on one update. Returns 1 if it was handled, 0 if ignored.
 
@@ -1800,6 +1814,12 @@ async def _handle_update(update: dict) -> int:
 
     chat_id = str((message.get("chat") or {}).get("id", ""))
     if chat_id != _notifier.chat_id:
+        return 0
+    # The sender too, not only the chat: in a group every member's message
+    # carries the group's chat id, and this is the operator's whole console.
+    sender = (callback or message).get("from") or {}
+    if not _is_operator(sender.get("id")):
+        log.warning("command from a sender who is not the operator ignored")
         return 0
     if callback:
         await _notifier.answer_callback(str(callback.get("id", "")))

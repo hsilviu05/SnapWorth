@@ -16,6 +16,7 @@ import platform
 import random
 import re
 import time
+import unicodedata
 
 from collections.abc import Mapping
 from typing import Any
@@ -1701,7 +1702,7 @@ def privacy():
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Privacy Policy — SnapWorth</title><style>{_STYLE}</style></head><body>
 <h1>Privacy Policy</h1>
-<p>Last updated: October 19, 2026</p>
+<p>Last updated: October 27, 2026</p>
 <p>SnapWorth ("we", "our", or "us") operates the SnapWorth mobile application.
 This page informs you of our policies regarding the collection, use, and
 disclosure of personal data when you use our Service.</p>
@@ -1711,6 +1712,9 @@ disclosure of personal data when you use our Service.</p>
 sent to our server, processed by an AI model to identify the item and estimate
 resale value, or to look for the usual signs of a replica, and are not stored
 after the response is returned.</p>
+<p>If you type a description of an item instead of taking a photo, the text is
+sent to our server and processed by the same AI model in the same way, and is
+not stored after the response is returned.</p>
 <p>We collect an anonymous device identifier (UUID) for rate limiting (20 scans
 per hour) and to limit how many devices can use one subscription. This ID is not
 linked to your identity, except that if you subscribe it is kept with Apple's
@@ -1774,9 +1778,11 @@ with third parties, except for the service providers below and as required by la
 <h2>Service Providers</h2>
 <p><strong>Google (Gemini API).</strong> Photos you submit are transmitted to
 Google's Gemini API, which identifies the item and estimates its resale value,
-or reads a legit check's close-ups.
+or reads a legit check's close-ups. A description you type instead of a photo
+is transmitted the same way.
 Google processes them under its API terms of service and does not use them to
-train its models. Photos are not retained by us after the response is returned.</p>
+train its models. Photos and descriptions are not retained by us after the
+response is returned.</p>
 <p><strong>Apple (DeviceCheck).</strong> Receives the device token described
 above, and stores two bits against your hardware so a reinstall does not reset
 the free allowance.</p>
@@ -1960,28 +1966,9 @@ async def apple_notifications(body: AppleNotification, request: Request) -> dict
     # nothing to give back. The marker is then proof the change landed, which
     # is why a redelivery that finds it does not re-apply: a REFUND retried
     # after its REFUND_REVERSED must not put the block back.
-    reinstated: Reinstatement | None = None
-    if ((note.is_refund or note.is_revoke or note.is_refund_reversal)
-            and note.entitlement is not None):
-        try:
-            handled = (_cache is not None
-                       and await _cache.get(seen_key) is not None)
-        except Exception:
-            handled = False
-        if handled:
-            return {"status": "duplicate"}
-        try:
-            if note.is_refund_reversal:
-                reinstated = await auth.deps.entitlements.reinstate(note.entitlement)
-            else:
-                await auth.deps.entitlements.revoke(note.entitlement)
-        except Exception as exc:
-            log.error("could not apply %s to the entitlement: %s",
-                      note.notification_type, exc)
-            raise HTTPException(
-                status_code=503,
-                detail="Could not update the entitlement; please retry.",
-            ) from None
+    duplicate, reinstated = await _apply_refund_change(note, seen_key)
+    if duplicate:
+        return {"status": "duplicate"}
 
     # Idempotency. Apple redelivers until it gets a 2xx, and a retry that
     # re-ran the handler would push the operator a second "trial converted"
@@ -2010,33 +1997,34 @@ async def apple_notifications(body: AppleNotification, request: Request) -> dict
     return {"status": "ok", "type": note.notification_type}
 
 
-async def _withdraw_refunded(note: appstorenotify.Notification, seen_key: str) -> None:
-    """Revoke the term a REFUND or REVOKE names, or answer 503 so Apple retries.
-
-    Shared by both notification routes, because the failure handling is the
-    part that is easy to get wrong.
-    """
-    assert note.entitlement is not None
+async def _apply_refund_change(note: appstorenotify.Notification, seen_key: str
+                               ) -> tuple[bool, "Reinstatement | None"]:
+    """Apply a REFUND, REVOKE or REFUND_REVERSED to the entitlement it names,
+    before the caller claims `seen_key`. Returns (already handled, the
+    reinstatement when it was a reversal). Raises a 503 so Apple retries when
+    the change cannot be stored. Shared by both notification routes; see the
+    production route for why the claim comes after, not before."""
+    if not ((note.is_refund or note.is_revoke or note.is_refund_reversal)
+            and note.entitlement is not None):
+        return False, None
     try:
+        handled = (_cache is not None
+                   and await _cache.get(seen_key) is not None)
+    except Exception:
+        handled = False
+    if handled:
+        return True, None
+    try:
+        if note.is_refund_reversal:
+            return False, await auth.deps.entitlements.reinstate(note.entitlement)
         await auth.deps.entitlements.revoke(note.entitlement)
+        return False, None
     except Exception as exc:
-        # Give the uuid back before failing. The idempotency claim is made
-        # before any work is done, so answering 5xx while holding it would make
-        # Apple's redelivery land on the duplicate branch and return 200
-        # without ever withdrawing the access — the same outcome as never
-        # having handled the refund. Releasing it means the retry gets a real
-        # second attempt.
-        log.error("could not revoke a refunded entitlement: %s", exc)
-        try:
-            if _cache is None:
-                raise RuntimeError("cache not initialised")
-            await _cache.delete(seen_key)
-        except Exception:
-            log.error("could not release the notification idempotency key; "
-                      "this refund will not be retried")
+        log.error("could not apply %s to the entitlement: %s",
+                  note.notification_type, exc)
         raise HTTPException(
             status_code=503,
-            detail="Could not withdraw the entitlement; please retry.",
+            detail="Could not update the entitlement; please retry.",
         ) from None
 
 
@@ -2095,6 +2083,15 @@ async def apple_notifications_sandbox(body: AppleNotification, request: Request)
     # Apple redelivers until it gets a 2xx. Its own namespace, so the two
     # routes can never answer "duplicate" for each other.
     seen_key = f"apns2:sandbox:{note.uuid}"
+    # As the production route: the change is stored before the claim, so a
+    # failure leaves nothing to hand back. The claim used to come first with
+    # a non-required `delete` to undo it, which on a Redis blip went to
+    # process memory and turned Apple's retry into a 200 "duplicate". And a
+    # REFUND_REVERSED is applied here too, so a tester's reversed refund is
+    # lifted (AUDIT-2026-10-27).
+    duplicate, _ = await _apply_refund_change(note, seen_key)
+    if duplicate:
+        return {"status": "duplicate"}
     try:
         first = (True if _cache is None
                  else await _cache.add(seen_key, "1", _NOTIFICATION_SEEN_TTL))
@@ -2108,9 +2105,11 @@ async def apple_notifications_sandbox(body: AppleNotification, request: Request)
         await notify.appstore_test_notification(note.environment)
         return {"status": "test", "environment": note.environment}
 
-    if (note.is_refund or note.is_revoke) and note.entitlement is not None:
-        await _withdraw_refunded(note, seen_key)
-        return {"status": "revoked", "type": note.notification_type}
+    if note.entitlement is not None:
+        if note.is_refund or note.is_revoke:
+            return {"status": "revoked", "type": note.notification_type}
+        if note.is_refund_reversal:
+            return {"status": "reinstated", "type": note.notification_type}
 
     return {"status": "ignored", "type": note.notification_type}
 
@@ -2296,10 +2295,14 @@ async def scan(
 
 
 def _deliver_scan(response: "ScanResponse", elapsed: float, principal: Principal,
-                  quota_status, *, reread: bool) -> "ScanResponse":
+                  quota_status, *, reread: bool, typed: bool = False) -> "ScanResponse":
     """The last steps of a scan the client is still waiting for, shared by
     `/scan` and `/scan/text`: trim the Pro detail, charge, tally, and say
-    what is left of the allowance."""
+    what is left of the allowance.
+
+    A typed item is counted but kept out of `/trends`, as a re-read is: it is
+    something someone thought of rather than something seen on a rail, and
+    typing would make a chosen brand or name easy to push into the tallies."""
     # The panel this feeds is Pro-only; until now only the client's blur said
     # so. See `_strip_pro_detail` for what deliberately survives.
     if not principal.is_pro:
@@ -2311,7 +2314,7 @@ def _deliver_scan(response: "ScanResponse", elapsed: float, principal: Principal
         category=response.category, low=response.est_value_low_usd,
         high=response.est_value_high_usd, confidence=response.confidence,
         subject=principal.subject, elapsed_ms=int(elapsed * 1000),
-        reread=reread)
+        reread=reread or typed)
     # Optional and omitted for Pro or when the quota store is unreachable: the
     # client must fall back to its own count rather than be handed a number.
     response.free_scans_remaining = (
@@ -2330,6 +2333,20 @@ class TextScanRequest(BaseModel):
     description: str = Field(max_length=1000)
 
 
+#: A vulgar fraction straight after a digit: "10½".
+_FRACTION_AFTER_DIGIT = re.compile(r"(?<=\d)([\u00BC-\u00BE\u2150-\u215E\u2189])")
+
+
+def _visible_length(text: str) -> int:
+    """Roughly the characters a person sees, as the app counts them (Swift's
+    `String.count`): combining marks, joiners and skin-tone modifiers ride on
+    the character before them. The cap is measured on this, before NFKC, so
+    an "…" or a "½" counts once as it did on the phone."""
+    return sum(1 for ch in text
+               if unicodedata.category(ch) not in ("Mn", "Me", "Cf")
+               and not 0x1F3FB <= ord(ch) <= 0x1F3FF)
+
+
 def _clean_description(raw: str) -> str:
     """The description as the model will see it, or a 400.
 
@@ -2337,11 +2354,23 @@ def _clean_description(raw: str) -> str:
     (`promptsafety.sanitize_text`), so instruction-shaped phrases are already
     neutralised; `prompts.with_description` then fences it. Refused rather
     than truncated past the limit, so nobody is priced for half a sentence.
+
+    Nothing here truncates. The limit used to be passed to `sanitize_text` as
+    `len(raw) + 1`, on the assumption that sanitising never lengthens text;
+    NFKC does ("…" is three characters after it, "½" three, "[removed]" is
+    longer than what it replaces), and the end of the description was cut
+    off: "size 10½" reached the model as "size 101⁄" (AUDIT-2026-10-27).
     """
-    text = promptsafety.sanitize_text(raw, max_length=len(raw) + 1, field="description")
-    if len(text) > prompts.MAX_DESCRIPTION:
+    if _visible_length(raw.strip()) > prompts.MAX_DESCRIPTION:
         raise APIError(400, apierrors.DESCRIPTION_INVALID,
                        f"Describe the item in {prompts.MAX_DESCRIPTION} characters or fewer.")
+    # NFKC turns "½" into "1⁄2", which after a digit reads as one number:
+    # "10½" became "101⁄2". A space keeps it "10 1⁄2".
+    spaced = _FRACTION_AFTER_DIGIT.sub(r" \1", raw)
+    # No effective cap: the read cap and the check above bound the input,
+    # and NFKC expands a character at most eighteen-fold.
+    text = promptsafety.sanitize_text(spaced, max_length=20 * len(spaced) + 1,
+                                      field="description")
     if len(text) < MIN_DESCRIPTION or not any(ch.isalpha() for ch in text):
         raise APIError(400, apierrors.DESCRIPTION_INVALID,
                        "Type what the item is, e.g. \"Levi's 501 jeans, size 32\".")
@@ -2393,7 +2422,8 @@ async def scan_text(
                  extra={"device": device_short})
         return response
 
-    return _deliver_scan(response, elapsed, principal, quota_status, reread=False)
+    return _deliver_scan(response, elapsed, principal, quota_status, reread=False,
+                         typed=True)
 
 
 #: What to say when the model reports no resale value and gives no reason.
@@ -2401,8 +2431,12 @@ _NOT_RESALABLE_FALLBACK = (
     "This doesn't look like something with a resale value. "
     "Try a photo of a single item you'd actually sell.")
 
+#: The same advice for `/scan/text`, where there is no photo to retake.
+_TRY_AGAIN_PHOTO = "Try a photo of a single item you'd actually sell."
+_TRY_AGAIN_TYPED = "Try describing a single item you'd actually sell."
 
-def _not_resalable_message(val: valuation_module.Valuation) -> str:
+
+def _not_resalable_message(val: valuation_module.Valuation, *, typed: bool = False) -> str:
     """The user-facing text for a deliberate zero valuation.
 
     The prompt asks the model to *explain in `uncertainty_factors`*, and that
@@ -2425,13 +2459,15 @@ def _not_resalable_message(val: valuation_module.Valuation) -> str:
     reason = next((f for f in val.uncertainty_factors
                    if f and f.strip().rstrip(".").casefold()
                    != prompts.MULTIPLE_ITEMS_FACTOR), "")
+    advice = _TRY_AGAIN_TYPED if typed else _TRY_AGAIN_PHOTO
     if not reason:
-        return _NOT_RESALABLE_FALLBACK
+        return ("This doesn't look like something with a resale value. " + advice
+                if typed else _NOT_RESALABLE_FALLBACK)
     if len(reason) > 160:
         reason = reason[:159].rstrip() + "…"
     if reason[-1] not in ".!?…":
         reason += "."
-    return f"{reason} Try a photo of a single item you'd actually sell."
+    return f"{reason} {advice}"
 
 
 #: Image-quality decodes allowed at once (`_analyse`). Each is a full-size
@@ -2526,6 +2562,8 @@ async def _analyse(image_bytes: bytes | None, content_type: str, *, subject: str
             await _note_safety_block(subject)
         raise APIError(
             422, apierrors.PHOTO_UNUSABLE,
+            "This description couldn't be analysed. Try describing a single item."
+            if description is not None else
             "This photo couldn't be analysed. Try a clear photo of a single item.",
         ) from None
     except aiconfig.ModelUnavailable as exc:
@@ -2609,7 +2647,8 @@ async def _analyse(image_bytes: bytes | None, content_type: str, *, subject: str
             # without the model's reason (`ServerCopy.text`; the open question
             # is in ios/Localization/README.md).
             raise APIError(
-                422, apierrors.NOT_RESALABLE, _not_resalable_message(val),
+                422, apierrors.NOT_RESALABLE,
+                _not_resalable_message(val, typed=description is not None),
             ) from None
 
         log.error("scan produced no usable price",

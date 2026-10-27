@@ -38,6 +38,12 @@ concurrency:
   group: website-${{ github.ref }}
   cancel-in-progress: true
 
+# Read-only by default. Nothing here writes to the repository through the
+# workflow token, so it should not be able to, whatever the repository's
+# default token permissions are (AUDIT-2026-10-27).
+permissions:
+  contents: read
+
 jobs:
   consistency:
     name: Site figures agree

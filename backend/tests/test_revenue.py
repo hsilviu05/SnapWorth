@@ -338,3 +338,31 @@ class TestBackfill:
         assert ("✅ Yes, backfill", "revenue backfill yes") in buttons[0]
         reply = await notify.handle_command("/revenue backfill yes")
         assert reply is not None and "Backfill" in reply
+
+
+class TestCurrencyListUnderConcurrency:
+    """Two writers adding to one month's currency list at once (AUDIT-2026-10-27).
+
+    Unlocked, each read the list without the other's currency and the later
+    write dropped the earlier one, so that currency's money vanished from
+    /revenue."""
+
+    @pytest.mark.asyncio
+    async def test_concurrent_first_payments_keep_every_currency(self):
+        import asyncio
+
+        from core.cache import add_to_json_set
+
+        class SlowCache(InMemoryCache):
+            # A pause between every read and write, where the race lived.
+            async def get(self, key):
+                value = await super().get(key)
+                await asyncio.sleep(0.01)
+                return value
+
+        cache = ResilientCache(None, SlowCache())
+        await asyncio.gather(*(add_to_json_set(cache, "rev:2026-10:currencies", c, 60)
+                               for c in ("EUR", "RON", "USD", "GBP")))
+        assert json.loads(await cache.get("rev:2026-10:currencies")) == [
+            "EUR", "GBP", "RON", "USD"]
+        assert await cache.get("rev:2026-10:currencies:lock") is None

@@ -77,14 +77,28 @@ def sanitize_text(value: object, max_length: int, field: str = "field") -> str:
     return text
 
 
+#: Either fence tag, so a value can neither close the fence nor open a new
+#: one: `<untrusted_data>`, `</UNTRUSTED_DATA >`, `</untrusted_data x>`,
+#: `</untrusted_data/>`, and one left unclosed at the end of the value.
+_FENCE_TAG = re.compile(r"(?i)<\s*/?\s*untrusted_data\b[^<>]*>?")
+
+
 def fence(value: str) -> str:
     """Wrap an untrusted value so the model treats it as data, not instruction.
 
     Delimiting is the single most effective mitigation available at the prompt
     layer: it gives the model an unambiguous boundary. The closing delimiter is
-    stripped from the value first so it cannot be closed early.
+    stripped from the value first so it cannot be closed early: in any case,
+    with space before the `>`, and until none is left, since removing one
+    can join the halves around it into another
+    (`</untrusted_</untrusted_data>data>`).
     """
-    return f"<untrusted_data>{value.replace('</untrusted_data>', '')}</untrusted_data>"
+    while True:
+        stripped = _FENCE_TAG.sub("", value)
+        if stripped == value:
+            break
+        value = stripped
+    return f"<untrusted_data>{value}</untrusted_data>"
 
 
 # ── Valuation sanity bands ───────────────────────────────────────────────────

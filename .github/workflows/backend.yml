@@ -44,6 +44,12 @@ concurrency:
   group: ${{ github.event_name == 'push' && 'backend-main' || format('backend-pr-{0}', github.run_id) }}
   cancel-in-progress: false
 
+# Read-only by default. Nothing here writes to the repository through the
+# workflow token, so it should not be able to, whatever the repository's
+# default token permissions are (AUDIT-2026-10-27).
+permissions:
+  contents: read
+
 jobs:
   # ── Tests ───────────────────────────────────────────────────────────────────
   test:

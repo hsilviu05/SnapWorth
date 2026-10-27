@@ -32,6 +32,7 @@ import logging
 from datetime import datetime, timedelta, timezone
 from typing import TYPE_CHECKING
 
+from core.cache import add_to_json_set
 from ops import opsformat
 from ops import opsindex
 
@@ -114,16 +115,11 @@ async def _add_currency(currency: str, at: datetime | None) -> None:
     keys, so without this a reader would have to guess the currency codes."""
     if _cache is None:
         return
-    key = month_key(month(at), "currencies")
-    raw = await _cache.get(key)
-    try:
-        known = set(json.loads(raw or "[]"))
-    except Exception:
-        known = set()
-    if currency in known:
-        return
-    known.add(currency)
-    await _cache.set(key, json.dumps(sorted(known)), REVENUE_TTL)
+    # Locked: a month's first EUR and first RON payment, counted at once,
+    # each wrote a list without the other's, and every amount in the lost
+    # currency vanished from /revenue (AUDIT-2026-10-27).
+    await add_to_json_set(_cache, month_key(month(at), "currencies"), currency,
+                          REVENUE_TTL)
 
 
 async def record_notification(note, at: datetime | None = None) -> bool:

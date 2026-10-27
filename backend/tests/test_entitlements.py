@@ -382,6 +382,31 @@ class TestEntitlementService:
             "the refunded term is being re-derived from the pre-refund proof")
 
     @pytest.mark.asyncio
+    async def test_an_unreadable_tombstone_grants_pro_without_caching_it(
+            self, service, pinned_root, monkeypatch):
+        # A failed tombstone read used to be answered from process memory as
+        # "not revoked", and Pro was re-cached for 24h on it (AUDIT-2026-10-27).
+        # It still fails open, for this request only.
+        from core.cache import CacheUnavailable
+
+        leaf_key, chain = pinned_root
+        await service.record("subject-blip", make_jws(valid_payload(), leaf_key, chain))
+        await service._cache.delete("ent:subject-blip")
+        real_get = service._cache.get
+
+        async def flaky_get(key, *, required=False):
+            if key.startswith("entrevoked:"):
+                assert required, "the tombstone read must not fall back to memory"
+                raise CacheUnavailable("blip")
+            return await real_get(key, required=required)
+
+        monkeypatch.setattr(service._cache, "get", flaky_get)
+        assert (await service.current("subject-blip")).tier == "pro"
+        monkeypatch.setattr(service._cache, "get", real_get)
+        assert await service._cache.get("ent:subject-blip") in (None, ""), (
+            "Pro was cached on a revocation check that never reached Redis")
+
+    @pytest.mark.asyncio
     async def test_a_revoked_proof_is_deleted_not_just_ignored(
             self, service, pinned_root):
         # Otherwise every later request pays for a signature check to reach

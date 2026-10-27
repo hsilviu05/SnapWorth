@@ -948,17 +948,23 @@ class EntitlementService:
                  extra={"product_id": ent.product_id})
         return Reinstatement.LIFTED
 
-    async def _is_revoked(self, ent: Entitlement) -> bool:
+    async def _is_revoked(self, ent: Entitlement) -> bool | None:
         """Whether Apple has since taken back the term this entitlement covers.
 
         Consulted after verification, because the JWS can never carry a
-        revocation that post-dates its own signature.
+        revocation that post-dates its own signature. None when the tombstone
+        could not be read: not revoked, as far as anyone can tell, but not
+        something to cache Pro on for a day either (`_rederive`).
         """
         otid = ent.original_transaction_id
         if not otid:
             return False
         try:
-            raw = await self._cache.get(self._tombstone_key(ent))
+            # `required`: without it a failed read was answered from process
+            # memory, found nothing, and reported "not revoked" — so the
+            # warning below never fired and `_rederive` cached Pro for 24h
+            # on a read that never reached Redis (AUDIT-2026-10-27).
+            raw = await self._cache.get(self._tombstone_key(ent), required=True)
         except Exception as exc:
             # Fail open, loudly. Both callers have already read the proof or
             # the entry from this same cache, so a failure on this one key is
@@ -967,7 +973,7 @@ class EntitlementService:
             # the next request, which is a bounded window; the alternative is
             # an unbounded one for everyone.
             log.warning("revocation tombstone read failed: %s", exc)
-            return False
+            return None
         if not raw:
             return False
         try:
@@ -1430,7 +1436,8 @@ class EntitlementService:
         if not ent.is_active:
             return FREE
 
-        if await self._is_revoked(ent):
+        revoked = await self._is_revoked(ent)
+        if revoked:
             # The loop this breaks: the 24h Pro entry lapses, `current()` falls
             # through to here, the pre-refund JWS re-verifies and still reads
             # active because a refund does not move `expiresDate`, and Pro is
@@ -1442,6 +1449,12 @@ class EntitlementService:
             except Exception as exc:
                 log.warning("could not delete a revoked proof: %s", exc)
             return FREE
+
+        if revoked is None:
+            # The tombstone could not be read. Pro for this request, as the
+            # read's fail-open promises, but not re-cached: the next request
+            # asks again rather than trusting this answer for a day.
+            return ent
 
         # Deliberately not re-bound to the device: this subject was bound when
         # the proof was recorded, and re-binding on every cache miss would churn

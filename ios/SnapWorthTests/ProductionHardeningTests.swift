@@ -10245,6 +10245,27 @@ final class ServerErrorCodeRoutingTests: XCTestCase {
                        ServerErrorCode.updateRequired.message)
     }
 
+    func test_aTypedScansRefusalIsAboutTheDescriptionNotAPhoto() {
+        // "Type it instead": outside English this build's words replace the
+        // server's, and the photo sentences told the user to retake a photo
+        // they never took (AUDIT-2026-10-27).
+        let unusable = ScanAPIError.serverError(422, "x", code: "photo_unusable")
+        XCTAssertEqual(AppError.from(unusable, inEnglish: false, typed: true),
+                       .unusablePhoto(ServerErrorCode.photoUnusable.typedMessage!))
+        XCTAssertEqual(AppError.from(unusable, inEnglish: false),
+                       .unusablePhoto(ServerErrorCode.photoUnusable.message))
+        let declined = ScanAPIError.serverError(422, "x", code: "not_resalable")
+        XCTAssertEqual(AppError.from(declined, inEnglish: false, typed: true),
+                       .notResalable(ServerErrorCode.notResalable.typedMessage!))
+        // A paused device is about the device, so it keeps its own words.
+        let paused = ScanAPIError.serverError(422, "x", code: "device_paused")
+        XCTAssertEqual(AppError.from(paused, inEnglish: false, typed: true),
+                       .unusablePhoto(ServerErrorCode.devicePaused.message))
+        // In English the server's words stand, as for a photo.
+        XCTAssertEqual(AppError.from(unusable, inEnglish: true, typed: true),
+                       .unusablePhoto("x"))
+    }
+
     func test_anUnknownCodeShowsTheServersWordsInEveryLanguage() {
         let error = ScanAPIError.serverError(422, "Something new went wrong.", code: "brand_new_failure")
         XCTAssertEqual(AppError.from(error, inEnglish: false), .unusablePhoto("Something new went wrong."))
@@ -10645,6 +10666,28 @@ final class SaleSharingTests: XCTestCase {
         guard case .share(let shared) = sent.last else { return XCTFail("a new sale is shared") }
         XCTAssertEqual(shared.contributionID, next.outcomeID)
         XCTAssertNotEqual(shared.contributorToken, token)
+    }
+
+    func test_aShareStillSendingWhenEverythingIsDeletedIsDeletedAfterIt() async throws {
+        // The DELETE can land before a share already on the wire, which then
+        // re-creates the record under a token the app has just discarded
+        // (AUDIT-2026-10-27).
+        let sharing = service(enabled: true)
+        let find = soldFind()
+        var tapDeleteAll: (() async -> Void)? = { try? await sharing.deleteAll() }
+        sharing.send = { [unowned self] request in
+            sent.append(request)
+            if case .share = request, let tap = tapDeleteAll {
+                tapDeleteAll = nil
+                await tap()
+            }
+        }
+        await sharing.sync(find)
+        guard case .share(let shared)? = sent.first else { return XCTFail("the sale is shared") }
+        XCTAssertEqual(sent.dropFirst().first, .delete(contributionID: nil, token: shared.contributorToken))
+        XCTAssertEqual(sent.last, .delete(contributionID: shared.contributionID,
+                                          token: shared.contributorToken),
+                       "the share that may have landed second is deleted after it")
     }
 
     func test_deleteAllWithdrawsASaleWhoseFirstSendFailed() async throws {

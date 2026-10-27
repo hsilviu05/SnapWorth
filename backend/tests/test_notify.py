@@ -780,7 +780,47 @@ class TestPolling:
     @staticmethod
     def update(update_id: int, chat_id: str, text: str) -> dict:
         return {"update_id": update_id,
-                "message": {"chat": {"id": int(chat_id)}, "text": text}}
+                "message": {"chat": {"id": int(chat_id)}, "from": {"id": int(chat_id)},
+                            "text": text}}
+
+    @pytest.mark.asyncio
+    async def test_a_group_member_who_is_not_the_operator_is_ignored(self, cache, monkeypatch):
+        # The chat matches, the sender does not: in a group every member's
+        # message carries the group's id (AUDIT-2026-10-27).
+        monkeypatch.delenv("TELEGRAM_OPERATOR_IDS", raising=False)
+        member = self.update(100, FAKE_CHAT, "/status")
+        member["message"]["from"] = {"id": 515151}
+        press = {"update_id": 101, "callback_query": {
+            "id": "cb-x", "data": "status", "from": {"id": 515151},
+            "message": {"chat": {"id": int(FAKE_CHAT)}}}}
+        bot = self.Bot([member, press])
+        notifier = telegram.TelegramNotifier(
+            FAKE_TOKEN, FAKE_CHAT,
+            client=httpx.AsyncClient(transport=httpx.MockTransport(bot.handler)))
+        notify.configure(cache, notifier=notifier)
+        try:
+            offset, handled = await notify.poll_once(None)
+            assert (offset, handled) == (102, 0)
+            assert bot.replies == [] and bot.answered == []
+        finally:
+            await notify.aclose()
+
+    @pytest.mark.asyncio
+    async def test_operator_ids_admit_the_people_they_name(self, cache, monkeypatch):
+        monkeypatch.setenv("TELEGRAM_OPERATOR_IDS", "515151, 77")
+        named = self.update(100, FAKE_CHAT, "/status")
+        named["message"]["from"] = {"id": 515151}
+        chat_itself = self.update(101, FAKE_CHAT, "/status")   # not named
+        bot = self.Bot([named, chat_itself])
+        notifier = telegram.TelegramNotifier(
+            FAKE_TOKEN, FAKE_CHAT,
+            client=httpx.AsyncClient(transport=httpx.MockTransport(bot.handler)))
+        notify.configure(cache, notifier=notifier)
+        try:
+            _, handled = await notify.poll_once(None)
+            assert handled == 1
+        finally:
+            await notify.aclose()
 
     @pytest.mark.asyncio
     async def test_answers_the_operator_and_nobody_else(self, cache):
@@ -1088,9 +1128,11 @@ class TestButtons:
         bot = TestPolling.Bot([
             {"update_id": 7, "callback_query": {
                 "id": "cb-1", "data": "week",
+                "from": {"id": int(FAKE_CHAT)},
                 "message": {"chat": {"id": int(FAKE_CHAT)}}}},
             {"update_id": 8, "callback_query": {
                 "id": "cb-2", "data": "status",
+                "from": {"id": int(FAKE_CHAT)},
                 "message": {"chat": {"id": 999999}}}},         # a stranger's press
         ])
         notifier = telegram.TelegramNotifier(
@@ -1111,6 +1153,7 @@ class TestButtons:
         bot = TestPolling.Bot([
             {"update_id": 1, "callback_query": {
                 "id": "cb", "data": "feed toggle",
+                "from": {"id": int(FAKE_CHAT)},
                 "message": {"chat": {"id": int(FAKE_CHAT)}}}},
         ])
         notifier = telegram.TelegramNotifier(
@@ -2577,12 +2620,13 @@ class TestAskButtons:
     def callback(update_id: int, data: str) -> dict:
         return {"update_id": update_id, "callback_query": {
             "id": f"cb{update_id}", "data": data,
+            "from": {"id": int(FAKE_CHAT)},
             "message": {"chat": {"id": int(FAKE_CHAT)}, "text": "📡 status"}}}
 
     @staticmethod
     def reply(update_id: int, quoted: str, text: str) -> dict:
         return {"update_id": update_id, "message": {
-            "chat": {"id": int(FAKE_CHAT)}, "text": text,
+            "chat": {"id": int(FAKE_CHAT)}, "from": {"id": int(FAKE_CHAT)}, "text": text,
             "reply_to_message": {"text": quoted}}}
 
     @pytest.mark.asyncio
@@ -2757,7 +2801,7 @@ class TestPhotoScan:
     @staticmethod
     def photo(update_id: int) -> dict:
         return {"update_id": update_id, "message": {
-            "chat": {"id": int(FAKE_CHAT)}, "message_id": 900,
+            "chat": {"id": int(FAKE_CHAT)}, "from": {"id": int(FAKE_CHAT)}, "message_id": 900,
             "photo": [{"file_id": "small", "file_size": 1200, "width": 90},
                       {"file_id": "large", "file_size": 88000, "width": 1280}]}}
 

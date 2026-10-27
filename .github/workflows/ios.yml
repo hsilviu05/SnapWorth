@@ -41,6 +41,12 @@ concurrency:
   group: ios-${{ github.event.pull_request.number || github.sha }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
+# Read-only by default. Nothing here writes to the repository through the
+# workflow token, so it should not be able to, whatever the repository's
+# default token permissions are (AUDIT-2026-10-27).
+permissions:
+  contents: read
+
 jobs:
   build-test:
     name: Build & Test
