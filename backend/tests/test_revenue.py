@@ -208,3 +208,101 @@ class TestCommand:
         assert "revenue" in dict(notify.COMMANDS)
         reply = await notify.handle_command("/revenue")
         assert reply is not None and reply.startswith("📈 <b>Revenue</b>")
+
+
+class TestBackfill:
+    """`/revenue backfill`: Apple's notification history, replayed."""
+
+    @staticmethod
+    def note(uuid: str, kind: str, ent, signed: datetime, subtype=None):
+        from billing import appstorenotify
+        return appstorenotify.Notification(
+            notification_type=kind, subtype=subtype, uuid=uuid, entitlement=ent,
+            signed_date=int(signed.timestamp()))
+
+    @pytest.fixture
+    def apple(self, monkeypatch):
+        """Stands in for Apple: `history` is what Get Notification History
+        returns, each payload a key into `notes`."""
+        from billing import appstorenotify, appstorestatus
+        from billing.entitlements import EntitlementError
+
+        state = {"notes": {}, "history": [], "truncated": False, "configured": True}
+
+        class Creds:
+            bundle_id = "eu.snapworth.app"
+
+        monkeypatch.setattr(appstorestatus, "credentials_from_env",
+                            lambda: Creds() if state["configured"] else None)
+
+        async def payloads(start_ms, end_ms):
+            return list(state["history"]), state["truncated"]
+        monkeypatch.setattr(appstorestatus, "notification_payloads", payloads)
+
+        def parse(payload, bundle_id, *a, **k):
+            if payload not in state["notes"]:
+                raise EntitlementError("does not verify")
+            return state["notes"][payload]
+        monkeypatch.setattr(appstorenotify, "parse_notification", parse)
+        return state
+
+    @pytest.mark.asyncio
+    async def test_past_notifications_land_in_their_own_month(self, configured, apple):
+        now = datetime.now(timezone.utc)
+        two_months_ago = now - timedelta(days=62)
+        apple["notes"] = {
+            "p1": self.note("n1", "DID_RENEW", paid(), two_months_ago),
+            "p2": self.note("n2", "EXPIRED", paid("o2", expires_in=-60), two_months_ago,
+                            subtype="VOLUNTARY"),
+            "p3": self.note("n3", "TEST", None, two_months_ago),
+        }
+        apple["history"] = ["p1", "p2", "p3", "bad"]
+        text = await opsrevenue.backfill(now)
+        assert "4 notifications" in text and "2 counted" in text
+        assert "1 not revenue" in text and "1 did not verify" in text
+        then = opsrevenue.month(two_months_ago)
+        assert int(await notify._cache.get(opsrevenue.month_key(then, "gross:USD")) or 0) == 3999
+        assert int(await notify._cache.get(opsrevenue.month_key(then, "churned")) or 0) == 1
+        assert await counter("payments") == 0      # not this month
+
+    @pytest.mark.asyncio
+    async def test_running_it_twice_counts_nothing_twice(self, configured, apple):
+        now = datetime.now(timezone.utc)
+        apple["notes"] = {"p1": self.note("n1", "DID_RENEW", paid(), now - timedelta(days=40))}
+        apple["history"] = ["p1"]
+        await opsrevenue.backfill(now)
+        text = await opsrevenue.backfill(now)
+        assert "0 counted · 1 already counted" in text
+        then = opsrevenue.month(now - timedelta(days=40))
+        assert int(await notify._cache.get(opsrevenue.month_key(then, "payments")) or 0) == 1
+
+    @pytest.mark.asyncio
+    async def test_a_notification_counted_live_is_not_counted_again(self, configured, apple):
+        now = datetime.now(timezone.utc)
+        live = self.note("n1", "DID_RENEW", paid(), now)
+        await notify.subscription_event(live)
+        apple["notes"] = {"p1": live}
+        apple["history"] = ["p1"]
+        text = await opsrevenue.backfill(now)
+        assert "0 counted · 1 already counted" in text
+        assert await counter("payments") == 1
+
+    @pytest.mark.asyncio
+    async def test_no_credentials_says_so(self, configured, apple):
+        apple["configured"] = False
+        assert "did not run" in await opsrevenue.backfill()
+
+    @pytest.mark.asyncio
+    async def test_a_cut_short_history_says_so(self, configured, apple):
+        apple["truncated"] = True
+        assert "page limit" in await opsrevenue.backfill()
+
+    @pytest.mark.asyncio
+    async def test_the_command_asks_first(self, configured, apple):
+        reply = await notify.handle_command_with_buttons("/revenue backfill")
+        assert reply is not None
+        text, buttons = reply
+        assert "Fill in past months" in text
+        assert ("✅ Yes, backfill", "revenue backfill yes") in buttons[0]
+        reply = await notify.handle_command("/revenue backfill yes")
+        assert reply is not None and "Backfill" in reply

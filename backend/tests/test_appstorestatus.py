@@ -501,6 +501,48 @@ class TestUndeliveredNotifications:
             await client.undelivered_notifications()
 
 
+class TestNotificationPayloads:
+    """Every notification in a window, page by page, for `/revenue backfill`."""
+
+    class _Item:
+        def __init__(self, payload):
+            self.signedPayload = payload
+
+    def _paged(self, pages):
+        client = appstorestatus.AppStoreStatusClient(fake_credentials())
+        tokens: list[object] = []
+
+        class _API:
+            async def get_notification_history(self, pagination_token, request):
+                tokens.append(pagination_token)
+                items, token, more = pages[len(tokens) - 1]
+                response = _HistoryResponse([TestNotificationPayloads._Item(p) for p in items],
+                                            has_more=more)
+                response.paginationToken = token        # type: ignore[attr-defined]
+                assert request.onlyFailures is None
+                return response
+
+        client._client_for = lambda name, env: _API()          # type: ignore[assignment]
+        return client, tokens
+
+    @pytest.mark.asyncio
+    async def test_follows_the_pagination_token(self):
+        client, tokens = self._paged([(["a", "b"], "t1", True), (["c"], None, False)])
+        assert await client.notification_payloads(0, 1) == (["a", "b", "c"], False)
+        assert tokens == [None, "t1"]
+
+    @pytest.mark.asyncio
+    async def test_stops_at_the_page_limit_and_says_so(self):
+        client, _ = self._paged([(["a"], "t1", True), (["b"], "t2", True)])
+        assert await client.notification_payloads(0, 1, max_pages=2) == (["a", "b"], True)
+
+    @pytest.mark.asyncio
+    async def test_a_refused_key_says_so(self):
+        client, _ = _history_client(APIException(401))
+        with pytest.raises(appstorestatus.StatusCredentialsRejected):
+            await client.notification_payloads(0, 1)
+
+
 # ── Errors, each one distinguishable ─────────────────────────────────────────
 
 class TestErrorTranslation:

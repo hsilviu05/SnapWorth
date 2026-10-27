@@ -44,6 +44,13 @@ log = logging.getLogger("snapworth.notify")
 # room to spare.
 REVENUE_TTL = 60 * 60 * 24 * 800
 
+# How long a counted notification is remembered, so the live route and a
+# backfill never count the same one twice. Above Apple's 180-day history.
+SEEN_TTL = 60 * 60 * 24 * 200
+
+# How far back `/revenue backfill` asks Apple: the most it keeps in Production.
+BACKFILL_DAYS = 180
+
 # Months `/revenue` lists, newest first.
 MONTHS_SHOWN = 6
 
@@ -119,18 +126,29 @@ async def _add_currency(currency: str, at: datetime | None) -> None:
     await _cache.set(key, json.dumps(sorted(known)), REVENUE_TTL)
 
 
-async def record_notification(note, at: datetime | None = None) -> None:
+async def record_notification(note, at: datetime | None = None) -> bool:
     """Count one App Store Server Notification into this month. Never raises.
 
     `note` is duck-typed, like everything `notify.subscription_event` takes.
     The caller has already dropped Sandbox and anything not indexed.
+
+    The month is the one Apple signed the notification in, when it says, so
+    a backfilled notification lands in its own month rather than today's.
+    Returns whether it was counted: False for one already counted, by the
+    live route or an earlier backfill.
     """
     if _cache is None:
-        return
+        return False
     try:
         ent = note.entitlement
         if ent is None:
-            return
+            return False
+        signed = getattr(note, "signed_date", None)
+        if at is None and isinstance(signed, (int, float)) and not isinstance(signed, bool):
+            at = datetime.fromtimestamp(signed, timezone.utc)
+        uuid = getattr(note, "uuid", None)
+        if uuid and not await _cache.add(f"rev:n:{uuid}", "1", SEEN_TTL):
+            return False
         if note.is_paid_period:
             # Every charge: a direct purchase, a trial's first paid period,
             # an ordinary renewal. They are all money in.
@@ -150,9 +168,78 @@ async def record_notification(note, at: datetime | None = None) -> None:
                 await _bump("churned_billing", at=at)
         elif note.is_cancellation and opsindex.acquisition(ent) == "paid":
             await _bump("cancellations", at=at)
+        return True
     except Exception as exc:
         log.warning("revenue counter failed for %s: %s",
                     getattr(note, "notification_type", "?"), type(exc).__name__)
+        return False
+
+
+async def backfill(now: datetime | None = None, days: int = BACKFILL_DAYS) -> str:
+    """Replay Apple's notification history into the monthly counters.
+
+    The same notifications the live route counts, verified the same way, and
+    guarded by the same per-notification key, so running it twice — or after
+    the live route has counted some of them — counts nothing twice. What it
+    cannot rebuild is the daily MRR snapshot, so a backfilled month has
+    revenue, refunds and churn but no churn rate.
+    """
+    from billing import appstorenotify, appstorestatus
+    from billing.entitlements import EntitlementError
+
+    now = now or datetime.now(timezone.utc)
+    start = now - timedelta(days=days)
+    try:
+        credentials = appstorestatus.credentials_from_env()
+        if credentials is None:
+            raise appstorestatus.StatusNotConfigured(
+                "No App Store Server API credentials on this deployment.")
+        payloads, truncated = await appstorestatus.notification_payloads(
+            int(start.timestamp() * 1000), int(now.timestamp() * 1000))
+    except appstorestatus.StatusError as exc:
+        return f"📈 Backfill did not run: {exc}"
+
+    counted = already = skipped = rejected = 0
+    for payload in payloads:
+        try:
+            note = appstorenotify.parse_notification(payload, credentials.bundle_id)
+        except EntitlementError:
+            rejected += 1
+            continue
+        if (not note.is_indexed or note.entitlement is None
+                or opsindex.is_bounded(note.entitlement)):
+            skipped += 1
+            continue
+        if await record_notification(note):
+            counted += 1
+        else:
+            already += 1
+
+    lines = [f"📈 <b>Backfill</b> {start.strftime('%Y-%m-%d')} → {now.strftime('%Y-%m-%d')}: "
+             f"{len(payloads)} notifications from Apple",
+             f"{counted} counted · {already} already counted · "
+             f"{skipped} not revenue (tests, other types)"
+             + (f" · {rejected} did not verify" if rejected else "")]
+    if truncated:
+        lines.append("⚠️ Stopped at the page limit: run it again to continue "
+                     "from where the counts now stand.")
+    lines.append("Backfilled months have no churn rate: there is no snapshot of "
+                 "who was paying on their 1st.")
+    return "\n".join(lines)
+
+
+async def revenue_command(argument: str, rest: str) -> tuple[str, opsformat.Buttons]:
+    """`/revenue`, and `/revenue backfill [yes]`: two taps, as every bot
+    command that writes."""
+    parts = (rest or "").split()
+    if argument == "backfill":
+        if any(p.lower() == "yes" for p in parts[1:]):
+            return await backfill(), []
+        return ("📈 <b>Fill in past months from Apple?</b>\n"
+                f"Replays the last {BACKFILL_DAYS} days of App Store notifications "
+                "into /revenue. Safe to run more than once: nothing is counted twice.",
+                [[("✅ Yes, backfill", "revenue backfill yes"), ("Cancel", "revenue")]])
+    return await revenue_text(), [[("⏪ Backfill from Apple", "revenue backfill")]]
 
 
 async def snapshot(now: datetime | None = None) -> bool:

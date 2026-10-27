@@ -1652,7 +1652,8 @@ async def handle_command_with_buttons(text: str) -> tuple[str, opsformat.Buttons
         return ((await opsexperiment.paywall_text()) + (f"\n\n{split}" if split else ""),
                 await _buttons())
     if command == "/revenue":
-        return await opsrevenue.revenue_text(), await _buttons()
+        text, offers = await opsrevenue.revenue_command(argument, rest)
+        return text, offers + await _buttons()
     if command == "/minbuild":
         text, offers, menu = await levers.minbuild_command(argument, rest)
         return text, offers + (await _buttons() if menu else [])

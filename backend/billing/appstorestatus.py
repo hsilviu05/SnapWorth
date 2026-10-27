@@ -55,6 +55,11 @@ STATUS_WORDS = {
     5: "revoked",
 }
 
+# Pages of notification history one backfill reads: a bound on how long the
+# operator waits, far above what 180 days of this app's notifications fill.
+# The reply says when it was reached.
+HISTORY_MAX_PAGES = 200
+
 # How long to wait on Apple. The operator is watching a chat window; a request
 # that hangs for the library's default 30s reads as a broken bot.
 TIMEOUT_SECONDS = 15.0
@@ -451,6 +456,49 @@ class AppStoreStatusClient:
                     f"Could not reach Apple ({type(exc).__name__}).") from None
         return len(response.notificationHistory or []), bool(response.hasMore)
 
+    async def notification_payloads(self, start_ms: int, end_ms: int,
+                                    max_pages: int = HISTORY_MAX_PAGES) -> tuple[list[str], bool]:
+        """Every notification Apple sent us between two times, as the
+        `signedPayload` strings it delivered, and whether `max_pages` cut the
+        list short.
+
+        Get Notification History without `onlyFailures`: delivered and failed
+        alike. It is what `/revenue backfill` replays, because Apple keeps it
+        for 180 days in Production whether or not our endpoint was up.
+        Production only, for the same reason as `undelivered_notifications`.
+        The payloads are not verified here; the caller runs each through
+        `appstorenotify.parse_notification`, as the live route does.
+        """
+        from appstoreserverlibrary.api_client import APIException
+        from appstoreserverlibrary.models.NotificationHistoryRequest import (
+            NotificationHistoryRequest)
+
+        name, environment = self._environments()[0]
+        client = self._client_for(name, environment)
+        request = NotificationHistoryRequest(startDate=start_ms, endDate=end_ms)
+        payloads: list[str] = []
+        token: str | None = None
+        async with self._lock:
+            for _ in range(max_pages):
+                try:
+                    response = await asyncio.wait_for(
+                        client.get_notification_history(token, request),  # type: ignore[attr-defined]
+                        timeout=TIMEOUT_SECONDS)
+                except TimeoutError:
+                    raise StatusUnavailable(
+                        f"Apple did not answer within {TIMEOUT_SECONDS:.0f}s ({name}).") from None
+                except APIException as exc:
+                    raise self._translate(exc, name) from None
+                except Exception as exc:
+                    raise StatusUnavailable(
+                        f"Could not reach Apple ({type(exc).__name__}).") from None
+                payloads.extend(item.signedPayload for item in (response.notificationHistory or [])
+                                if isinstance(item.signedPayload, str))
+                token = response.paginationToken
+                if not response.hasMore or not token:
+                    return payloads, False
+        return payloads, True
+
     async def _statuses_in(self, name: str, environment,
                            transaction_id: str) -> list[SubscriptionStatus]:
         from appstoreserverlibrary.api_client import APIException
@@ -659,3 +707,9 @@ async def undelivered_notifications(hours: int = 24) -> tuple[int, bool]:
     """What Apple could not deliver to us lately, for `/checkup`."""
     client = await get_client()
     return await client.undelivered_notifications(hours)
+
+
+async def notification_payloads(start_ms: int, end_ms: int) -> tuple[list[str], bool]:
+    """Every notification Apple sent between two times, for `/revenue backfill`."""
+    client = await get_client()
+    return await client.notification_payloads(start_ms, end_ms)
