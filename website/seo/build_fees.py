@@ -37,12 +37,18 @@ SITE = "https://www.snapworth.eu"
 
 # Published pages: the rate re-checked against the source, and when. Add a
 # marketplace here only after reading its own fee page on the day.
-#
-# eBay is held back. On 2026-10-06 its help page would not load, and current
-# third-party guides cite 13.6% for most categories, with $0.30 per order up
-# to $10 and $0.40 above, against the app's 13.25% + $0.40. Confirm on eBay's
-# page, fix MarketplaceFees.swift first if the app is stale, then add it here.
 PUBLISHED: dict[str, dict] = {
+    "ebay": dict(
+        name="eBay", checked="2026-10-27",
+        source="https://www.ebay.com/help/selling/fees/selling-fees",
+        source_name="eBay's selling fees page",
+        extra="That is the rate for most categories without an eBay Store; "
+              "some categories differ, such as books, handbags, jewelry and "
+              "athletic shoes over $150.",
+        calc_note="eBay charges the percentage on the total amount of the "
+                  "sale, including shipping and sales tax. The calculator "
+                  "applies it to the sale price, so on a shipped sale the fee "
+                  "is 13.6% of the postage and tax higher."),
     "poshmark": dict(
         name="Poshmark", checked="2026-10-06",
         source="https://poshmark.com/fees", source_name="Poshmark's fee page",
@@ -77,7 +83,8 @@ def fee_on(fee: Fee, resale: Decimal) -> Decimal:
         return Decimal(0)
     if fee.flat and resale < fee.flat[0]:
         return fee.flat[1]
-    return (resale * fee.pct + fee.fixed).quantize(Decimal("0.01"))
+    fixed = fee.small[1] if fee.small and resale <= fee.small[0] else fee.fixed
+    return (resale * fee.pct + fixed).quantize(Decimal("0.01"))
 
 
 def rule(name: str, fee: Fee) -> str:
@@ -86,6 +93,11 @@ def rule(name: str, fee: Fee) -> str:
         below, flat = fee.flat
         return (f"{name} takes a flat {dollars(flat)} on sales under {dollars(below)}, "
                 f"and {percent(fee.pct)} of the sale price at {dollars(below)} and above.")
+    if fee.fixed and fee.small:
+        at_most, small = fee.small
+        return (f"{name} takes {percent(fee.pct)} of the sale price plus "
+                f"{dollars(fee.fixed)} per order, or {dollars(small)} per order "
+                f"on sales of {dollars(at_most)} or less.")
     if fee.fixed:
         return (f"{name} takes {percent(fee.pct)} of the sale price plus "
                 f"{dollars(fee.fixed)} per sale.")
@@ -116,6 +128,9 @@ def page(key: str, fee: Fee, style: str, header, footer, analytics: str,
         f"<td class='val'>{money(p - fee_on(fee, p))}</td></tr>" for p in EXAMPLE_PRICES)
     flat_attrs = (f' data-flat-below="{fee.flat[0]}" data-flat-fee="{fee.flat[1]}"'
                   if fee.flat else "")
+    if fee.small:
+        flat_attrs += f' data-small-max="{fee.small[0]}" data-small-fixed="{fee.small[1]}"'
+
     calc_note = (f"<p class='disclaimer'>{e(meta['calc_note'])}</p>"
                  if meta["calc_note"] else "")
     ld = json.dumps({"@context": "https://schema.org", "@type": "BreadcrumbList",
@@ -190,7 +205,9 @@ def page(key: str, fee: Fee, style: str, header, footer, analytics: str,
   var d = box.dataset;
   var fee = {{ pct: parseFloat(d.pct), fixed: parseFloat(d.fixed),
               flatBelow: d.flatBelow ? parseFloat(d.flatBelow) : 0,
-              flatFee: d.flatFee ? parseFloat(d.flatFee) : 0 }};
+              flatFee: d.flatFee ? parseFloat(d.flatFee) : 0,
+              smallMax: d.smallMax ? parseFloat(d.smallMax) : 0,
+              smallFixed: d.smallFixed ? parseFloat(d.smallFixed) : 0 }};
   var input = document.getElementById("fee-price");
   function render() {{
     var price = SnapFlip.num(input.value);

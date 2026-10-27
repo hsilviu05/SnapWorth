@@ -12,12 +12,15 @@
   "use strict";
 
   /* Mirrors MarketplaceFee.fees(on:) — a marketplace with a low-price flat
-     charge pays that and nothing else below the threshold. A zero resale pays
-     nothing at all, so an empty box doesn't read as an instant loss. */
+     charge pays that and nothing else below the threshold, and one with a
+     small-order fee (eBay: $0.30 at $10 or less) pays it in place of the
+     fixed fee. A zero resale pays nothing at all, so an empty box doesn't
+     read as an instant loss. */
   function feesOn(fee, resale) {
     if (resale <= 0) return 0;
     if (fee.flatBelow && resale < fee.flatBelow) return fee.flatFee;
-    return resale * fee.pct + fee.fixed;
+    var fixed = fee.smallMax && resale <= fee.smallMax ? fee.smallFixed : fee.fixed;
+    return resale * fee.pct + fixed;
   }
 
   /* Accepts "$18", "18 usd", "18", and — the reason this is not a one-liner —

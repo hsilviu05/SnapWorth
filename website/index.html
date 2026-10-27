@@ -1162,7 +1162,8 @@ a:focus-visible, button:focus-visible, summary:focus-visible, label:focus-within
      it under a generic "AI resale estimate" pitch.
    * The fee rates on this page are the ones the app actually uses
      (MarketplaceFees.swift): Poshmark 20% — or a flat $2.95 under $15 —
-     Mercari 10%, Depop 3.3% + $0.45, eBay 13.25% + $0.40; Vinted /
+     Mercari 10%, Depop 3.3% + $0.45, eBay 13.6% + $0.40 ($0.30 up
+     to $10); Vinted /
      Facebook Marketplace / OLX / Kleinanzeigen take no seller fee, and
      Xianyu none on an ordinary personal sale. A calculator that
      disagreed with the product would be worse than no calculator.
@@ -2011,7 +2012,8 @@ details[open] .faq-x::after { transform: rotate(90deg); }
   <!-- ══ Thrift Flip ═══════════════════════════════════════════════════════
        A live calculator, not a screenshot of one. Fee rates are the ones the
        app actually uses (MarketplaceFees.swift): Poshmark 20% (a flat $2.95
-       under $15), Mercari 10%, Depop 3.3% + $0.45, eBay 13.25% + $0.40;
+       under $15), Mercari 10%, Depop 3.3% + $0.45, eBay 13.6% + $0.40
+       ($0.30 up to $10);
        Vinted, Facebook Marketplace, OLX and Kleinanzeigen take no seller fee,
        and Xianyu none on an ordinary personal sale. A calculator on the
        marketing site that disagreed with the product would be worse than
@@ -2110,7 +2112,7 @@ details[open] .faq-x::after { transform: rotate(90deg); }
           <a href="#pricing" class="tf-foot-cta">See pricing</a>
         </div>
         <div class="tf-foot-note">
-          Poshmark takes <strong>20%</strong>, or a flat <strong>$2.95</strong> on sales under $15. Mercari takes <strong>10%</strong>, Depop <strong>3.3% + $0.45</strong> and eBay <strong>13.25% + $0.40</strong>. Vinted, Facebook Marketplace, OLX and Kleinanzeigen take no seller fee, and <span lang="zh-Hans">闲鱼</span> (Xianyu) takes none on an ordinary personal sale, so the only costs are the shop price and shipping. Rates are approximate and reviewed against each marketplace&rsquo;s published schedule.
+          Poshmark takes <strong>20%</strong>, or a flat <strong>$2.95</strong> on sales under $15. Mercari takes <strong>10%</strong>, Depop <strong>3.3% + $0.45</strong> and eBay <strong>13.6% + $0.40</strong> per order (<strong>$0.30</strong> on sales of <strong>$10</strong> or less). Vinted, Facebook Marketplace, OLX and Kleinanzeigen take no seller fee, and <span lang="zh-Hans">闲鱼</span> (Xianyu) takes none on an ordinary personal sale, so the only costs are the shop price and shipping. Rates are approximate and reviewed against each marketplace&rsquo;s published schedule.
         </div>
       </div>
     </div>
@@ -2674,7 +2676,7 @@ details[open] .faq-x::after { transform: rotate(90deg); }
  *   Poshmark 20%, or a flat $2.95 on sales under $15
  *   Mercari  10%
  *   Depop    3.3% + $0.45
- *   eBay     13.25% + $0.40
+ *   eBay     13.6% + $0.40 per order, or $0.30 on sales of $10 or less
  *   Vinted / Facebook Marketplace / OLX / Kleinanzeigen — no seller fee
  *   Xianyu   no seller fee on an ordinary personal sale. The app's table
  *            leaves out the service fee Xianyu charges accounts past a
@@ -2705,8 +2707,9 @@ details[open] .faq-x::after { transform: rotate(90deg); }
                 note: "Mercari is charged at a flat 10%." },
     depop:    { pct: 0.033, fixed: 0.45, name: "Depop",
                 note: "Depop's selling fee is 0%; payment processing is 3.3% plus $0.45." },
-    ebay:     { pct: 0.1325, fixed: 0.40, name: "eBay",
-                note: "eBay is charged at 13.25% plus $0.40." },
+    ebay:     { pct: 0.136, fixed: 0.40, name: "eBay",
+                smallMax: 10, smallFixed: 0.30,
+                note: "eBay is charged at 13.6% plus $0.40 per order — $0.30 on sales of $10 or less." },
     vinted:   { pct: 0, fixed: 0, name: "Vinted",   note: "Vinted" + NO_FEE },
     facebook: { pct: 0, fixed: 0, name: "Facebook Marketplace",
                 note: "Facebook Marketplace" + NO_FEE },

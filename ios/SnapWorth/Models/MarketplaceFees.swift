@@ -121,10 +121,20 @@ struct MarketplaceFee: Equatable {
     /// sales — Poshmark takes $2.95 on anything under $15 instead of 20%.
     /// Nil means the percentage and fixed fee always apply.
     var lowPriceFlatFee: LowPriceFlatFee? = nil
+    /// Some marketplaces charge a smaller per-order fee on small orders —
+    /// eBay takes $0.30 instead of $0.40 on orders of $10.00 or less. The
+    /// percentage still applies. Nil means `fixedFee` always applies.
+    var smallOrderFixedFee: SmallOrderFixedFee? = nil
 
     struct LowPriceFlatFee: Equatable {
         /// Sales strictly below this price pay `fee` and nothing else.
         let below: Decimal
+        let fee: Decimal
+    }
+
+    struct SmallOrderFixedFee: Equatable {
+        /// Sales at or below this price pay `fee` in place of `fixedFee`.
+        let atOrBelow: Decimal
         let fee: Decimal
     }
 
@@ -133,7 +143,11 @@ struct MarketplaceFee: Equatable {
         if let low = lowPriceFlatFee, resale < low.below {
             return low.fee
         }
-        return resale * sellingFeePercent + fixedFee
+        var fixed = fixedFee
+        if let small = smallOrderFixedFee, resale <= small.atOrBelow {
+            fixed = small.fee
+        }
+        return resale * sellingFeePercent + fixed
     }
 }
 
@@ -156,9 +170,15 @@ enum MarketplaceFees {
     // Built from string literals, not Double, so the money math stays exact
     // (Decimal(0.1325) would capture the Double's rounding error).
     static let defaults: [Marketplace: MarketplaceFee] = [
-        // eBay: 13.25% final value fee + $0.40 per order (most categories).
+        // eBay (US, no Store subscription): 13.6% final value fee for most
+        // categories, plus a per-order fee of $0.40, or $0.30 on orders of
+        // $10.00 or less. eBay charges the percentage on the total amount of
+        // the sale, shipping and sales tax included; applied to the item
+        // price here, like Depop's below. Re-checked 2026-10-27, when it had
+        // risen from 13.25%.
         // Source: ebay.com/help/selling/fees/selling-fees
-        .ebay:     MarketplaceFee(sellingFeePercent: Decimal(string: "0.1325")!, fixedFee: Decimal(string: "0.40")!),
+        .ebay:     MarketplaceFee(sellingFeePercent: Decimal(string: "0.136")!, fixedFee: Decimal(string: "0.40")!,
+                                  smallOrderFixedFee: .init(atOrBelow: 10, fee: Decimal(string: "0.30")!)),
         // Poshmark (US): flat $2.95 on sales under $15, 20% at $15 and above.
         // No fixed fee — the shipping label is prepaid and paid by the buyer.
         // Source: poshmark.com/fees ("How Poshmark fees work"), re-checked
@@ -216,7 +236,8 @@ enum MarketplaceFees {
     ///
     /// Shape, matching the website's mirror of the same table
     /// (`website/index.html`, the `FEES` object):
-    /// `{ "ebay": { "pct": "0.1325", "fixed": "0.40" },
+    /// `{ "ebay": { "pct": "0.136", "fixed": "0.40",
+    ///              "smallMax": "10", "smallFixed": "0.30" },
     ///    "poshmark": { "pct": "0.20", "fixed": "0",
     ///                  "flatBelow": "15", "flatFee": "2.95" } }`
     ///
@@ -230,12 +251,15 @@ enum MarketplaceFees {
     /// sale started being charged 20% ($2.00) instead of $2.95. The old wire
     /// shape could not express the rule at all.
     ///
-    /// To remove a low-price rule on purpose, send `"flatBelow": 0`.
+    /// To remove a low-price rule on purpose, send `"flatBelow": 0`, and
+    /// `"smallMax": 0` for a small-order fee.
     private struct FeeOverride: Decodable {
         let pct: DecimalValue?
         let fixed: DecimalValue?
         let flatBelow: DecimalValue?
         let flatFee: DecimalValue?
+        let smallMax: DecimalValue?
+        let smallFixed: DecimalValue?
     }
 
     /// A rate or amount from the override JSON, decoded **exactly**.
@@ -322,8 +346,18 @@ enum MarketplaceFees {
                 flat = MarketplaceFee.LowPriceFlatFee(below: below, fee: fee)
             }
         }
+        // Carried over like `flat` above: an override that only moves the
+        // percentage must not drop the small-order rule.
+        var small = base.smallOrderFixedFee
+        if entry.smallMax != nil || entry.smallFixed != nil {
+            let max = entry.smallMax?.value ?? 0
+            let fee = entry.smallFixed?.value ?? 0
+            guard max >= 0, fee >= 0 else { return nil }
+            small = max == 0 ? nil
+                : MarketplaceFee.SmallOrderFixedFee(atOrBelow: max, fee: fee)
+        }
         return MarketplaceFee(sellingFeePercent: pct, fixedFee: fixed,
-                              lowPriceFlatFee: flat)
+                              lowPriceFlatFee: flat, smallOrderFixedFee: small)
     }
 }
 
