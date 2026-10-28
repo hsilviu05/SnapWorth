@@ -78,6 +78,7 @@ has no link on its page. Change a row and the page together.
 | `fees_poshmark` | `fees/poshmark.html` | /fees/poshmark: top bar "Get the app" and the download button |
 | `fees_mercari` | `fees/mercari.html` | /fees/mercari: top bar "Get the app" and the download button |
 | `fees_depop` | `fees/depop.html` | /fees/depop: top bar "Get the app" and the download button |
+| `site_llms` | `llms.txt` | /llms.txt, the plain-text summary for AI assistants: the App Store line |
 | `fees_ebay` | `fees/ebay.html` | /fees/ebay: top bar "Get the app" and the download button |
 <!-- campaign-table:end -->
 

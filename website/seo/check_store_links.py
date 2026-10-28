@@ -50,10 +50,11 @@ ATTR = re.compile(r"""\b(href|data-ct)\s*=\s*(?:"([^"]*)"|'([^']*)')""", re.IGNO
 
 def pages() -> list[pathlib.Path]:
     # vercel.json too: the share-card QR redirects (#221) end at campaign
-    # links, and the table names it as their page.
+    # links, and the table names it as their page. llms.txt, the plain-text
+    # summary AI assistants read, carries one as well.
     return sorted([p for pattern in ("*.html", "*.js")
                    for p in WEBSITE.rglob(pattern) if p.is_file()]
-                  + [WEBSITE / "vercel.json"])
+                  + [WEBSITE / "vercel.json", WEBSITE / "llms.txt"])
 
 
 def line_of(text: str, offset: int) -> int:
