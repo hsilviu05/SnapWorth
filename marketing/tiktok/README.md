@@ -34,7 +34,7 @@ The rules in `../shorts-scripts.md` apply here too: use real finds and real
 numbers, call it an *AI estimate* (never "sold listings" or "accurate"), say
 it's your app, and label Pro features.
 
-## The three specs
+## The specs
 
 | Spec | Format | Needs |
 |---|---|---|
@@ -49,7 +49,7 @@ it's your app, and label Pro features.
 A `hook` photo fills the whole frame. Add `"inline": true` to put it in a card instead, for a photo too small or too wide to fill 9:16.
 
 To add a format, copy a spec and rearrange its slides. The slide types are
-`hook`, `item`, `tip`, `compare` and `app`, and the three specs between them
+`hook`, `item`, `tip`, `compare` and `app`, and the specs between them
 use every field. Write `*words*` to get the brand's terracotta italic, and
 `{KEY}` for a value from `values.json`.
 
