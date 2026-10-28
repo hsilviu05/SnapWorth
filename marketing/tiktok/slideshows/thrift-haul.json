@@ -1,0 +1,24 @@
+{
+  "title": "Charity shop haul: paid vs AI estimate",
+  "theme": "dark",
+  "caption": "Paid {TOTAL_PAID} for the lot. Here's what an AI resale estimate says, item by item. Estimates, not sales: I'll post what they actually sell for.\n\nScanned with SnapWorth, my app. One free scan a day.",
+  "hashtags": ["#thrifthaul", "#thriftflip", "#thrifting", "#reseller", "#resellercommunity", "#whatsitworth", "#sidehustle"],
+  "slides": [
+    {"type": "hook", "photo": "haul", "photo_label": "the whole haul on a table or bed",
+     "kicker": "Charity shop haul", "headline": "Paid {TOTAL_PAID} for *all of this.*",
+     "sub": "Asked an AI what it's worth. Swipe →"},
+    {"type": "item", "kicker": "Find 1 of 3", "photo": "item1", "photo_label": "find 1, close up",
+     "name": "{ITEM_1}", "paid": "{PAID_1}", "estimate": "{LOW_1}–{HIGH_1}", "confidence": "{CONF_1} confidence"},
+    {"type": "item", "kicker": "Find 2 of 3", "photo": "item2", "photo_label": "find 2, close up",
+     "name": "{ITEM_2}", "paid": "{PAID_2}", "estimate": "{LOW_2}–{HIGH_2}", "confidence": "{CONF_2} confidence"},
+    {"type": "item", "kicker": "Find 3 of 3", "photo": "item3", "photo_label": "find 3, close up",
+     "name": "{ITEM_3}", "paid": "{PAID_3}", "estimate": "{LOW_3}–{HIGH_3}", "confidence": "{CONF_3} confidence"},
+    {"type": "compare", "headline": "So, was it *worth it?*",
+     "stats": [{"label": "Paid", "value": "{TOTAL_PAID}"},
+               {"label": "AI estimate", "value": "{TOTAL_LOW}–{TOTAL_HIGH}"}],
+     "note": "Estimates, not sales. I'll post what they actually go for."},
+    {"type": "app", "theme": "cream", "headline": "I built the app *I scanned them with.*",
+     "sub": "SnapWorth: one photo, an AI resale estimate in seconds. One free scan every day.",
+     "screenshot": "result", "screenshot_label": "SnapWorth result screen for one of these finds"}
+  ]
+}
