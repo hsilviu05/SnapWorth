@@ -133,12 +133,16 @@ class Show:
 
     # ── slide types ──
     def hook(self, s):
-        bg = self.photo(s["photo"], s.get("photo_label"), cls="bleed") if s.get("photo") else ""
+        # "inline": true puts the photo in a card under the copy, for a photo
+        # too small or too wide to fill the whole 9:16 frame.
+        inline = bool(s.get("photo")) and s.get("inline", False)
+        bg = self.photo(s["photo"], s.get("photo_label"), cls="bleed") if s.get("photo") and not inline else ""
+        card = self.photo(s["photo"], s.get("photo_label"), style="flex:1;margin-top:44px;") if inline else "<div class='spacer'></div>"
         return bg, f"""
           {f"<span class='pill'>{self.text(s['kicker'])}</span>" if s.get('kicker') else ''}
           <h1>{self.text(s['headline'])}</h1>
           {f"<p class='sub'>{self.text(s['sub'])}</p>" if s.get('sub') else ''}
-          <div class='spacer'></div>"""
+          {card}"""
 
     def item(self, s):
         return "", f"""

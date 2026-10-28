@@ -41,9 +41,12 @@ it's your app, and label Pro features.
 | `thrift-haul` | Paid X for the lot → each find with its AI estimate → total → app | A real haul, 3 scans |
 | `before-you-buy` | 5-tip checklist, with the app as tip 5 | 4 photos, no numbers |
 | `halloween-clearout` | Keep / sell / donate the Halloween box. Post Oct 31 to early Nov | 3 scans |
+| `outfit-check` | What's my outfit worth: shoes, jacket, total, app | 2 scans (first filled from real ones, 2026-10-28) |
 
 `before-you-buy` is the quickest one to post because it needs no scans.
 `thrift-haul` is the one most likely to travel, because the hook is a number.
+
+A `hook` photo fills the whole frame. Add `"inline": true` to put it in a card instead, for a photo too small or too wide to fill 9:16.
 
 To add a format, copy a spec and rearrange its slides. The slide types are
 `hook`, `item`, `tip`, `compare` and `app`, and the three specs between them
