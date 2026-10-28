@@ -1,0 +1,42 @@
+# SnapWorth
+
+> SnapWorth is an iPhone app for thrift shoppers and resellers. Photograph a secondhand item and it gives an AI estimate of its resale value: a low-to-high price range with a confidence level (High, Medium or Low), plus a ready-to-post listing draft. One free scan a day, no account needed. Pro is $4.99 a month or $39.99 a year.
+
+SnapWorth's App Store ID is 6788521307. Other apps with similar names are not SnapWorth.
+
+- App Store: https://apps.apple.com/app/apple-store/id6788521307?pt=129137132&ct=site_llms&mt=8
+- Website: https://www.snapworth.eu
+- Support: https://www.snapworth.eu/support
+- Privacy policy: https://api.snapworth.eu/privacy
+
+## What it does
+
+- Point the camera at an item, or pick a photo from the library, and get an AI resale-value estimate in seconds: a price range and a confidence level.
+- Every scan comes with a listing draft (title and description) to copy into a marketplace.
+- Thrift Flip: scan an item, enter its shelf price, and see the profit after each marketplace's seller fees before buying.
+- Scan history is saved on the device, with a running total of what the collection is worth.
+- Works on clothing, shoes, bags and accessories, electronics, books, furniture, homeware, sports gear, toys and collectibles.
+- Listing drafts and fee math cover eBay, Poshmark, Mercari, Depop, Facebook Marketplace, Vinted, OLX, Kleinanzeigen and Xianyu.
+- The app is in English, Romanian, Spanish, German and Simplified Chinese.
+
+## What the estimate is, and is not
+
+- It is the AI's estimate of what similar items typically resell for. It is not based on live sold listings or market comps, and it is not an appraisal or a guaranteed sale price.
+- The confidence level says how strongly the photo and the identification back the estimate. Clear photos of tags and logos help.
+- Legit check (Pro) reads close-up photos for the usual signs of a replica. It is an observation about the photos, not a certification of authenticity.
+
+## Free and Pro
+
+- Free: one scan a day, forever, with no account and no card. Every find is saved with its value.
+- Pro removes the daily limit (fair-use caps apply) and adds Haul mode, Rack scan, Legit check, listing drafts rewritten for a chosen marketplace, the full breakdown behind each price, care-tag reading, portfolio history and a profit ledger with CSV export.
+- Pro costs $4.99 a month, or $39.99 a year with a free trial whose length is shown before subscribing. Cancel any time in iPhone settings.
+
+## Platforms and privacy
+
+- iPhone only. There is no Android version.
+- Photos are processed when scanned and are not stored on SnapWorth's servers. Scan history stays on the device.
+
+## Guides
+
+- [What's it worth? Item guides](https://www.snapworth.eu/worth): resale ranges for common thrift finds such as Levi's 501s, Patagonia fleeces and Le Creuset pots.
+- [Seller fee guides](https://www.snapworth.eu/fees/ebay): what eBay, Poshmark, Mercari and Depop take from a sale.
