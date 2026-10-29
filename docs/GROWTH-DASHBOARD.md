@@ -116,7 +116,7 @@ of them and not at all on another. The filter therefore differs by build:
 | Step | Event and filter, 1.5.0 (baseline) | Event and filter, 1.5.1 on | First build |
 |---|---|---|---|
 | 1 | `onboarding_started`, no filter. It has no `is_first`, and needs none: onboarding shows only until it is completed (`hasCompletedOnboarding`), so only a new install sees it | same | ≤ 1.4.2 (18) |
-| 2 | `onboarding_completed`, no filter; `via` = `finished` or `skipped` splits it | same | ≤ 1.4.2 (18) |
+| 2 | `onboarding_completed`, no filter; `via` = `finished`, `skipped` or `typed` (#408, the last page's "Type it instead"; from the first build after 1.6.2 (26)) splits it | same | ≤ 1.4.2 (18) |
 | 3 | `scan_started` with `is_first` = `true` | same | Event ≤ 1.1.0 (1); `is_first` ≤ 1.4.2 (18) |
 | 4 | `scan_result_shown` with `is_first` = `true` | same | ≤ 1.4.2 (18) |
 | 5 | `paywall_viewed` with `trigger` = `onboarding`. **Not `is_first`:** until 1.5.1 it is `false` for nearly every first-run paywall, because both paywalls a new user meets open after the first scan is recorded (`3a389c8`, which names `trigger=onboarding` as the way to recover it) | `paywall_viewed` with `is_first` = `true` | Event and `trigger` ≤ 1.1.0 (1); a correct `is_first` from 1.5.1 (21) |

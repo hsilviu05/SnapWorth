@@ -387,11 +387,13 @@ enum AnalyticsEvent {
 // category never carries an unexpected value into analytics.
 
 /// The three failure buckets the funnel cares about.
-/// How onboarding ended. Two values, because "did they read it or bail?" is
-/// the question the slides exist to answer.
+/// How onboarding ended. "Did they read it or bail?" is the question the
+/// slides exist to answer; `typed` is the last page's way out for someone with
+/// nothing in front of them to scan (#408).
 enum OnboardingExit: String {
     case finished
     case skipped
+    case typed
 }
 
 enum ScanFailureReason: String {
