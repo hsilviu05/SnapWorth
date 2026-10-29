@@ -11351,6 +11351,42 @@
         }
       }
     },
+    "Find %lld of %lld" : {
+      "comment" : "Haul slideshow: heading on each find's slide, e.g. Find 2 of 4.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fund %lld von %lld"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Find %lld of %lld"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hallazgo %lld de %lld"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Găsitura %lld din %lld"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "第 %lld 件，共 %lld 件"
+          }
+        }
+      }
+    },
     "Find the best on the rack" : {
       "comment" : "Paywall headline when it opened from the Rack button.",
       "extractionState" : "manual",
@@ -20622,6 +20658,42 @@
         }
       }
     },
+    "Share as slideshow" : {
+      "comment" : "Haul summary button: share the haul as several images, one per find, for TikTok or Instagram.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Als Diashow teilen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Share as slideshow"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Compartir como carrusel"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Distribuie ca prezentare"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "以幻灯片分享"
+          }
+        }
+      }
+    },
     "Share card is still being prepared" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -20865,6 +20937,42 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "分享本月"
+          }
+        }
+      }
+    },
+    "Shares several images, one per find, for TikTok or Instagram" : {
+      "comment" : "VoiceOver hint on the haul summary's Share as slideshow button.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Teilt mehrere Bilder, eines pro Fund, für TikTok oder Instagram"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Shares several images, one per find, for TikTok or Instagram"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Comparte varias imágenes, una por hallazgo, para TikTok o Instagram"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Distribuie mai multe imagini, câte una pentru fiecare găsitură, pentru TikTok sau Instagram"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "分享多张图片，每件物品一张，适用于 TikTok 或 Instagram"
           }
         }
       }
@@ -23131,6 +23239,42 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "帮助"
+          }
+        }
+      }
+    },
+    "Swipe to see" : {
+      "comment" : "Haul slideshow, first slide, at the bottom: swipe through the slides.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wisch zum Ansehen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Swipe to see"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Desliza para verlo"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Glisează să vezi"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "滑动查看"
           }
         }
       }
@@ -27303,6 +27447,42 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "包含哪些功能"
+          }
+        }
+      }
+    },
+    "What's it all worth?" : {
+      "comment" : "Haul slideshow, first slide: the question the last slide (the total) answers.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Was ist das alles wert?"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "What's it all worth?"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "¿Cuánto vale todo?"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cât valorează totul?"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这些一共值多少？"
           }
         }
       }

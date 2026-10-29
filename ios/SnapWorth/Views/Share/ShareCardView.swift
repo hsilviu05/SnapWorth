@@ -542,6 +542,108 @@ struct HaulShareCardView: View {
     }
 }
 
+// MARK: - Haul slideshow (#409)
+
+/// The slideshow's first slide: how many finds, and the question the last
+/// slide answers. The total is held back for the end, as TikTok slideshows do.
+struct HaulSlideHookView: View {
+    let itemCount: Int
+
+    var body: some View {
+        VStack(spacing: 0) {
+            Spacer()
+            Text("MY HAUL")
+                .font(Font.dmSans(16, weight: .bold))
+                .tracking(2)
+                .foregroundStyle(Color(hex: "8B7D71"))
+            Text(verbatim: "\(itemCount)")
+                .font(Font.fraunces(140, weight: .bold))
+                .foregroundStyle(Color(hex: "2B211C"))
+                .padding(.top, 12)
+            Text(itemCount == 1 ? String(localized: "item scanned")
+                                : String(localized: "items scanned"))
+                .font(Font.dmSans(20))
+                .foregroundStyle(Color(hex: "8B7D71"))
+            Text("What's it all worth?")
+                .font(Font.fraunces(40, weight: .bold))
+                .foregroundStyle(Color(hex: "6F8F6B"))
+                .multilineTextAlignment(.center)
+                .minimumScaleFactor(0.6)
+                .padding(.top, 56)
+                .padding(.horizontal, 36)
+            Spacer()
+            Text("Swipe to see")
+                .font(Font.dmSans(16, weight: .medium))
+                .foregroundStyle(Color(hex: "8B7D71"))
+                .padding(.bottom, 64)
+        }
+        .frame(width: HaulShareCardView.cardWidth, height: HaulShareCardView.cardHeight)
+        .background(Color(hex: "FBF7F2"))
+    }
+}
+
+/// One find in the slideshow: its photo, name and estimate.
+struct HaulSlideFindView: View {
+    let photo: UIImage?
+    let name: String
+    let value: Decimal
+    let position: Int
+    let count: Int
+
+    private let innerPad: CGFloat = 36
+
+    var body: some View {
+        VStack(spacing: 0) {
+            Text("Find \(position) of \(count)")
+                .font(Font.dmSans(16, weight: .bold))
+                .tracking(1)
+                .foregroundStyle(Color(hex: "8B7D71"))
+                .padding(.top, 72)
+
+            Group {
+                if let photo {
+                    Image(uiImage: photo)
+                        .resizable()
+                        .scaledToFill()
+                } else {
+                    Color(hex: "EFE6DC")
+                        .overlay(Image(systemName: "tag")
+                            .font(.system(size: 64))
+                            .foregroundStyle(Color(hex: "8B7D71")))
+                }
+            }
+            .frame(width: HaulShareCardView.cardWidth - innerPad * 2, height: 520)
+            .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+            .padding(.top, 24)
+
+            Text(verbatim: name)
+                .font(Font.dmSans(22, weight: .medium))
+                .foregroundStyle(Color(hex: "2B211C"))
+                .multilineTextAlignment(.center)
+                .lineLimit(2)
+                .padding(.top, 28)
+                .padding(.horizontal, innerPad)
+
+            Text(verbatim: HistoryViewModel.money(value))
+                .font(Font.fraunces(64, weight: .bold))
+                .foregroundStyle(Color(hex: "6F8F6B"))
+                .lineLimit(1)
+                .minimumScaleFactor(0.4)
+                .padding(.top, 8)
+                .padding(.horizontal, innerPad)
+
+            Text("AI resale estimate")
+                .font(Font.dmSans(16))
+                .foregroundStyle(Color(hex: "8B7D71"))
+                .padding(.top, 2)
+
+            Spacer()
+        }
+        .frame(width: HaulShareCardView.cardWidth, height: HaulShareCardView.cardHeight)
+        .background(Color(hex: "FBF7F2"))
+    }
+}
+
 // MARK: - "Guess the price" (#95)
 
 /// The "guess before the estimate" preference: when on, a result opens with

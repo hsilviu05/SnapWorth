@@ -6735,6 +6735,46 @@
         "other": "🔥 %lld Tage Serie"
       },
       "zh-Hans": "🔥 连续 %lld 天"
+    },
+    "What's it all worth?": {
+      "comment": "Haul slideshow, first slide: the question the last slide (the total) answers.",
+      "en": "What's it all worth?",
+      "ro": "Cât valorează totul?",
+      "es": "¿Cuánto vale todo?",
+      "de": "Was ist das alles wert?",
+      "zh-Hans": "这些一共值多少？"
+    },
+    "Swipe to see": {
+      "comment": "Haul slideshow, first slide, at the bottom: swipe through the slides.",
+      "en": "Swipe to see",
+      "ro": "Glisează să vezi",
+      "es": "Desliza para verlo",
+      "de": "Wisch zum Ansehen",
+      "zh-Hans": "滑动查看"
+    },
+    "Find %lld of %lld": {
+      "comment": "Haul slideshow: heading on each find's slide, e.g. Find 2 of 4.",
+      "en": "Find %lld of %lld",
+      "ro": "Găsitura %lld din %lld",
+      "es": "Hallazgo %lld de %lld",
+      "de": "Fund %lld von %lld",
+      "zh-Hans": "第 %lld 件，共 %lld 件"
+    },
+    "Share as slideshow": {
+      "comment": "Haul summary button: share the haul as several images, one per find, for TikTok or Instagram.",
+      "en": "Share as slideshow",
+      "ro": "Distribuie ca prezentare",
+      "es": "Compartir como carrusel",
+      "de": "Als Diashow teilen",
+      "zh-Hans": "以幻灯片分享"
+    },
+    "Shares several images, one per find, for TikTok or Instagram": {
+      "comment": "VoiceOver hint on the haul summary's Share as slideshow button.",
+      "en": "Shares several images, one per find, for TikTok or Instagram",
+      "ro": "Distribuie mai multe imagini, câte una pentru fiecare găsitură, pentru TikTok sau Instagram",
+      "es": "Comparte varias imágenes, una por hallazgo, para TikTok o Instagram",
+      "de": "Teilt mehrere Bilder, eines pro Fund, für TikTok oder Instagram",
+      "zh-Hans": "分享多张图片，每件物品一张，适用于 TikTok 或 Instagram"
     }
   }
 }

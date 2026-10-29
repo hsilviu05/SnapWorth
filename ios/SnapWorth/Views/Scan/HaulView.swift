@@ -73,6 +73,7 @@ struct HaulView: View {
                     purchaseService: purchaseService,
                     isClosing: closing == .done,
                     onShare: shareCard,
+                    onShareSlideshow: shareSlideshow,
                     onShareDrafts: { sheet = .shareDrafts(session.allDraftsText()) },
                     onUpgrade: showPaywall,
                     onRestore: restore,
@@ -149,9 +150,9 @@ struct HaulView: View {
             switch sheet {
             case .paywall(let trigger):
                 PaywallView(purchaseService: purchaseService, trigger: trigger)
-            case .shareCard(let card):
-                ActivityShareSheet(items: [card], onComplete: { _ in
-                    Analytics.shared.track(.haulShared)
+            case .shareCard(let images, let format):
+                ActivityShareSheet(items: images, onComplete: { _ in
+                    Analytics.shared.track(.haulShared(format: format))
                 })
             case .shareDrafts(let text):
                 ActivityShareSheet(items: [text])
@@ -313,7 +314,15 @@ struct HaulView: View {
 
     private func shareCard() {
         guard let card = session.renderShareCard() else { return }
-        sheet = .shareCard(card)
+        sheet = .shareCard([card], .card)
+    }
+
+    /// Several images in one share, so TikTok's photo mode and an Instagram
+    /// carousel each receive the whole set in order (#409).
+    private func shareSlideshow() {
+        let slides = session.renderSlideshow()
+        guard !slides.isEmpty else { return }
+        sheet = .shareCard(slides, .slideshow)
     }
 
     private func showPaywall(_ trigger: PaywallTrigger) {
@@ -333,13 +342,13 @@ struct HaulView: View {
 /// never be asked for at once.
 private enum HaulSheet: Identifiable {
     case paywall(PaywallTrigger)
-    case shareCard(UIImage)
+    case shareCard([UIImage], HaulShareFormat)
     case shareDrafts(String)
 
     var id: String {
         switch self {
         case .paywall(let trigger): return "paywall-\(trigger.rawValue)"
-        case .shareCard:            return "share-card"
+        case .shareCard(_, let format): return "share-\(format.rawValue)"
         case .shareDrafts:          return "share-drafts"
         }
     }
@@ -868,6 +877,7 @@ private struct HaulSummaryView: View {
     let purchaseService: any PurchaseService
     let isClosing: Bool
     let onShare: () -> Void
+    let onShareSlideshow: () -> Void
     let onShareDrafts: () -> Void
     let onUpgrade: (PaywallTrigger) -> Void
     let onRestore: () -> Void
@@ -906,6 +916,9 @@ private struct HaulSummaryView: View {
 
                 PrimaryButton(title: "Share haul", action: onShare)
                     .disabled(session.valuedCount == 0)
+                GhostButton(title: "Share as slideshow", action: onShareSlideshow)
+                    .disabled(session.valuedCount == 0)
+                    .accessibilityHint("Shares several images, one per find, for TikTok or Instagram")
 
                 HaulDraftsSection(session: session, purchaseService: purchaseService,
                                   onShareDrafts: onShareDrafts, onUpgrade: onUpgrade)
