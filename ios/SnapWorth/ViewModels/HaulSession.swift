@@ -1123,6 +1123,50 @@ final class HaulSession {
         return renderer.uiImage
     }
 
+    /// The most finds a slideshow shows, one slide each.
+    nonisolated static var slideshowFinds: Int { 4 }
+
+    /// The finds a slideshow shows, in slide order: the most valuable
+    /// `slideshowFinds`, cheapest first so the top find is the last one before
+    /// the total. Pure, for the tests.
+    nonisolated static func slideshowOrder<T>(_ finds: [T], value: (T) -> Decimal) -> [T] {
+        let top = finds.enumerated()
+            .sorted { value($0.element) != value($1.element)
+                ? value($0.element) > value($1.element) : $0.offset < $1.offset }
+            .prefix(slideshowFinds)
+        return top.reversed().map(\.element)
+    }
+
+    /// The haul as story slides (#409): a hook, one slide per top find, then
+    /// the total card with the QR. Empty with nothing valued.
+    func renderSlideshow() -> [UIImage] {
+        guard let card = renderShareCard() else { return [] }
+        let finds = Self.slideshowOrder(items.compactMap { item -> (ScanResult, UIImage?)? in
+            guard let result = item.result else { return nil }
+            // The stored copy (1024px) when there is one; the 168px thumbnail
+            // would be blurry across a full slide, but beats no photo.
+            let photo = result.imageData.flatMap(UIImage.init(data:)) ?? item.thumbnail
+            return (result, photo)
+        }, value: { $0.0.portfolioValue })
+
+        var slides: [UIImage] = []
+        if let hook = render(HaulSlideHookView(itemCount: valuedCount)) { slides.append(hook) }
+        for (index, find) in finds.enumerated() {
+            let slide = HaulSlideFindView(photo: find.1, name: find.0.itemName,
+                                          value: find.0.portfolioValue,
+                                          position: index + 1, count: finds.count)
+            if let image = render(slide) { slides.append(image) }
+        }
+        slides.append(card)
+        return slides
+    }
+
+    private func render(_ view: some View) -> UIImage? {
+        let renderer = ImageRenderer(content: view)
+        renderer.scale = ResultViewModel.shareCardScale
+        return renderer.uiImage
+    }
+
     // ── The queue ────────────────────────────────────────────────────────
 
     /// Starts whatever may be started. Called after anything that could free

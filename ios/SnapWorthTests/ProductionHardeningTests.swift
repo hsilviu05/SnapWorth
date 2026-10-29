@@ -8990,8 +8990,9 @@ final class HaulAnalyticsTests: XCTestCase {
         XCTAssertEqual(AnalyticsEvent.haulCompleted(itemsBucket: "10-14").parameters, ["items": "10-14"])
         XCTAssertEqual(AnalyticsEvent.haulCompleted(itemsBucket: "10-14", revisedFrom: "2-4").parameters,
                        ["items": "10-14", "revised_from": "2-4"])
-        XCTAssertEqual(AnalyticsEvent.haulShared.name, "haul_shared")
-        XCTAssertEqual(AnalyticsEvent.haulShared.parameters, [:])
+        XCTAssertEqual(AnalyticsEvent.haulShared(format: .card).name, "haul_shared")
+        XCTAssertEqual(AnalyticsEvent.haulShared(format: .card).parameters, ["format": "card"])
+        XCTAssertEqual(AnalyticsEvent.haulShared(format: .slideshow).parameters, ["format": "slideshow"])
         XCTAssertEqual(PaywallTrigger.haul.rawValue, "haul")
     }
 
@@ -9089,7 +9090,7 @@ final class HaulAnalyticsTests: XCTestCase {
             encoding: .utf8)
         XCTAssertEqual(source.components(separatedBy: ".haulShared").count - 1, 1)
 
-        guard let card = source.range(of: "case .shareCard(let card):"),
+        guard let card = source.range(of: "case .shareCard(let images, let format):"),
               let track = source.range(of: ".haulShared"),
               let drafts = source.range(of: "case .shareDrafts(let text):") else {
             return XCTFail("could not locate the share sheets")
@@ -9097,6 +9098,22 @@ final class HaulAnalyticsTests: XCTestCase {
         let between = String(source[card.upperBound..<track.lowerBound])
         XCTAssertTrue(between.contains("onComplete:"), "tracked on completion, not on presentation")
         XCTAssertLessThan(track.lowerBound, drafts.lowerBound, "the drafts share does not count")
+    }
+
+    /// The slideshow (#409) shows the most valuable finds, cheapest first, so
+    /// the top find is the last slide before the total.
+    func test_slideshowShowsTheTopFindsCheapestFirst() {
+        let values: [Decimal] = [10, 80, 25, 5, 40, 60]
+        XCTAssertEqual(HaulSession.slideshowOrder(values, value: { $0 }), [25, 40, 60, 80])
+        XCTAssertEqual(HaulSession.slideshowOrder([Decimal(12)], value: { $0 }), [12])
+        XCTAssertEqual(HaulSession.slideshowOrder([Decimal](), value: { $0 }), [])
+    }
+
+    func test_slideshowKeepsTheEarlierCaptureOnATie() {
+        let finds: [(id: String, value: Decimal)] =
+            [("a", 30), ("b", 30), ("c", 30), ("d", 30), ("e", 30)]
+        XCTAssertEqual(HaulSession.slideshowOrder(finds, value: { $0.value }).map { $0.id },
+                       ["d", "c", "b", "a"])
     }
 }
 

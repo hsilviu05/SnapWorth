@@ -141,8 +141,9 @@ enum AnalyticsEvent {
     /// hauls are the events without it, and each revision moves one haul
     /// from `revised_from` to `items`.
     case haulCompleted(itemsBucket: String, revisedFrom: String? = nil)
-    /// The haul card left through the share sheet. Only a completed share.
-    case haulShared
+    /// The haul left through the share sheet. Only a completed share.
+    /// `format` is `card` (the one story card) or `slideshow` (#409).
+    case haulShared(format: HaulShareFormat)
 
     // ── Legit check (#90) ────────────────────────────────────────────
     /// A check came back. `verdict` is the closed set only
@@ -293,6 +294,8 @@ enum AnalyticsEvent {
             return ["count": String(count)]
         case let .onboardingCompleted(via):
             return ["via": via.rawValue]
+        case let .haulShared(format):
+            return ["format": format.rawValue]
         // `default_plan` (#220): which plan the paywall preselected, so each
         // arm of the trial experiment can be read from these events alone.
         case let .paywallViewed(trigger, isFirst):
@@ -387,6 +390,12 @@ enum AnalyticsEvent {
 // category never carries an unexpected value into analytics.
 
 /// The three failure buckets the funnel cares about.
+/// How a haul was shared (#409).
+enum HaulShareFormat: String {
+    case card
+    case slideshow
+}
+
 /// How onboarding ended. "Did they read it or bail?" is the question the
 /// slides exist to answer; `typed` is the last page's way out for someone with
 /// nothing in front of them to scan (#408).
