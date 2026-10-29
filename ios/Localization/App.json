@@ -6775,6 +6775,22 @@
       "es": "Comparte varias imágenes, una por hallazgo, para TikTok o Instagram",
       "de": "Teilt mehrere Bilder, eines pro Fund, für TikTok oder Instagram",
       "zh-Hans": "分享多张图片，每件物品一张，适用于 TikTok 或 Instagram"
+    },
+    "Opens SnapWorth with the camera ready.": {
+      "comment": "Siri, Spotlight and Shortcuts: what the Value an item shortcut does (#412).",
+      "en": "Opens SnapWorth with the camera ready.",
+      "ro": "Deschide SnapWorth cu camera pregătită.",
+      "es": "Abre SnapWorth con la cámara lista.",
+      "de": "Öffnet SnapWorth mit startbereiter Kamera.",
+      "zh-Hans": "打开 SnapWorth，相机已就绪。"
+    },
+    "Value an item": {
+      "comment": "Siri, Spotlight and Shortcuts: the shortcut that opens the camera to value an item (#412).",
+      "en": "Value an item",
+      "ro": "Evaluează un obiect",
+      "es": "Valorar un artículo",
+      "de": "Artikel bewerten",
+      "zh-Hans": "估价一件物品"
     }
   }
 }
