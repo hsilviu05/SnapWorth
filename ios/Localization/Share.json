@@ -1,0 +1,77 @@
+{
+  "output": "ios/SnapWorthShare/Localizable.xcstrings",
+  "strings": {
+    "Saving…": {
+      "comment": "Share extension: while the shared photo is being saved.",
+      "en": "Saving…",
+      "ro": "Se salvează…",
+      "es": "Guardando…",
+      "de": "Wird gespeichert…",
+      "zh-Hans": "正在保存…"
+    },
+    "Saved to SnapWorth": {
+      "comment": "Share extension: the photo was saved for the app to value.",
+      "en": "Saved to SnapWorth",
+      "ro": "Salvat în SnapWorth",
+      "es": "Guardado en SnapWorth",
+      "de": "In SnapWorth gespeichert",
+      "zh-Hans": "已保存到 SnapWorth"
+    },
+    "Tap the notification to see what it's worth.": {
+      "comment": "Share extension, after saving, when notifications are allowed: a notification is on its way.",
+      "en": "Tap the notification to see what it's worth.",
+      "ro": "Atinge notificarea ca să vezi cât valorează.",
+      "es": "Toca la notificación para ver cuánto vale.",
+      "de": "Tippe auf die Mitteilung, um zu sehen, was es wert ist.",
+      "zh-Hans": "轻点通知，看看它值多少。"
+    },
+    "Open SnapWorth to see what it's worth.": {
+      "comment": "Share extension, after saving, when notifications are off.",
+      "en": "Open SnapWorth to see what it's worth.",
+      "ro": "Deschide SnapWorth ca să vezi cât valorează.",
+      "es": "Abre SnapWorth para ver cuánto vale.",
+      "de": "Öffne SnapWorth, um zu sehen, was es wert ist.",
+      "zh-Hans": "打开 SnapWorth，看看它值多少。"
+    },
+    "Couldn't read this image": {
+      "comment": "Share extension: the shared item could not be read as an image.",
+      "en": "Couldn't read this image",
+      "ro": "Imaginea nu a putut fi citită",
+      "es": "No se pudo leer esta imagen",
+      "de": "Dieses Bild konnte nicht gelesen werden",
+      "zh-Hans": "无法读取此图片"
+    },
+    "Try sharing a photo or a screenshot.": {
+      "comment": "Share extension: under Couldn't read this image.",
+      "en": "Try sharing a photo or a screenshot.",
+      "ro": "Încearcă să distribui o fotografie sau o captură de ecran.",
+      "es": "Prueba a compartir una foto o una captura de pantalla.",
+      "de": "Teile ein Foto oder einen Screenshot.",
+      "zh-Hans": "请尝试分享照片或截图。"
+    },
+    "Done": {
+      "comment": "Share extension: closes the sheet.",
+      "en": "Done",
+      "ro": "Gata",
+      "es": "Listo",
+      "de": "Fertig",
+      "zh-Hans": "完成"
+    },
+    "Ready to value": {
+      "comment": "Notification title, sent by the share extension: the shared photo is waiting in SnapWorth.",
+      "en": "Ready to value",
+      "ro": "Gata de evaluat",
+      "es": "Listo para valorar",
+      "de": "Bereit zur Bewertung",
+      "zh-Hans": "可以估价了"
+    },
+    "Tap to see what it's worth.": {
+      "comment": "Notification body, sent by the share extension.",
+      "en": "Tap to see what it's worth.",
+      "ro": "Atinge ca să vezi cât valorează.",
+      "es": "Toca para ver cuánto vale.",
+      "de": "Tippe, um zu sehen, was es wert ist.",
+      "zh-Hans": "轻点查看它值多少。"
+    }
+  }
+}

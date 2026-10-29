@@ -544,6 +544,16 @@ struct ScanView: View {
             vm.reset()
             cameraManager.capturedImage = nil
         }
+        // A photo shared from another app (#410), posted just after the scan
+        // route above has cleared the screen. Valued like a capture, holding
+        // the shutter; one already in flight wins, and the share is dropped
+        // rather than queued behind it.
+        .onReceive(NotificationCenter.default.publisher(for: .snapScanSharedImage)) { note in
+            guard let image = note.object as? UIImage, !captureInFlight, !vm.isAnalyzing else { return }
+            captureInFlight = true
+            vm.capturedImage = image
+            Task { await triggerScan(image: image) }
+        }
         // A deep link to another tab — a notification, or the Profit, Haul or
         // Recent finds widget. `MainTabView` only changes the selection, and a
         // sheet or cover presented here stays in front of whatever tab is

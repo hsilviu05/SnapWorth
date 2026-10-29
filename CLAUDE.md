@@ -67,7 +67,7 @@ a literal in a localizable position with no catalog entry. A string that is
 English on purpose goes in that file's `DELIBERATELY_ENGLISH` with a reason,
 not left out.
 
-Two catalogs because a widget extension cannot read the app's resources —
+Two catalogs (three since the share extension, `Share.json`) because a widget extension cannot read the app's resources —
 `String(localized:)` resolves against `Bundle.main`. The widget model above is
 compiled into both targets, so **a string it uses needs an entry in both**;
 `check_localization.py` checks `ios/Shared` against both catalogs.

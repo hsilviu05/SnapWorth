@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>NSPrivacyTracking</key>
+	<false/>
+	<key>NSPrivacyTrackingDomains</key>
+	<array/>
+	<!-- None. The extension makes no network request and links no SDK: it
+	     writes the shared photo to the App Group for the app to value, and
+	     the app's upload is declared in ios/SnapWorth/PrivacyInfo.xcprivacy. -->
+	<key>NSPrivacyCollectedDataTypes</key>
+	<array/>
+	<!-- None. When a photo was shared is kept in its file name, so no file
+	     timestamp is read, and UserDefaults is not touched. -->
+	<key>NSPrivacyAccessedAPITypes</key>
+	<array/>
+</dict>
+</plist>

@@ -123,6 +123,7 @@ struct SnapWorthApp: App {
                     seedWidgetData()
                 }
                 .task { drainPendingWidgetAction() }
+                .task { drainSharedImage() }
                 .task { await WidgetInstallReport.sendIfDue() }
                 .onChange(of: scenePhase) { _, phase in
                     // Also on resume: a Control Centre press while the app is
@@ -130,6 +131,7 @@ struct SnapWorthApp: App {
                     // Intent that wrote the request cannot reach a view.
                     guard phase == .active else { return }
                     drainPendingWidgetAction()
+                    drainSharedImage()
                     // "Once a day" has to include the days a resident app is
                     // only ever resumed, never launched.
                     Task { await WidgetInstallReport.sendIfDue() }
@@ -145,7 +147,10 @@ struct SnapWorthApp: App {
                     // window, which is the honest outcome and not a camera
                     // opening by itself later.
                     guard done else { return }
-                    Task { @MainActor in drainPendingWidgetAction() }
+                    Task { @MainActor in
+                        drainPendingWidgetAction()
+                        drainSharedImage()
+                    }
                 }
                 .onChange(of: purchaseService.isSubscribed) { _, isPro in
                     // A purchase, a restore, or a lapse moves every Pro-gated
@@ -193,6 +198,27 @@ struct SnapWorthApp: App {
             NotificationCenter.default.post(name: .snapWidgetOpenScan, object: nil)
         case nil:
             break
+        }
+    }
+
+    /// Value a photo shared from another app (#410), waiting in the App Group.
+    ///
+    /// On the scene's first `.task`, on every edge to `.active` (the share
+    /// extension's notification, or the user opening the app themselves) and
+    /// when onboarding finishes. Not before then: nothing is listening, and
+    /// `take` empties the inbox.
+    ///
+    /// The scan route goes first, so the Scan tab is selected and whatever was
+    /// presented over the camera is cleared, then the photo. A turn later, as
+    /// the onboarding hop above does, so a cold launch has its `ScanView`.
+    private func drainSharedImage() {
+        guard hasCompletedOnboarding,
+              let data = SharedImageInbox.take(),
+              let image = UIImage(data: data) else { return }
+        Analytics.shared.track(.widgetOpened(source: WidgetSource.share.rawValue))
+        Task { @MainActor in
+            NotificationCenter.default.post(name: .snapWidgetOpenScan, object: nil)
+            NotificationCenter.default.post(name: .snapScanSharedImage, object: image)
         }
     }
 
@@ -307,6 +333,8 @@ enum WidgetSource: String, CaseIterable {
     /// Siri, Spotlight or the Shortcuts app (`ValueItemIntent`, #412). Not a
     /// widget, but the same "came in from outside" question.
     case siri
+    /// A photo shared to SnapWorth from another app (#410). Also app-only.
+    case share
 
     init?(url: URL) {
         guard let raw = URLComponents(url: url, resolvingAgainstBaseURL: false)?
@@ -321,6 +349,9 @@ enum WidgetSource: String, CaseIterable {
 extension Notification.Name {
     static let snapWidgetOpenScan    = Notification.Name("snapWidgetOpenScan")
     static let snapWidgetOpenHistory = Notification.Name("snapWidgetOpenHistory")
+    /// A photo shared from another app, as the notification's `object`
+    /// (`UIImage`), for `ScanView` to value. See `drainSharedImage`.
+    static let snapScanSharedImage   = Notification.Name("snapScanSharedImage")
     /// Posted just before a deep link to another tab, so whatever is presented
     /// over the tab bar gets out of the way. See `SnapWorthApp.open(_:center:)`.
     static let snapDismissForRoute   = Notification.Name("snapDismissForRoute")
