@@ -9662,7 +9662,7 @@ final class WidgetSourceTests: XCTestCase {
                            "\(file.lastPathComponent) opens the app without saying from where")
         }
         // Sent from inside the app, never from a widget URL.
-        let appOnly: Set<String> = [WidgetSource.siri.rawValue]
+        let appOnly: Set<String> = [WidgetSource.siri.rawValue, WidgetSource.share.rawValue]
         XCTAssertEqual(sent, Set(WidgetSource.allCases.map(\.rawValue)).subtracting(appOnly))
     }
 }
@@ -11254,5 +11254,28 @@ final class TypeItInsteadTests: XCTestCase {
         let reason = ConfidenceReason(rawValue: "described_not_photographed")
         XCTAssertEqual(reason, .describedNotPhotographed)
         XCTAssertEqual(reason?.label, "the estimate is from a description, not a photo")
+    }
+}
+
+// ── Shared photo inbox (#410) ────────────────────────────────────────────────
+
+final class SharedImageInboxTests: XCTestCase {
+
+    func test_theShareTimeIsReadFromTheFileName() {
+        XCTAssertEqual(SharedImageInbox.sharedAt("shared-1761750000.jpg"), 1_761_750_000)
+        XCTAssertNil(SharedImageInbox.sharedAt("shared-abc.jpg"))
+        XCTAssertNil(SharedImageInbox.sharedAt("other-1761750000.jpg"))
+        XCTAssertNil(SharedImageInbox.sharedAt("shared-1761750000.png"))
+    }
+
+    func test_aShareIsValuedOnlyWhileFresh() {
+        let now = Date(timeIntervalSince1970: 1_761_750_000)
+        let t = now.timeIntervalSince1970
+        XCTAssertTrue(SharedImageInbox.isFresh(sharedAt: t, now: now))
+        XCTAssertTrue(SharedImageInbox.isFresh(sharedAt: t - SharedImageInbox.maxAge, now: now))
+        XCTAssertFalse(SharedImageInbox.isFresh(sharedAt: t - SharedImageInbox.maxAge - 1, now: now))
+        // A minute of clock skew is tolerated; more says the clock moved.
+        XCTAssertTrue(SharedImageInbox.isFresh(sharedAt: t + 60, now: now))
+        XCTAssertFalse(SharedImageInbox.isFresh(sharedAt: t + 61, now: now))
     }
 }

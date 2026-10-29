@@ -44,6 +44,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 APP_CATALOG = os.path.join("ios", "Localization", "App.json")
 WIDGETS_CATALOG = os.path.join("ios", "Localization", "Widgets.json")
+SHARE_CATALOG = os.path.join("ios", "Localization", "Share.json")
 
 # Each source folder, and every catalog a string in it must be in. `ios/Shared`
 # is compiled into the app and the widget extension, and a lookup resolves
@@ -51,6 +52,7 @@ WIDGETS_CATALOG = os.path.join("ios", "Localization", "Widgets.json")
 TARGETS = [
     (os.path.join("ios", "SnapWorth"), [APP_CATALOG]),
     (os.path.join("ios", "SnapWorthWidgets"), [WIDGETS_CATALOG]),
+    (os.path.join("ios", "SnapWorthShare"), [SHARE_CATALOG]),
     (os.path.join("ios", "Shared"), [APP_CATALOG, WIDGETS_CATALOG]),
 ]
 

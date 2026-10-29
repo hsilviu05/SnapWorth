@@ -85,6 +85,11 @@ what the two catalogs have in common — the other three ("Scan", "No finds
 yet", "Profit this month") are separate strings that happen to read the same
 in the app and in a widget.
 
+The share extension (#410) is a third target with a third catalog,
+`Share.json` → `ios/SnapWorthShare/Localizable.xcstrings`, for the same
+reason. It shares one file with the app, `ios/Shared/SharedImageInbox.swift`,
+which has no user-facing strings, so nothing needs to be in both.
+
 ## Symbol generation is off, on purpose
 
 `STRING_CATALOG_GENERATE_SYMBOLS` is `NO` in all four build configurations.
