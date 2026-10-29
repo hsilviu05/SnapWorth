@@ -334,15 +334,21 @@ struct RootView: View {
     /// separately from the service that owns it.
     let isPro: Bool
     @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding = false
+    @AppStorage(ScanView.opensTypeItKey) private var opensTypeItAfterOnboarding = false
 
     var body: some View {
         Group {
             if !hasCompletedOnboarding {
-                OnboardingView {
-                    hasCompletedOnboarding = true
-                    // Value-first: no paywall here. It surfaces once the user has
-                    // seen their first scan result (handled in ScanView).
-                }
+                // Value-first: no paywall here. It surfaces once the user has
+                // seen their first scan result (handled in ScanView).
+                OnboardingView(
+                    onFinish: { hasCompletedOnboarding = true },
+                    onTypeIt: {
+                        // Read once by `ScanView` when it first appears.
+                        opensTypeItAfterOnboarding = true
+                        hasCompletedOnboarding = true
+                    }
+                )
                 .transition(.opacity)
             } else {
                 MainTabView(purchaseService: purchaseService, isPro: isPro)

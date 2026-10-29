@@ -3,6 +3,10 @@ import SwiftUI
 struct OnboardingView: View {
     @State private var vm = OnboardingViewModel()
     var onFinish: () -> Void
+    /// "Type it instead" on the last page (#408). The page ends on the camera,
+    /// and someone with nothing in front of them to scan used to leave there
+    /// without ever seeing a valuation.
+    var onTypeIt: () -> Void
 
     var body: some View {
         ZStack {
@@ -68,6 +72,24 @@ struct OnboardingView: View {
                             vm.advance()
                         }
                     }
+
+                    // On every page but shown only on the last, so the CTA
+                    // does not jump when the user arrives there.
+                    Button {
+                        Analytics.shared.track(.onboardingCompleted(via: .typed))
+                        onTypeIt()
+                    } label: {
+                        Label("Nothing to scan right now? Type it instead", systemImage: "keyboard")
+                            .font(.dmSans(15, weight: .medium))
+                            .foregroundStyle(Color.snapWarmGray)
+                            .multilineTextAlignment(.center)
+                    }
+                    .snapHitTarget()
+                    .accessibilityHint("Values an item from a description instead of a photo")
+                    .opacity(vm.isLastPage ? 1 : 0)
+                    .disabled(!vm.isLastPage)
+                    .accessibilityHidden(!vm.isLastPage)
+                    .snapAnimation(.easeInOut(duration: 0.2), value: vm.isLastPage)
                 }
                 .padding(.horizontal, 20)
                 .padding(.top, 32)

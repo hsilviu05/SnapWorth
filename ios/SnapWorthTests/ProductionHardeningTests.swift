@@ -8775,6 +8775,7 @@ final class RetentionFunnelTests: XCTestCase {
     func test_onboardingRecordsWhichExitTheUserTook() {
         XCTAssertEqual(AnalyticsEvent.onboardingCompleted(via: .finished).parameters["via"], "finished")
         XCTAssertEqual(AnalyticsEvent.onboardingCompleted(via: .skipped).parameters["via"], "skipped")
+        XCTAssertEqual(AnalyticsEvent.onboardingCompleted(via: .typed).parameters["via"], "typed")
     }
 
     func test_theMilestoneCarriesTheRungItCrossed() {

@@ -33,6 +33,13 @@ struct ScanView: View {
     @State private var typedAwaitingScan: String?
     /// A photo picked in the Type it sheet, scanned once the sheet is gone.
     @State private var photoAwaitingScan: PhotosPickerItem?
+    /// Set by onboarding's "Type it instead" (#408) and cleared here on first
+    /// appearance, so the sheet opens once and never on a later launch.
+    static let opensTypeItKey = "opensTypeItAfterOnboarding"
+    @AppStorage(ScanView.opensTypeItKey) private var opensTypeItAfterOnboarding = false
+    /// The camera permission request held back while that sheet is up, so the
+    /// system alert does not land on top of someone typing. Made once it closes.
+    @State private var cameraSetupDeferred = false
 
     /// Value-first paywall: the intro paywall is deferred until the user has
     /// actually seen their first result. Shown once, then never again here.
@@ -422,6 +429,15 @@ struct ScanView: View {
         .onChange(of: cameraManager.error) { _, error in
             if error != nil { captureInFlight = false }
         }
+        // The deferred request waits out a scan sent from that sheet, so the
+        // system alert does not land on the analysing overlay. A scan that
+        // fails without presenting anything ends here.
+        .onChange(of: captureInFlight) { _, inFlight in
+            if !inFlight { requestDeferredCameraIfIdle() }
+        }
+        .onChange(of: vm.isAnalyzing) { _, analyzing in
+            if !analyzing { requestDeferredCameraIfIdle() }
+        }
         .onAppear {
             // Not unconditional. A sheet or cover presented over this view does
             // not fire `onDisappear`, but it *does* fire `onAppear` again when
@@ -431,7 +447,12 @@ struct ScanView: View {
             // `isCameraObscured` handler below exists to stop. That handler
             // starts the session when the obstruction goes away, so there is
             // nothing to do here while one is up.
-            if !isCameraObscured {
+            if opensTypeItAfterOnboarding {
+                opensTypeItAfterOnboarding = false
+                showTypeIt = true
+                cameraSetupDeferred = true
+            } else if !isCameraObscured {
+                cameraSetupDeferred = false
                 cameraManager.requestPermissionAndSetup()
             }
             // Warm the Taptic Engine while the camera starts. The shutter tap
@@ -492,6 +513,8 @@ struct ScanView: View {
         .onChange(of: isCameraObscured) { _, obscured in
             if obscured {
                 cameraManager.stopSession()
+            } else if cameraSetupDeferred {
+                requestDeferredCameraIfIdle()
             } else if cameraManager.authStatus == .authorized {
                 cameraManager.startSession()
             }
@@ -732,6 +755,18 @@ struct ScanView: View {
         captureInFlight = true
         vm.capturedImage = photo
         Task { await triggerScan(image: photo, afterPurchase: true) }
+    }
+
+    /// The camera permission request held back by onboarding's "Type it
+    /// instead", made once nothing covers the camera and no scan is queued or
+    /// running. The sheet's send closes it before `onDismiss` starts the scan,
+    /// so the queued description or photo is what marks that gap.
+    private func requestDeferredCameraIfIdle() {
+        guard cameraSetupDeferred, !isCameraObscured, !captureInFlight, !vm.isAnalyzing,
+              typedAwaitingScan == nil, photoAwaitingScan == nil,
+              vm.selectedPhotoItem == nil else { return }
+        cameraSetupDeferred = false
+        cameraManager.requestPermissionAndSetup()
     }
 
     /// "Type it instead": the scan, from words. Holds the shutter like a

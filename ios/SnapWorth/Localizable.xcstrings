@@ -15733,6 +15733,42 @@
         }
       }
     },
+    "Nothing to scan right now? Type it instead" : {
+      "comment" : "Onboarding, last page, under Start scanning: value an item from a typed description when there is nothing to photograph.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gerade nichts zum Scannen? Stattdessen eintippen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nothing to scan right now? Type it instead"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "¿Nada que escanear ahora? Mejor escríbelo"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nimic de scanat acum? Scrie-l în schimb"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "现在没有可扫描的物品？改为输入文字"
+          }
+        }
+      }
+    },
     "Nothing was shared. Try again in a moment." : {
       "comment" : "Alert message when the My Flips ZIP export could not be written.",
       "extractionState" : "manual",

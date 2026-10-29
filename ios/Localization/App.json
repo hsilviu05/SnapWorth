@@ -3361,6 +3361,14 @@
       "de": "Auf diesem Foto ist nichts aufgefallen.",
       "zh-Hans": "这张照片里没有特别突出的物品。"
     },
+    "Nothing to scan right now? Type it instead": {
+      "comment": "Onboarding, last page, under Start scanning: value an item from a typed description when there is nothing to photograph.",
+      "en": "Nothing to scan right now? Type it instead",
+      "ro": "Nimic de scanat acum? Scrie-l în schimb",
+      "es": "¿Nada que escanear ahora? Mejor escríbelo",
+      "de": "Gerade nichts zum Scannen? Stattdessen eintippen",
+      "zh-Hans": "现在没有可扫描的物品？改为输入文字"
+    },
     "Nothing was shared. Try again in a moment.": {
       "comment": "Alert message when the My Flips ZIP export could not be written.",
       "en": "Nothing was shared. Try again in a moment.",
