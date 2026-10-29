@@ -4,7 +4,14 @@ import ImageIO
 import UIKit
 import UniformTypeIdentifiers
 import VideoToolbox
+#if canImport(VisualIntelligence)
 import VisualIntelligence
+#endif
+
+// The simulator SDK has no VisualIntelligence module, so CI's simulator
+// build compiles this part out; a device build has it. `VisualLookupInbox`
+// below stays in both, for the drain and the tests.
+#if canImport(VisualIntelligence)
 
 /// "Value this with SnapWorth" in iOS 26's visual intelligence results, for a
 /// screenshot or the camera (#412). Tapping it opens the app and values that
@@ -104,6 +111,8 @@ extension VisualLookupInbox {
         return data as Data
     }
 }
+
+#endif
 
 /// Where a visual intelligence picture waits between the search and the tap.
 ///

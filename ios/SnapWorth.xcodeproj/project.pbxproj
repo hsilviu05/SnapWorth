@@ -1279,7 +1279,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.6.2;
-				OTHER_LDFLAGS = (
+				"OTHER_LDFLAGS[sdk=iphoneos*]" = (
 					"$(inherited)",
 					"-weak_framework",
 					VisualIntelligence,
@@ -1316,7 +1316,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.6.2;
-				OTHER_LDFLAGS = (
+				"OTHER_LDFLAGS[sdk=iphoneos*]" = (
 					"$(inherited)",
 					"-weak_framework",
 					VisualIntelligence,
