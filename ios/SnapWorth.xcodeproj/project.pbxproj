@@ -72,6 +72,7 @@
 		ADD1EC0000000000000000BA /* FlipsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = ADD1EC0000000000000000B9 /* FlipsView.swift */; };
 		ADD1EC0000000000000000F2 /* ReviewPrompt.swift in Sources */ = {isa = PBXBuildFile; fileRef = ADD1EC0000000000000000F1 /* ReviewPrompt.swift */; };
 		ADD1EC0000000000000412F2 /* AppShortcuts.swift in Sources */ = {isa = PBXBuildFile; fileRef = ADD1EC0000000000000412F1 /* AppShortcuts.swift */; };
+		ADD1EC0000000000000412F4 /* VisualIntelligence.swift in Sources */ = {isa = PBXBuildFile; fileRef = ADD1EC0000000000000412F3 /* VisualIntelligence.swift */; };
 		ADD1EC0000000000000000F4 /* NotificationManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = ADD1EC0000000000000000F3 /* NotificationManager.swift */; };
 		ADD1EC0000000000000000F6 /* NotificationSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = ADD1EC0000000000000000F5 /* NotificationSettingsView.swift */; };
 		BB000000000000000000000A /* WidgetDataStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0000000000000000000009 /* WidgetDataStore.swift */; };
@@ -216,6 +217,7 @@
 		ADD1EC0000000000000000B9 /* FlipsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FlipsView.swift; sourceTree = "<group>"; };
 		ADD1EC0000000000000000F1 /* ReviewPrompt.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReviewPrompt.swift; sourceTree = "<group>"; };
 		ADD1EC0000000000000412F1 /* AppShortcuts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppShortcuts.swift; sourceTree = "<group>"; };
+		ADD1EC0000000000000412F3 /* VisualIntelligence.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VisualIntelligence.swift; sourceTree = "<group>"; };
 		ADD1EC0000000000000000F3 /* NotificationManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationManager.swift; sourceTree = "<group>"; };
 		ADD1EC0000000000000000F5 /* NotificationSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationSettingsView.swift; sourceTree = "<group>"; };
 		ADD1EC0000000000000000F7 /* SnapWorth.storekit */ = {isa = PBXFileReference; lastKnownFileType = text; path = SnapWorth.storekit; sourceTree = "<group>"; };
@@ -467,6 +469,7 @@
 				C0FFEE000000000000000002 /* ThriftRunController.swift */,
 				ADD1EC0000000000000000F1 /* ReviewPrompt.swift */,
 				ADD1EC0000000000000412F1 /* AppShortcuts.swift */,
+				ADD1EC0000000000000412F3 /* VisualIntelligence.swift */,
 			);
 			path = System;
 			sourceTree = "<group>";
@@ -869,6 +872,7 @@
 				ADD1EC0000000000000000B4 /* TelemetryDeckAnalytics.swift in Sources */,
 				ADD1EC0000000000000000F2 /* ReviewPrompt.swift in Sources */,
 				ADD1EC0000000000000412F2 /* AppShortcuts.swift in Sources */,
+				ADD1EC0000000000000412F4 /* VisualIntelligence.swift in Sources */,
 				ADD1EC0000000000000000F4 /* NotificationManager.swift in Sources */,
 				ADD1EC0000000000000000B6 /* ActivityShareSheet.swift in Sources */,
 				ADD1EC0000000000000000B8 /* FlipsViewModel.swift in Sources */,
@@ -1275,6 +1279,11 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.6.2;
+				OTHER_LDFLAGS = (
+					"$(inherited)",
+					"-weak_framework",
+					VisualIntelligence,
+				);
 				PRODUCT_BUNDLE_IDENTIFIER = eu.snapworth.app;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
@@ -1307,6 +1316,11 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.6.2;
+				OTHER_LDFLAGS = (
+					"$(inherited)",
+					"-weak_framework",
+					VisualIntelligence,
+				);
 				PRODUCT_BUNDLE_IDENTIFIER = eu.snapworth.app;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";

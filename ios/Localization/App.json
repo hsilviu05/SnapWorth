@@ -6791,6 +6791,46 @@
       "es": "Valorar un artículo",
       "de": "Artikel bewerten",
       "zh-Hans": "估价一件物品"
+    },
+    "Value this with SnapWorth": {
+      "comment": "Visual intelligence (iOS 26): SnapWorth's result for a screenshot or camera search, and the action it runs. SnapWorth is the brand and stays as is (#412).",
+      "en": "Value this with SnapWorth",
+      "ro": "Evaluează cu SnapWorth",
+      "es": "Valorar con SnapWorth",
+      "de": "Mit SnapWorth bewerten",
+      "zh-Hans": "用 SnapWorth 估价"
+    },
+    "See what it's worth to resell": {
+      "comment": "Visual intelligence (iOS 26): the line under \"Value this with SnapWorth\" (#412).",
+      "en": "See what it's worth to resell",
+      "ro": "Vezi cât valorează la revânzare",
+      "es": "Descubre cuánto vale al revenderlo",
+      "de": "Sieh, was es beim Wiederverkauf wert ist",
+      "zh-Hans": "看看转卖值多少钱"
+    },
+    "SnapWorth valuation": {
+      "comment": "Visual intelligence and Shortcuts (iOS 26): the kind of result SnapWorth offers. SnapWorth is the brand (#412).",
+      "en": "SnapWorth valuation",
+      "ro": "Evaluare SnapWorth",
+      "es": "Valoración de SnapWorth",
+      "de": "SnapWorth-Bewertung",
+      "zh-Hans": "SnapWorth 估价"
+    },
+    "Item": {
+      "comment": "Shortcuts: the name of the visual intelligence action's one input, the picture to value (#412).",
+      "en": "Item",
+      "ro": "Obiect",
+      "es": "Artículo",
+      "de": "Artikel",
+      "zh-Hans": "物品"
+    },
+    "Value anything you see": {
+      "comment": "Paywall headline when a free user taps SnapWorth's visual intelligence result, which is Pro (#412). Must not say \"free\".",
+      "en": "Value anything you see",
+      "ro": "Evaluează orice vezi",
+      "es": "Valora todo lo que veas",
+      "de": "Bewerte alles, was du siehst",
+      "zh-Hans": "看到什么都能估价"
     }
   }
 }

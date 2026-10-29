@@ -457,6 +457,9 @@ enum PaywallTrigger: String, CaseIterable {
     case legitCheck = "legit_check"
     /// The Rack entry on the Scan tab (#89).
     case rackScan = "rack_scan"
+    /// A free user's tap on "Value this with SnapWorth" in visual
+    /// intelligence (#412).
+    case visualIntelligence = "visual_intelligence"
 }
 
 // ═══════════════════════════════════════════════════════════════════
