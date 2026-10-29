@@ -9661,7 +9661,9 @@ final class WidgetSourceTests: XCTestCase {
             XCTAssertEqual(untagged.numberOfMatches(in: text, range: range), 0,
                            "\(file.lastPathComponent) opens the app without saying from where")
         }
-        XCTAssertEqual(sent, Set(WidgetSource.allCases.map(\.rawValue)))
+        // Sent from inside the app, never from a widget URL.
+        let appOnly: Set<String> = [WidgetSource.siri.rawValue]
+        XCTAssertEqual(sent, Set(WidgetSource.allCases.map(\.rawValue)).subtracting(appOnly))
     }
 }
 

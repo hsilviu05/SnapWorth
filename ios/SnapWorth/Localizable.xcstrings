@@ -16481,6 +16481,42 @@
         }
       }
     },
+    "Opens SnapWorth with the camera ready." : {
+      "comment" : "Siri, Spotlight and Shortcuts: what the Value an item shortcut does (#412).",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Öffnet SnapWorth mit startbereiter Kamera."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Opens SnapWorth with the camera ready."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Abre SnapWorth con la cámara lista."
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Deschide SnapWorth cu camera pregătită."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "打开 SnapWorth，相机已就绪。"
+          }
+        }
+      }
+    },
     "Opens iOS Settings so you can allow camera access" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -26490,6 +26526,42 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "会用掉今天的免费扫描。"
+          }
+        }
+      }
+    },
+    "Value an item" : {
+      "comment" : "Siri, Spotlight and Shortcuts: the shortcut that opens the camera to value an item (#412).",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Artikel bewerten"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Value an item"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Valorar un artículo"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Evaluează un obiect"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "估价一件物品"
           }
         }
       }

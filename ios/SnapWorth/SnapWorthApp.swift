@@ -304,6 +304,9 @@ enum WidgetSource: String, CaseIterable {
     case liveActivity  = "live_activity"
     case dynamicIsland = "dynamic_island"
     case control
+    /// Siri, Spotlight or the Shortcuts app (`ValueItemIntent`, #412). Not a
+    /// widget, but the same "came in from outside" question.
+    case siri
 
     init?(url: URL) {
         guard let raw = URLComponents(url: url, resolvingAgainstBaseURL: false)?
