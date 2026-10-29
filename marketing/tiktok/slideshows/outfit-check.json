@@ -1,0 +1,22 @@
+{
+  "title": "Outfit check: what's it worth resold",
+  "theme": "dark",
+  "caption": "Scanned what I'm wearing with my app, SnapWorth. The shoes came back High confidence. The jacket came back Medium, because I didn't photograph the label. Estimates, not sales.\n\nOne free scan a day.",
+  "hashtags": ["#outfitcheck", "#whatsitworth", "#reseller", "#resellercommunity", "#salomon", "#vintageysl", "#thriftflip"],
+  "slides": [
+    {"type": "hook", "photo": "hook", "photo_label": "the outfit, or the shoes from above", "inline": true, "kicker": "Outfit check", "headline": "What's my outfit *actually worth?*",
+     "sub": "Scanned the shoes and the jacket. Swipe →"},
+    {"type": "item", "kicker": "The shoes", "photo": "item1", "photo_label": "the shoes",
+     "name": "{ITEM_1}", "estimate": "{LOW_1}–{HIGH_1}", "confidence": "{CONF_1} confidence"},
+    {"type": "item", "kicker": "The jacket", "photo": "item2", "photo_label": "the jacket",
+     "name": "{ITEM_2}", "estimate": "{LOW_2}–{HIGH_2}", "confidence": "{CONF_2} confidence",
+     "verdict": "No label photo, so Medium."},
+    {"type": "compare", "headline": "The whole fit, *resold.*",
+     "stats": [{"label": "Quick sale, both", "value": "{QUICK_TOTAL}"},
+               {"label": "AI estimate range", "value": "{TOTAL_LOW}–{TOTAL_HIGH}"}],
+     "note": "Estimates, not sales."},
+    {"type": "app", "theme": "cream", "headline": "I built the app *I scanned them with.*",
+     "sub": "SnapWorth: one photo, an AI resale estimate in seconds. One free scan every day.",
+     "screenshot": "result", "screenshot_label": "SnapWorth result screen for the shoes"}
+  ]
+}

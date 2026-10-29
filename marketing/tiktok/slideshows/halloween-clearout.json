@@ -1,0 +1,20 @@
+{
+  "title": "Halloween clear-out: keep, sell or donate",
+  "theme": "dark",
+  "caption": "Halloween's over. Before the box goes back in the attic, I scanned what's in it to see what's worth listing.\n\nScanned with SnapWorth, my app. One free scan a day.",
+  "hashtags": ["#halloween", "#halloweendecor", "#vintagehalloween", "#declutter", "#reselling", "#thriftflip", "#whatsitworth"],
+  "slides": [
+    {"type": "hook", "photo": "box", "photo_label": "the open Halloween box or decor pile",
+     "kicker": "Halloween's over", "headline": "Keep it, sell it, or *donate it?*",
+     "sub": "I scanned the whole box to find out →"},
+    {"type": "item", "photo": "item1", "photo_label": "decoration 1", "name": "{ITEM_1}",
+     "estimate": "{LOW_1}–{HIGH_1}", "confidence": "{CONF_1} confidence", "verdict": "{VERDICT_1}"},
+    {"type": "item", "photo": "item2", "photo_label": "decoration 2", "name": "{ITEM_2}",
+     "estimate": "{LOW_2}–{HIGH_2}", "confidence": "{CONF_2} confidence", "verdict": "{VERDICT_2}"},
+    {"type": "item", "photo": "item3", "photo_label": "costume or decoration 3", "name": "{ITEM_3}",
+     "estimate": "{LOW_3}–{HIGH_3}", "confidence": "{CONF_3} confidence", "verdict": "{VERDICT_3}"},
+    {"type": "app", "theme": "cream", "headline": "Check yours *before it goes back up.*",
+     "sub": "SnapWorth, my app: one photo, an AI resale estimate in seconds. One free scan every day.",
+     "screenshot": "result", "screenshot_label": "SnapWorth result screen for one of these"}
+  ]
+}

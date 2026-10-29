@@ -1,0 +1,27 @@
+{
+  "title": "5 things to check before you buy to resell",
+  "theme": "cream",
+  "caption": "Save this for your next thrift run. Number 5 is why I built my app, SnapWorth (one free scan a day).",
+  "hashtags": ["#resellingtips", "#thrifting", "#thriftflip", "#reseller", "#resellercommunity", "#thrifttips", "#sidehustle"],
+  "slides": [
+    {"type": "hook", "theme": "dark", "kicker": "Reseller checklist",
+     "headline": "5 things I check before I buy anything *to resell.*",
+     "sub": "Save this for your next thrift run."},
+    {"type": "tip", "number": "1", "headline": "Read the *label* first.",
+     "body": "Brand, material, where it was made. The label tells you more than the price tag does.",
+     "photo": "label", "photo_label": "a hand holding a garment label open"},
+    {"type": "tip", "number": "2", "headline": "Check the bits that *wear out.*",
+     "body": "Zips, seams, soles, hinges, screens. Damage you miss in the shop is money you lose later.",
+     "photo": "wear", "photo_label": "close up of a zip, sole or seam"},
+    {"type": "tip", "number": "3", "headline": "Make sure it's *complete.*",
+     "body": "Lids, chargers, boxes, the other shoe. A set is easier to sell than a set with a piece missing."},
+    {"type": "tip", "number": "4", "headline": "Think in *profit,* not price.",
+     "body": "What it sells for isn't what you keep. Take off marketplace fees and postage before you decide."},
+    {"type": "tip", "number": "5", "headline": "Scan it *before the till.*",
+     "body": "One photo in SnapWorth: an AI resale estimate with its confidence level, then profit after fees.",
+     "photo": "thrift-flip", "photo_label": "SnapWorth Thrift Flip verdict screen, cropped to the verdict"},
+    {"type": "app", "headline": "I built SnapWorth for *exactly this.*",
+     "sub": "One free scan every day. No account needed.",
+     "screenshot": "result", "screenshot_label": "SnapWorth result screen"}
+  ]
+}
