@@ -142,7 +142,8 @@ The leading half of each loop. The install half is in the
 | Metric | Source and filter | First build | Read it in |
 |---|---|---|---|
 | Result card shared | `share_card_shared` by `activity_type`, iOS's raw activity type (such as `com.apple.UIKit.activity.Message`), which is absent when iOS gives none. It counts completed shares only, from one share sheet that carries both the result card and the guess story. `share_card_opened` is the tap before it | ≤ 1.1.0 (1) | TelemetryDeck |
-| Guess story shared | `guess_card_shared` by `style`. It fires when the guess story is chosen, **before** the share sheet: a choice, not a completed share. The only value sent is `pair` (`ResultView.swift:236`); the `guess` and `reveal` in the enum's comment have no call site | ≤ 1.3.5 (12) | TelemetryDeck |
+| Guess story shared | `guess_card_shared` by `style`. It fires when the guess story is chosen, **before** the share sheet: a choice, not a completed share. Values sent: `pair` (`ResultView.swift:236`), and from the first build after 1.6.2 (26), `daily` for the daily guess card (#411), which fires on a **completed** share instead; the `guess` and `reveal` in the enum's comment have no call site | ≤ 1.3.5 (12) | TelemetryDeck |
+| Daily guess played | `daily_guess_played` by `verdict` (`in_range`, `close`, `off`) and `streak`, a bucket (`1`, `2-3`, `4-6`, `7-13`, `14+`) of days played in a row. Once per day per phone; the game spends no scan and makes no network call (#411) | First build after 1.6.2 (26) | TelemetryDeck |
 | Haul shared | `haul_shared`, completed shares; `format` = `card` or `slideshow` (#409, from the first build after 1.6.2 (26); earlier builds send no `format`, and every one of those is a card) | 1.5.1 (21) (`431c07c`, #187) | TelemetryDeck |
 | Month shared | `ledger_month_shared`, completed shares | ≤ 1.1.0 (1) | TelemetryDeck |
 | Invite shared | **`referral_shared` is not in the code.** Read `referral_share_opened`: the Share invite tap, when the sheet opens, not a completed share. 1.5.0 sends the same tap under the old name `referral_shared` (RUNBOOK §18: count both while 1.5.0 is installed). Both are silent until referrals are switched on (`REFERRALS_ENABLED` is unset in production) | `referral_share_opened` from 1.5.1 (21) (`0074d2a`, #236) | TelemetryDeck |
@@ -252,7 +253,7 @@ for e in onboarding_started onboarding_completed scan_started scan_result_shown 
          listing_shared marketplace_opened widget_opened widgets_installed \
          ledger_item_marked_listed ledger_item_marked_sold \
          review_prompt_requested entitlement_sync_failed legit_check_completed \
-         rack_scan_completed rack_candidate_chosen; do
+         rack_scan_completed rack_candidate_chosen daily_guess_played; do
   grep -q "return \"$e\"" ios/SnapWorth/Services/Telemetry/Analytics.swift || echo "missing: $e"
 done
 ```

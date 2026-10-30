@@ -4622,6 +4622,42 @@
         }
       }
     },
+    "A new item tomorrow." : {
+      "comment" : "Daily guess (#411): after playing: the next round is tomorrow.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Morgen gibt es ein neues Teil."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A new item tomorrow."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mañana, un artículo nuevo."
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Un obiect nou mâine."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "明天换一件新物品。"
+          }
+        }
+      }
+    },
     "A polished description tailored to %@, priced to sell with a smart negotiation floor…" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -4725,6 +4761,42 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "文字描述的物品不会被评为「置信度高」，照片可以。"
+          }
+        }
+      }
+    },
+    "A typical secondhand range, for guidance. Not sold-listing data." : {
+      "comment" : "Daily guess (#411): the honesty line under every reveal, as on the website's /guess.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Eine typische Gebrauchtpreisspanne zur Orientierung. Keine Verkaufsdaten."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A typical secondhand range, for guidance. Not sold-listing data."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Un rango típico de segunda mano, orientativo. No son datos de ventas reales."
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Un interval tipic la mâna a doua, orientativ. Nu sunt date din vânzări reale."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "常见二手价格区间，仅供参考，并非实际成交数据。"
           }
         }
       }
@@ -5939,6 +6011,42 @@
         }
       }
     },
+    "Authenticity (etched logo, engravings)" : {
+      "comment" : "Daily guess (#411): what moves this item's price, shown after the guess. From the website's /worth guides (website/seo/build_seo.py ITEMS).",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die Echtheit (geätztes Logo, Gravuren)"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Authenticity (etched logo, engravings)"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La autenticidad (logotipo grabado, grabados)"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Autenticitatea (logo gravat, gravuri)"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "真伪（蚀刻 logo、刻字）"
+          }
+        }
+      }
+    },
     "Avg ROI" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -6079,6 +6187,42 @@
         }
       }
     },
+    "Band and tour rarity" : {
+      "comment" : "Daily guess (#411): what moves this item's price, shown after the guess. From the website's /worth guides (website/seo/build_seo.py ITEMS).",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Seltenheit der Band und der Tour"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Band and tour rarity"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La rareza del grupo y de la gira"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Raritatea trupei și a turneului"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "乐队和巡演的稀有度"
+          }
+        }
+      }
+    },
     "Based on recent sales" : {
       "comment" : "Caption beside the confidence badge when real sales backed the estimate (valuation_source = comps). Never shown for a model estimate.",
       "extractionState" : "manual",
@@ -6111,6 +6255,42 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "依据近期成交"
+          }
+        }
+      }
+    },
+    "Best" : {
+      "comment" : "Daily guess (#411): label under the longest streak so far.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bestwert"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Best"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mejor"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Record"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "最佳"
           }
         }
       }
@@ -6644,6 +6824,42 @@
         }
       }
     },
+    "Can you beat it?" : {
+      "comment" : "Daily guess (#411): share card call to play.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kannst du das schlagen?"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Can you beat it?"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "¿Lo superas?"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Poți mai bine?"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "你能猜得更准吗？"
+          }
+        }
+      }
+    },
     "Can't tell from this photo" : {
       "comment" : "Authenticity read, under 'What the photo suggests about authenticity'.",
       "extractionState" : "manual",
@@ -7137,6 +7353,42 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "正在验证…"
+          }
+        }
+      }
+    },
+    "Chipped enamel" : {
+      "comment" : "Daily guess (#411): the condition of the item in a round, from the website's /worth guides (website/seo/build_seo.py ITEMS).",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Abgeplatzte Emaille"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Chipped enamel"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Esmalte desconchado"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Email ciobit"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "搪瓷有磕碰"
           }
         }
       }
@@ -7671,6 +7923,42 @@
         }
       }
     },
+    "Close!" : {
+      "comment" : "Daily guess (#411): the guess was just outside the typical range.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Knapp daneben!"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Close!"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "¡Casi!"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aproape!"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "很接近！"
+          }
+        }
+      }
+    },
     "Closes this result and returns to the camera" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -7850,6 +8138,150 @@
         }
       }
     },
+    "Color (rare/discontinued colors spike)" : {
+      "comment" : "Daily guess (#411): what moves this item's price, shown after the guess. From the website's /worth guides (website/seo/build_seo.py ITEMS).",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die Farbe (seltene oder eingestellte Farben treiben den Preis)"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Color (rare/discontinued colors spike)"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "El color (los colores raros o descatalogados se disparan)"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Culoarea (culorile rare sau scoase din producție urcă prețul)"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "颜色（稀有或停产颜色价格飙升）"
+          }
+        }
+      }
+    },
+    "Colorway (black and bold retro colors lead)" : {
+      "comment" : "Daily guess (#411): what moves this item's price, shown after the guess. From the website's /worth guides (website/seo/build_seo.py ITEMS).",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die Farbgebung (Schwarz und kräftige Retrofarben liegen vorn)"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Colorway (black and bold retro colors lead)"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La combinación de colores (el negro y los colores retro llamativos mandan)"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Culoarea (negrul și culorile retro puternice se vând cel mai bine)"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "配色（黑色和醒目的复古色最受欢迎）"
+          }
+        }
+      }
+    },
+    "Colorway (classic neutrals and retro tones sell fastest)" : {
+      "comment" : "Daily guess (#411): what moves this item's price, shown after the guess. From the website's /worth guides (website/seo/build_seo.py ITEMS).",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die Farbgebung (klassische Neutraltöne und Retrofarben verkaufen sich am schnellsten)"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Colorway (classic neutrals and retro tones sell fastest)"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La combinación de colores (los neutros clásicos y los tonos retro se venden antes)"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Culoarea (nuanțele neutre clasice și cele retro se vând cel mai repede)"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "配色（经典中性色和复古色卖得最快）"
+          }
+        }
+      }
+    },
+    "Colorway and collaborations" : {
+      "comment" : "Daily guess (#411): what moves this item's price, shown after the guess. From the website's /worth guides (website/seo/build_seo.py ITEMS).",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Farbgebung und Kollaborationen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Colorway and collaborations"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La combinación de colores y las colaboraciones"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Culoarea și colaborările"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "配色和联名款"
+          }
+        }
+      }
+    },
     "Condition" : {
       "comment" : "Section header above the condition chips.",
       "extractionState" : "manual",
@@ -7918,6 +8350,42 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "成色 %@"
+          }
+        }
+      }
+    },
+    "Condition: %@" : {
+      "comment" : "Daily guess (#411): the item's condition, already translated.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zustand: %@"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Condition: %@"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Estado: %@"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Stare: %@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "成色：%@"
           }
         }
       }
@@ -8306,6 +8774,42 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "复制内容和邮箱地址"
+          }
+        }
+      }
+    },
+    "Cosmetic wear" : {
+      "comment" : "Daily guess (#411): the condition of the item in a round, from the website's /worth guides (website/seo/build_seo.py ITEMS).",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Optische Gebrauchsspuren"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cosmetic wear"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Desgaste estético"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Uzură estetică"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "外观磨损"
           }
         }
       }
@@ -9261,6 +9765,42 @@
         }
       }
     },
+    "DAILY GUESS · DAY %lld" : {
+      "comment" : "Daily guess (#411): share card heading, in capitals where the language has them.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "TAGESRÄTSEL · TAG %lld"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "DAILY GUESS · DAY %lld"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ADIVINANZA DIARIA · DÍA %lld"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "GHICITOAREA ZILEI · ZIUA %lld"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "每日猜价 · 第 %lld 天"
+          }
+        }
+      }
+    },
     "Daily free scan" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -9292,6 +9832,42 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "每日免费扫描"
+          }
+        }
+      }
+    },
+    "Daily guess" : {
+      "comment" : "Daily guess (#411): the game's name, on its Scan-tab button and as the sheet's title.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tagesrätsel"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Daily guess"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Adivinanza diaria"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ghicitoarea zilei"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "每日猜价"
           }
         }
       }
@@ -9367,6 +9943,42 @@
         }
       }
     },
+    "Day %lld" : {
+      "comment" : "Daily guess (#411): which day of the game this is, counting from 1.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tag %lld"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Day %lld"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Día %lld"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ziua %lld"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "第 %lld 天"
+          }
+        }
+      }
+    },
     "Day %lld of your streak is waiting — your free scan is back." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -9398,6 +10010,42 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "连续第 %lld 天在等你，今天的免费扫描又有了。"
+          }
+        }
+      }
+    },
+    "Deadstock / unworn" : {
+      "comment" : "Daily guess (#411): the condition of the item in a round, from the website's /worth guides (website/seo/build_seo.py ITEMS).",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Neu / ungetragen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Deadstock / unworn"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nuevo sin estrenar"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nou, nepurtat"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "全新未穿"
           }
         }
       }
@@ -10856,6 +11504,114 @@
         }
       }
     },
+    "Excellent / extra attachments" : {
+      "comment" : "Daily guess (#411): the condition of the item in a round, from the website's /worth guides (website/seo/build_seo.py ITEMS).",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Exzellent / mit Zusatzaufsätzen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Excellent / extra attachments"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Excelente / accesorios extra"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Excelent / accesorii în plus"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "极佳 / 附加配件"
+          }
+        }
+      }
+    },
+    "Excellent / rare color" : {
+      "comment" : "Daily guess (#411): the condition of the item in a round, from the website's /worth guides (website/seo/build_seo.py ITEMS).",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Exzellent / seltene Farbe"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Excellent / rare color"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Excelente / color raro"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Excelent / culoare rară"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "极佳 / 稀有颜色"
+          }
+        }
+      }
+    },
+    "Excellent / with case" : {
+      "comment" : "Daily guess (#411): the condition of the item in a round, from the website's /worth guides (website/seo/build_seo.py ITEMS).",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Exzellent / mit Etui"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Excellent / with case"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Excelente / con estuche"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Excelent / cu toc"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "极佳 / 带眼镜盒"
+          }
+        }
+      }
+    },
     "Expected" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -11065,6 +11821,42 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "极其罕见的好物。"
+          }
+        }
+      }
+    },
+    "Faded / worn" : {
+      "comment" : "Daily guess (#411): the condition of the item in a round, from the website's /worth guides (website/seo/build_seo.py ITEMS).",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Verblasst / abgenutzt"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Faded / worn"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Descolorido / desgastado"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Decolorat / uzat"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "褪色 / 磨损"
           }
         }
       }
@@ -11954,6 +12746,42 @@
         }
       }
     },
+    "Full leather vs. coated canvas" : {
+      "comment" : "Daily guess (#411): what moves this item's price, shown after the guess. From the website's /worth guides (website/seo/build_seo.py ITEMS).",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Volleder oder beschichtetes Canvas"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Full leather vs. coated canvas"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Piel completa o lona recubierta"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Piele integrală sau pânză cerată"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "全皮还是涂层帆布"
+          }
+        }
+      }
+    },
     "Furniture" : {
       "comment" : "An item category (ScanCategory), as a label on its own: a row of 'Trending at the thrift', and the start of that row's VoiceOver sentence.",
       "extractionState" : "manual",
@@ -12273,6 +13101,186 @@
         }
       }
     },
+    "Good common pattern" : {
+      "comment" : "Daily guess (#411): the condition of the item in a round, from the website's /worth guides (website/seo/build_seo.py ITEMS).",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gängiges Muster, guter Zustand"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Good common pattern"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Diseño común, buen estado"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Model obișnuit, stare bună"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "常见花色，状况良好"
+          }
+        }
+      }
+    },
+    "Good modern pair" : {
+      "comment" : "Daily guess (#411): the condition of the item in a round, from the website's /worth guides (website/seo/build_seo.py ITEMS).",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Neueres Paar, guter Zustand"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Good modern pair"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Par moderno en buen estado"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pereche modernă în stare bună"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新款，状况良好"
+          }
+        }
+      }
+    },
+    "Good used" : {
+      "comment" : "Daily guess (#411): the condition of the item in a round, from the website's /worth guides (website/seo/build_seo.py ITEMS).",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gebraucht, guter Zustand"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Good used"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Usado en buen estado"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Folosit, stare bună"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "二手，状况良好"
+          }
+        }
+      }
+    },
+    "Good vintage" : {
+      "comment" : "Daily guess (#411): the condition of the item in a round, from the website's /worth guides (website/seo/build_seo.py ITEMS).",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vintage, guter Zustand"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Good vintage"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vintage en buen estado"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vintage în stare bună"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "古着，状况良好"
+          }
+        }
+      }
+    },
+    "Good working" : {
+      "comment" : "Daily guess (#411): the condition of the item in a round, from the website's /worth guides (website/seo/build_seo.py ITEMS).",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gut funktionsfähig"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Good working"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Funciona bien"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Funcționează bine"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "运转良好"
+          }
+        }
+      }
+    },
     "Grail" : {
       "comment" : "Rare-find easter egg (RareFind.swift). The joke is hype and rarity only — keep it that way in translation.",
       "extractionState" : "manual",
@@ -12341,6 +13349,42 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "圣杯地位：已确认。"
+          }
+        }
+      }
+    },
+    "Guess" : {
+      "comment" : "Daily guess (#411): button that submits the price.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tippen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Guess"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Adivinar"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ghicește"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "猜"
           }
         }
       }
@@ -12446,6 +13490,42 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "猜猜这个能转手卖多少 👇"
+          }
+        }
+      }
+    },
+    "Guess what today's item resells for. Never uses a scan." : {
+      "comment" : "Daily guess (#411): VoiceOver hint of the Scan-tab button.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rate, für wie viel sich das heutige Teil weiterverkaufen lässt. Verbraucht keinen Scan."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Guess what today's item resells for. Never uses a scan."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Adivina por cuánto se revende el artículo de hoy. No gasta ningún escaneo."
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ghicește cu cât se revinde obiectul de azi. Nu consumă nicio scanare."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "猜猜今天这件物品二手能卖多少钱。不会消耗扫描次数。"
           }
         }
       }
@@ -12659,6 +13739,42 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "有邀请码？"
+          }
+        }
+      }
+    },
+    "Heavily worn" : {
+      "comment" : "Daily guess (#411): the condition of the item in a round, from the website's /worth guides (website/seo/build_seo.py ITEMS).",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Stark abgenutzt"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Heavily worn"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Muy desgastado"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Foarte uzat"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "严重磨损"
           }
         }
       }
@@ -13068,6 +14184,42 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "进行中"
+          }
+        }
+      }
+    },
+    "In the range!" : {
+      "comment" : "Daily guess (#411): the guess was inside the typical range.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Im Bereich!"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "In the range!"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "¡Dentro del rango!"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "În interval!"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在区间内！"
           }
         }
       }
@@ -13995,6 +15147,42 @@
         }
       }
     },
+    "Like new" : {
+      "comment" : "Daily guess (#411): the condition of the item in a round, from the website's /worth guides (website/seo/build_seo.py ITEMS).",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wie neu"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Like new"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Como nuevo"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ca nou"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "几乎全新"
+          }
+        }
+      }
+    },
     "Likely a replica" : {
       "comment" : "Authenticity read, under 'What the photo suggests about authenticity'. Followed by 'From this photo only — not a certification.'",
       "extractionState" : "manual",
@@ -14027,6 +15215,78 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "很可能是仿品"
+          }
+        }
+      }
+    },
+    "Limited color / new" : {
+      "comment" : "Daily guess (#411): the condition of the item in a round, from the website's /worth guides (website/seo/build_seo.py ITEMS).",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Limitierte Farbe / neu"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Limited color / new"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Color limitado / nuevo"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Culoare limitată / nou"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "限定配色 / 全新"
+          }
+        }
+      }
+    },
+    "Limited-edition and collab colors" : {
+      "comment" : "Daily guess (#411): what moves this item's price, shown after the guess. From the website's /worth guides (website/seo/build_seo.py ITEMS).",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Farben aus limitierten Editionen und Kollaborationen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Limited-edition and collab colors"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Los colores de edición limitada y colaboraciones"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Culorile de ediție limitată și din colaborări"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "限量版和联名配色"
           }
         }
       }
@@ -14386,6 +15646,114 @@
         }
       }
     },
+    "Made in England / vintage" : {
+      "comment" : "Daily guess (#411): the condition of the item in a round, from the website's /worth guides (website/seo/build_seo.py ITEMS).",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Made in England / vintage"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Made in England / vintage"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hecho en Inglaterra / vintage"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fabricat în Anglia / vintage"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "英国制造 / 古着"
+          }
+        }
+      }
+    },
+    "Made in England vs. current production" : {
+      "comment" : "Daily guess (#411): what moves this item's price, shown after the guess. From the website's /worth guides (website/seo/build_seo.py ITEMS).",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Made in England oder aktuelle Produktion"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Made in England vs. current production"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hecho en Inglaterra o producción actual"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fabricat în Anglia sau producția actuală"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "英国制造还是当前产线"
+          }
+        }
+      }
+    },
+    "Made in USA vs. imported" : {
+      "comment" : "Daily guess (#411): what moves this item's price, shown after the guess. From the website's /worth guides (website/seo/build_seo.py ITEMS).",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Made in USA oder importiert"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Made in USA vs. imported"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hecho en EE. UU. o importado"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fabricat în SUA sau importat"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "美国制造还是进口"
+          }
+        }
+      }
+    },
     "Manage subscription" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -14522,6 +15890,42 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "把这件好物标记为%@"
+          }
+        }
+      }
+    },
+    "Material (suede/leather/shearling)" : {
+      "comment" : "Daily guess (#411): what moves this item's price, shown after the guess. From the website's /worth guides (website/seo/build_seo.py ITEMS).",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Das Material (Wildleder / Leder / Lammfell)"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Material (suede/leather/shearling)"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "El material (ante / piel / borrego)"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Materialul (piele întoarsă / piele / blană de oaie)"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "材质（麂皮 / 皮革 / 羊毛皮）"
           }
         }
       }
@@ -14882,6 +16286,150 @@
         }
       }
     },
+    "My guess: close" : {
+      "comment" : "Daily guess (#411): share card verdict.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mein Tipp: knapp daneben"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "My guess: close"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mi respuesta: casi"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Prețul meu: aproape"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "我的猜测：很接近"
+          }
+        }
+      }
+    },
+    "My guess: in the range" : {
+      "comment" : "Daily guess (#411): share card verdict.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mein Tipp: im Bereich"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "My guess: in the range"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mi respuesta: dentro del rango"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Prețul meu: în interval"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "我的猜测：在区间内"
+          }
+        }
+      }
+    },
+    "My guess: not this time" : {
+      "comment" : "Daily guess (#411): share card verdict.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mein Tipp: diesmal nicht"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "My guess: not this time"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mi respuesta: esta vez no"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Prețul meu: nu de data asta"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "我的猜测：这次没中"
+          }
+        }
+      }
+    },
+    "My guess: within %@" : {
+      "comment" : "Daily guess (#411): share card verdict; %@ is a percentage such as 8%.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mein Tipp: %@ von der Mitte entfernt"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "My guess: within %@"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mi respuesta: a un %@ del centro"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Prețul meu: la %@ de mijloc"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "我的猜测：与中间值相差 %@"
+          }
+        }
+      }
+    },
     "Mythic" : {
       "comment" : "Rare-find easter egg (RareFind.swift). The joke is hype and rarity only — keep it that way in translation.",
       "extractionState" : "manual",
@@ -14989,6 +16537,42 @@
         }
       }
     },
+    "Never uses a scan." : {
+      "comment" : "Daily guess (#411): under the button: playing does not spend the free daily scan.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Verbraucht keinen Scan."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Never uses a scan."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No gasta ningún escaneo."
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nu consumă nicio scanare."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "不会消耗扫描次数。"
+          }
+        }
+      }
+    },
     "New" : {
       "comment" : "Condition grade.",
       "extractionState" : "manual",
@@ -15092,6 +16676,42 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "已订购新量表。也超了。"
+          }
+        }
+      }
+    },
+    "Newer / reprint" : {
+      "comment" : "Daily guess (#411): the condition of the item in a round, from the website's /worth guides (website/seo/build_seo.py ITEMS).",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Neuer / Nachdruck"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Newer / reprint"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Más reciente / reedición"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mai nou / retipărire"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "较新 / 复刻版"
           }
         }
       }
@@ -15663,6 +17283,42 @@
         }
       }
     },
+    "Not played today" : {
+      "comment" : "Daily guess (#411): VoiceOver value of the Scan-tab button.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Heute noch nicht gespielt"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Not played today"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sin jugar hoy"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nejucat azi"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "今天还没玩"
+          }
+        }
+      }
+    },
     "Not set" : {
       "comment" : "VoiceOver value for an empty amount field.",
       "extractionState" : "manual",
@@ -15730,6 +17386,42 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "还没卖出"
+          }
+        }
+      }
+    },
+    "Not this time" : {
+      "comment" : "Daily guess (#411): the guess was well outside the typical range.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Diesmal nicht"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Not this time"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Esta vez no"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nu de data asta"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这次没猜中"
           }
         }
       }
@@ -17153,6 +18845,42 @@
         }
       }
     },
+    "Pattern rarity (promotional patterns spike)" : {
+      "comment" : "Daily guess (#411): what moves this item's price, shown after the guess. From the website's /worth guides (website/seo/build_seo.py ITEMS).",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Seltenheit des Musters (Werbemuster treiben den Preis)"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pattern rarity (promotional patterns spike)"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La rareza del diseño (los diseños promocionales se disparan)"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Raritatea modelului (modelele promoționale urcă prețul)"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "花色稀有度（促销花色价格飙升）"
+          }
+        }
+      }
+    },
     "Photo captured — you can lower your phone" : {
       "comment" : "Reassurance under the analysing spinner.",
       "extractionState" : "manual",
@@ -17364,6 +19092,42 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "推荐 %1$lld：%2$@。大致范围 %3$@。"
+          }
+        }
+      }
+    },
+    "Played today" : {
+      "comment" : "Daily guess (#411): VoiceOver value of the Scan-tab button.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Heute gespielt"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Played today"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Jugado hoy"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Jucat azi"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "今天已玩"
           }
         }
       }
@@ -18250,6 +20014,78 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "价格范围只是从远处粗略估计的。扫描单件物品可获得准确估价。"
+          }
+        }
+      }
+    },
+    "Rare band / true vintage" : {
+      "comment" : "Daily guess (#411): the condition of the item in a round, from the website's /worth guides (website/seo/build_seo.py ITEMS).",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Seltene Band / echtes Vintage"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rare band / true vintage"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Grupo raro / vintage auténtico"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Trupă rară / vintage autentic"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "稀有乐队 / 真古着"
+          }
+        }
+      }
+    },
+    "Rare pattern / complete set" : {
+      "comment" : "Daily guess (#411): the condition of the item in a round, from the website's /worth guides (website/seo/build_seo.py ITEMS).",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Seltenes Muster / komplettes Set"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rare pattern / complete set"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Diseño raro / juego completo"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Model rar / set complet"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "稀有花色 / 整套"
           }
         }
       }
@@ -20127,6 +21963,78 @@
         }
       }
     },
+    "Scratched" : {
+      "comment" : "Daily guess (#411): the condition of the item in a round, from the website's /worth guides (website/seo/build_seo.py ITEMS).",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zerkratzt"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Scratched"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rayado"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zgâriat"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "有划痕"
+          }
+        }
+      }
+    },
+    "Scratched lenses" : {
+      "comment" : "Daily guess (#411): the condition of the item in a round, from the website's /worth guides (website/seo/build_seo.py ITEMS).",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zerkratzte Gläser"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Scratched lenses"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lentes rayadas"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lentile zgâriate"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "镜片有划痕"
+          }
+        }
+      }
+    },
     "Search finds" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -21507,6 +23415,42 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "野外目击次数"
+          }
+        }
+      }
+    },
+    "Size (5.5qt and 7.25qt are popular)" : {
+      "comment" : "Daily guess (#411): what moves this item's price, shown after the guess. From the website's /worth guides (website/seo/build_seo.py ITEMS).",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die Größe (5,5 qt und 7,25 qt sind gefragt)"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Size (5.5qt and 7.25qt are popular)"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "El tamaño (5,5 qt y 7,25 qt son los más buscados)"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mărimea (5,5 qt și 7,25 qt sunt căutate)"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "尺寸（5.5 夸脱和 7.25 夸脱最受欢迎）"
           }
         }
       }
@@ -23135,6 +25079,78 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "退出删除模式"
+          }
+        }
+      }
+    },
+    "Streak" : {
+      "comment" : "Daily guess (#411): label under the number of days played in a row.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Serie"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Streak"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Racha"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Serie"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "连续天数"
+          }
+        }
+      }
+    },
+    "Streak: %lld" : {
+      "comment" : "Daily guess (#411): days played in a row; VoiceOver, and on the share card after a flame emoji.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Serie: %lld"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Streak: %lld"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Racha: %lld"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Serie: %lld"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "连续：%lld 天"
           }
         }
       }
@@ -25751,6 +27767,78 @@
         }
       }
     },
+    "Typical resale: %@" : {
+      "comment" : "Daily guess (#411): %@ is a dollar range, e.g. $40–$60.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Typischer Wiederverkauf: %@"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Typical resale: %@"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reventa típica: %@"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Revânzare tipică: %@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "常见转卖价：%@"
+          }
+        }
+      }
+    },
+    "Union-made / vintage tags" : {
+      "comment" : "Daily guess (#411): what moves this item's price, shown after the guess. From the website's /worth guides (website/seo/build_seo.py ITEMS).",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Union-made- / Vintage-Etiketten"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Union-made / vintage tags"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Etiquetas union-made / vintage"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Etichete union-made / vintage"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "工会制造 / 古着吊牌"
+          }
+        }
+      }
+    },
     "Unknown — add what it sold for to calculate it" : {
       "comment" : "VoiceOver value of the result sheet's Profit row when the sold price is missing.",
       "extractionState" : "manual",
@@ -26889,6 +28977,114 @@
         }
       }
     },
+    "Vintage / excellent" : {
+      "comment" : "Daily guess (#411): the condition of the item in a round, from the website's /worth guides (website/seo/build_seo.py ITEMS).",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vintage / exzellent"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vintage / excellent"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vintage / excelente"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vintage / excelent"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "古着 / 极佳"
+          }
+        }
+      }
+    },
+    "Vintage / made in USA" : {
+      "comment" : "Daily guess (#411): the condition of the item in a round, from the website's /worth guides (website/seo/build_seo.py ITEMS).",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vintage / Made in USA"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vintage / made in USA"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vintage / hecho en EE. UU."
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vintage / fabricat în SUA"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "古着 / 美国制造"
+          }
+        }
+      }
+    },
+    "Vintage / union made" : {
+      "comment" : "Daily guess (#411): the condition of the item in a round, from the website's /worth guides (website/seo/build_seo.py ITEMS).",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vintage / gewerkschaftlich gefertigt (union made)"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vintage / union made"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vintage / fabricación sindical (union made)"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vintage / fabricat sindical (union made)"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "古着 / 工会制造（union made）"
+          }
+        }
+      }
+    },
     "Vintage Frames" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -26991,6 +29187,78 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "复古羊毛西装外套 — 经典修身版型"
+          }
+        }
+      }
+    },
+    "Vintage leather / excellent" : {
+      "comment" : "Daily guess (#411): the condition of the item in a round, from the website's /worth guides (website/seo/build_seo.py ITEMS).",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vintage-Leder / exzellent"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vintage leather / excellent"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Piel vintage / excelente"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Piele vintage / excelent"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "复古皮革 / 极佳"
+          }
+        }
+      }
+    },
+    "Vintage logo era" : {
+      "comment" : "Daily guess (#411): what moves this item's price, shown after the guess. From the website's /worth guides (website/seo/build_seo.py ITEMS).",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die Ära des Vintage-Logos"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vintage logo era"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La época del logotipo vintage"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Perioada logoului vintage"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "复古 logo 的年代"
           }
         }
       }
@@ -27563,6 +29831,42 @@
         }
       }
     },
+    "What does it resell for?" : {
+      "comment" : "Daily guess (#411): the question the player answers with a price.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Für wie viel lässt es sich weiterverkaufen?"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "What does it resell for?"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "¿Por cuánto se revende?"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cu cât se revinde?"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "二手能卖多少钱？"
+          }
+        }
+      }
+    },
     "What drives the value" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -27594,6 +29898,42 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "什么在抬高价值"
+          }
+        }
+      }
+    },
+    "What moves the price: %@" : {
+      "comment" : "Daily guess (#411): %@ is one factor, already translated.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Was den Preis bestimmt: %@"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "What moves the price: %@"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Qué mueve el precio: %@"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ce influențează prețul: %@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "影响价格的因素：%@"
           }
         }
       }
@@ -28020,6 +30360,186 @@
         }
       }
     },
+    "Working motor and gears" : {
+      "comment" : "Daily guess (#411): what moves this item's price, shown after the guess. From the website's /worth guides (website/seo/build_seo.py ITEMS).",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Funktionierender Motor und Getriebe"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Working motor and gears"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Que el motor y los engranajes funcionen"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Motorul și angrenajele funcționale"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "电机和齿轮能否正常运转"
+          }
+        }
+      }
+    },
+    "Worn" : {
+      "comment" : "Daily guess (#411): the condition of the item in a round, from the website's /worth guides (website/seo/build_seo.py ITEMS).",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Getragen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Worn"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Usado"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Purtat"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "有穿着痕迹"
+          }
+        }
+      }
+    },
+    "Worn / flawed" : {
+      "comment" : "Daily guess (#411): the condition of the item in a round, from the website's /worth guides (website/seo/build_seo.py ITEMS).",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Getragen / mit Mängeln"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Worn / flawed"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Usado / con defectos"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Purtat / cu defecte"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "有穿着痕迹 / 有瑕疵"
+          }
+        }
+      }
+    },
+    "Worn / pilled" : {
+      "comment" : "Daily guess (#411): the condition of the item in a round, from the website's /worth guides (website/seo/build_seo.py ITEMS).",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Getragen / mit Knötchen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Worn / pilled"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Usado / con bolitas"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Purtat / cu scame"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "有穿着痕迹 / 起球"
+          }
+        }
+      }
+    },
+    "Worn footbed" : {
+      "comment" : "Daily guess (#411): the condition of the item in a round, from the website's /worth guides (website/seo/build_seo.py ITEMS).",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Abgenutztes Fußbett"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Worn footbed"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Plantilla desgastada"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Talpă interioară uzată"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "鞋床磨损"
+          }
+        }
+      }
+    },
     "Worth flipping" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -28315,6 +30835,42 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "你赚到了一周 Pro"
+          }
+        }
+      }
+    },
+    "You guessed %@." : {
+      "comment" : "Daily guess (#411): %@ is the player's price, e.g. $40.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dein Tipp: %@."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You guessed %@."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dijiste %@."
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ai ghicit %@."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "你猜的是 %@。"
           }
         }
       }
@@ -28870,6 +31426,42 @@
         }
       }
     },
+    "Your guess" : {
+      "comment" : "Daily guess (#411): placeholder of the price field.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dein Tipp"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Your guess"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tu respuesta"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Prețul tău"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "你的猜测"
+          }
+        }
+      }
+    },
     "Your guess (optional)" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -28901,6 +31493,42 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "你猜多少（选填）"
+          }
+        }
+      }
+    },
+    "Your guess in dollars" : {
+      "comment" : "Daily guess (#411): VoiceOver label of the price field. Prices are US dollars in every language.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dein Tipp in Dollar"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Your guess in dollars"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tu respuesta, en dólares"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Prețul tău, în dolari"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "你的猜测（美元）"
           }
         }
       }
@@ -32129,6 +34757,42 @@
                 }
               }
             }
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "🔥 连续 %lld 天"
+          }
+        }
+      }
+    },
+    "🔥 Streak: %lld" : {
+      "comment" : "Daily guess (#411): on the share card: days played in a row.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "🔥 Serie: %lld"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "🔥 Streak: %lld"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "🔥 Racha: %lld"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "🔥 Serie: %lld"
           }
         },
         "zh-Hans" : {

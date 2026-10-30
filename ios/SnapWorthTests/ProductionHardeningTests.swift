@@ -11410,3 +11410,144 @@ final class VisualLookupInboxTests: XCTestCase {
         XCTAssertEqual(WidgetSource.visualIntelligence.rawValue, "visual_intelligence")
     }
 }
+
+// MARK: - Daily guess (#411)
+
+@MainActor
+final class DailyGuessTests: XCTestCase {
+
+    private func utc() -> Calendar {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "UTC")!
+        return calendar
+    }
+
+    private func date(_ y: Int, _ m: Int, _ d: Int, hour: Int = 12) -> Date {
+        utc().date(from: DateComponents(year: y, month: m, day: d, hour: hour))!
+    }
+
+    func test_everyWebsiteRoundIsBundledOnce() {
+        let rounds = DailyGuess.rounds
+        XCTAssertEqual(rounds.count, 48)
+        let keys = Set(rounds.map { "\($0.slug)|\($0.condition)" })
+        XCTAssertEqual(keys.count, rounds.count, "a round appears twice")
+        for round in rounds {
+            XCTAssertLessThan(round.low, round.high, round.item)
+            XCTAssertGreaterThan(round.low, 0, round.item)
+        }
+    }
+
+    /// The same item never comes back within a week, so two days running
+    /// never ask about one sweater in two conditions.
+    func test_anItemDoesNotRepeatWithinAWeek() {
+        let rounds = DailyGuess.rounds
+        // Twice round, so the wrap from the last day to the first counts too.
+        let days = rounds + rounds
+        for start in rounds.indices {
+            for gap in 1...7 {
+                XCTAssertNotEqual(days[start].slug, days[start + gap].slug,
+                                  "\(days[start].slug) on day \(start + 1) and \(start + 1 + gap)")
+            }
+        }
+    }
+
+    func test_dayOneIsTheEpoch_andEarlierDatesAreDayOne() {
+        let calendar = utc()
+        XCTAssertEqual(DailyGuess.dayNumber(for: date(2026, 11, 1, hour: 0), calendar: calendar), 1)
+        XCTAssertEqual(DailyGuess.dayNumber(for: date(2026, 11, 1, hour: 23), calendar: calendar), 1)
+        XCTAssertEqual(DailyGuess.dayNumber(for: date(2026, 11, 2, hour: 0), calendar: calendar), 2)
+        XCTAssertEqual(DailyGuess.dayNumber(for: date(2026, 10, 1), calendar: calendar), 1)
+        XCTAssertEqual(DailyGuess.dayNumber(for: date(2027, 1, 1), calendar: calendar), 62)
+    }
+
+    func test_theRoundsPlayInOrderAndWrap() {
+        let rounds = DailyGuess.rounds
+        XCTAssertEqual(DailyGuess.round(forDay: 1), rounds[0])
+        XCTAssertEqual(DailyGuess.round(forDay: rounds.count), rounds.last)
+        XCTAssertEqual(DailyGuess.round(forDay: rounds.count + 1), rounds[0])
+        XCTAssertEqual(DailyGuess.round(forDay: 0), rounds[0])
+        XCTAssertNil(DailyGuess.round(forDay: 3, in: []))
+    }
+
+    func test_verdict() {
+        XCTAssertEqual(DailyGuess.verdict(guess: 30, low: 30, high: 45), .inRange)
+        XCTAssertEqual(DailyGuess.verdict(guess: 45, low: 30, high: 45), .inRange)
+        XCTAssertEqual(DailyGuess.verdict(guess: 40, low: 45, high: 30), .inRange, "a reversed range")
+        XCTAssertEqual(DailyGuess.verdict(guess: 22.5, low: 30, high: 45), .close)
+        XCTAssertEqual(DailyGuess.verdict(guess: 56.25, low: 30, high: 45), .close)
+        XCTAssertEqual(DailyGuess.verdict(guess: 22, low: 30, high: 45), .off)
+        XCTAssertEqual(DailyGuess.verdict(guess: 57, low: 30, high: 45), .off)
+        XCTAssertEqual(DailyGuess.verdict(guess: 5, low: 0, high: 0), .off)
+    }
+
+    func test_percentOffIsFromTheMiddle() {
+        XCTAssertEqual(DailyGuess.percentOff(guess: 40, low: 30, high: 50), 0)
+        XCTAssertEqual(DailyGuess.percentOff(guess: 44, low: 30, high: 50), 10)
+        XCTAssertEqual(DailyGuess.percentOff(guess: 20, low: 30, high: 50), 50)
+        XCTAssertNil(DailyGuess.percentOff(guess: 20, low: 0, high: 0))
+        XCTAssertNil(DailyGuess.percentOff(guess: .infinity, low: 30, high: 50))
+    }
+
+    func test_streakBuckets() {
+        XCTAssertEqual([0, 1, 2, 3, 4, 6, 7, 13, 14, 400].map(DailyGuess.streakBucket),
+                       ["1", "1", "2-3", "2-3", "4-6", "4-6", "7-13", "7-13", "14+", "14+"])
+    }
+
+    func test_theStreakCountsDaysPlayedInARow() {
+        var record = DailyGuessRecord.empty.playing(day: 5, guess: 10)
+        XCTAssertEqual(record, DailyGuessRecord(lastDay: 5, lastGuess: 10, streak: 1, best: 1))
+
+        record = record.playing(day: 6, guess: 20).playing(day: 7, guess: 30)
+        XCTAssertEqual(record.streak, 3)
+        XCTAssertEqual(record.best, 3)
+
+        XCTAssertEqual(record.playing(day: 7, guess: 99), record, "a second guess the same day")
+
+        record = record.playing(day: 9, guess: 40)
+        XCTAssertEqual(record.streak, 1, "a missed day starts again")
+        XCTAssertEqual(record.best, 3)
+    }
+
+    func test_theStreakShownIsZeroOnceADayIsMissed() {
+        let record = DailyGuessRecord(lastDay: 10, lastGuess: 1, streak: 4, best: 4)
+        XCTAssertEqual(record.streak(on: 10), 4)
+        XCTAssertEqual(record.streak(on: 11), 4, "still alive until tomorrow ends")
+        XCTAssertEqual(record.streak(on: 12), 0)
+        XCTAssertTrue(record.hasPlayed(day: 10))
+        XCTAssertFalse(record.hasPlayed(day: 11))
+    }
+
+    func test_theRecordSurvivesARelaunch() throws {
+        let suite = "DailyGuessTests-\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+
+        XCTAssertEqual(DailyGuessRecord.load(defaults: defaults), .empty)
+        let record = DailyGuessRecord(lastDay: 12, lastGuess: 37.5, streak: 3, best: 8)
+        record.save(defaults: defaults)
+        XCTAssertEqual(DailyGuessRecord.load(defaults: defaults), record)
+    }
+
+    func test_thePlayedEventCarriesOnlyClosedSets() {
+        let event = AnalyticsEvent.dailyGuessPlayed(verdict: DailyGuess.Verdict.close.rawValue,
+                                                    streak: DailyGuess.streakBucket(5))
+        XCTAssertEqual(event.name, "daily_guess_played")
+        XCTAssertEqual(event.parameters, ["verdict": "close", "streak": "4-6"])
+    }
+
+    /// A round's condition and price factor are shown translated, so each
+    /// needs an entry in the app's catalog source, or it shows in English.
+    func test_everyRoundsWordsAreInTheCatalog() throws {
+        let url = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()   // SnapWorthTests
+            .deletingLastPathComponent()   // ios
+            .appendingPathComponent("Localization")
+            .appendingPathComponent("App.json")
+        let json = try JSONSerialization.jsonObject(with: Data(contentsOf: url)) as? [String: Any]
+        let strings = try XCTUnwrap(json?["strings"] as? [String: Any])
+        for round in DailyGuess.rounds {
+            XCTAssertNotNil(strings[round.condition], "condition \(round.condition)")
+            XCTAssertNotNil(strings[round.why], "why \(round.why)")
+        }
+    }
+}

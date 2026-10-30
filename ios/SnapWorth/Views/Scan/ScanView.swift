@@ -23,6 +23,8 @@ struct ScanView: View {
     @State private var showHaul = false
     /// Rack scan (#89), and the item its "Scan this one" sent the user to.
     @State private var showRack = false
+    /// The daily guess-the-price game (#411).
+    @State private var showDailyGuess = false
     @State private var rackTarget: RackCandidate?
     /// "Type it instead", and what has been typed. The text is kept here, not
     /// in the sheet, so a paywall in between does not make anyone type it again.
@@ -96,7 +98,7 @@ struct ScanView: View {
     /// Anything presented on top of the camera. See the `onChange` below.
     private var isCameraObscured: Bool {
         showResult || showThriftFlip || showNotifPriming || vm.showPaywall || showHaul || showRack
-            || showTypeIt
+            || showTypeIt || showDailyGuess
     }
 
     var body: some View {
@@ -312,6 +314,10 @@ struct ScanView: View {
                             vm.paywallTrigger = .rackScan
                             vm.showPaywall = true
                         }
+                    }
+                    DailyGuessPill(isDisabled: vm.isAnalyzing || captureInFlight,
+                                   isPresenting: showDailyGuess) {
+                        showDailyGuess = true
                     }
                 }
                 .padding(.bottom, 16)
@@ -541,6 +547,7 @@ struct ScanView: View {
             showThriftFlip = false
             showNotifPriming = false
             vm.showPaywall = false
+            showDailyGuess = false
             // `showHaul` is left alone: the Haul cover is already a live
             // camera, and HaulView answers the same notification by going
             // back to its own viewfinder. Closing it would stop a queue of
@@ -583,6 +590,7 @@ struct ScanView: View {
             showThriftFlip = false
             showNotifPriming = false
             vm.showPaywall = false
+            showDailyGuess = false
             // `showHaul` is left alone. Closing the Haul cover either ends the
             // haul (`finishHaul`, which drops its drafts) or stops its camera
             // under a capture still being processed; neither is something a
@@ -652,6 +660,7 @@ struct ScanView: View {
         }
         .modifier(RackPresentation(isPresented: $showRack,
                                    onScanThis: { rackTarget = $0 }))
+        .sheet(isPresented: $showDailyGuess) { DailyGuessView() }
         .modifier(HaulPresentation(isPresented: $showHaul, session: $haul,
                                    purchaseService: purchaseService,
                                    makeRepository: { ScanRepository(context: modelContext) }))

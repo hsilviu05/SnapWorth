@@ -16,6 +16,9 @@ on:
       - 'tools/swift_sanity.py'
       - 'tools/check_localization.py'
       - 'tools/build_xcstrings.py'
+      - 'tools/build_daily_guess.py'
+      - 'website/seo/build_guess.py'
+      - 'website/seo/build_seo.py'
       - 'contract/**'
       - 'backend/main.py'
       - 'backend/scan/valuation.py'
@@ -29,6 +32,9 @@ on:
       - 'tools/swift_sanity.py'
       - 'tools/check_localization.py'
       - 'tools/build_xcstrings.py'
+      - 'tools/build_daily_guess.py'
+      - 'website/seo/build_guess.py'
+      - 'website/seo/build_seo.py'
       - 'contract/**'
       - 'backend/main.py'
       - 'backend/scan/valuation.py'
@@ -91,6 +97,11 @@ jobs:
       # thrown away the next time the source files are built.
       - name: String catalogs match ios/Localization
         run: python3 tools/build_xcstrings.py --check
+
+      # The game's rounds are generated from the website's /guess data, so a
+      # change to that data that was not carried into the app fails here.
+      - name: Daily guess rounds match the website data
+        run: python3 tools/build_daily_guess.py --check
 
       - name: Every user-facing string is in a catalog
         run: python3 tools/check_localization.py
