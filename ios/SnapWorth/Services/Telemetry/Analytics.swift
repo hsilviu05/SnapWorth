@@ -167,7 +167,7 @@ enum AnalyticsEvent {
     case ledgerPaywallHit(trigger: PaywallTrigger)
     case ledgerMonthShared
 
-    // ── App icon (1.6.3) ─────────────────────────────────────────────
+    // ── App icon (1.7.0) ─────────────────────────────────────────────
     /// The user switched app icon. `icon` is `AppIconChoice.rawValue`;
     /// `source` is `settings` or `prompt` (the one-time announcement). Which
     /// icons people pick is the only signal of which one they like.

@@ -1,18 +1,17 @@
-# What's New — SnapWorth 1.6.3
+# What's New — SnapWorth 1.7.0
 
 ## Scope
 
-1.6.3 (27) makes Tag, tilted inside camera corners, the app icon, and lets
+1.7.0 (27) makes Tag, tilted inside camera corners, the app icon, and lets
 people pick another one in Settings → App icon. It also carries everything
 merged into the app since the `1.6.2, build 26` bump: Share to SnapWorth,
 Siri and Spotlight, visual intelligence, the haul slideshow, "Type it instead"
 on onboarding, and a second rating moment.
 
-**Versioning.** By semantic versioning this is a minor release (1.7.0): the
-share extension, App Shortcuts and visual intelligence are new features, not
-fixes. It is 1.6.3 because the owner asked for 1.6.3. To ship it as 1.7.0
-instead, change `MARKETING_VERSION` in all eight build configurations and the
-version on this page; the build number stays 27.
+**Versioning.** A minor release, not a patch: the share extension, App
+Shortcuts, visual intelligence and the icon picker are new features. The
+owner first asked for 1.6.3 and chose 1.7.0 on 2026-10-30. The build number
+continues from 26.
 
 **What 26 contains is known.** 1.6.2 (26) is approved (owner, 2026-10-30).
 Organizer created its archive on 2026-10-28 at 23:53, and no app change was
@@ -24,13 +23,13 @@ new in 27 (`git log --first-parent 296a89a..main -- ios/`).
 
 | PR | What | Visible? |
 |----|------|----------|
-| this PR | **New app icon and an icon picker.** Primary icon: Tag inside viewfinder corners on terracotta, with a dark-mode and a tinted variant. Settings → App icon offers Tag, Night, Wow and Classic (the icon before 1.6.3). People who had saved finds before updating get a one-time alert ("Choose your app icon"). New installs never see it. `app_icon_changed{icon, source}` | **Yes** |
+| this PR | **New app icon and an icon picker.** Primary icon: Tag inside viewfinder corners on terracotta, with a dark-mode and a tinted variant. Settings → App icon offers Tag, Night, Wow and Classic (the icon before 1.7.0). People who had saved finds before updating get a one-time alert ("Choose your app icon"). New installs never see it. `app_icon_changed{icon, source}` | **Yes** |
 | [#410](https://github.com/hsilviu05/SnapWorth/pull/410) | **Share to SnapWorth**: a share extension takes one photo or screenshot from any app. The app values it on next open; a notification offers it in one tap | **Yes** |
 | [#412](https://github.com/hsilviu05/SnapWorth/pull/412) | **Siri and Spotlight**: a "Value an item" App Shortcut opens the camera. **Visual intelligence** (iOS 26, Pro): "Value this with SnapWorth" on a screenshot or camera search | **Yes** |
 | [#409](https://github.com/hsilviu05/SnapWorth/pull/409) | **Share as slideshow** for a haul: hook slide, up to four finds, the total card | Yes, Haul (Pro) |
 | [#408](https://github.com/hsilviu05/SnapWorth/pull/408) | Onboarding's last page offers "Nothing to scan right now? Type it instead" | New users |
 | [#413](https://github.com/hsilviu05/SnapWorth/pull/413) | The rating request can also come when a flip is saved as sold at a profit | Rarely (iOS decides) |
-| this PR | `chore: 1.6.3, build 27`. A lower bound for 27, not the build | No |
+| this PR | `chore: 1.7.0, build 27`. A lower bound for 27, not the build | No |
 
 ### New target and capabilities (must be in place before archiving)
 
@@ -40,7 +39,7 @@ new in 27 (`git log --first-parent 296a89a..main -- ios/`).
 - The share extension has its own `PrivacyInfo.xcprivacy`. App Privacy already
   declares Photos or Videos for App Functionality, which covers it.
 
-### Store listing (version-scoped, pasted onto 1.6.3)
+### Store listing (version-scoped, pasted onto 1.7.0)
 
 The description in every locale gains the new features: share from another
 app, Siri and Spotlight, and for Pro the haul slideshow and visual
@@ -57,7 +56,7 @@ live. Nothing to upload separately.
 
 ## What's New, all five locales
 
-Paste each block into its locale's What's New field on the 1.6.3 version page.
+Paste each block into its locale's What's New field on the 1.7.0 version page.
 `es` goes into both Spanish (Spain) and Spanish (Mexico). `en-US` also goes
 into English (U.K.). Icon names and the settings path match the app's own
 labels in `ios/Localization/App.json`. Siri's spoken phrases are English only
@@ -133,7 +132,7 @@ No visual intelligence line: Apple Intelligence is not offered in mainland China
 
 ---
 
-## Promotional text, all locales (after 1.6.3 is live)
+## Promotional text, all locales (after 1.7.0 is live)
 
 Not tied to a build, but paste it only once 27 is live, or the page promises a
 feature people can't find. It can only go on locales the live version already
@@ -237,7 +236,7 @@ The device checks for these are in each PR. At minimum:
 
 In order. Nothing here is submitted until the last step, and that one is yours.
 
-### 0. Before touching 1.6.3
+### 0. Before touching 1.7.0
 
 - [ ] **1.6.2 is live** (approved 2026-10-30). A new version cannot be
       created while another is waiting for or in review.
@@ -250,7 +249,7 @@ In order. Nothing here is submitted until the last step, and that one is yours.
       A stale checkout silently re-archives 26, and App Store Connect rejects
       a build number already used.
 - [ ] Archive with **Xcode 27** (`.xcode-version`), scheme **SnapWorth** (not
-      *Mock scans*), Release configuration. Organizer shows **1.6.3 (27)**,
+      *Mock scans*), Release configuration. Organizer shows **1.7.0 (27)**,
       and its icon is the new Tag icon.
 - [ ] Record the commit and Organizer's creation date under *Build 27* below.
 - [ ] Distribute → App Store Connect → Upload, **once**. If a rejection needs
@@ -265,13 +264,13 @@ In order. Nothing here is submitted until the last step, and that one is yours.
 
 ### 3. Version, listing, privacy
 
-- [ ] *+ Version or Platform* → iOS → `1.6.3`. Build: **27**.
+- [ ] *+ Version or Platform* → iOS → `1.7.0`. Build: **27**.
 - [ ] What's New in all five locales, plus en-GB (blocks above).
 - [ ] Description in every locale, from the listing files.
 - [ ] App Privacy: no change. The icon picker collects nothing. The share
       extension's photo is the same Photos or Videos already declared.
 - [ ] No new permission, so no new purpose string.
-- [ ] App Review notes: copy 1.6.2's, and add: "New in 1.6.3: Settings → App
+- [ ] App Review notes: copy 1.6.2's, and add: "New in 1.7.0: Settings → App
       icon changes the Home Screen icon. Share a photo to SnapWorth from the
       Photos app to value it."
 
@@ -287,7 +286,7 @@ In order. Nothing here is submitted until the last step, and that one is yours.
 
 ### Build 27 — the archive
 
-The `1.6.3, build 27` commit in this PR is a lower bound, not the build
+The `1.7.0, build 27` commit in this PR is a lower bound, not the build
 (CLAUDE.md). Fill this in at archive time.
 
 - **Archive commit** (`git rev-parse HEAD` at archive time): _not yet_

@@ -1,4 +1,4 @@
-"""The app icons: Tag, tilted, inside camera-viewfinder corners. Primary icon since 1.6.3.
+"""The app icons: Tag, tilted, inside camera-viewfinder corners. Primary icon since 1.7.0.
 
 Writes straight into the app's asset catalog and owns what it writes, so change this script
 rather than the PNGs or their Contents.json:
@@ -14,7 +14,7 @@ from the primary icon, so the site and the Home Screen show the same mark.
 
 Every icon PNG is 1024 × 1024 opaque RGB; App Store Connect rejects an alpha channel.
 
-`AppIcon-Classic` (the icon before 1.6.3) is not drawn here: it is the old PNGs, kept as an
+`AppIcon-Classic` (the icon before 1.7.0) is not drawn here: it is the old PNGs, kept as an
 alternate. Only its preview is derived from it. The alternate names must match
 `ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES` and `AppIconChoice.iconName`.
 

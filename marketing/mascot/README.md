@@ -18,7 +18,7 @@ catalog folder. `TagMascot` in `DesignSystem.swift` is the view that shows it.
 inside camera-viewfinder corners. It writes the primary `AppIcon` (light, dark
 and tinted), the alternates `AppIcon-TagNight` and `AppIcon-TagWow`, the
 picker's `AppIconPreview` thumbnails and the website's favicons, straight into
-the repository. `AppIcon-Classic`, the icon before 1.6.3, is kept as PNGs and
+the repository. `AppIcon-Classic`, the icon before 1.7.0, is kept as PNGs and
 not drawn. The script owns every file it writes, so change the script rather
 than the PNGs. Needs Playwright's Chromium and Pillow.
 

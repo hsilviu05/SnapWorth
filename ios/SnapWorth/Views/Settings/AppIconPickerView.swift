@@ -50,7 +50,7 @@ enum AppIconChoice: String, CaseIterable, Identifiable {
 }
 
 /// The one-time "choose your app icon" alert for people who used SnapWorth
-/// before 1.6.3 changed its icon.
+/// before 1.7.0 changed its icon.
 ///
 /// Decided once, on the first launch that runs this code: someone with saved
 /// finds by then had the old icon, and is asked; a new install has none, and

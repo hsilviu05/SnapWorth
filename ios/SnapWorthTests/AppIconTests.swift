@@ -2,7 +2,7 @@ import XCTest
 import UIKit
 @testable import SnapWorth
 
-// The app icon picker (1.6.3): every choice can actually be switched to, and
+// The app icon picker (1.7.0): every choice can actually be switched to, and
 // the one-time announcement reaches only people who had the old icon.
 
 final class AppIconChoiceTests: XCTestCase {
