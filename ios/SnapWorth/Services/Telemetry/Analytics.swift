@@ -171,6 +171,12 @@ enum AnalyticsEvent {
     case ledgerPaywallHit(trigger: PaywallTrigger)
     case ledgerMonthShared
 
+    // ── App icon (1.7.0) ─────────────────────────────────────────────
+    /// The user switched app icon. `icon` is `AppIconChoice.rawValue`;
+    /// `source` is `settings` or `prompt` (the one-time announcement). Which
+    /// icons people pick is the only signal of which one they like.
+    case appIconChanged(icon: String, source: String)
+
     // ── Local notifications ──────────────────────────────────────────
     case notificationScheduled(category: String)
     case notificationOpened(category: String)
@@ -271,6 +277,7 @@ enum AnalyticsEvent {
         case .ledgerExportTapped:   return "ledger_export_tapped"
         case .ledgerPaywallHit:     return "ledger_paywall_hit"
         case .ledgerMonthShared:    return "ledger_month_shared"
+        case .appIconChanged:       return "app_icon_changed"
         case .notificationScheduled:return "notification_scheduled"
         case .notificationOpened:   return "notification_opened"
         case .reminderOptIn:        return "reminder_opt_in"
@@ -352,6 +359,8 @@ enum AnalyticsEvent {
             return ["candidates": candidates]
         case let .rackCandidateChosen(rank):
             return ["rank": rank]
+        case let .appIconChanged(icon, source):
+            return ["icon": icon, "source": source]
         case let .haulCompleted(bucket, revisedFrom):
             guard let revisedFrom else { return ["items": bucket] }
             return ["items": bucket, "revised_from": revisedFrom]

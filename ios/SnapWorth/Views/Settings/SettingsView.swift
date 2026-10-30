@@ -136,6 +136,14 @@ struct SettingsView: View {
 
                 // ── Feel ───────────────────────────────────────────────────
                 Section {
+                    if UIApplication.shared.supportsAlternateIcons {
+                        NavigationLink {
+                            AppIconPickerView(source: "settings")
+                        } label: {
+                            SettingsRowLabel(icon: "app.badge", label: "App icon")
+                        }
+                    }
+
                     Toggle(isOn: $hapticsEnabled) {
                         HStack(spacing: 14) {
                             Image(systemName: "hand.tap")

@@ -7431,6 +7431,110 @@
       "es": "¿Lo superas?",
       "de": "Kannst du das schlagen?",
       "zh-Hans": "你能猜得更准吗？"
+    },
+    "App icon": {
+      "comment": "Settings row and screen title for choosing the Home Screen icon.",
+      "en": "App icon",
+      "ro": "Pictograma aplicației",
+      "es": "Icono de la app",
+      "de": "App-Symbol",
+      "zh-Hans": "应用图标"
+    },
+    "Tag": {
+      "comment": "Name of the default app icon: the mascot, Tag, a price tag with a face. A name, so the same in every language.",
+      "en": "Tag",
+      "ro": "Tag",
+      "es": "Tag",
+      "de": "Tag",
+      "zh-Hans": "Tag"
+    },
+    "Night": {
+      "comment": "App icon choice: Tag on a dark background.",
+      "en": "Night",
+      "ro": "Noapte",
+      "es": "Noche",
+      "de": "Nacht",
+      "zh-Hans": "夜间"
+    },
+    "Wow": {
+      "comment": "App icon choice: Tag with a surprised, star-eyed face.",
+      "en": "Wow",
+      "ro": "Uau",
+      "es": "Wow",
+      "de": "Wow",
+      "zh-Hans": "哇"
+    },
+    "Classic": {
+      "comment": "App icon choice: SnapWorth's icon before 1.7.0, a white tag with a gold sparkle.",
+      "en": "Classic",
+      "ro": "Clasic",
+      "es": "Clásico",
+      "de": "Klassisch",
+      "zh-Hans": "经典"
+    },
+    "Selected": {
+      "comment": "VoiceOver value on the app icon currently in use.",
+      "en": "Selected",
+      "ro": "Selectat",
+      "es": "Seleccionado",
+      "de": "Ausgewählt",
+      "zh-Hans": "已选择"
+    },
+    "iOS shows a short message when the icon changes.": {
+      "comment": "Footer under the app icon choices. iOS shows its own alert after every icon change.",
+      "en": "iOS shows a short message when the icon changes.",
+      "ro": "iOS afișează un scurt mesaj când se schimbă pictograma.",
+      "es": "iOS muestra un breve mensaje cuando cambia el icono.",
+      "de": "iOS zeigt eine kurze Meldung, wenn sich das Symbol ändert.",
+      "zh-Hans": "更换图标时，iOS 会显示一条简短提示。"
+    },
+    "Couldn't change the icon": {
+      "comment": "Alert title when iOS refuses to switch the app icon.",
+      "en": "Couldn't change the icon",
+      "ro": "Pictograma nu a putut fi schimbată",
+      "es": "No se pudo cambiar el icono",
+      "de": "Das Symbol konnte nicht geändert werden",
+      "zh-Hans": "无法更换图标"
+    },
+    "Try again in a moment.": {
+      "comment": "Alert message after the app icon could not be changed.",
+      "en": "Try again in a moment.",
+      "ro": "Încearcă din nou peste câteva momente.",
+      "es": "Vuelve a intentarlo en un momento.",
+      "de": "Versuch es gleich noch einmal.",
+      "zh-Hans": "请稍后再试。"
+    },
+    "Choose your app icon": {
+      "comment": "Title of a one-time alert, shown after the update that changed the app icon.",
+      "en": "Choose your app icon",
+      "ro": "Alege-ți pictograma aplicației",
+      "es": "Elige el icono de la app",
+      "de": "Wähl dein App-Symbol",
+      "zh-Hans": "选择你的应用图标"
+    },
+    "Choose icon": {
+      "comment": "Button in the one-time app icon alert: opens the icon choices.",
+      "en": "Choose icon",
+      "ro": "Alege pictograma",
+      "es": "Elegir icono",
+      "de": "Symbol wählen",
+      "zh-Hans": "选择图标"
+    },
+    "Keep this one": {
+      "comment": "Button in the one-time app icon alert: keeps the new default icon.",
+      "en": "Keep this one",
+      "ro": "Îl păstrez",
+      "es": "Mantener este",
+      "de": "Dieses behalten",
+      "zh-Hans": "保留当前图标"
+    },
+    "SnapWorth has a new icon. Prefer another? Pick Night, Wow or the classic one, here or any time in Settings.": {
+      "comment": "Message of the one-time app icon alert. Night, Wow and Classic are the choices' names; use the same words as their own entries.",
+      "en": "SnapWorth has a new icon. Prefer another? Pick Night, Wow or the classic one, here or any time in Settings.",
+      "ro": "SnapWorth are o pictogramă nouă. Preferi alta? Alege Noapte, Uau sau pe cea clasică, aici sau oricând din Setări.",
+      "es": "SnapWorth tiene un icono nuevo. ¿Prefieres otro? Elige Noche, Wow o el clásico, aquí o cuando quieras en Ajustes.",
+      "de": "SnapWorth hat ein neues Symbol. Lieber ein anderes? Wähl Nacht, Wow oder das klassische, hier oder jederzeit in den Einstellungen.",
+      "zh-Hans": "SnapWorth 换了新图标。想用别的？可在这里或随时在设置中选择“夜间”、“哇”或经典图标。"
     }
   }
 }

@@ -23,6 +23,7 @@
 		89A0C0DE0000000000000003 /* RackScanView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 89A0C0DE0000000000000004 /* RackScanView.swift */; };
 		411D6E00000000000000000F /* DailyGuessView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 411D6E00000000000000000E /* DailyGuessView.swift */; };
 		89A0C0DE0000000000000005 /* RackScanTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 89A0C0DE0000000000000006 /* RackScanTests.swift */; };
+		A1C0F1C000000000000000B4 /* AppIconTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1C0F1C000000000000000B3 /* AppIconTests.swift */; };
 		90A0C0DE0000000000000001 /* LegitCheck.swift in Sources */ = {isa = PBXBuildFile; fileRef = 90A0C0DE0000000000000002 /* LegitCheck.swift */; };
 		90A0C0DE0000000000000003 /* LegitCheckView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 90A0C0DE0000000000000004 /* LegitCheckView.swift */; };
 		90A0C0DE0000000000000005 /* LegitCheckTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 90A0C0DE0000000000000006 /* LegitCheckTests.swift */; };
@@ -78,6 +79,7 @@
 		ADD1EC0000000000000412F4 /* VisualIntelligence.swift in Sources */ = {isa = PBXBuildFile; fileRef = ADD1EC0000000000000412F3 /* VisualIntelligence.swift */; };
 		ADD1EC0000000000000000F4 /* NotificationManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = ADD1EC0000000000000000F3 /* NotificationManager.swift */; };
 		ADD1EC0000000000000000F6 /* NotificationSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = ADD1EC0000000000000000F5 /* NotificationSettingsView.swift */; };
+		A1C0F1C000000000000000B2 /* AppIconPickerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1C0F1C000000000000000B1 /* AppIconPickerView.swift */; };
 		BB000000000000000000000A /* WidgetDataStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0000000000000000000009 /* WidgetDataStore.swift */; };
 		BB0000000000000000000A01 /* ProductionHardeningTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0000000000000000000A02 /* ProductionHardeningTests.swift */; };
 		BB0000000000000000000B01 /* Haptics.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0000000000000000000B02 /* Haptics.swift */; };
@@ -169,6 +171,7 @@
 		89A0C0DE0000000000000004 /* RackScanView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RackScanView.swift; sourceTree = "<group>"; };
 		411D6E00000000000000000E /* DailyGuessView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DailyGuessView.swift; sourceTree = "<group>"; };
 		89A0C0DE0000000000000006 /* RackScanTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RackScanTests.swift; sourceTree = "<group>"; };
+		A1C0F1C000000000000000B3 /* AppIconTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppIconTests.swift; sourceTree = "<group>"; };
 		90A0C0DE0000000000000002 /* LegitCheck.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LegitCheck.swift; sourceTree = "<group>"; };
 		90A0C0DE0000000000000004 /* LegitCheckView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LegitCheckView.swift; sourceTree = "<group>"; };
 		90A0C0DE0000000000000006 /* LegitCheckTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LegitCheckTests.swift; sourceTree = "<group>"; };
@@ -226,6 +229,7 @@
 		ADD1EC0000000000000412F3 /* VisualIntelligence.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VisualIntelligence.swift; sourceTree = "<group>"; };
 		ADD1EC0000000000000000F3 /* NotificationManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationManager.swift; sourceTree = "<group>"; };
 		ADD1EC0000000000000000F5 /* NotificationSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationSettingsView.swift; sourceTree = "<group>"; };
+		A1C0F1C000000000000000B1 /* AppIconPickerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppIconPickerView.swift; sourceTree = "<group>"; };
 		ADD1EC0000000000000000F7 /* SnapWorth.storekit */ = {isa = PBXFileReference; lastKnownFileType = text; path = SnapWorth.storekit; sourceTree = "<group>"; };
 		BB0000000000000000000008 /* SnapWorth.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = SnapWorth.entitlements; sourceTree = "<group>"; };
 		BB0000000000000000000009 /* WidgetDataStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetDataStore.swift; sourceTree = "<group>"; };
@@ -401,6 +405,7 @@
 			children = (
 				AA00000000000000000000EA /* SettingsView.swift */,
 				ADD1EC0000000000000000F5 /* NotificationSettingsView.swift */,
+				A1C0F1C000000000000000B1 /* AppIconPickerView.swift */,
 				AA00000000000000000000FB /* FeedbackView.swift */,
 				AA00000000000000000000F6 /* LegalView.swift */,
 			);
@@ -622,6 +627,7 @@
 				AA0000000000000000000102 /* SnapWorthTests.swift */,
 				BB0000000000000000000A02 /* ProductionHardeningTests.swift */,
 				89A0C0DE0000000000000006 /* RackScanTests.swift */,
+				A1C0F1C000000000000000B3 /* AppIconTests.swift */,
 				90A0C0DE0000000000000006 /* LegitCheckTests.swift */,
 				BB0000000000000000000F02 /* MigrationTests.swift */,
 				EA57E0000000000000000A03 /* RareFindTests.swift */,
@@ -934,6 +940,7 @@
 				AA00000000000000000000E9 /* HistoryView.swift in Sources */,
 				AA00000000000000000000EB /* SettingsView.swift in Sources */,
 				ADD1EC0000000000000000F6 /* NotificationSettingsView.swift in Sources */,
+				A1C0F1C000000000000000B2 /* AppIconPickerView.swift in Sources */,
 				AA00000000000000000000F7 /* LegalView.swift in Sources */,
 				AA00000000000000000000FC /* FeedbackView.swift in Sources */,
 				AA000000000000000000010F /* AppError.swift in Sources */,
@@ -950,6 +957,7 @@
 				AA0000000000000000000100 /* SnapWorthTests.swift in Sources */,
 				BB0000000000000000000A01 /* ProductionHardeningTests.swift in Sources */,
 				89A0C0DE0000000000000005 /* RackScanTests.swift in Sources */,
+				A1C0F1C000000000000000B4 /* AppIconTests.swift in Sources */,
 				90A0C0DE0000000000000005 /* LegitCheckTests.swift in Sources */,
 				BB0000000000000000000F01 /* MigrationTests.swift in Sources */,
 				EA57E0000000000000000B03 /* RareFindTests.swift in Sources */,
@@ -987,7 +995,7 @@
 			buildSettings = {
 				CODE_SIGN_ENTITLEMENTS = SnapWorthShare/SnapWorthShare.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 26;
+				CURRENT_PROJECT_VERSION = 27;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = SnapWorthShare/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = SnapWorth;
@@ -998,7 +1006,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 1.6.2;
+				MARKETING_VERSION = 1.7.0;
 				PRODUCT_BUNDLE_IDENTIFIER = eu.snapworth.app.SnapWorthShare;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
@@ -1017,7 +1025,7 @@
 			buildSettings = {
 				CODE_SIGN_ENTITLEMENTS = SnapWorthShare/SnapWorthShare.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 26;
+				CURRENT_PROJECT_VERSION = 27;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = SnapWorthShare/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = SnapWorth;
@@ -1028,7 +1036,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 1.6.2;
+				MARKETING_VERSION = 1.7.0;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				PRODUCT_BUNDLE_IDENTIFIER = eu.snapworth.app.SnapWorthShare;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -1049,7 +1057,7 @@
 				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
 				CODE_SIGN_ENTITLEMENTS = SnapWorthWidgets/SnapWorthWidgets.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 26;
+				CURRENT_PROJECT_VERSION = 27;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = SnapWorthWidgets/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = SnapWorthWidgets;
@@ -1060,7 +1068,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 1.6.2;
+				MARKETING_VERSION = 1.7.0;
 				PRODUCT_BUNDLE_IDENTIFIER = eu.snapworth.app.SnapWorthWidgets;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
@@ -1081,7 +1089,7 @@
 				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
 				CODE_SIGN_ENTITLEMENTS = SnapWorthWidgets/SnapWorthWidgets.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 26;
+				CURRENT_PROJECT_VERSION = 27;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = SnapWorthWidgets/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = SnapWorthWidgets;
@@ -1092,7 +1100,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 1.6.2;
+				MARKETING_VERSION = 1.7.0;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				PRODUCT_BUNDLE_IDENTIFIER = eu.snapworth.app.SnapWorthWidgets;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -1111,14 +1119,14 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = "iMessage App Icon";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 26;
+				CURRENT_PROJECT_VERSION = 27;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = SnapWorthStickers/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = SnapWorth;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				INFOPLIST_KEY_NSStickerSharingLevel = OS;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
-				MARKETING_VERSION = 1.6.2;
+				MARKETING_VERSION = 1.7.0;
 				PRODUCT_BUNDLE_IDENTIFIER = eu.snapworth.app.SnapWorthStickers;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
@@ -1131,14 +1139,14 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = "iMessage App Icon";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 26;
+				CURRENT_PROJECT_VERSION = 27;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = SnapWorthStickers/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = SnapWorth;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				INFOPLIST_KEY_NSStickerSharingLevel = OS;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
-				MARKETING_VERSION = 1.6.2;
+				MARKETING_VERSION = 1.7.0;
 				PRODUCT_BUNDLE_IDENTIFIER = eu.snapworth.app.SnapWorthStickers;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
@@ -1274,12 +1282,13 @@
 		AA00000000000000000000B3 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES = "AppIcon-TagNight AppIcon-TagWow AppIcon-Classic";
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = SnapWorth/SnapWorth.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 26;
+				CURRENT_PROJECT_VERSION = 27;
 				DEVELOPMENT_ASSET_PATHS = "";
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = NO;
@@ -1290,7 +1299,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.6.2;
+				MARKETING_VERSION = 1.7.0;
 				"OTHER_LDFLAGS[sdk=iphoneos*]" = (
 					"$(inherited)",
 					"-weak_framework",
@@ -1311,12 +1320,13 @@
 		AA00000000000000000000B4 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES = "AppIcon-TagNight AppIcon-TagWow AppIcon-Classic";
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = SnapWorth/SnapWorth.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 26;
+				CURRENT_PROJECT_VERSION = 27;
 				DEVELOPMENT_ASSET_PATHS = "";
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = NO;
@@ -1327,7 +1337,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.6.2;
+				MARKETING_VERSION = 1.7.0;
 				"OTHER_LDFLAGS[sdk=iphoneos*]" = (
 					"$(inherited)",
 					"-weak_framework",

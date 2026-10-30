@@ -196,7 +196,7 @@ Descubre cuánto vale antes de comprarlo. Una foto, una estimación, unos segund
 
 ---
 
-## Description (4000 chars max; 3,634 with line breaks)
+## Description (4000 chars max; 3,908 with line breaks)
 
 ¿Alguna vez has encontrado algo en un mercadillo y te has preguntado si vale algo? SnapWorth te lo dice al instante.
 
@@ -225,6 +225,8 @@ QUÉ INCLUYE
 • Total — cuánto vale todo lo que has escaneado, de un vistazo
 • Widgets — el total de tu colección en la pantalla bloqueada; tus últimos hallazgos, los escaneos que te quedan y el escaneo con un toque en la pantalla de inicio
 • Stickers para iMessage — 20 stickers de Tag, nuestra mascota (cuatro animados), para presumir de tus hallazgos
+• Compartir con SnapWorth — comparte una foto o captura desde cualquier app y descubre cuánto vale
+• Siri y Spotlight — el atajo «Valorar un artículo» abre la cámara
 
 --------------------------
 
@@ -244,6 +246,8 @@ SnapWorth se usa gratis y sin cuenta. Tienes un escaneo gratis cada día, para s
 Pro añade:
 • Escaneos ilimitados (sujetos a un uso razonable)
 • Modo Lote — fotografía artículo tras artículo mientras se valora cada uno, con el total a la vista
+• Lote como carrusel para TikTok e Instagram
+• Inteligencia visual (iOS 26) — valora capturas con SnapWorth
 • Escaneo de estante — una foto de un perchero, estante o cesta, y los artículos que más merecen una mirada
 • Comprobación de originalidad — primeros planos guiados, revisados en busca de las señales habituales de una réplica. Una observación sobre tus fotos, no una certificación de autenticidad.
 • Anuncios reescritos para la plataforma que elijas — Vinted, eBay, Poshmark, Mercari, Depop o Facebook Marketplace

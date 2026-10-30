@@ -110,7 +110,7 @@ Wissen, was es wert ist, bevor du es kaufst. Ein Foto, eine Schätzung, ein paar
 
 ---
 
-## Description (4000 chars max; 3,729 with line breaks)
+## Description (4000 chars max; 3,990 with line breaks)
 
 Schon mal etwas im Second-Hand-Laden in der Hand gehabt und dich gefragt, ob es etwas wert ist? SnapWorth sagt es dir sofort.
 
@@ -139,6 +139,8 @@ WAS DU BEKOMMST
 • Summe – was alles, was du gescannt hast, zusammen wert ist
 • Widgets – die Summe deiner Sammlung auf dem Sperrbildschirm; deine letzten Funde, die übrigen Scans und Scannen mit einem Tipp auf dem Home-Bildschirm
 • iMessage-Sticker – 20 Sticker mit Tag, unserem Maskottchen (vier animiert), um mit deinen Funden anzugeben
+• Mit SnapWorth teilen – Foto oder Screenshot aus jeder App teilen und den Wert sehen
+• Siri und Spotlight – „Artikel bewerten“ öffnet die Kamera
 
 --------------------------
 
@@ -158,6 +160,8 @@ SnapWorth ist gratis und braucht kein Konto. Du bekommst jeden Tag einen Gratis-
 Pro bringt dazu:
 • Unbegrenzte Scans (im Rahmen fairer Nutzung)
 • Stapel-Modus – Artikel für Artikel fotografieren, jeder wird nebenbei bewertet, mit laufender Summe
+• Stapel als Diashow für TikTok und Instagram
+• Visuelle Intelligenz (iOS 26) – Screenshots mit SnapWorth bewerten
 • Regal-Scan – ein Foto einer Stange, eines Regals oder einer Kiste und die Artikel, die einen genaueren Blick wert sind
 • Echtheits-Check – geführte Nahaufnahmen, geprüft auf die üblichen Anzeichen einer Replik. Eine Beobachtung zu deinen Fotos, keine Echtheitszertifizierung.
 • Inserate, neu geschrieben für die Plattform, die du wählst – Kleinanzeigen, Vinted, eBay, Poshmark, Mercari, Depop oder Facebook Marketplace. Die Kleinanzeigen-Anzeige wird auf Deutsch geschrieben.

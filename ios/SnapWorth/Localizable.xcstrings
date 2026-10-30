@@ -5832,6 +5832,42 @@
         }
       }
     },
+    "App icon" : {
+      "comment" : "Settings row and screen title for choosing the Home Screen icon.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "App-Symbol"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "App icon"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Icono de la app"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pictograma aplicației"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "应用图标"
+          }
+        }
+      }
+    },
     "Apple shows an active subscription on this Apple ID, but SnapWorth couldn't confirm it just now. Restore your purchase to try again, or contact support if it keeps happening." : {
       "comment" : "Alert message under \"We couldn't confirm your subscription\". The buttons are \"Restore purchase\" and \"Contact support\".",
       "extractionState" : "manual",
@@ -7500,6 +7536,42 @@
         }
       }
     },
+    "Choose icon" : {
+      "comment" : "Button in the one-time app icon alert: opens the icon choices.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Symbol wählen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choose icon"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Elegir icono"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Alege pictograma"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "选择图标"
+          }
+        }
+      }
+    },
     "Choose photo from library" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -7603,6 +7675,78 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "从照片图库中选择这张照片"
+          }
+        }
+      }
+    },
+    "Choose your app icon" : {
+      "comment" : "Title of a one-time alert, shown after the update that changed the app icon.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wähl dein App-Symbol"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choose your app icon"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Elige el icono de la app"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Alege-ți pictograma aplicației"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "选择你的应用图标"
+          }
+        }
+      }
+    },
+    "Classic" : {
+      "comment" : "App icon choice: SnapWorth's icon before 1.7.0, a white tag with a gold sparkle.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Klassisch"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Classic"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Clásico"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Clasic"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "经典"
           }
         }
       }
@@ -8950,6 +9094,42 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "没能加入“我的好物”。下面的结论仍然有效。"
+          }
+        }
+      }
+    },
+    "Couldn't change the icon" : {
+      "comment" : "Alert title when iOS refuses to switch the app icon.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Das Symbol konnte nicht geändert werden"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Couldn't change the icon"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No se pudo cambiar el icono"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pictograma nu a putut fi schimbată"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无法更换图标"
           }
         }
       }
@@ -14721,6 +14901,42 @@
         }
       }
     },
+    "Keep this one" : {
+      "comment" : "Button in the one-time app icon alert: keeps the new default icon.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dieses behalten"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Keep this one"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mantener este"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Îl păstrez"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "保留当前图标"
+          }
+        }
+      }
+    },
     "Last 6 months" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -16820,6 +17036,42 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "下次免费扫描：%@"
+          }
+        }
+      }
+    },
+    "Night" : {
+      "comment" : "App icon choice: Tag on a dark background.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nacht"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Night"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Noche"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Noapte"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "夜间"
           }
         }
       }
@@ -22463,6 +22715,42 @@
         }
       }
     },
+    "Selected" : {
+      "comment" : "VoiceOver value on the app icon currently in use.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ausgewählt"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Selected"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Seleccionado"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Selectat"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已选择"
+          }
+        }
+      }
+    },
     "Selects the %@ plan" : {
       "comment" : "VoiceOver hint on a paywall plan card; %@ is the plan name, lowercased.",
       "extractionState" : "manual",
@@ -24058,6 +24346,42 @@
         }
       }
     },
+    "SnapWorth has a new icon. Prefer another? Pick Night, Wow or the classic one, here or any time in Settings." : {
+      "comment" : "Message of the one-time app icon alert. Night, Wow and Classic are the choices' names; use the same words as their own entries.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SnapWorth hat ein neues Symbol. Lieber ein anderes? Wähl Nacht, Wow oder das klassische, hier oder jederzeit in den Einstellungen."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SnapWorth has a new icon. Prefer another? Pick Night, Wow or the classic one, here or any time in Settings."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SnapWorth tiene un icono nuevo. ¿Prefieres otro? Elige Noche, Wow o el clásico, aquí o cuando quieras en Ajustes."
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SnapWorth are o pictogramă nouă. Preferi alta? Alege Noapte, Uau sau pe cea clasică, aici sau oricând din Setări."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SnapWorth 换了新图标。想用别的？可在这里或随时在设置中选择“夜间”、“哇”或经典图标。"
+          }
+        }
+      }
+    },
     "SnapWorth haul, %@ scanned, worth %@." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -25541,6 +25865,42 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "切到相机去扫描你的第一件物品"
+          }
+        }
+      }
+    },
+    "Tag" : {
+      "comment" : "Name of the default app icon: the mascot, Tag, a price tag with a face. A name, so the same in every language.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tag"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tag"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tag"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tag"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tag"
           }
         }
       }
@@ -27479,6 +27839,42 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "再试一次"
+          }
+        }
+      }
+    },
+    "Try again in a moment." : {
+      "comment" : "Alert message after the app icon could not be changed.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Versuch es gleich noch einmal."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Try again in a moment."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vuelve a intentarlo en un momento."
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Încearcă din nou peste câteva momente."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "请稍后再试。"
           }
         }
       }
@@ -30611,6 +31007,42 @@
         }
       }
     },
+    "Wow" : {
+      "comment" : "App icon choice: Tag with a surprised, star-eyed face.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wow"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wow"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wow"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Uau"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "哇"
+          }
+        }
+      }
+    },
     "Writes a new listing for this item" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -32559,6 +32991,42 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "需求高"
+          }
+        }
+      }
+    },
+    "iOS shows a short message when the icon changes." : {
+      "comment" : "Footer under the app icon choices. iOS shows its own alert after every icon change.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "iOS zeigt eine kurze Meldung, wenn sich das Symbol ändert."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "iOS shows a short message when the icon changes."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "iOS muestra un breve mensaje cuando cambia el icono."
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "iOS afișează un scurt mesaj când se schimbă pictograma."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "更换图标时，iOS 会显示一条简短提示。"
           }
         }
       }
