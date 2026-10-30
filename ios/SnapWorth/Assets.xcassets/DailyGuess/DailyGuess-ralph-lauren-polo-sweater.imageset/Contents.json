@@ -1,0 +1,12 @@
+{
+  "images" : [
+    {
+      "filename" : "ralph-lauren-polo-sweater.jpg",
+      "idiom" : "universal"
+    }
+  ],
+  "info" : {
+    "author" : "xcode",
+    "version" : 1
+  }
+}

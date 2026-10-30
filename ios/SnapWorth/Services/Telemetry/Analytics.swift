@@ -72,6 +72,10 @@ enum AnalyticsEvent {
     /// A guess card left through the share sheet: "pair" (question + reveal),
     /// "guess" (question only) or "reveal".
     case guessCardShared(style: String)
+    /// The daily guess-the-price game (#411) was played. `verdict` is
+    /// `DailyGuess.Verdict` and `streak` a `DailyGuess.streakBucket`. Its
+    /// share card is `guess_card_shared` with style "daily".
+    case dailyGuessPlayed(verdict: String, streak: String)
     /// A label close-up was sent with a re-read (#88).
     case tagPhotoAdded(succeeded: Bool)
 
@@ -248,6 +252,7 @@ enum AnalyticsEvent {
         case .shareCardShared:      return "share_card_shared"
         case .guessRevealed:        return "guess_revealed"
         case .guessCardShared:      return "guess_card_shared"
+        case .dailyGuessPlayed:     return "daily_guess_played"
         case .tagPhotoAdded:        return "tag_photo_added"
         case .listingGenerated:     return "listing_generated"
         case .listingPhotoCleaned:  return "listing_photo_cleaned"
@@ -306,6 +311,8 @@ enum AnalyticsEvent {
             return ["format": format.rawValue]
         case let .reviewPromptRequested(moment):
             return ["moment": moment.rawValue]
+        case let .dailyGuessPlayed(verdict, streak):
+            return ["verdict": verdict, "streak": streak]
         // `default_plan` (#220): which plan the paywall preselected, so each
         // arm of the trial experiment can be read from these events alone.
         case let .paywallViewed(trigger, isFirst):

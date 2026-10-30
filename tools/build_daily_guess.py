@@ -1,0 +1,184 @@
+#!/usr/bin/env python3
+"""Builds the app's daily guess-the-price rounds (#411) from the website's data.
+
+The rounds are the ones /guess plays (`website/seo/build_guess.py`), which come
+from the `ITEMS` the /worth guides are generated from. One source, so the app's
+game cannot contradict the site's guides, and nothing here is a new claim: these
+are typical secondhand ranges, published and framed as guidance, not sold-listing
+data (see build_guess.py's "Honesty rules").
+
+The order is shuffled once with a fixed seed, so the same day plays the same
+round on every phone, then spaced so an item does not come back within a week. Adding an
+item to ITEMS reshuffles the order, which moves what future days play; past days
+are not recorded anywhere that would notice.
+
+Item names are brand and product names and stay in English, like money (see
+ios/Localization/README.md). The condition and the "what moves the price" line
+are written as `String(localized:)` literals, so `tools/check_localization.py`
+fails until each has an entry in ios/Localization/App.json.
+
+Run:   python3 tools/build_daily_guess.py
+Check: python3 tools/build_daily_guess.py --check   (CI: fails on drift)
+"""
+
+from __future__ import annotations
+
+import json
+import pathlib
+import random
+import sys
+
+ROOT = pathlib.Path(__file__).resolve().parents[1]
+OUT = ROOT / "ios/SnapWorth/Models/DailyGuessRounds.swift"
+# Openly licensed photos, one per item where a fitting one exists, with the
+# credit each license asks for. The images are in the app's asset catalog.
+PHOTOS = ROOT / "tools/daily_guess_photos.json"
+ASSETS = ROOT / "ios/SnapWorth/Assets.xcassets/DailyGuess"
+SEED = 411
+# No item comes back within this many days, so a week of play is a week of
+# different things.
+SPACING = 8
+
+sys.path.insert(0, str(ROOT / "website/seo"))
+from build_guess import rounds  # noqa: E402
+
+# The site's categories, as the app's `ScanCategory` cases.
+CATEGORY = {
+    "Clothing": "clothing",
+    "Shoes": "shoes",
+    "Bags": "accessories",
+    "Accessories": "accessories",
+    "Home": "home",
+}
+
+
+def swift_string(text: str) -> str:
+    return '"' + text.replace("\\", "\\\\").replace('"', '\\"') + '"'
+
+
+def ordered(all_rounds: list[dict], rng: random.Random) -> list[dict]:
+    """Every round once, so that no item comes back within SPACING days.
+
+    The days run in blocks of one round per item. Items are split once into a
+    first and a second half, and every block plays its first-half items
+    (shuffled) before its second-half ones (shuffled). An item in the first
+    half of one block and the first half of the next is therefore at least
+    `len(items) - half + 1` days apart, and the same holds across the wrap
+    from the last block to the first. Each item's conditions are dealt across
+    the blocks in a shuffled order.
+    """
+    by_item: dict[str, list[dict]] = {}
+    for r in all_rounds:
+        by_item.setdefault(r["slug"], []).append(r)
+    items = list(by_item)
+    rng.shuffle(items)
+    for conditions in by_item.values():
+        rng.shuffle(conditions)
+    half = len(items) // 2
+    first, second = items[:half], items[half:]
+    blocks = max(len(c) for c in by_item.values())
+    out: list[dict] = []
+    for block in range(blocks):
+        for part in (first, second):
+            part = list(part)
+            rng.shuffle(part)
+            out += [by_item[slug][block] for slug in part if block < len(by_item[slug])]
+    return out
+
+
+def min_gap(slugs: list[str]) -> int:
+    """The fewest days between two plays of one item, counting the wrap."""
+    n = len(slugs)
+    best = n
+    for i, slug in enumerate(slugs):
+        for step in range(1, n):
+            if slugs[(i + step) % n] == slug:
+                best = min(best, step)
+                break
+    return best
+
+
+def photos() -> dict[str, dict]:
+    """The photo manifest by slug, checked against the asset catalog."""
+    if not PHOTOS.exists():
+        return {}
+    out = {}
+    for entry in json.loads(PHOTOS.read_text(encoding="utf-8")):
+        slug = entry["slug"]
+        for key in ("author", "license", "file_page_url"):
+            if not str(entry.get(key) or "").strip():
+                raise SystemExit(f"build_daily_guess: photo for {slug} has no {key}; the credit needs it")
+        imageset = ASSETS / f"DailyGuess-{slug}.imageset"
+        if not imageset.is_dir():
+            raise SystemExit(f"build_daily_guess: {imageset.relative_to(ROOT)} is missing")
+        out[slug] = entry
+    return out
+
+
+def render() -> str:
+    pictures = photos()
+    order = ordered(rounds(), random.Random(SEED))
+    unknown = set(pictures) - {r["slug"] for r in order}
+    if unknown:
+        raise SystemExit(f"build_daily_guess: photos for unknown items: {sorted(unknown)}")
+    gaps = min_gap([r["slug"] for r in order])
+    if gaps < SPACING:
+        raise SystemExit(f"build_daily_guess: an item repeats after {gaps} days (want {SPACING}+)")
+    lines = [
+        "// Generated by tools/build_daily_guess.py from website/seo/build_seo.py's",
+        "// ITEMS and tools/daily_guess_photos.json. Do not edit: CI regenerates it",
+        "// and fails on any difference.",
+        "",
+        "extension DailyGuess {",
+        "    /// One round a day, in this order, from `DailyGuess.epoch`.",
+        "    static let rounds: [Round] = [",
+    ]
+    for r in order:
+        cat = CATEGORY.get(r["cat"])
+        if cat is None:
+            raise SystemExit(f"build_daily_guess: no ScanCategory for {r['cat']!r}; add it to CATEGORY")
+        if not r["why"]:
+            raise SystemExit(f"build_daily_guess: {r['item']} has no factors")
+        lines += [
+            "        Round(",
+            f"            item: {swift_string(r['item'])},",
+            f"            category: .{cat},",
+            f"            condition: String(localized: {swift_string(r['condition'])}),",
+            f"            low: {r['low']}, high: {r['high']},",
+            f"            why: String(localized: {swift_string(r['why'])}),",
+            f"            slug: {swift_string(r['slug'])},",
+        ]
+        photo = pictures.get(r["slug"])
+        if photo:
+            credit = f"{photo['author'].strip()}, {photo['license'].strip()}"
+            lines += [
+                "            photo: Photo(",
+                f"                asset: {swift_string('DailyGuess-' + r['slug'])},",
+                f"                credit: {swift_string(credit)},",
+                f"                source: {swift_string(photo['file_page_url'].strip())}",
+                "            )",
+            ]
+        else:
+            lines += ["            photo: nil"]
+        lines += ["        ),"]
+    lines += ["    ]", "}", ""]
+    return "\n".join(lines)
+
+
+def main() -> int:
+    text = render()
+    if "--check" in sys.argv[1:]:
+        current = OUT.read_text(encoding="utf-8") if OUT.exists() else ""
+        if current != text:
+            print(f"::error file={OUT.relative_to(ROOT)}::out of date with website/seo ITEMS or the photo manifest "
+                  "— run python3 tools/build_daily_guess.py")
+            return 1
+        print(f"{OUT.relative_to(ROOT)} matches website/seo ITEMS")
+        return 0
+    OUT.write_text(text, encoding="utf-8")
+    print(f"wrote {OUT.relative_to(ROOT)}")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

@@ -18,7 +18,10 @@
 		5A4ED0000000000000000004 /* WidgetModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A4ED0000000000000000002 /* WidgetModel.swift */; };
 		5C1C4E000000000000000002 /* SnapWorthStickers.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 5C1C4E000000000000000001 /* SnapWorthStickers.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		89A0C0DE0000000000000001 /* RackScan.swift in Sources */ = {isa = PBXBuildFile; fileRef = 89A0C0DE0000000000000002 /* RackScan.swift */; };
+		411D6E00000000000000000D /* DailyGuessRounds.swift in Sources */ = {isa = PBXBuildFile; fileRef = 411D6E00000000000000000C /* DailyGuessRounds.swift */; };
+		411D6E00000000000000000B /* DailyGuess.swift in Sources */ = {isa = PBXBuildFile; fileRef = 411D6E00000000000000000A /* DailyGuess.swift */; };
 		89A0C0DE0000000000000003 /* RackScanView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 89A0C0DE0000000000000004 /* RackScanView.swift */; };
+		411D6E00000000000000000F /* DailyGuessView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 411D6E00000000000000000E /* DailyGuessView.swift */; };
 		89A0C0DE0000000000000005 /* RackScanTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 89A0C0DE0000000000000006 /* RackScanTests.swift */; };
 		A1C0F1C000000000000000B4 /* AppIconTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1C0F1C000000000000000B3 /* AppIconTests.swift */; };
 		90A0C0DE0000000000000001 /* LegitCheck.swift in Sources */ = {isa = PBXBuildFile; fileRef = 90A0C0DE0000000000000002 /* LegitCheck.swift */; };
@@ -163,7 +166,10 @@
 		5A4ED0000000000000000002 /* WidgetModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetModel.swift; sourceTree = "<group>"; };
 		5C1C4E000000000000000001 /* SnapWorthStickers.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = SnapWorthStickers.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		89A0C0DE0000000000000002 /* RackScan.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RackScan.swift; sourceTree = "<group>"; };
+		411D6E00000000000000000C /* DailyGuessRounds.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DailyGuessRounds.swift; sourceTree = "<group>"; };
+		411D6E00000000000000000A /* DailyGuess.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DailyGuess.swift; sourceTree = "<group>"; };
 		89A0C0DE0000000000000004 /* RackScanView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RackScanView.swift; sourceTree = "<group>"; };
+		411D6E00000000000000000E /* DailyGuessView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DailyGuessView.swift; sourceTree = "<group>"; };
 		89A0C0DE0000000000000006 /* RackScanTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RackScanTests.swift; sourceTree = "<group>"; };
 		A1C0F1C000000000000000B3 /* AppIconTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppIconTests.swift; sourceTree = "<group>"; };
 		90A0C0DE0000000000000002 /* LegitCheck.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LegitCheck.swift; sourceTree = "<group>"; };
@@ -344,6 +350,7 @@
 				AA00000000000000000000E4 /* ScanView.swift */,
 				AA0000000000000000229A06 /* TagCameraSheet.swift */,
 				89A0C0DE0000000000000004 /* RackScanView.swift */,
+				411D6E00000000000000000E /* DailyGuessView.swift */,
 				90A0C0DE0000000000000004 /* LegitCheckView.swift */,
 				FEED000000000000000093A2 /* HaulView.swift */,
 				FEED000000000000000000A5 /* ThriftFlipView.swift */,
@@ -531,6 +538,8 @@
 				FEED000000000000000000A3 /* MarketplaceFees.swift */,
 				1ED6E4000000000000000002 /* LedgerMath.swift */,
 				89A0C0DE0000000000000002 /* RackScan.swift */,
+				411D6E00000000000000000C /* DailyGuessRounds.swift */,
+				411D6E00000000000000000A /* DailyGuess.swift */,
 				90A0C0DE0000000000000002 /* LegitCheck.swift */,
 			);
 			path = Models;
@@ -892,6 +901,8 @@
 				FEED000000000000000000B3 /* MarketplaceFees.swift in Sources */,
 				1ED6E4000000000000000001 /* LedgerMath.swift in Sources */,
 				89A0C0DE0000000000000001 /* RackScan.swift in Sources */,
+				411D6E00000000000000000D /* DailyGuessRounds.swift in Sources */,
+				411D6E00000000000000000B /* DailyGuess.swift in Sources */,
 				90A0C0DE0000000000000001 /* LegitCheck.swift in Sources */,
 				FEED000000000000000000B2 /* PriceTagOCR.swift in Sources */,
 				EA57E0000000000000000B01 /* RareFind.swift in Sources */,
@@ -922,6 +933,7 @@
 				AA0000000000000000229A07 /* SnapSellSection.swift in Sources */,
 				AA0000000000000000229A05 /* TagCameraSheet.swift in Sources */,
 				89A0C0DE0000000000000003 /* RackScanView.swift in Sources */,
+				411D6E00000000000000000F /* DailyGuessView.swift in Sources */,
 				90A0C0DE0000000000000003 /* LegitCheckView.swift in Sources */,
 				AA0000000000000000229A03 /* ValuationDetailView.swift in Sources */,
 				AA0000000000000000229A01 /* FullDetailOffer.swift in Sources */,

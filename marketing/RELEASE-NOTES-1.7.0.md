@@ -4,7 +4,7 @@
 
 1.7.0 (27) makes Tag, tilted inside camera corners, the app icon, and lets
 people pick another one in Settings → App icon. It also carries everything
-merged into the app since the `1.6.2, build 26` bump: Share to SnapWorth,
+merged into the app since the `1.6.2, build 26` bump: Daily guess, Share to SnapWorth,
 Siri and Spotlight, visual intelligence, the haul slideshow, "Type it instead"
 on onboarding, and a second rating moment.
 
@@ -24,6 +24,7 @@ new in 27 (`git log --first-parent 296a89a..main -- ios/`).
 | PR | What | Visible? |
 |----|------|----------|
 | this PR | **New app icon and an icon picker.** Primary icon: Tag inside viewfinder corners on terracotta, with a dark-mode and a tinted variant. Settings → App icon offers Tag, Night, Wow and Classic (the icon before 1.7.0). People who had saved finds before updating get a one-time alert ("Choose your app icon"). New installs never see it. `app_icon_changed{icon, source}` | **Yes** |
+| [#411](https://github.com/hsilviu05/SnapWorth/pull/420) | **Daily guess**: one item a day (from 2026-11-01) on a Scan tab pill. Guess the resale price, see the typical range and what moves it. Play streak, a shareable card. No scan spent. `daily_guess_played` | **Yes** |
 | [#410](https://github.com/hsilviu05/SnapWorth/pull/410) | **Share to SnapWorth**: a share extension takes one photo or screenshot from any app. The app values it on next open; a notification offers it in one tap | **Yes** |
 | [#412](https://github.com/hsilviu05/SnapWorth/pull/412) | **Siri and Spotlight**: a "Value an item" App Shortcut opens the camera. **Visual intelligence** (iOS 26, Pro): "Value this with SnapWorth" on a screenshot or camera search | **Yes** |
 | [#409](https://github.com/hsilviu05/SnapWorth/pull/409) | **Share as slideshow** for a haul: hook slide, up to four finds, the total card | Yes, Haul (Pro) |
@@ -47,7 +48,8 @@ intelligence. Paste each locale's Description from its
 `app_store_listing.<locale>.md` file. `zh-Hans` leaves out visual intelligence,
 because Apple Intelligence is not offered in mainland China.
 `python3 tools/check_listing_limits.py` passes. The tightest is `de` at 3,990
-of 4,000.
+of 4,000. Daily guess is in What's New but not the description: `de`
+has no room left, and the listings stay alike.
 
 The icon on the store page comes from the binary, so it changes when 27 goes
 live. Nothing to upload separately.
@@ -68,16 +70,17 @@ Counts are Unicode characters, newlines included. The limit is 4000.
 
 | Locale | Characters |
 |---|---|
-| `en-US` | 457 |
-| `ro` | 532 |
-| `es` | 505 |
-| `de` | 538 |
-| `zh-Hans` | 173 |
+| `en-US` | 585 |
+| `ro` | 666 |
+| `es` | 652 |
+| `de` | 675 |
+| `zh-Hans` | 222 |
 
 ### `en-US`
 
 ```
 • A new look: meet Tag, our new app icon. Prefer another? Pick Night, Wow or Classic in Settings → App icon.
+• New: Daily guess. One item a day on the Scan tab: guess its resale price, then see the typical range. Keep your streak going.
 • Share to SnapWorth: share a photo or screenshot from Vinted, eBay or any other app and see what it's worth.
 • Siri and Spotlight: say "What's this worth in SnapWorth" to open the camera.
 • Pro: share a haul as a slideshow for TikTok and Instagram.
@@ -89,6 +92,7 @@ Counts are Unicode characters, newlines included. The limit is 4000.
 
 ```
 • Aspect nou: fă cunoștință cu Tag, noua pictogramă a aplicației. Preferi alta? Alege Noapte, Uau sau Clasic în Setări → Pictograma aplicației.
+• Nou: Ghicitoarea zilei. Un obiect pe zi, în fila Scanează: ghicește prețul de revânzare, apoi vezi intervalul tipic. Ține-ți seria.
 • Distribuie în SnapWorth: trimite o poză sau o captură de ecran din Vinted, OLX sau orice altă aplicație și afli cât valorează.
 • Siri și Spotlight: scurtătura „Evaluează un obiect” deschide camera.
 • Pro: distribuie lotul ca prezentare pentru TikTok și Instagram.
@@ -100,6 +104,7 @@ Counts are Unicode characters, newlines included. The limit is 4000.
 
 ```
 • Nuevo look: te presentamos a Tag, el nuevo icono de la app. ¿Prefieres otro? Elige Noche, Wow o Clásico en Ajustes → Icono de la app.
+• Nuevo: Adivinanza diaria. Un artículo al día en la pestaña Escanear: adivina su precio de reventa y descubre el rango habitual. Mantén tu racha.
 • Compartir con SnapWorth: comparte una foto o captura desde Vinted, Wallapop o cualquier otra app y descubre cuánto vale.
 • Siri y Spotlight: el atajo «Valorar un artículo» abre la cámara.
 • Pro: comparte tu lote como carrusel para TikTok e Instagram.
@@ -111,6 +116,7 @@ Counts are Unicode characters, newlines included. The limit is 4000.
 
 ```
 • Neuer Look: Das ist Tag, unser neues App-Symbol. Lieber ein anderes? Wähl Nacht, Wow oder Klassisch unter Einstellungen → App-Symbol.
+• Neu: Tagesrätsel. Jeden Tag ein Artikel im Tab „Scannen“: Rate den Wiederverkaufspreis und sieh die übliche Spanne. Halte deine Serie.
 • Mit SnapWorth teilen: Teil ein Foto oder einen Screenshot aus Vinted, Kleinanzeigen oder jeder anderen App und sieh, was es wert ist.
 • Siri und Spotlight: Der Kurzbefehl „Artikel bewerten“ öffnet die Kamera.
 • Pro: Teil deinen Stapel als Diashow für TikTok und Instagram.
@@ -124,6 +130,7 @@ No visual intelligence line: Apple Intelligence is not offered in mainland China
 
 ```
 • 新面貌：来认识一下 Tag，我们的新应用图标。想换一个？在“设置 → 应用图标”中选择“夜间”、“哇”或“经典”。
+• 新功能：每日猜价。每天一件物品：猜猜它的转卖价，再看看常见价格区间。每天来玩，累积连续天数。
 • 分享到 SnapWorth：从闲鱼或任何 App 分享照片或截图，就能看到它值多少钱。
 • Siri 与聚焦搜索：“估价一件物品”快捷指令可直接打开相机。
 • Pro：把整批好物做成幻灯片，一次分享。
@@ -224,6 +231,13 @@ The device checks for these are in each PR. At minimum:
 - [ ] iOS 26 device, free account: visual intelligence → "Value this with
       SnapWorth" → the paywall. Pro account: the picture is valued.
 - [ ] Haul summary → Share as slideshow: the slides arrive in order.
+
+### Daily guess ([#411](https://github.com/hsilviu05/SnapWorth/pull/420))
+
+- [ ] On or after 2026-11-01: the Scan tab shows the Daily guess pill with
+      an amber dot. Play it: the reveal shows a typical range, the dot goes,
+      the streak reads 1. The next day's round is a different item.
+- [ ] Share the card: it opens the share sheet with the QR.
 
 ### Upgrade
 
