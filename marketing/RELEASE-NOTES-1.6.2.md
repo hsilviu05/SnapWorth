@@ -250,8 +250,12 @@ Run `python3 tools/check_listing_limits.py` first (0 failures on this branch).
 The `1.6.2, build 26` commit in this PR is a lower bound, not the build
 (CLAUDE.md). Fill this in at archive time.
 
-- **Archive commit** (`git rev-parse HEAD` at archive time): _not yet_
-- **Organizer creation date:** _not yet_
+- **Organizer creation date:** 2026-10-28, 23:53 (owner, read from Organizer
+  on 2026-10-30).
+- **Archive commit:** not recorded. The last merge before that time was
+  `5fa8cea` (#405, 23:46), and nothing between the bump `296a89a` and
+  `5fa8cea` touches `ios/`, so the app in 26 is `296a89a`'s whichever of
+  those was checked out. The next app change, #414, merged on 2026-10-29.
 
 ---
 

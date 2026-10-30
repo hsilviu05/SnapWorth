@@ -14,11 +14,11 @@ fixes. It is 1.6.3 because the owner asked for 1.6.3. To ship it as 1.7.0
 instead, change `MARKETING_VERSION` in all eight build configurations and the
 version on this page; the build number stays 27.
 
-**What 26 contains.** 1.6.2 (26) is approved (owner, 2026-10-30), and the
-owner confirms it was archived before any of the changes below were merged,
-so all of them are new in 27. The exact archive commit is still not recorded
-in `RELEASE-NOTES-1.6.2.md`; the table lists app changes merged after the
-bump commit `296a89a` (`git log --first-parent 296a89a..main -- ios/`).
+**What 26 contains is known.** 1.6.2 (26) is approved (owner, 2026-10-30).
+Organizer created its archive on 2026-10-28 at 23:53, and no app change was
+merged between the bump `296a89a` and then (`RELEASE-NOTES-1.6.2.md`,
+*Build 26*). Every change below merged on 2026-10-29 or later, so all of it is
+new in 27 (`git log --first-parent 296a89a..main -- ios/`).
 
 ### Ships in the binary (users get it only with 27)
 
@@ -241,7 +241,6 @@ In order. Nothing here is submitted until the last step, and that one is yours.
 
 - [ ] **1.6.2 is live** (approved 2026-10-30). A new version cannot be
       created while another is waiting for or in review.
-- [ ] Record build 26's archive commit in `RELEASE-NOTES-1.6.2.md`.
 
 ### 1. Identifiers and archive
 
