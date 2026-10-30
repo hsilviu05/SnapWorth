@@ -78,14 +78,27 @@ enum ReviewPrompt {
         return promptedVersion == nil ? nil : now
     }
 
+    /// Which moment of value asked. Sent with `review_prompt_requested`, so
+    /// each moment's effect on ratings can be read apart from the others.
+    enum Moment: String {
+        /// A fresh estimate, revealed, that the app is confident in.
+        case estimate
+        /// A haul's summary with at least one confident estimate.
+        case haul
+        /// A flip saved as sold at a profit (#413).
+        case soldAtProfit = "sold_at_profit"
+    }
+
     /// Request a review if one is due. Call at a moment of value, with the
-    /// payoff already on screen — today that is a fresh estimate, revealed,
-    /// that the app is confident in (`ResultView`).
+    /// payoff already on screen: a fresh estimate, revealed, that the app is
+    /// confident in (`ResultView`); a haul's summary; or a sale at a profit.
     ///
-    /// "Mark as sold" was considered and left out: it opens the sold-price
-    /// and fees fields, and a system prompt there interrupts the user in the
-    /// middle of typing the one number the ledger needs.
-    static func requestIfDue(defaults: UserDefaults = .standard, now: Date = Date()) {
+    /// The sale asks only once the typing is over (`ResultView.asksForSaleReview`):
+    /// marking a flip sold opens the sold-price and fees fields, and a system
+    /// prompt there would interrupt the user in the middle of typing the one
+    /// number the ledger needs.
+    static func requestIfDue(_ moment: Moment, defaults: UserDefaults = .standard,
+                             now: Date = Date()) {
         let stored = defaults.object(forKey: lastRequestKey) as? Date
         let lastRequest = effectiveLastRequest(
             stored: stored, promptedVersion: defaults.string(forKey: promptedVersionKey), now: now)
@@ -99,6 +112,6 @@ enum ReviewPrompt {
 
         AppStore.requestReview(in: scene)
         defaults.set(now, forKey: lastRequestKey)
-        Analytics.shared.track(.reviewPromptRequested)
+        Analytics.shared.track(.reviewPromptRequested(moment: moment))
     }
 }
