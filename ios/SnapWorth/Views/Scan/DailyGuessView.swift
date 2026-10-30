@@ -75,7 +75,7 @@ struct DailyGuessView: View {
                     .font(.snapHeadline)
                     .foregroundStyle(Color.snapEspresso)
                     .accessibilityAddTraits(.isHeader)
-                Text("Day \(day)")
+                Text("Day \(record.playerDay(on: day))")
                     .font(.snapCaption)
                     .foregroundStyle(Color.snapWarmGray)
             }
@@ -217,7 +217,7 @@ struct DailyGuessView: View {
 
     private func share(_ round: DailyGuess.Round, verdict: DailyGuess.Verdict) {
         let card = DailyGuessShareCardView(
-            day: day, item: round.item, condition: round.condition,
+            day: record.playerDay(on: day), item: round.item, condition: round.condition,
             guess: Self.dollars(record.lastGuess), range: Self.range(round), verdict: verdict,
             percentOff: DailyGuess.percentOff(guess: record.lastGuess, low: round.low, high: round.high),
             streak: record.streak(on: day))

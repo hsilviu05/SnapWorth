@@ -11451,13 +11451,29 @@ final class DailyGuessTests: XCTestCase {
         }
     }
 
-    func test_dayOneIsTheEpoch_andEarlierDatesAreDayOne() {
+    func test_theRotationCountsFromTheEpoch_andEarlierDatesAreDayOne() {
         let calendar = utc()
-        XCTAssertEqual(DailyGuess.dayNumber(for: date(2026, 11, 1, hour: 0), calendar: calendar), 1)
-        XCTAssertEqual(DailyGuess.dayNumber(for: date(2026, 11, 1, hour: 23), calendar: calendar), 1)
-        XCTAssertEqual(DailyGuess.dayNumber(for: date(2026, 11, 2, hour: 0), calendar: calendar), 2)
-        XCTAssertEqual(DailyGuess.dayNumber(for: date(2026, 10, 1), calendar: calendar), 1)
-        XCTAssertEqual(DailyGuess.dayNumber(for: date(2027, 1, 1), calendar: calendar), 62)
+        XCTAssertEqual(DailyGuess.dayNumber(for: date(2026, 10, 1, hour: 0), calendar: calendar), 1)
+        XCTAssertEqual(DailyGuess.dayNumber(for: date(2026, 10, 1, hour: 23), calendar: calendar), 1)
+        XCTAssertEqual(DailyGuess.dayNumber(for: date(2026, 10, 2, hour: 0), calendar: calendar), 2)
+        XCTAssertEqual(DailyGuess.dayNumber(for: date(2026, 9, 1), calendar: calendar), 1)
+        XCTAssertEqual(DailyGuess.dayNumber(for: date(2027, 1, 1), calendar: calendar), 93)
+    }
+
+    /// The epoch is in the past, so no build ships into a stretch where every
+    /// day plays the first round.
+    func test_theEpochHasPassed() {
+        XCTAssertGreaterThan(DailyGuess.dayNumber(for: Date()), 1)
+    }
+
+    /// Whenever the game goes live, a player's first day is their day 1.
+    func test_thePlayersDayCountsFromTheirFirstGame() {
+        XCTAssertEqual(DailyGuessRecord.empty.playerDay(on: 200), 1)
+        let first = DailyGuessRecord.empty.playing(day: 200, guess: 10)
+        XCTAssertEqual(first.playerDay(on: 200), 1)
+        let later = first.playing(day: 201, guess: 10).playing(day: 205, guess: 10)
+        XCTAssertEqual(later.firstDay, 200, "a broken streak keeps the first day")
+        XCTAssertEqual(later.playerDay(on: 205), 6)
     }
 
     func test_theRoundsPlayInOrderAndWrap() {
@@ -11495,7 +11511,7 @@ final class DailyGuessTests: XCTestCase {
 
     func test_theStreakCountsDaysPlayedInARow() {
         var record = DailyGuessRecord.empty.playing(day: 5, guess: 10)
-        XCTAssertEqual(record, DailyGuessRecord(lastDay: 5, lastGuess: 10, streak: 1, best: 1))
+        XCTAssertEqual(record, DailyGuessRecord(firstDay: 5, lastDay: 5, lastGuess: 10, streak: 1, best: 1))
 
         record = record.playing(day: 6, guess: 20).playing(day: 7, guess: 30)
         XCTAssertEqual(record.streak, 3)
@@ -11509,7 +11525,7 @@ final class DailyGuessTests: XCTestCase {
     }
 
     func test_theStreakShownIsZeroOnceADayIsMissed() {
-        let record = DailyGuessRecord(lastDay: 10, lastGuess: 1, streak: 4, best: 4)
+        let record = DailyGuessRecord(firstDay: 7, lastDay: 10, lastGuess: 1, streak: 4, best: 4)
         XCTAssertEqual(record.streak(on: 10), 4)
         XCTAssertEqual(record.streak(on: 11), 4, "still alive until tomorrow ends")
         XCTAssertEqual(record.streak(on: 12), 0)
@@ -11523,7 +11539,7 @@ final class DailyGuessTests: XCTestCase {
         defer { defaults.removePersistentDomain(forName: suite) }
 
         XCTAssertEqual(DailyGuessRecord.load(defaults: defaults), .empty)
-        let record = DailyGuessRecord(lastDay: 12, lastGuess: 37.5, streak: 3, best: 8)
+        let record = DailyGuessRecord(firstDay: 3, lastDay: 12, lastGuess: 37.5, streak: 3, best: 8)
         record.save(defaults: defaults)
         XCTAssertEqual(DailyGuessRecord.load(defaults: defaults), record)
     }

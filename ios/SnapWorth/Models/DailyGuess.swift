@@ -8,8 +8,10 @@ import Foundation
 /// and the day picks one. The answers are typical secondhand ranges, framed as
 /// such everywhere they are shown, never as sold-listing data.
 ///
-/// The game is the same for everyone on the same local day, and plays the
-/// rounds in order, starting again after the last.
+/// The round is the same for everyone on the same local day, and the rounds
+/// play in order, starting again after the last. The "Day N" a player sees is
+/// their own, counted from the first day they played, so the game starts at
+/// day 1 for everyone whenever the build that carries it goes live.
 enum DailyGuess {
 
     struct Round: Equatable {
@@ -26,10 +28,12 @@ enum DailyGuess {
         let slug: String
     }
 
-    /// Day 1 of the game. Before it, today counts as day 1.
-    static let epoch = DateComponents(year: 2026, month: 11, day: 1)
+    /// Where the rotation is counted from. It only sets which round falls on
+    /// which date, not when the game starts, so it is in the past: a date
+    /// before it would play the first round every day.
+    static let epoch = DateComponents(year: 2026, month: 10, day: 1)
 
-    /// Which day of the game `date` falls on, counting from 1, in the
+    /// Which day of the rotation `date` falls on, counting from 1, in the
     /// calendar's time zone. Pure, for the tests.
     static func dayNumber(for date: Date, calendar: Calendar = .current) -> Int {
         guard let start = calendar.date(from: epoch) else { return 1 }
@@ -95,6 +99,8 @@ enum DailyGuess {
 /// coming back is what the game is for, and a miss ending it would punish the
 /// people the reveal teaches most.
 struct DailyGuessRecord: Equatable {
+    /// The first day this phone played, as `DailyGuess.dayNumber`; 0 before.
+    var firstDay: Int
     /// The last day played, as `DailyGuess.dayNumber`.
     var lastDay: Int
     /// The guess on `lastDay`.
@@ -102,7 +108,7 @@ struct DailyGuessRecord: Equatable {
     var streak: Int
     var best: Int
 
-    static let empty = DailyGuessRecord(lastDay: 0, lastGuess: 0, streak: 0, best: 0)
+    static let empty = DailyGuessRecord(firstDay: 0, lastDay: 0, lastGuess: 0, streak: 0, best: 0)
 
     /// The record after a guess on `day`. Pure, for the tests.
     ///
@@ -110,8 +116,15 @@ struct DailyGuessRecord: Equatable {
     func playing(day: Int, guess: Double) -> DailyGuessRecord {
         guard day != lastDay else { return self }
         let streak = (day == lastDay + 1) ? self.streak + 1 : 1
-        return DailyGuessRecord(lastDay: day, lastGuess: guess, streak: streak,
+        return DailyGuessRecord(firstDay: firstDay > 0 ? firstDay : day,
+                                lastDay: day, lastGuess: guess, streak: streak,
                                 best: max(best, streak))
+    }
+
+    /// The player's own day number on `day`: 1 on the first day they play
+    /// (or before they ever have), counting up from there.
+    func playerDay(on day: Int) -> Int {
+        firstDay > 0 ? max(1, day - firstDay + 1) : 1
     }
 
     /// The streak as of `day`: unbroken if the last play was today or
@@ -133,11 +146,12 @@ struct DailyGuessRecord: Equatable {
               let streak = raw["streak"] as? Int,
               let best = raw["best"] as? Int
         else { return .empty }
-        return DailyGuessRecord(lastDay: lastDay, lastGuess: lastGuess, streak: streak, best: best)
+        let firstDay = raw["firstDay"] as? Int ?? lastDay
+        return DailyGuessRecord(firstDay: firstDay, lastDay: lastDay, lastGuess: lastGuess, streak: streak, best: best)
     }
 
     func save(defaults: UserDefaults = .standard) {
-        defaults.set(["lastDay": lastDay, "lastGuess": lastGuess, "streak": streak, "best": best],
+        defaults.set(["firstDay": firstDay, "lastDay": lastDay, "lastGuess": lastGuess, "streak": streak, "best": best],
                      forKey: Self.key)
     }
 }
