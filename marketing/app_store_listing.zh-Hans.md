@@ -99,7 +99,7 @@ generous here. The brand stays Latin — it is what the icon says and what the
 
 ---
 
-## Description (4000 chars max; 1,401 with line breaks)
+## Description (4000 chars max; 1,511 with line breaks)
 
 在二手店、市集或者闲鱼上看到一件东西，拿在手里不知道到底值不值？SnapWorth 立刻告诉你。
 
@@ -128,6 +128,8 @@ generous here. The brand stays Latin — it is what the icon says and what the
 • 总值——扫过的全部东西加起来值多少，一眼看清
 • 小组件——锁定屏幕上的收获总值；主屏幕上的最近好物、剩余扫描次数，以及一键扫描
 • iMessage 贴纸——吉祥物 Tag 的 20 款贴纸（其中 4 款为动图），晒出你的好物
+• 分享到 SnapWorth——从闲鱼或任何 App 分享照片或截图，就能看到它值多少钱
+• Siri 与聚焦搜索——“估价一件物品”快捷指令可直接打开相机
 
 --------------------------
 
@@ -147,6 +149,7 @@ SnapWorth 免费使用，不用注册。每天一次免费扫描，长期有效�
 Pro 增加：
 • 无限扫描（适用合理使用原则）
 • 批量模式——一件接一件拍，边拍边估价，实时显示总额
+• 批量幻灯片——把整批好物做成幻灯片，一次分享到社交平台
 • 货架扫描——拍一张衣架、货架或货箱的照片，找出最值得细看的物品
 • 真伪检查——按引导拍摄特写，查找仿品的常见迹象。这是对你的照片的观察，并非真伪认证。
 • 按你选的平台重写商品描述——闲鱼、eBay、Vinted、Poshmark、Mercari、Depop 或 Facebook Marketplace。闲鱼的描述用中文写。

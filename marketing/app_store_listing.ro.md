@@ -123,7 +123,7 @@ Află cât valorează înainte să-l cumperi. O poză, o estimare de preț, cât
 
 ---
 
-## Description (4000 chars max; 3,536 with line breaks)
+## Description (4000 chars max; 3,916 with line breaks)
 
 Ai luat vreodată ceva dintr-un second hand și te-ai întrebat dacă valorează ceva? SnapWorth îți spune pe loc.
 
@@ -152,6 +152,8 @@ CE PRIMEȘTI
 • Total — cât valorează tot ce ai scanat, dintr-o privire
 • Widgeturi — totalul găselnițelor pe ecranul de blocare; ultimele găselnițe, scanările rămase și scanarea dintr-o atingere pe ecranul principal
 • Stickere pentru iMessage — 20 de stickere cu Tag, mascota noastră (patru animate), ca să te lauzi cu ce ai găsit
+• Distribuie în SnapWorth — trimite o poză sau o captură de ecran din Vinted, OLX sau orice altă aplicație și afli cât valorează
+• Siri și Spotlight — scurtătura „Evaluează un obiect” deschide camera
 
 --------------------------
 
@@ -171,6 +173,8 @@ SnapWorth se folosește gratuit, fără cont. Primești o scanare gratuită în 
 Pro adaugă:
 • Scanări nelimitate (în limita utilizării rezonabile)
 • Modul Lot — fotografiezi obiect după obiect și fiecare e evaluat pe loc, cu totalul la vedere
+• Lotul ca prezentare — distribuie lotul ca slide-uri pentru TikTok și Instagram
+• Inteligență vizuală (iOS 26) — evaluează cu SnapWorth o captură de ecran sau o căutare cu camera
 • Scanare raft — o fotografie a unui stand, raft sau coș și articolele care merită o privire mai atentă
 • Verificare originalitate — prim-planuri ghidate, analizate pentru semnele obișnuite ale unei replici. O observație despre fotografiile tale, nu o certificare a autenticității.
 • Anunțuri rescrise pentru platforma pe care o alegi — OLX, Vinted, eBay, Poshmark, Mercari, Depop sau Facebook Marketplace

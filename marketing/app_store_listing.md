@@ -134,7 +134,7 @@ or market data — SnapWorth has no such source.
 
 ---
 
-## Description (4000 chars max; 3,349 with line breaks)
+## Description (4000 chars max; 3,691 with line breaks)
 
 What's it worth? Ever picked up something at a thrift store and wondered if it's worth reselling? SnapWorth is a thrift scanner and price checker for resellers: one photo, and you know in seconds.
 
@@ -165,6 +165,8 @@ WHAT YOU GET
 • Total haul tracker — see what your collection is worth at a glance
 • Widgets — your haul's total on the Lock Screen; recent finds, scans left and one-tap scan on the Home Screen
 • iMessage stickers — 20 stickers of Tag, our mascot (four animated), for bragging about a find
+• Share to SnapWorth — share a photo or screenshot from Vinted, eBay or any other app and see what it's worth
+• Siri and Spotlight — say "What's this worth in SnapWorth" to open the camera
 
 --------------------------
 
@@ -184,6 +186,8 @@ SnapWorth is free to try — no account needed. You get one free scan every day,
 Pro adds:
 • Unlimited scans (fair use applies)
 • Haul mode — snap item after item while each is valued, with a running total
+• Haul slideshow — share a haul as slides for TikTok and Instagram
+• Visual intelligence (iOS 26) — value a screenshot or a camera search with SnapWorth
 • Rack scan — one photo of a rail, shelf or bin, and the items most worth a closer look
 • Legit check — guided close-ups, read for the usual signs of a replica. An observation about your photos, not a certification of authenticity.
 • Listing drafts rewritten for the marketplace you pick — eBay, Poshmark, Mercari, Depop, Facebook Marketplace, Vinted, OLX, Kleinanzeigen or Xianyu
