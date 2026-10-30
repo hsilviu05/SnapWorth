@@ -14,13 +14,11 @@ fixes. It is 1.6.3 because the owner asked for 1.6.3. To ship it as 1.7.0
 instead, change `MARKETING_VERSION` in all eight build configurations and the
 version on this page; the build number stays 27.
 
-**What 26 contains is not recorded yet.** `RELEASE-NOTES-1.6.2.md` still reads
-*Archive commit: not yet*. The bump commit `296a89a` is a lower bound, not the
-build (CLAUDE.md). The table below lists app changes merged after `296a89a`
-(`git log --first-parent 296a89a..main -- ios/`). If 26 was archived later than
-that, some of them are already in 26 and are not new here: check against the
-archive commit once it is recorded. If 26 was never uploaded, all of this can
-ship as 1.6.2 (26) instead and this version is not needed.
+**What 26 contains.** 1.6.2 (26) is approved (owner, 2026-10-30), and the
+owner confirms it was archived before any of the changes below were merged,
+so all of them are new in 27. The exact archive commit is still not recorded
+in `RELEASE-NOTES-1.6.2.md`; the table lists app changes merged after the
+bump commit `296a89a` (`git log --first-parent 296a89a..main -- ios/`).
 
 ### Ships in the binary (users get it only with 27)
 
@@ -241,10 +239,9 @@ In order. Nothing here is submitted until the last step, and that one is yours.
 
 ### 0. Before touching 1.6.3
 
-- [ ] **1.6.2 is live** (or removed from review). A new version cannot be
+- [ ] **1.6.2 is live** (approved 2026-10-30). A new version cannot be
       created while another is waiting for or in review.
-- [ ] Record build 26's archive commit in `RELEASE-NOTES-1.6.2.md`, and
-      re-check the table above against it.
+- [ ] Record build 26's archive commit in `RELEASE-NOTES-1.6.2.md`.
 
 ### 1. Identifiers and archive
 
