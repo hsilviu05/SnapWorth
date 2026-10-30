@@ -1,0 +1,12 @@
+{
+  "images" : [
+    {
+      "filename" : "kitchenaid-stand-mixer.jpg",
+      "idiom" : "universal"
+    }
+  ],
+  "info" : {
+    "author" : "xcode",
+    "version" : 1
+  }
+}

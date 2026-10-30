@@ -6831,6 +6831,606 @@
       "es": "Valora todo lo que veas",
       "de": "Bewerte alles, was du siehst",
       "zh-Hans": "看到什么都能估价"
+    },
+    "Like new": {
+      "comment": "Daily guess (#411): the condition of the item in a round, from the website's /worth guides (website/seo/build_seo.py ITEMS).",
+      "en": "Like new",
+      "ro": "Ca nou",
+      "es": "Como nuevo",
+      "de": "Wie neu",
+      "zh-Hans": "几乎全新"
+    },
+    "Worn": {
+      "comment": "Daily guess (#411): the condition of the item in a round, from the website's /worth guides (website/seo/build_seo.py ITEMS).",
+      "en": "Worn",
+      "ro": "Purtat",
+      "es": "Usado",
+      "de": "Getragen",
+      "zh-Hans": "有穿着痕迹"
+    },
+    "Worn / pilled": {
+      "comment": "Daily guess (#411): the condition of the item in a round, from the website's /worth guides (website/seo/build_seo.py ITEMS).",
+      "en": "Worn / pilled",
+      "ro": "Purtat / cu scame",
+      "es": "Usado / con bolitas",
+      "de": "Getragen / mit Knötchen",
+      "zh-Hans": "有穿着痕迹 / 起球"
+    },
+    "Worn / flawed": {
+      "comment": "Daily guess (#411): the condition of the item in a round, from the website's /worth guides (website/seo/build_seo.py ITEMS).",
+      "en": "Worn / flawed",
+      "ro": "Purtat / cu defecte",
+      "es": "Usado / con defectos",
+      "de": "Getragen / mit Mängeln",
+      "zh-Hans": "有穿着痕迹 / 有瑕疵"
+    },
+    "Worn footbed": {
+      "comment": "Daily guess (#411): the condition of the item in a round, from the website's /worth guides (website/seo/build_seo.py ITEMS).",
+      "en": "Worn footbed",
+      "ro": "Talpă interioară uzată",
+      "es": "Plantilla desgastada",
+      "de": "Abgenutztes Fußbett",
+      "zh-Hans": "鞋床磨损"
+    },
+    "Heavily worn": {
+      "comment": "Daily guess (#411): the condition of the item in a round, from the website's /worth guides (website/seo/build_seo.py ITEMS).",
+      "en": "Heavily worn",
+      "ro": "Foarte uzat",
+      "es": "Muy desgastado",
+      "de": "Stark abgenutzt",
+      "zh-Hans": "严重磨损"
+    },
+    "Faded / worn": {
+      "comment": "Daily guess (#411): the condition of the item in a round, from the website's /worth guides (website/seo/build_seo.py ITEMS).",
+      "en": "Faded / worn",
+      "ro": "Decolorat / uzat",
+      "es": "Descolorido / desgastado",
+      "de": "Verblasst / abgenutzt",
+      "zh-Hans": "褪色 / 磨损"
+    },
+    "Cosmetic wear": {
+      "comment": "Daily guess (#411): the condition of the item in a round, from the website's /worth guides (website/seo/build_seo.py ITEMS).",
+      "en": "Cosmetic wear",
+      "ro": "Uzură estetică",
+      "es": "Desgaste estético",
+      "de": "Optische Gebrauchsspuren",
+      "zh-Hans": "外观磨损"
+    },
+    "Chipped enamel": {
+      "comment": "Daily guess (#411): the condition of the item in a round, from the website's /worth guides (website/seo/build_seo.py ITEMS).",
+      "en": "Chipped enamel",
+      "ro": "Email ciobit",
+      "es": "Esmalte desconchado",
+      "de": "Abgeplatzte Emaille",
+      "zh-Hans": "搪瓷有磕碰"
+    },
+    "Scratched": {
+      "comment": "Daily guess (#411): the condition of the item in a round, from the website's /worth guides (website/seo/build_seo.py ITEMS).",
+      "en": "Scratched",
+      "ro": "Zgâriat",
+      "es": "Rayado",
+      "de": "Zerkratzt",
+      "zh-Hans": "有划痕"
+    },
+    "Scratched lenses": {
+      "comment": "Daily guess (#411): the condition of the item in a round, from the website's /worth guides (website/seo/build_seo.py ITEMS).",
+      "en": "Scratched lenses",
+      "ro": "Lentile zgâriate",
+      "es": "Lentes rayadas",
+      "de": "Zerkratzte Gläser",
+      "zh-Hans": "镜片有划痕"
+    },
+    "Deadstock / unworn": {
+      "comment": "Daily guess (#411): the condition of the item in a round, from the website's /worth guides (website/seo/build_seo.py ITEMS).",
+      "en": "Deadstock / unworn",
+      "ro": "Nou, nepurtat",
+      "es": "Nuevo sin estrenar",
+      "de": "Neu / ungetragen",
+      "zh-Hans": "全新未穿"
+    },
+    "Limited color / new": {
+      "comment": "Daily guess (#411): the condition of the item in a round, from the website's /worth guides (website/seo/build_seo.py ITEMS).",
+      "en": "Limited color / new",
+      "ro": "Culoare limitată / nou",
+      "es": "Color limitado / nuevo",
+      "de": "Limitierte Farbe / neu",
+      "zh-Hans": "限定配色 / 全新"
+    },
+    "Good used": {
+      "comment": "Daily guess (#411): the condition of the item in a round, from the website's /worth guides (website/seo/build_seo.py ITEMS).",
+      "en": "Good used",
+      "ro": "Folosit, stare bună",
+      "es": "Usado en buen estado",
+      "de": "Gebraucht, guter Zustand",
+      "zh-Hans": "二手，状况良好"
+    },
+    "Good vintage": {
+      "comment": "Daily guess (#411): the condition of the item in a round, from the website's /worth guides (website/seo/build_seo.py ITEMS).",
+      "en": "Good vintage",
+      "ro": "Vintage în stare bună",
+      "es": "Vintage en buen estado",
+      "de": "Vintage, guter Zustand",
+      "zh-Hans": "古着，状况良好"
+    },
+    "Good working": {
+      "comment": "Daily guess (#411): the condition of the item in a round, from the website's /worth guides (website/seo/build_seo.py ITEMS).",
+      "en": "Good working",
+      "ro": "Funcționează bine",
+      "es": "Funciona bien",
+      "de": "Gut funktionsfähig",
+      "zh-Hans": "运转良好"
+    },
+    "Good modern pair": {
+      "comment": "Daily guess (#411): the condition of the item in a round, from the website's /worth guides (website/seo/build_seo.py ITEMS).",
+      "en": "Good modern pair",
+      "ro": "Pereche modernă în stare bună",
+      "es": "Par moderno en buen estado",
+      "de": "Neueres Paar, guter Zustand",
+      "zh-Hans": "新款，状况良好"
+    },
+    "Good common pattern": {
+      "comment": "Daily guess (#411): the condition of the item in a round, from the website's /worth guides (website/seo/build_seo.py ITEMS).",
+      "en": "Good common pattern",
+      "ro": "Model obișnuit, stare bună",
+      "es": "Diseño común, buen estado",
+      "de": "Gängiges Muster, guter Zustand",
+      "zh-Hans": "常见花色，状况良好"
+    },
+    "Excellent / rare color": {
+      "comment": "Daily guess (#411): the condition of the item in a round, from the website's /worth guides (website/seo/build_seo.py ITEMS).",
+      "en": "Excellent / rare color",
+      "ro": "Excelent / culoare rară",
+      "es": "Excelente / color raro",
+      "de": "Exzellent / seltene Farbe",
+      "zh-Hans": "极佳 / 稀有颜色"
+    },
+    "Excellent / with case": {
+      "comment": "Daily guess (#411): the condition of the item in a round, from the website's /worth guides (website/seo/build_seo.py ITEMS).",
+      "en": "Excellent / with case",
+      "ro": "Excelent / cu toc",
+      "es": "Excelente / con estuche",
+      "de": "Exzellent / mit Etui",
+      "zh-Hans": "极佳 / 带眼镜盒"
+    },
+    "Excellent / extra attachments": {
+      "comment": "Daily guess (#411): the condition of the item in a round, from the website's /worth guides (website/seo/build_seo.py ITEMS).",
+      "en": "Excellent / extra attachments",
+      "ro": "Excelent / accesorii în plus",
+      "es": "Excelente / accesorios extra",
+      "de": "Exzellent / mit Zusatzaufsätzen",
+      "zh-Hans": "极佳 / 附加配件"
+    },
+    "Vintage / excellent": {
+      "comment": "Daily guess (#411): the condition of the item in a round, from the website's /worth guides (website/seo/build_seo.py ITEMS).",
+      "en": "Vintage / excellent",
+      "ro": "Vintage / excelent",
+      "es": "Vintage / excelente",
+      "de": "Vintage / exzellent",
+      "zh-Hans": "古着 / 极佳"
+    },
+    "Vintage leather / excellent": {
+      "comment": "Daily guess (#411): the condition of the item in a round, from the website's /worth guides (website/seo/build_seo.py ITEMS).",
+      "en": "Vintage leather / excellent",
+      "ro": "Piele vintage / excelent",
+      "es": "Piel vintage / excelente",
+      "de": "Vintage-Leder / exzellent",
+      "zh-Hans": "复古皮革 / 极佳"
+    },
+    "Vintage / made in USA": {
+      "comment": "Daily guess (#411): the condition of the item in a round, from the website's /worth guides (website/seo/build_seo.py ITEMS).",
+      "en": "Vintage / made in USA",
+      "ro": "Vintage / fabricat în SUA",
+      "es": "Vintage / hecho en EE. UU.",
+      "de": "Vintage / Made in USA",
+      "zh-Hans": "古着 / 美国制造"
+    },
+    "Vintage / union made": {
+      "comment": "Daily guess (#411): the condition of the item in a round, from the website's /worth guides (website/seo/build_seo.py ITEMS).",
+      "en": "Vintage / union made",
+      "ro": "Vintage / fabricat sindical (union made)",
+      "es": "Vintage / fabricación sindical (union made)",
+      "de": "Vintage / gewerkschaftlich gefertigt (union made)",
+      "zh-Hans": "古着 / 工会制造（union made）"
+    },
+    "Made in England / vintage": {
+      "comment": "Daily guess (#411): the condition of the item in a round, from the website's /worth guides (website/seo/build_seo.py ITEMS).",
+      "en": "Made in England / vintage",
+      "ro": "Fabricat în Anglia / vintage",
+      "es": "Hecho en Inglaterra / vintage",
+      "de": "Made in England / vintage",
+      "zh-Hans": "英国制造 / 古着"
+    },
+    "Rare band / true vintage": {
+      "comment": "Daily guess (#411): the condition of the item in a round, from the website's /worth guides (website/seo/build_seo.py ITEMS).",
+      "en": "Rare band / true vintage",
+      "ro": "Trupă rară / vintage autentic",
+      "es": "Grupo raro / vintage auténtico",
+      "de": "Seltene Band / echtes Vintage",
+      "zh-Hans": "稀有乐队 / 真古着"
+    },
+    "Rare pattern / complete set": {
+      "comment": "Daily guess (#411): the condition of the item in a round, from the website's /worth guides (website/seo/build_seo.py ITEMS).",
+      "en": "Rare pattern / complete set",
+      "ro": "Model rar / set complet",
+      "es": "Diseño raro / juego completo",
+      "de": "Seltenes Muster / komplettes Set",
+      "zh-Hans": "稀有花色 / 整套"
+    },
+    "Newer / reprint": {
+      "comment": "Daily guess (#411): the condition of the item in a round, from the website's /worth guides (website/seo/build_seo.py ITEMS).",
+      "en": "Newer / reprint",
+      "ro": "Mai nou / retipărire",
+      "es": "Más reciente / reedición",
+      "de": "Neuer / Nachdruck",
+      "zh-Hans": "较新 / 复刻版"
+    },
+    "Colorway (classic neutrals and retro tones sell fastest)": {
+      "comment": "Daily guess (#411): what moves this item's price, shown after the guess. From the website's /worth guides (website/seo/build_seo.py ITEMS).",
+      "en": "Colorway (classic neutrals and retro tones sell fastest)",
+      "ro": "Culoarea (nuanțele neutre clasice și cele retro se vând cel mai repede)",
+      "es": "La combinación de colores (los neutros clásicos y los tonos retro se venden antes)",
+      "de": "Die Farbgebung (klassische Neutraltöne und Retrofarben verkaufen sich am schnellsten)",
+      "zh-Hans": "配色（经典中性色和复古色卖得最快）"
+    },
+    "Colorway (black and bold retro colors lead)": {
+      "comment": "Daily guess (#411): what moves this item's price, shown after the guess. From the website's /worth guides (website/seo/build_seo.py ITEMS).",
+      "en": "Colorway (black and bold retro colors lead)",
+      "ro": "Culoarea (negrul și culorile retro puternice se vând cel mai bine)",
+      "es": "La combinación de colores (el negro y los colores retro llamativos mandan)",
+      "de": "Die Farbgebung (Schwarz und kräftige Retrofarben liegen vorn)",
+      "zh-Hans": "配色（黑色和醒目的复古色最受欢迎）"
+    },
+    "Colorway and collaborations": {
+      "comment": "Daily guess (#411): what moves this item's price, shown after the guess. From the website's /worth guides (website/seo/build_seo.py ITEMS).",
+      "en": "Colorway and collaborations",
+      "ro": "Culoarea și colaborările",
+      "es": "La combinación de colores y las colaboraciones",
+      "de": "Farbgebung und Kollaborationen",
+      "zh-Hans": "配色和联名款"
+    },
+    "Color (rare/discontinued colors spike)": {
+      "comment": "Daily guess (#411): what moves this item's price, shown after the guess. From the website's /worth guides (website/seo/build_seo.py ITEMS).",
+      "en": "Color (rare/discontinued colors spike)",
+      "ro": "Culoarea (culorile rare sau scoase din producție urcă prețul)",
+      "es": "El color (los colores raros o descatalogados se disparan)",
+      "de": "Die Farbe (seltene oder eingestellte Farben treiben den Preis)",
+      "zh-Hans": "颜色（稀有或停产颜色价格飙升）"
+    },
+    "Limited-edition and collab colors": {
+      "comment": "Daily guess (#411): what moves this item's price, shown after the guess. From the website's /worth guides (website/seo/build_seo.py ITEMS).",
+      "en": "Limited-edition and collab colors",
+      "ro": "Culorile de ediție limitată și din colaborări",
+      "es": "Los colores de edición limitada y colaboraciones",
+      "de": "Farben aus limitierten Editionen und Kollaborationen",
+      "zh-Hans": "限量版和联名配色"
+    },
+    "Made in USA vs. imported": {
+      "comment": "Daily guess (#411): what moves this item's price, shown after the guess. From the website's /worth guides (website/seo/build_seo.py ITEMS).",
+      "en": "Made in USA vs. imported",
+      "ro": "Fabricat în SUA sau importat",
+      "es": "Hecho en EE. UU. o importado",
+      "de": "Made in USA oder importiert",
+      "zh-Hans": "美国制造还是进口"
+    },
+    "Made in England vs. current production": {
+      "comment": "Daily guess (#411): what moves this item's price, shown after the guess. From the website's /worth guides (website/seo/build_seo.py ITEMS).",
+      "en": "Made in England vs. current production",
+      "ro": "Fabricat în Anglia sau producția actuală",
+      "es": "Hecho en Inglaterra o producción actual",
+      "de": "Made in England oder aktuelle Produktion",
+      "zh-Hans": "英国制造还是当前产线"
+    },
+    "Union-made / vintage tags": {
+      "comment": "Daily guess (#411): what moves this item's price, shown after the guess. From the website's /worth guides (website/seo/build_seo.py ITEMS).",
+      "en": "Union-made / vintage tags",
+      "ro": "Etichete union-made / vintage",
+      "es": "Etiquetas union-made / vintage",
+      "de": "Union-made- / Vintage-Etiketten",
+      "zh-Hans": "工会制造 / 古着吊牌"
+    },
+    "Full leather vs. coated canvas": {
+      "comment": "Daily guess (#411): what moves this item's price, shown after the guess. From the website's /worth guides (website/seo/build_seo.py ITEMS).",
+      "en": "Full leather vs. coated canvas",
+      "ro": "Piele integrală sau pânză cerată",
+      "es": "Piel completa o lona recubierta",
+      "de": "Volleder oder beschichtetes Canvas",
+      "zh-Hans": "全皮还是涂层帆布"
+    },
+    "Size (5.5qt and 7.25qt are popular)": {
+      "comment": "Daily guess (#411): what moves this item's price, shown after the guess. From the website's /worth guides (website/seo/build_seo.py ITEMS).",
+      "en": "Size (5.5qt and 7.25qt are popular)",
+      "ro": "Mărimea (5,5 qt și 7,25 qt sunt căutate)",
+      "es": "El tamaño (5,5 qt y 7,25 qt son los más buscados)",
+      "de": "Die Größe (5,5 qt und 7,25 qt sind gefragt)",
+      "zh-Hans": "尺寸（5.5 夸脱和 7.25 夸脱最受欢迎）"
+    },
+    "Pattern rarity (promotional patterns spike)": {
+      "comment": "Daily guess (#411): what moves this item's price, shown after the guess. From the website's /worth guides (website/seo/build_seo.py ITEMS).",
+      "en": "Pattern rarity (promotional patterns spike)",
+      "ro": "Raritatea modelului (modelele promoționale urcă prețul)",
+      "es": "La rareza del diseño (los diseños promocionales se disparan)",
+      "de": "Seltenheit des Musters (Werbemuster treiben den Preis)",
+      "zh-Hans": "花色稀有度（促销花色价格飙升）"
+    },
+    "Vintage logo era": {
+      "comment": "Daily guess (#411): what moves this item's price, shown after the guess. From the website's /worth guides (website/seo/build_seo.py ITEMS).",
+      "en": "Vintage logo era",
+      "ro": "Perioada logoului vintage",
+      "es": "La época del logotipo vintage",
+      "de": "Die Ära des Vintage-Logos",
+      "zh-Hans": "复古 logo 的年代"
+    },
+    "Material (suede/leather/shearling)": {
+      "comment": "Daily guess (#411): what moves this item's price, shown after the guess. From the website's /worth guides (website/seo/build_seo.py ITEMS).",
+      "en": "Material (suede/leather/shearling)",
+      "ro": "Materialul (piele întoarsă / piele / blană de oaie)",
+      "es": "El material (ante / piel / borrego)",
+      "de": "Das Material (Wildleder / Leder / Lammfell)",
+      "zh-Hans": "材质（麂皮 / 皮革 / 羊毛皮）"
+    },
+    "Authenticity (etched logo, engravings)": {
+      "comment": "Daily guess (#411): what moves this item's price, shown after the guess. From the website's /worth guides (website/seo/build_seo.py ITEMS).",
+      "en": "Authenticity (etched logo, engravings)",
+      "ro": "Autenticitatea (logo gravat, gravuri)",
+      "es": "La autenticidad (logotipo grabado, grabados)",
+      "de": "Die Echtheit (geätztes Logo, Gravuren)",
+      "zh-Hans": "真伪（蚀刻 logo、刻字）"
+    },
+    "Working motor and gears": {
+      "comment": "Daily guess (#411): what moves this item's price, shown after the guess. From the website's /worth guides (website/seo/build_seo.py ITEMS).",
+      "en": "Working motor and gears",
+      "ro": "Motorul și angrenajele funcționale",
+      "es": "Que el motor y los engranajes funcionen",
+      "de": "Funktionierender Motor und Getriebe",
+      "zh-Hans": "电机和齿轮能否正常运转"
+    },
+    "Band and tour rarity": {
+      "comment": "Daily guess (#411): what moves this item's price, shown after the guess. From the website's /worth guides (website/seo/build_seo.py ITEMS).",
+      "en": "Band and tour rarity",
+      "ro": "Raritatea trupei și a turneului",
+      "es": "La rareza del grupo y de la gira",
+      "de": "Seltenheit der Band und der Tour",
+      "zh-Hans": "乐队和巡演的稀有度"
+    },
+    "Daily guess": {
+      "comment": "Daily guess (#411): the game's name, on its Scan-tab button and as the sheet's title.",
+      "en": "Daily guess",
+      "ro": "Ghicitoarea zilei",
+      "es": "Adivinanza diaria",
+      "de": "Tagesrätsel",
+      "zh-Hans": "每日猜价"
+    },
+    "Day %lld": {
+      "comment": "Daily guess (#411): which day of the game this is, counting from 1.",
+      "en": "Day %lld",
+      "ro": "Ziua %lld",
+      "es": "Día %lld",
+      "de": "Tag %lld",
+      "zh-Hans": "第 %lld 天"
+    },
+    "Condition: %@": {
+      "comment": "Daily guess (#411): the item's condition, already translated.",
+      "en": "Condition: %@",
+      "ro": "Stare: %@",
+      "es": "Estado: %@",
+      "de": "Zustand: %@",
+      "zh-Hans": "成色：%@"
+    },
+    "Photo: %@": {
+      "comment": "Daily guess (#411): credit under the item's photo, as its license asks. The argument is the photographer's name and the license name, e.g. \"Jane Doe, CC BY 2.0\"; neither is translated.",
+      "en": "Photo: %@",
+      "ro": "Foto: %@",
+      "es": "Foto: %@",
+      "de": "Foto: %@",
+      "zh-Hans": "图片：%@"
+    },
+    "What does it resell for?": {
+      "comment": "Daily guess (#411): the question the player answers with a price.",
+      "en": "What does it resell for?",
+      "ro": "Cu cât se revinde?",
+      "es": "¿Por cuánto se revende?",
+      "de": "Für wie viel lässt es sich weiterverkaufen?",
+      "zh-Hans": "二手能卖多少钱？"
+    },
+    "Your guess": {
+      "comment": "Daily guess (#411): placeholder of the price field.",
+      "en": "Your guess",
+      "ro": "Prețul tău",
+      "es": "Tu respuesta",
+      "de": "Dein Tipp",
+      "zh-Hans": "你的猜测"
+    },
+    "Your guess in dollars": {
+      "comment": "Daily guess (#411): VoiceOver label of the price field. Prices are US dollars in every language.",
+      "en": "Your guess in dollars",
+      "ro": "Prețul tău, în dolari",
+      "es": "Tu respuesta, en dólares",
+      "de": "Dein Tipp in Dollar",
+      "zh-Hans": "你的猜测（美元）"
+    },
+    "Guess": {
+      "comment": "Daily guess (#411): button that submits the price.",
+      "en": "Guess",
+      "ro": "Ghicește",
+      "es": "Adivinar",
+      "de": "Tippen",
+      "zh-Hans": "猜"
+    },
+    "Never uses a scan.": {
+      "comment": "Daily guess (#411): under the button: playing does not spend the free daily scan.",
+      "en": "Never uses a scan.",
+      "ro": "Nu consumă nicio scanare.",
+      "es": "No gasta ningún escaneo.",
+      "de": "Verbraucht keinen Scan.",
+      "zh-Hans": "不会消耗扫描次数。"
+    },
+    "In the range!": {
+      "comment": "Daily guess (#411): the guess was inside the typical range.",
+      "en": "In the range!",
+      "ro": "În interval!",
+      "es": "¡Dentro del rango!",
+      "de": "Im Bereich!",
+      "zh-Hans": "在区间内！"
+    },
+    "Close!": {
+      "comment": "Daily guess (#411): the guess was just outside the typical range.",
+      "en": "Close!",
+      "ro": "Aproape!",
+      "es": "¡Casi!",
+      "de": "Knapp daneben!",
+      "zh-Hans": "很接近！"
+    },
+    "Not this time": {
+      "comment": "Daily guess (#411): the guess was well outside the typical range.",
+      "en": "Not this time",
+      "ro": "Nu de data asta",
+      "es": "Esta vez no",
+      "de": "Diesmal nicht",
+      "zh-Hans": "这次没猜中"
+    },
+    "You guessed %@.": {
+      "comment": "Daily guess (#411): %@ is the player's price, e.g. $40.",
+      "en": "You guessed %@.",
+      "ro": "Ai ghicit %@.",
+      "es": "Dijiste %@.",
+      "de": "Dein Tipp: %@.",
+      "zh-Hans": "你猜的是 %@。"
+    },
+    "Typical resale: %@": {
+      "comment": "Daily guess (#411): %@ is a dollar range, e.g. $40–$60.",
+      "en": "Typical resale: %@",
+      "ro": "Revânzare tipică: %@",
+      "es": "Reventa típica: %@",
+      "de": "Typischer Wiederverkauf: %@",
+      "zh-Hans": "常见转卖价：%@"
+    },
+    "What moves the price: %@": {
+      "comment": "Daily guess (#411): %@ is one factor, already translated.",
+      "en": "What moves the price: %@",
+      "ro": "Ce influențează prețul: %@",
+      "es": "Qué mueve el precio: %@",
+      "de": "Was den Preis bestimmt: %@",
+      "zh-Hans": "影响价格的因素：%@"
+    },
+    "A typical secondhand range, for guidance. Not sold-listing data.": {
+      "comment": "Daily guess (#411): the honesty line under every reveal, as on the website's /guess.",
+      "en": "A typical secondhand range, for guidance. Not sold-listing data.",
+      "ro": "Un interval tipic la mâna a doua, orientativ. Nu sunt date din vânzări reale.",
+      "es": "Un rango típico de segunda mano, orientativo. No son datos de ventas reales.",
+      "de": "Eine typische Gebrauchtpreisspanne zur Orientierung. Keine Verkaufsdaten.",
+      "zh-Hans": "常见二手价格区间，仅供参考，并非实际成交数据。"
+    },
+    "Streak": {
+      "comment": "Daily guess (#411): label under the number of days played in a row.",
+      "en": "Streak",
+      "ro": "Serie",
+      "es": "Racha",
+      "de": "Serie",
+      "zh-Hans": "连续天数"
+    },
+    "Best": {
+      "comment": "Daily guess (#411): label under the longest streak so far.",
+      "en": "Best",
+      "ro": "Record",
+      "es": "Mejor",
+      "de": "Bestwert",
+      "zh-Hans": "最佳"
+    },
+    "Streak: %lld": {
+      "comment": "Daily guess (#411): days played in a row; VoiceOver, and on the share card after a flame emoji.",
+      "en": "Streak: %lld",
+      "ro": "Serie: %lld",
+      "es": "Racha: %lld",
+      "de": "Serie: %lld",
+      "zh-Hans": "连续：%lld 天"
+    },
+    "🔥 Streak: %lld": {
+      "comment": "Daily guess (#411): on the share card: days played in a row.",
+      "en": "🔥 Streak: %lld",
+      "ro": "🔥 Serie: %lld",
+      "es": "🔥 Racha: %lld",
+      "de": "🔥 Serie: %lld",
+      "zh-Hans": "🔥 连续 %lld 天"
+    },
+    "A new item tomorrow.": {
+      "comment": "Daily guess (#411): after playing: the next round is tomorrow.",
+      "en": "A new item tomorrow.",
+      "ro": "Un obiect nou mâine.",
+      "es": "Mañana, un artículo nuevo.",
+      "de": "Morgen gibt es ein neues Teil.",
+      "zh-Hans": "明天换一件新物品。"
+    },
+    "Played today": {
+      "comment": "Daily guess (#411): VoiceOver value of the Scan-tab button.",
+      "en": "Played today",
+      "ro": "Jucat azi",
+      "es": "Jugado hoy",
+      "de": "Heute gespielt",
+      "zh-Hans": "今天已玩"
+    },
+    "Not played today": {
+      "comment": "Daily guess (#411): VoiceOver value of the Scan-tab button.",
+      "en": "Not played today",
+      "ro": "Nejucat azi",
+      "es": "Sin jugar hoy",
+      "de": "Heute noch nicht gespielt",
+      "zh-Hans": "今天还没玩"
+    },
+    "Guess what today's item resells for. Never uses a scan.": {
+      "comment": "Daily guess (#411): VoiceOver hint of the Scan-tab button.",
+      "en": "Guess what today's item resells for. Never uses a scan.",
+      "ro": "Ghicește cu cât se revinde obiectul de azi. Nu consumă nicio scanare.",
+      "es": "Adivina por cuánto se revende el artículo de hoy. No gasta ningún escaneo.",
+      "de": "Rate, für wie viel sich das heutige Teil weiterverkaufen lässt. Verbraucht keinen Scan.",
+      "zh-Hans": "猜猜今天这件物品二手能卖多少钱。不会消耗扫描次数。"
+    },
+    "DAILY GUESS · DAY %lld": {
+      "comment": "Daily guess (#411): share card heading, in capitals where the language has them.",
+      "en": "DAILY GUESS · DAY %lld",
+      "ro": "GHICITOAREA ZILEI · ZIUA %lld",
+      "es": "ADIVINANZA DIARIA · DÍA %lld",
+      "de": "TAGESRÄTSEL · TAG %lld",
+      "zh-Hans": "每日猜价 · 第 %lld 天"
+    },
+    "My guess: in the range": {
+      "comment": "Daily guess (#411): share card verdict.",
+      "en": "My guess: in the range",
+      "ro": "Prețul meu: în interval",
+      "es": "Mi respuesta: dentro del rango",
+      "de": "Mein Tipp: im Bereich",
+      "zh-Hans": "我的猜测：在区间内"
+    },
+    "My guess: within %@": {
+      "comment": "Daily guess (#411): share card verdict; %@ is a percentage such as 8%.",
+      "en": "My guess: within %@",
+      "ro": "Prețul meu: la %@ de mijloc",
+      "es": "Mi respuesta: a un %@ del centro",
+      "de": "Mein Tipp: %@ von der Mitte entfernt",
+      "zh-Hans": "我的猜测：与中间值相差 %@"
+    },
+    "My guess: close": {
+      "comment": "Daily guess (#411): share card verdict.",
+      "en": "My guess: close",
+      "ro": "Prețul meu: aproape",
+      "es": "Mi respuesta: casi",
+      "de": "Mein Tipp: knapp daneben",
+      "zh-Hans": "我的猜测：很接近"
+    },
+    "My guess: not this time": {
+      "comment": "Daily guess (#411): share card verdict.",
+      "en": "My guess: not this time",
+      "ro": "Prețul meu: nu de data asta",
+      "es": "Mi respuesta: esta vez no",
+      "de": "Mein Tipp: diesmal nicht",
+      "zh-Hans": "我的猜测：这次没中"
+    },
+    "Can you beat it?": {
+      "comment": "Daily guess (#411): share card call to play.",
+      "en": "Can you beat it?",
+      "ro": "Poți mai bine?",
+      "es": "¿Lo superas?",
+      "de": "Kannst du das schlagen?",
+      "zh-Hans": "你能猜得更准吗？"
     }
   }
 }
