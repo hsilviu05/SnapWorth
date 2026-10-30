@@ -166,6 +166,10 @@ The leading half of each loop. The install half is in the
 The other names #205 gives as new in 1.5.1 are health signals rather than
 growth: `review_prompt_requested` (`1947a79`, #193) and
 `entitlement_sync_failed` by `reason` (`ea2c8f2`, #194). Both are 1.5.1 (21).
+From the build after 1.6.2, `review_prompt_requested` carries `moment`:
+`estimate`, `haul` or `sold_at_profit` (#413), so the sold-flip moment can be
+read apart from the estimate one. Earlier builds send it without `moment`;
+those requests are all `estimate` or `haul`.
 
 ## Server — `/week`
 

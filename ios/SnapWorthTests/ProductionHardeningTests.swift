@@ -9399,7 +9399,7 @@ final class ReviewPromptTimingTests: XCTestCase {
         UserDefaults.standard.removeObject(forKey: Analytics.enabledKey)
         defaults.set(5, forKey: "snapworth_successful_scans")
         defaults.set("1.4.1", forKey: "snapworth_review_prompted_version")
-        ReviewPrompt.requestIfDue(defaults: defaults, now: now)
+        ReviewPrompt.requestIfDue(.estimate, defaults: defaults, now: now)
         XCTAssertEqual(defaults.object(forKey: "snapworth_review_last_requested") as? Date, now)
         XCTAssertFalse(spy.events.map(\.name).contains("review_prompt_requested"),
                        "asked for a review instead of starting the gap")
@@ -9437,9 +9437,49 @@ final class ReviewPromptTimingTests: XCTestCase {
         XCTAssertTrue(view.contains("guard !Task.isCancelled, !isCoveredByAnotherScreen else { return }"))
     }
 
-    func test_theRequestIsCounted() {
-        XCTAssertEqual(AnalyticsEvent.reviewPromptRequested.name, "review_prompt_requested")
-        XCTAssertEqual(AnalyticsEvent.reviewPromptRequested.parameters, [:])
+    /// Each moment is named, so the sold-flip moment (#413) can be read
+    /// apart from the estimate one it shipped after.
+    func test_theRequestIsCountedWithItsMoment() {
+        let cases: [(ReviewPrompt.Moment, String)] = [
+            (.estimate, "estimate"), (.haul, "haul"), (.soldAtProfit, "sold_at_profit"),
+        ]
+        for (moment, raw) in cases {
+            let event = AnalyticsEvent.reviewPromptRequested(moment: moment)
+            XCTAssertEqual(event.name, "review_prompt_requested")
+            XCTAssertEqual(event.parameters, ["moment": raw])
+        }
+    }
+
+    // ── A flip sold at a profit (#413) ───────────────────────────────
+
+    func test_aSaleAsksOnlyOnceItTurnsProfitableAndTheTypingIsOver() {
+        func asks(open: Bool = false, profit: Bool = true, editing: Bool = false,
+                  covered: Bool = false, asked: Bool = false) -> Bool {
+            ResultView.asksForSaleReview(soldAtProfitOnOpen: open, isSaleAtProfit: profit,
+                                         isEditing: editing, isCovered: covered, alreadyAsked: asked)
+        }
+        XCTAssertTrue(asks())
+        XCTAssertFalse(asks(editing: true), "never over a half-typed sold price")
+        XCTAssertFalse(asks(open: true), "an old sale reopened is not a new moment")
+        XCTAssertFalse(asks(profit: false), "a loss, or a sale with no paid price")
+        XCTAssertFalse(asks(covered: true), "never over the paywall or a share sheet")
+        XCTAssertFalse(asks(asked: true), "once per sheet")
+    }
+
+    func test_aSaleAtAProfitNeedsBothPricesAndMoneyLeftOver() {
+        let r = ScanResult(itemName: "Jacket", brand: "B", category: "clothing",
+                           conditionNotes: "Good", valueLow: 40, valueHigh: 60, confidence: "High",
+                           soldListingsCount: 0, listingTitle: "T", listingDescription: "D")
+        r.status = .sold
+        r.soldPrice = 80
+        XCTAssertFalse(ResultView.isSaleAtProfit(r), "no paid price, no profit")
+        r.paidPrice = 20
+        XCTAssertTrue(ResultView.isSaleAtProfit(r))
+        r.feesEstimate = 60
+        XCTAssertFalse(ResultView.isSaleAtProfit(r), "broke even after fees")
+        r.feesEstimate = 0
+        r.status = .listed
+        XCTAssertFalse(ResultView.isSaleAtProfit(r), "not sold")
     }
 }
 

@@ -74,6 +74,10 @@ struct ResultView: View {
     @Environment(\.modelContext) private var modelContext
     /// Per result: a fresh sheet starts covered when the preference is on.
     @State private var priceRevealed = false
+    /// The find was already a sale at a profit when this sheet opened.
+    @State private var soldAtProfitOnOpen: Bool
+    /// The sale's rating request has been made from this sheet.
+    @State private var askedForSaleReview = false
     @State private var quickGuessText = ""
     /// The range the guess was scored against, captured at the reveal — see
     /// `ResultValueCard.revealedRange`.
@@ -119,6 +123,7 @@ struct ResultView: View {
         _paidPriceText = State(initialValue: gone ? "" : Self.moneyField(result.paidPrice))
         _soldPriceText = State(initialValue: gone ? "" : Self.moneyField(result.soldPrice))
         _feesText      = State(initialValue: gone ? "" : Self.moneyField(result.feesEstimate))
+        _soldAtProfitOnOpen = State(initialValue: gone ? true : Self.isSaleAtProfit(result))
     }
 
     /// The find was deleted while this sheet still held it.
@@ -372,7 +377,18 @@ struct ResultView: View {
                                      isCovered: isCoveredByAnotherScreen) else { return }
             try? await Task.sleep(for: .seconds(2))
             guard !Task.isCancelled, !isCoveredByAnotherScreen else { return }
-            ReviewPrompt.requestIfDue()
+            ReviewPrompt.requestIfDue(.estimate)
+        }
+        // A flip saved as sold at a profit (#413): the profit row is the
+        // payoff on screen. Asked once the typing is over, so the prompt never
+        // lands on a half-typed sold price, and only for a sale that became
+        // profitable in this sheet, not every time an old one is reopened.
+        .task(id: asksForSaleReview) {
+            guard asksForSaleReview else { return }
+            try? await Task.sleep(for: .seconds(1.5))
+            guard !Task.isCancelled, asksForSaleReview else { return }
+            askedForSaleReview = true
+            ReviewPrompt.requestIfDue(.soldAtProfit)
         }
         // `Double(newValue)` here discarded every comma-decimal amount — see
         // `MoneyInput`. Clearing the field still clears the stored value; a
@@ -673,6 +689,28 @@ struct ResultView: View {
                               isCovered: Bool = false) -> Bool {
         isFreshScan && !priceCovered && !isCovered
             && ReviewPrompt.isWorthAskingAbout(confidence: confidence)
+    }
+
+    /// Sold, with a profit above zero. A sale with no paid price has no
+    /// profit to be pleased by, and is not one.
+    static func isSaleAtProfit(_ result: ScanResult) -> Bool {
+        guard let profit = result.realizedProfit else { return false }
+        return profit > 0
+    }
+
+    /// Whether to ask for a rating for a sale (#413): it became a sale at a
+    /// profit while this sheet was open, nothing is being typed, nothing
+    /// covers the result, and it has not already asked. Pure, for the tests.
+    static func asksForSaleReview(soldAtProfitOnOpen: Bool, isSaleAtProfit: Bool,
+                                  isEditing: Bool, isCovered: Bool, alreadyAsked: Bool) -> Bool {
+        !soldAtProfitOnOpen && isSaleAtProfit && !isEditing && !isCovered && !alreadyAsked
+    }
+
+    private var asksForSaleReview: Bool {
+        !findWasDeleted && Self.asksForSaleReview(
+            soldAtProfitOnOpen: soldAtProfitOnOpen, isSaleAtProfit: Self.isSaleAtProfit(result),
+            isEditing: focusedField != nil, isCovered: isCoveredByAnotherScreen,
+            alreadyAsked: askedForSaleReview)
     }
 
     /// Every screen, sheet or dialog this view presents over the result.

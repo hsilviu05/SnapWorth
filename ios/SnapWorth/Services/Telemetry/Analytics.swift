@@ -179,7 +179,8 @@ enum AnalyticsEvent {
     /// `ReviewPrompt` asked iOS for a rating prompt. Whether iOS showed one is
     /// not knowable — it answers nothing — so this counts requests, which is
     /// what the 60-day gap and the three-a-year budget are spent in.
-    case reviewPromptRequested
+    /// `moment` says which moment of value asked (`ReviewPrompt.Moment`).
+    case reviewPromptRequested(moment: ReviewPrompt.Moment)
 
     // ── Stability (MetricKit) ────────────────────────────────────────
     /// A crash reported by MetricKit on a later launch. Signal and termination
@@ -296,6 +297,8 @@ enum AnalyticsEvent {
             return ["via": via.rawValue]
         case let .haulShared(format):
             return ["format": format.rawValue]
+        case let .reviewPromptRequested(moment):
+            return ["moment": moment.rawValue]
         // `default_plan` (#220): which plan the paywall preselected, so each
         // arm of the trial experiment can be read from these events alone.
         case let .paywallViewed(trigger, isFirst):

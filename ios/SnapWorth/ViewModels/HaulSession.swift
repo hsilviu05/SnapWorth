@@ -724,7 +724,7 @@ final class HaulSession {
                 guard worthAskingForReview else { return }
                 Task {
                     try? await Task.sleep(for: .seconds(1.2))
-                    ReviewPrompt.requestIfDue()
+                    ReviewPrompt.requestIfDue(.haul)
                 }
             },
             sleep: { try await Task.sleep(for: $0) },
