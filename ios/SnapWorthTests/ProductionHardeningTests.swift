@@ -11551,6 +11551,19 @@ final class DailyGuessTests: XCTestCase {
         XCTAssertEqual(event.parameters, ["verdict": "close", "streak": "4-6"])
     }
 
+    /// A photo named in the rounds is in the asset catalog, and carries the
+    /// credit its license asks for.
+    func test_everyRoundPhotoIsBundledAndCredited() {
+        let photos = DailyGuess.rounds.compactMap(\.photo)
+        XCTAssertFalse(photos.isEmpty, "no round has a photo")
+        for photo in photos {
+            XCTAssertNotNil(UIImage(named: photo.asset), photo.asset)
+            XCTAssertTrue(photo.credit.contains("CC") || photo.credit.localizedCaseInsensitiveContains("public domain"),
+                          "\(photo.asset): \(photo.credit) names no license")
+            XCTAssertEqual(URL(string: photo.source)?.host, "commons.wikimedia.org", photo.asset)
+        }
+    }
+
     /// A round's condition and price factor are shown translated, so each
     /// needs an entry in the app's catalog source, or it shows in English.
     func test_everyRoundsWordsAreInTheCatalog() throws {

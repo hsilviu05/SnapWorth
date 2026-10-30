@@ -26,6 +26,19 @@ enum DailyGuess {
         let why: String
         /// The website guide for this item, `snapworth.app/worth/<slug>`.
         let slug: String
+        /// An openly licensed photo of the item, where one fits; the icon
+        /// stands in otherwise.
+        let photo: Photo?
+    }
+
+    struct Photo: Equatable {
+        /// The image in the asset catalog.
+        let asset: String
+        /// "Author, License", as the license asks to be credited. Names and
+        /// license names stay as written.
+        let credit: String
+        /// The photo's page, which carries the full license.
+        let source: String
     }
 
     /// Where the rotation is counted from. It only sets which round falls on

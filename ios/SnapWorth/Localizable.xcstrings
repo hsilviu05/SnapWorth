@@ -18917,6 +18917,42 @@
         }
       }
     },
+    "Photo: %@" : {
+      "comment" : "Daily guess (#411): credit under the item's photo, as its license asks. The argument is the photographer's name and the license name, e.g. \"Jane Doe, CC BY 2.0\"; neither is translated.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Foto: %@"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Photo: %@"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Foto: %@"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Foto: %@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "图片：%@"
+          }
+        }
+      }
+    },
     "Photograph the care tag, size label or sole stamp and we'll re-read the item with both photos." : {
       "extractionState" : "manual",
       "localizations" : {

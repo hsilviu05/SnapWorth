@@ -7216,6 +7216,14 @@
       "de": "Zustand: %@",
       "zh-Hans": "成色：%@"
     },
+    "Photo: %@": {
+      "comment": "Daily guess (#411): credit under the item's photo, as its license asks. The argument is the photographer's name and the license name, e.g. \"Jane Doe, CC BY 2.0\"; neither is translated.",
+      "en": "Photo: %@",
+      "ro": "Foto: %@",
+      "es": "Foto: %@",
+      "de": "Foto: %@",
+      "zh-Hans": "图片：%@"
+    },
     "What does it resell for?": {
       "comment": "Daily guess (#411): the question the player answers with a price.",
       "en": "What does it resell for?",

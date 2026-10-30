@@ -97,6 +97,17 @@ struct DailyGuessView: View {
 
     private func itemCard(_ round: DailyGuess.Round) -> some View {
         VStack(alignment: .leading, spacing: 8) {
+            if let photo = round.photo {
+                Image(photo.asset)
+                    .resizable()
+                    .scaledToFill()
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 220)
+                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    .accessibilityHidden(true)
+                photoCredit(photo)
+                    .padding(.bottom, 4)
+            }
             Text(verbatim: "\(round.category.emoji)  \(round.category.label.uppercased())")
                 .font(.snapLabel)
                 .foregroundStyle(Color.snapTerracottaText)
@@ -117,6 +128,19 @@ struct DailyGuessView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Color.snapCard)
         .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+    }
+
+    /// The attribution the photo's license asks for, linked to its page.
+    @ViewBuilder
+    private func photoCredit(_ photo: DailyGuess.Photo) -> some View {
+        let label = Text("Photo: \(photo.credit)")
+            .font(.snapCaption)
+            .foregroundStyle(Color.snapWarmGray)
+        if let url = URL(string: photo.source) {
+            Link(destination: url) { label.underline() }
+        } else {
+            label
+        }
     }
 
     private var guessField: some View {
