@@ -85,6 +85,10 @@ struct ScanView: View {
     /// the same run-loop turn and there is no window at all.
     @State private var captureInFlight = false
 
+    /// A visual intelligence picture a free user tapped, kept while the
+    /// paywall it opened is up, to value if they subscribe (#412).
+    @State private var heldVisualImage: UIImage?
+
     /// A restricted camera has been counted for this screen — see the
     /// `authStatus` handler.
     @State private var restrictedCounted = false
@@ -548,8 +552,18 @@ struct ScanView: View {
         // route above has cleared the screen. Valued like a capture, holding
         // the shutter; one already in flight wins, and the share is dropped
         // rather than queued behind it.
+        //
+        // Visual intelligence is Pro (#412): a free user gets the paywall, and
+        // the picture is valued if they subscribe from it.
         .onReceive(NotificationCenter.default.publisher(for: .snapScanSharedImage)) { note in
             guard let image = note.object as? UIImage, !captureInFlight, !vm.isAnalyzing else { return }
+            let origin = note.userInfo?[SharedImageOrigin.userInfoKey] as? SharedImageOrigin
+            if origin == .visualIntelligence, !purchaseService.isSubscribed {
+                heldVisualImage = image
+                vm.paywallTrigger = .visualIntelligence
+                vm.showPaywall = true
+                return
+            }
             captureInFlight = true
             vm.capturedImage = image
             Task { await triggerScan(image: image) }
@@ -746,12 +760,22 @@ struct ScanView: View {
     }
 
     /// A purchase made from the Haul entry lands in Haul, which is what the
-    /// user was trying to open.
+    /// user was trying to open, and one from a visual intelligence result
+    /// values the picture they tapped.
     ///
     /// Otherwise, a purchase from the scan-limit paywall finishes the scan it
     /// interrupted, rather than leaving a new subscriber in front of an empty
     /// viewfinder to shoot the same item again.
     private func paywallDismissed() {
+        if vm.paywallTrigger == .visualIntelligence {
+            let held = heldVisualImage
+            heldVisualImage = nil
+            guard purchaseService.isSubscribed, let held, !captureInFlight, !vm.isAnalyzing else { return }
+            captureInFlight = true
+            vm.capturedImage = held
+            Task { await triggerScan(image: held, afterPurchase: true) }
+            return
+        }
         if vm.paywallTrigger == .haul {
             if purchaseService.isSubscribed { showHaul = true }
             return

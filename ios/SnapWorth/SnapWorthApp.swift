@@ -211,15 +211,31 @@ struct SnapWorthApp: App {
     /// The scan route goes first, so the Scan tab is selected and whatever was
     /// presented over the camera is cleared, then the photo. A turn later, as
     /// the onboarding hop above does, so a cold launch has its `ScanView`.
+    ///
+    /// A visual intelligence result tapped on the way in (#412) is drained the
+    /// same way; see `ValueVisualLookupIntent`. Both are taken, so neither
+    /// lingers to open by itself later, and the tap wins: it is what brought
+    /// the user in.
     private func drainSharedImage() {
-        guard hasCompletedOnboarding,
-              let data = SharedImageInbox.take(),
-              let image = UIImage(data: data) else { return }
-        Analytics.shared.track(.widgetOpened(source: WidgetSource.share.rawValue))
-        Task { @MainActor in
-            NotificationCenter.default.post(name: .snapWidgetOpenScan, object: nil)
-            NotificationCenter.default.post(name: .snapScanSharedImage, object: image)
+        guard hasCompletedOnboarding else { return }
+        let visual = VisualLookupInbox.takeReady().flatMap(UIImage.init(data:))
+        let shared = SharedImageInbox.take().flatMap(UIImage.init(data:))
+        if let visual {
+            Task { @MainActor in Self.scanSharedImage(visual, origin: .visualIntelligence) }
+        } else if let shared {
+            Task { @MainActor in Self.scanSharedImage(shared, origin: .share) }
         }
+    }
+
+    /// The scan route, so the Scan tab is selected and whatever was presented
+    /// over the camera is cleared, then the picture for `ScanView` to value.
+    @MainActor
+    static func scanSharedImage(_ image: UIImage, origin: SharedImageOrigin,
+                                center: NotificationCenter = .default) {
+        Analytics.shared.track(.widgetOpened(source: origin.source.rawValue))
+        center.post(name: .snapWidgetOpenScan, object: nil)
+        center.post(name: .snapScanSharedImage, object: image,
+                    userInfo: [SharedImageOrigin.userInfoKey: origin])
     }
 
     private func handleWidgetURL(_ url: URL) {
@@ -335,6 +351,9 @@ enum WidgetSource: String, CaseIterable {
     case siri
     /// A photo shared to SnapWorth from another app (#410). Also app-only.
     case share
+    /// A "Value this with SnapWorth" result in iOS 26's visual intelligence
+    /// (#412). Also app-only.
+    case visualIntelligence = "visual_intelligence"
 
     init?(url: URL) {
         guard let raw = URLComponents(url: url, resolvingAgainstBaseURL: false)?
@@ -344,13 +363,30 @@ enum WidgetSource: String, CaseIterable {
     }
 }
 
+/// Where a picture posted with `.snapScanSharedImage` came from. Visual
+/// intelligence is Pro, so `ScanView` asks.
+enum SharedImageOrigin {
+    case share
+    case visualIntelligence
+
+    static let userInfoKey = "origin"
+
+    var source: WidgetSource {
+        switch self {
+        case .share: return .share
+        case .visualIntelligence: return .visualIntelligence
+        }
+    }
+}
+
 // ── Notification names for widget deep links ──────────────────────────────────
 
 extension Notification.Name {
     static let snapWidgetOpenScan    = Notification.Name("snapWidgetOpenScan")
     static let snapWidgetOpenHistory = Notification.Name("snapWidgetOpenHistory")
-    /// A photo shared from another app, as the notification's `object`
-    /// (`UIImage`), for `ScanView` to value. See `drainSharedImage`.
+    /// A photo shared from another app or tapped in visual intelligence, as
+    /// the notification's `object` (`UIImage`), with its `SharedImageOrigin`
+    /// in `userInfo`, for `ScanView` to value. See `scanSharedImage`.
     static let snapScanSharedImage   = Notification.Name("snapScanSharedImage")
     /// Posted just before a deep link to another tab, so whatever is presented
     /// over the tab bar gets out of the way. See `SnapWorthApp.open(_:center:)`.

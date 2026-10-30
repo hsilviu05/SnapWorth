@@ -13390,6 +13390,42 @@
         }
       }
     },
+    "Item" : {
+      "comment" : "Shortcuts: the name of the visual intelligence action's one input, the picture to value (#412).",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Artikel"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Item"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Artículo"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Obiect"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "物品"
+          }
+        }
+      }
+    },
     "Just for fun — not a real valuation" : {
       "comment" : "Rare-find easter egg (RareFind.swift). The joke is hype and rarity only — keep it that way in translation. Under the easter-egg label on the card.",
       "extractionState" : "manual",
@@ -20268,6 +20304,42 @@
         }
       }
     },
+    "See what it's worth to resell" : {
+      "comment" : "Visual intelligence (iOS 26): the line under \"Value this with SnapWorth\" (#412).",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sieh, was es beim Wiederverkauf wert ist"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "See what it's worth to resell"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Descubre cuánto vale al revenderlo"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vezi cât valorează la revânzare"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "看看转卖值多少钱"
+          }
+        }
+      }
+    },
     "See what's trending" : {
       "comment" : "Paywall headline when it opened from the locked 'Trending at the thrift' card.",
       "extractionState" : "manual",
@@ -22073,6 +22145,42 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "SnapWorth 现在已确认你的订阅。请再试一次。"
+          }
+        }
+      }
+    },
+    "SnapWorth valuation" : {
+      "comment" : "Visual intelligence and Shortcuts (iOS 26): the kind of result SnapWorth offers. SnapWorth is the brand (#412).",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SnapWorth-Bewertung"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SnapWorth valuation"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Valoración de SnapWorth"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Evaluare SnapWorth"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SnapWorth 估价"
           }
         }
       }
@@ -26566,6 +26674,42 @@
         }
       }
     },
+    "Value anything you see" : {
+      "comment" : "Paywall headline when a free user taps SnapWorth's visual intelligence result, which is Pro (#412). Must not say \"free\".",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bewerte alles, was du siehst"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Value anything you see"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Valora todo lo que veas"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Evaluează orice vezi"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "看到什么都能估价"
+          }
+        }
+      }
+    },
     "Value history" : {
       "comment" : "VoiceOver label for the portfolio sparkline on My Finds (Pro). Its value is the first and last total, e.g. '$45 to $1,240'.",
       "extractionState" : "manual",
@@ -26598,6 +26742,42 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "价值走势"
+          }
+        }
+      }
+    },
+    "Value this with SnapWorth" : {
+      "comment" : "Visual intelligence (iOS 26): SnapWorth's result for a screenshot or camera search, and the action it runs. SnapWorth is the brand and stays as is (#412).",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mit SnapWorth bewerten"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Value this with SnapWorth"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Valorar con SnapWorth"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Evaluează cu SnapWorth"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "用 SnapWorth 估价"
           }
         }
       }

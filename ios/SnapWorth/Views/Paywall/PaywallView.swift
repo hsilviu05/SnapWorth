@@ -591,6 +591,10 @@ enum PaywallCopy {
         case .rackScan:
             return Pitch(headline: String(localized: "Find the best on the rack"),
                          leadIcon: "rectangle.split.3x1.fill")
+        // Pro is what visual intelligence needs, and its lead row is the
+        // nearest the list has: no limit on what gets valued.
+        case .visualIntelligence:
+            return Pitch(headline: String(localized: "Value anything you see"), leadIcon: "infinity")
         // True where buying shows the find's breakdown: a fresh result,
         // re-read once the purchase lands, or a full panel. Not on a free
         // user's thin find reopened from My Finds or My Flips, which nothing

@@ -9662,7 +9662,8 @@ final class WidgetSourceTests: XCTestCase {
                            "\(file.lastPathComponent) opens the app without saying from where")
         }
         // Sent from inside the app, never from a widget URL.
-        let appOnly: Set<String> = [WidgetSource.siri.rawValue, WidgetSource.share.rawValue]
+        let appOnly: Set<String> = [WidgetSource.siri.rawValue, WidgetSource.share.rawValue,
+                                     WidgetSource.visualIntelligence.rawValue]
         XCTAssertEqual(sent, Set(WidgetSource.allCases.map(\.rawValue)).subtracting(appOnly))
     }
 }
@@ -11277,5 +11278,95 @@ final class SharedImageInboxTests: XCTestCase {
         // A minute of clock skew is tolerated; more says the clock moved.
         XCTAssertTrue(SharedImageInbox.isFresh(sharedAt: t + 60, now: now))
         XCTAssertFalse(SharedImageInbox.isFresh(sharedAt: t + 61, now: now))
+    }
+}
+
+// ── Visual intelligence (#412) ────────────────────────────────────────────────
+
+final class VisualLookupInboxTests: XCTestCase {
+
+    override func setUp() {
+        super.setUp()
+        try? FileManager.default.removeItem(at: VisualLookupInbox.directory)
+    }
+
+    override func tearDown() {
+        try? FileManager.default.removeItem(at: VisualLookupInbox.directory)
+        super.tearDown()
+    }
+
+    func test_anIdIsMillisecondsAndNothingElse() {
+        XCTAssertEqual(VisualLookupInbox.stamp(fromID: "1761750000123"), 1_761_750_000.123)
+        // Ids come back from the system: a path must never reach the folder.
+        for bad in ["", "../1761750000123", "1761750000123.jpg", "abc", "１２３", "12345678901234567"] {
+            XCTAssertNil(VisualLookupInbox.stamp(fromID: bad), bad)
+        }
+        XCTAssertEqual(VisualLookupInbox.stamp(fromName: "staged-1761750000123.jpg",
+                                               prefix: VisualLookupInbox.staged), 1_761_750_000.123)
+        XCTAssertNil(VisualLookupInbox.stamp(fromName: "ready-1761750000123.jpg",
+                                             prefix: VisualLookupInbox.staged))
+        XCTAssertNil(VisualLookupInbox.stamp(fromName: "staged-1761750000123.png",
+                                             prefix: VisualLookupInbox.staged))
+    }
+
+    func test_onlyTheNewestFreshSearchesAreKept() {
+        let now = Date(timeIntervalSince1970: 1_761_750_000)
+        let t = now.timeIntervalSince1970
+        let stale = t - VisualLookupInbox.maxAge - 1
+        let drop = VisualLookupInbox.stagedToPrune([t - 4, t - 3, t - 2, t - 1, stale], now: now)
+        XCTAssertEqual(drop, [t - 4, stale])
+        XCTAssertEqual(VisualLookupInbox.stagedToPrune([t], now: now), [])
+    }
+
+    func test_aTappedSearchIsValuedOnceAndTheRestGoWithIt() throws {
+        let now = Date()
+        let first = try VisualLookupInbox.stage(Data("first".utf8), now: now.addingTimeInterval(-2))
+        let second = try VisualLookupInbox.stage(Data("second".utf8), now: now.addingTimeInterval(-1))
+        XCTAssertNil(VisualLookupInbox.takeReady(now: now), "nothing was tapped")
+
+        XCTAssertTrue(VisualLookupInbox.markReady(id: first, now: now))
+        XCTAssertEqual(VisualLookupInbox.takeReady(now: now), Data("first".utf8))
+        XCTAssertNil(VisualLookupInbox.takeReady(now: now), "a tap is acted on once")
+        // The other search went too, so nothing lingers once the user is in.
+        XCTAssertFalse(VisualLookupInbox.markReady(id: second, now: now))
+    }
+
+    func test_aStaleOrUnknownTapValuesNothing() throws {
+        let then = Date().addingTimeInterval(-VisualLookupInbox.maxAge - 5)
+        let id = try VisualLookupInbox.stage(Data("old".utf8), now: then)
+        XCTAssertFalse(VisualLookupInbox.markReady(id: id))
+        XCTAssertFalse(VisualLookupInbox.markReady(id: "../etc"))
+        XCTAssertNil(VisualLookupInbox.takeReady())
+    }
+
+    @MainActor
+    func test_theScanRouteGoesFirstAndTheOriginTravelsWithThePicture() {
+        final class Log: @unchecked Sendable {
+            var names: [Notification.Name] = []
+            var origin: SharedImageOrigin?
+        }
+        let center = NotificationCenter()
+        let log = Log()
+        let tokens = [Notification.Name.snapWidgetOpenScan, .snapScanSharedImage].map { name in
+            center.addObserver(forName: name, object: nil, queue: nil) { note in
+                log.names.append(note.name)
+                if let o = note.userInfo?[SharedImageOrigin.userInfoKey] as? SharedImageOrigin {
+                    log.origin = o
+                }
+            }
+        }
+        defer { tokens.forEach { center.removeObserver($0) } }
+        SnapWorthApp.scanSharedImage(UIImage(), origin: .visualIntelligence, center: center)
+        XCTAssertEqual(log.names, [.snapWidgetOpenScan, .snapScanSharedImage])
+        XCTAssertEqual(log.origin, .visualIntelligence)
+        XCTAssertEqual(SharedImageOrigin.share.source, .share)
+        XCTAssertEqual(SharedImageOrigin.visualIntelligence.source, .visualIntelligence)
+    }
+
+    func test_itsPaywallSaysWhatTheTapWasFor() {
+        // The server keeps only triggers it knows (`opsstats.PAYWALL_TRIGGERS`).
+        XCTAssertEqual(PaywallTrigger.visualIntelligence.rawValue, "visual_intelligence")
+        XCTAssertEqual(PaywallCopy.pitch(for: .visualIntelligence)?.headline, "Value anything you see")
+        XCTAssertEqual(WidgetSource.visualIntelligence.rawValue, "visual_intelligence")
     }
 }

@@ -53,6 +53,7 @@ PAYWALL_TRIGGERS: tuple[str, ...] = (
     "onboarding", "scan_limit", "upgrade_button", "settings", "ledger_history",
     "ledger_export", "snap_sell", "portfolio_trend", "valuation_detail",
     "trends", "add_tag", "haul", "legit_check", "rack_scan",
+    "visual_intelligence",
 )
 
 _cache: ResilientCache | None = None
