@@ -155,6 +155,7 @@ The leading half of each loop. The install half is in the
 | Hauls by size | `haul_completed` by `items`: `1`, `2-4`, `5-9`, `10-14`, `15+`. **Only events without a `revised_from` key.** A haul that grows after "Keep scanning" reports again with `revised_from`, and counting those would count one haul twice | `haul_completed` from 1.5.1 (21) (`431c07c`, #187); `revised_from` too (`a301b41`) | TelemetryDeck |
 | Legit checks | `legit_check_completed` by `verdict`: `consistent`, `some_concerns`, `likely_replica`, `cannot_tell` — the closed set only, never a reason or the brand. The paywall from its card is `trigger=legit_check` | 1.6.0 (#90) | TelemetryDeck |
 | Rack scans | `rack_scan_completed` by `candidates`: `0` to `3`, how many items it pinned (`0` is an honest empty answer, not a failure). `rack_candidate_chosen` by `rank` is a "Scan this one" tap. The paywall from the Rack button is `trigger=rack_scan`; the server's digest counts them as Pro scans and notes how many were racks | 1.6.0 (#89) | TelemetryDeck; ops digest |
+| App icon | `app_icon_changed` by `icon` (`tag`, `night`, `wow`, `classic`) and `source` (`settings`, or `prompt` for the one-time alert after the 1.6.3 update). Which icons people pick, not how many keep the default | 1.6.3 | TelemetryDeck |
 | Listings generated | `listing_generated` by `marketplace`. It is the one Snap → Sell signal 1.5.0 sends | ≤ 1.2.0 (5) | TelemetryDeck |
 | Listings copied | `listing_copied` by `marketplace`: `ebay`, `poshmark`, `mercari`, `depop`, `facebook`, `vinted`, `olx`, `xianyu`, `kleinanzeigen`, or `draft` for the plain draft on every result | 1.5.1 (21) (`b4f7820`, #193) | TelemetryDeck |
 | Listings shared | `listing_shared` by `marketplace`, completed shares | 1.5.1 (21) (`b4f7820`) | TelemetryDeck |
@@ -252,7 +253,7 @@ for e in onboarding_started onboarding_completed scan_started scan_result_shown 
          listing_shared marketplace_opened widget_opened widgets_installed \
          ledger_item_marked_listed ledger_item_marked_sold \
          review_prompt_requested entitlement_sync_failed legit_check_completed \
-         rack_scan_completed rack_candidate_chosen; do
+         rack_scan_completed rack_candidate_chosen app_icon_changed; do
   grep -q "return \"$e\"" ios/SnapWorth/Services/Telemetry/Analytics.swift || echo "missing: $e"
 done
 ```

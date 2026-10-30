@@ -12,6 +12,16 @@ To change the artwork, edit `mascots.py`, run `python3 export_app_assets.py`
 (needs Playwright's Chromium and Pillow), and copy `app_assets/Mascot/` over the
 catalog folder. `TagMascot` in `DesignSystem.swift` is the view that shows it.
 
+## App icons
+
+`export_app_icons.py` draws the app icon from the same helpers: Tag, tilted,
+inside camera-viewfinder corners. It writes the primary `AppIcon` (light, dark
+and tinted), the alternates `AppIcon-TagNight` and `AppIcon-TagWow`, the
+picker's `AppIconPreview` thumbnails and the website's favicons, straight into
+the repository. `AppIcon-Classic`, the icon before 1.6.3, is kept as PNGs and
+not drawn. The script owns every file it writes, so change the script rather
+than the PNGs. Needs Playwright's Chromium and Pillow.
+
 ## Stickers
 
 `export_stickers.py` draws Tag's iMessage sticker pack from the same helpers:

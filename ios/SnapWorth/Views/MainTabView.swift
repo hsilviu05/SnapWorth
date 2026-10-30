@@ -20,6 +20,9 @@ struct MainTabView: View {
     /// A week earned from a referral (#97) that this device has not been told
     /// about yet. Shown once per code; the code stays under Invite a friend.
     @State private var earnedReward: ReferralStatus.Reward?
+    /// The one-time "choose your app icon" alert (`AppIconAnnouncement`).
+    @State private var showIconAnnouncement = false
+    @State private var showIconPicker = false
     @Environment(\.openURL) private var openURL
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.modelContext) private var modelContext
@@ -111,6 +114,26 @@ struct MainTabView: View {
                     context: modelContext, purchaseService: purchaseService)
                 await checkForEarnedReward()
             }
+        }
+        .task {
+            // Once per install, after launch has settled, and never on top of
+            // the referral alert: two alerts on one view and only one shows.
+            try? await Task.sleep(for: .seconds(1.5))
+            let hasFinds = ((try? modelContext.fetchCount(FetchDescriptor<ScanResult>())) ?? 0) > 0
+            guard AppIconAnnouncement.shouldShow(
+                hasSavedFinds: hasFinds,
+                supportsAlternateIcons: UIApplication.shared.supportsAlternateIcons),
+                  earnedReward == nil else { return }
+            showIconAnnouncement = true
+        }
+        .alert("Choose your app icon", isPresented: $showIconAnnouncement) {
+            Button("Choose icon") { showIconPicker = true }
+            Button("Keep this one", role: .cancel) {}
+        } message: {
+            Text("SnapWorth has a new icon. Prefer another? Pick Night, Wow or the classic one, here or any time in Settings.")
+        }
+        .sheet(isPresented: $showIconPicker) {
+            AppIconPickerSheet()
         }
         .alert("You earned a week of Pro",
                isPresented: Binding(get: { earnedReward != nil }, set: { if !$0 { earnedReward = nil } }),
