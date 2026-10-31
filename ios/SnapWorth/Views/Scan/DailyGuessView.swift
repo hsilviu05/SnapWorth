@@ -419,6 +419,7 @@ struct DailyGuessPill: View {
                         .accessibilityHidden(true)
                 }
             }
+            .lineLimit(1)
             .font(.snapCaption.bold())
             .foregroundStyle(Color.snapOnCharcoal.opacity(isDisabled ? 0.4 : 0.95))
             .padding(.horizontal, 14)

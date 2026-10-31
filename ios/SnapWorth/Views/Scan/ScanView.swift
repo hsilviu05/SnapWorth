@@ -127,10 +127,12 @@ struct ScanView: View {
             case .notDetermined:
                 // The charcoal ground behind this ZStack is the whole screen.
                 EmptyView()
-            case .restricted:
-                CameraPermissionPlaceholder(restricted: true)
             default:
-                CameraPermissionPlaceholder(restricted: false)
+                // Refused or restricted: the placeholder is drawn inside the
+                // viewfinder frame below, not centred here. Centred on the
+                // screen it ignored where the overlay's spacers put the frame,
+                // and "Open Settings" landed on the frame's bottom edge.
+                EmptyView()
             }
 
             // ── Camera UI overlay ─────────────────────────────────────────
@@ -232,6 +234,18 @@ struct ScanView: View {
                     // Framing guide is purely visual; the instruction below
                     // carries the same information for VoiceOver.
                     .accessibilityHidden(true)
+                    // After the accessibilityHidden, so Open Settings stays
+                    // reachable with VoiceOver.
+                    .overlay {
+                        switch cameraManager.authStatus {
+                        case .authorized, .notDetermined:
+                            EmptyView()
+                        case .restricted:
+                            CameraPermissionPlaceholder(restricted: true)
+                        default:
+                            CameraPermissionPlaceholder(restricted: false)
+                        }
+                    }
 
                 // The one label in this chrome drawn straight onto the video.
                 //
@@ -295,31 +309,29 @@ struct ScanView: View {
 
                 Spacer()
 
-                HStack(spacing: 10) {
-                    HaulEntryPill(isPro: purchaseService.isSubscribed,
-                                  waiting: (haul?.pendingCount ?? 0) + (haul?.failedCount ?? 0),
-                                  isDisabled: vm.isAnalyzing || captureInFlight) {
+                ScanEntryRow(
+                    isPro: purchaseService.isSubscribed,
+                    haulWaiting: (haul?.pendingCount ?? 0) + (haul?.failedCount ?? 0),
+                    isDisabled: vm.isAnalyzing || captureInFlight,
+                    isPresentingDailyGuess: showDailyGuess,
+                    onHaul: {
                         if purchaseService.isSubscribed {
                             showHaul = true
                         } else {
                             vm.paywallTrigger = .haul
                             vm.showPaywall = true
                         }
-                    }
-                    RackEntryPill(isPro: purchaseService.isSubscribed,
-                                  isDisabled: vm.isAnalyzing || captureInFlight) {
+                    },
+                    onRack: {
                         if purchaseService.isSubscribed {
                             showRack = true
                         } else {
                             vm.paywallTrigger = .rackScan
                             vm.showPaywall = true
                         }
-                    }
-                    DailyGuessPill(isDisabled: vm.isAnalyzing || captureInFlight,
-                                   isPresenting: showDailyGuess) {
-                        showDailyGuess = true
-                    }
-                }
+                    },
+                    onDailyGuess: { showDailyGuess = true }
+                )
                 .padding(.bottom, 16)
 
                 // Bottom controls
@@ -969,7 +981,7 @@ struct CameraPermissionPlaceholder: View {
 
     var body: some View {
         VStack(spacing: 20) {
-            Image(systemName: "camera.slash")
+            Image(systemName: "video.slash")
                 .snapSymbol(48, weight: .light)
                 .foregroundStyle(Color.snapOnCharcoal.opacity(0.5))
                 .accessibilityHidden(true)
@@ -1262,6 +1274,89 @@ private struct FreeScanReturnRow: View {
     }
 }
 
+// MARK: - Entry row
+
+/// Haul, Rack and Daily guess, above the shutter.
+///
+/// Without Pro, the two "PRO" capsules made the row about 400 pt wide at the
+/// default text size, past the edge of a 6.1" phone once Daily guess joined
+/// it, and the HStack squeezed Haul until its badge wrapped. ViewThatFits
+/// tries the row as it was, then with a padlock in place of each "PRO", then
+/// with Daily guess on a row of its own, so nothing is clipped at any width or
+/// text size.
+private struct ScanEntryRow: View {
+    let isPro: Bool
+    let haulWaiting: Int
+    let isDisabled: Bool
+    let isPresentingDailyGuess: Bool
+    let onHaul: () -> Void
+    let onRack: () -> Void
+    let onDailyGuess: () -> Void
+
+    var body: some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: 10) {
+                haulPill(compact: false)
+                rackPill(compact: false)
+                dailyGuessPill
+            }
+            HStack(spacing: 8) {
+                haulPill(compact: true)
+                rackPill(compact: true)
+                dailyGuessPill
+            }
+            VStack(spacing: 8) {
+                HStack(spacing: 10) {
+                    haulPill(compact: true)
+                    rackPill(compact: true)
+                }
+                dailyGuessPill
+            }
+        }
+        .padding(.horizontal, 16)
+    }
+
+    private func haulPill(compact: Bool) -> some View {
+        HaulEntryPill(isPro: isPro, compactBadge: compact, waiting: haulWaiting,
+                      isDisabled: isDisabled, action: onHaul)
+    }
+
+    private func rackPill(compact: Bool) -> some View {
+        RackEntryPill(isPro: isPro, compactBadge: compact, isDisabled: isDisabled, action: onRack)
+    }
+
+    private var dailyGuessPill: some View {
+        DailyGuessPill(isDisabled: isDisabled, isPresenting: isPresentingDailyGuess,
+                       action: onDailyGuess)
+    }
+}
+
+/// The amber mark on an entry a free user would meet the paywall behind:
+/// "PRO", or a padlock in the same amber where the row is short of room.
+struct EntryProBadge: View {
+    var compact = false
+
+    var body: some View {
+        Group {
+            if compact {
+                Image(systemName: "lock.fill")
+                    .snapSymbol(8, weight: .bold, relativeTo: .caption2)
+                    .padding(3)
+                    .accessibilityLabel(Text("PRO"))
+            } else {
+                Text("PRO")
+                    .font(.dmSans(10, weight: .bold, relativeTo: .caption2))
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+            }
+        }
+        .foregroundStyle(Color.snapOnAmber)
+        .background(Color.snapAmber)
+        .clipShape(Capsule())
+        .fixedSize()
+    }
+}
+
 // MARK: - Haul mode (#93)
 
 /// The way into Haul mode, above the shutter.
@@ -1272,6 +1367,7 @@ private struct FreeScanReturnRow: View {
 /// one expression near the type-checker's budget.
 private struct HaulEntryPill: View {
     let isPro: Bool
+    var compactBadge = false
     /// Photos an earlier haul left waiting: to be valued, or — failed — for
     /// the user's Try again or Remove, which are only offered inside.
     let waiting: Int
@@ -1297,13 +1393,7 @@ private struct HaulEntryPill: View {
                     .accessibilityHidden(true)
                 Text("Haul")
                 if !isPro {
-                    Text("PRO")
-                        .font(.dmSans(10, weight: .bold, relativeTo: .caption2))
-                        .foregroundStyle(Color.snapOnAmber)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
-                        .background(Color.snapAmber)
-                        .clipShape(Capsule())
+                    EntryProBadge(compact: compactBadge)
                 }
                 if waiting > 0 {
                     Text("\(waiting) waiting")
@@ -1311,6 +1401,7 @@ private struct HaulEntryPill: View {
                         .foregroundStyle(Color.snapOnCharcoal.opacity(0.85))
                 }
             }
+            .lineLimit(1)
             .font(.snapCaption.bold())
             .foregroundStyle(Color.snapOnCharcoal.opacity(isDisabled ? 0.4 : 0.95))
             .padding(.horizontal, 14)
