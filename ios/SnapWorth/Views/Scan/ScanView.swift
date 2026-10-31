@@ -127,10 +127,12 @@ struct ScanView: View {
             case .notDetermined:
                 // The charcoal ground behind this ZStack is the whole screen.
                 EmptyView()
-            case .restricted:
-                CameraPermissionPlaceholder(restricted: true)
             default:
-                CameraPermissionPlaceholder(restricted: false)
+                // Refused or restricted: the placeholder is drawn inside the
+                // viewfinder frame below, not centred here. Centred on the
+                // screen it ignored where the overlay's spacers put the frame,
+                // and "Open Settings" landed on the frame's bottom edge.
+                EmptyView()
             }
 
             // ── Camera UI overlay ─────────────────────────────────────────
@@ -232,6 +234,18 @@ struct ScanView: View {
                     // Framing guide is purely visual; the instruction below
                     // carries the same information for VoiceOver.
                     .accessibilityHidden(true)
+                    // After the accessibilityHidden, so Open Settings stays
+                    // reachable with VoiceOver.
+                    .overlay {
+                        switch cameraManager.authStatus {
+                        case .authorized, .notDetermined:
+                            EmptyView()
+                        case .restricted:
+                            CameraPermissionPlaceholder(restricted: true)
+                        default:
+                            CameraPermissionPlaceholder(restricted: false)
+                        }
+                    }
 
                 // The one label in this chrome drawn straight onto the video.
                 //
