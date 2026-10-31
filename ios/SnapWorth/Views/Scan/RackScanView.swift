@@ -15,6 +15,7 @@ import SwiftUI
 /// The way into Rack scan, beside Haul above the shutter.
 struct RackEntryPill: View {
     let isPro: Bool
+    var compactBadge = false
     let isDisabled: Bool
     let action: () -> Void
 
@@ -29,14 +30,7 @@ struct RackEntryPill: View {
                     .accessibilityHidden(true)
                 Text("Rack")
                 if !isPro {
-                    Text("PRO")
-                        .font(.dmSans(10, weight: .bold, relativeTo: .caption2))
-                        .foregroundStyle(Color.snapOnAmber)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
-                        .background(Color.snapAmber)
-                        .clipShape(Capsule())
-                        .fixedSize()
+                    EntryProBadge(compact: compactBadge)
                 }
             }
             .lineLimit(1)
