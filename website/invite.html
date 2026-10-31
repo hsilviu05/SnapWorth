@@ -31,7 +31,8 @@
            font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
            font-size: 17px; line-height: 1.6; -webkit-font-smoothing: antialiased; }
     nav { padding: 20px max(32px, env(safe-area-inset-left)); }
-    .logo { font-family: 'Fraunces', Georgia, serif; font-weight: 700; font-size: 22px;
+    .logo img { display: block; border-radius: 22%; }
+    .logo { display: inline-flex; align-items: center; gap: 8px; font-family: 'Fraunces', Georgia, serif; font-weight: 700; font-size: 22px;
             color: var(--ink); text-decoration: none; letter-spacing: -0.3px; }
     main { flex: 1; display: grid; place-items: center; padding: 40px 24px 80px; text-align: center; }
     .eyebrow { font-size: 13px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase;
@@ -64,7 +65,7 @@
   </style>
 </head>
 <body>
-  <nav><a href="/" class="logo">SnapWorth</a></nav>
+  <nav><a href="/" class="logo"><img src="/favicon-192.png" width="28" height="28" alt="">SnapWorth</a></nav>
   <main>
     <div>
       <div class="eyebrow">An invite from a friend</div>

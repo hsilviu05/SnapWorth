@@ -245,7 +245,8 @@ h1,h2{text-wrap:balance;}
 .wrap{max-width:760px;margin:0 auto;padding:0 20px;}
 header.site{border-bottom:1px solid var(--border);background:var(--bg);}
 header.site .wrap{display:flex;align-items:center;justify-content:space-between;height:64px;}
-.logo{font-family:'Fraunces',serif;font-weight:700;font-size:22px;color:var(--ink);text-decoration:none;}
+.logo{display:inline-flex;align-items:center;gap:8px;font-family:'Fraunces',serif;font-weight:700;font-size:22px;color:var(--ink);text-decoration:none;}
+.logo img{display:block;border-radius:22%;}
 .nav-cta{background:var(--terra-fill);color:#fff;text-decoration:none;font-weight:600;font-size:14px;padding:9px 18px;border-radius:10px;}
 main{padding:48px 0 24px;}
 .crumbs{font-size:14px;color:var(--warm-gray);margin-bottom:20px;}
@@ -283,7 +284,7 @@ footer.site a{color:var(--warm-gray);margin-right:16px;}
 
 def header(ct):
     return (f'<header class="site"><div class="wrap">'
-            f'<a class="logo" href="/">SnapWorth</a>'
+            f'<a class="logo" href="/"><img src="/favicon-192.png" width="28" height="28" alt="">SnapWorth</a>'
             f'<a class="nav-cta" href="{html.escape(app_store(ct))}">Get the app</a>'
             f'</div></header>')
 
