@@ -981,7 +981,7 @@ struct CameraPermissionPlaceholder: View {
 
     var body: some View {
         VStack(spacing: 20) {
-            Image(systemName: "camera.slash")
+            Image(systemName: "video.slash")
                 .snapSymbol(48, weight: .light)
                 .foregroundStyle(Color.snapOnCharcoal.opacity(0.5))
                 .accessibilityHidden(true)
