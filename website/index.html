@@ -193,6 +193,9 @@
       padding: 0 20px;
     }
     .nav-logo {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
       font-family: 'Fraunces', serif;
       font-size: 20px;
       font-weight: 700;
@@ -200,6 +203,8 @@
       text-decoration: none;
       letter-spacing: -0.3px;
     }
+    /* The app icon, at the Home Screen's corner shape. */
+    .nav-logo img { display: block; border-radius: 22%; }
     .nav-right { display: flex; align-items: center; gap: 12px; }
     .nav-link {
       font-size: 14px;
@@ -1736,7 +1741,7 @@ details[open] .faq-x::after { transform: rotate(90deg); }
   <!-- Nav -->
   <nav>
     <div class="nav-inner">
-      <a href="/" class="nav-logo">SnapWorth</a>
+      <a href="/" class="nav-logo"><img src="/favicon-192.png" width="28" height="28" alt="">SnapWorth</a>
       <div class="nav-right">
         <a href="#how-it-works" class="nav-link">How it works</a>
         <a href="#pricing" class="nav-link">Pricing</a>
