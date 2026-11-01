@@ -24,12 +24,12 @@ struct PrivacyPolicyView: View {
 /// Change this and `backend/main.py`'s `/privacy` together.
 /// `PrivacyPolicyDisclosureTests` fails if a processor goes missing.
 enum PrivacyPolicy {
-    static let updated = "October 27, 2026"
+    static let updated = "November 1, 2026"
 
     /// Every third party that receives user data, by the name a reader would
     /// recognise. The test asserts each appears in `sections`.
-    static let processors = ["Google", "Gemini", "Apple", "DeviceCheck",
-                             "TypeSafe", "TelemetryDeck", "Telegram"]
+    static let processors = ["Railway", "Google", "Gemini", "Apple", "DeviceCheck",
+                             "TypeSafe", "TelemetryDeck", "Telegram", "Vercel"]
 
     static let sections: [(heading: String?, text: String)] = [
         (heading: nil, text: """
@@ -56,6 +56,8 @@ enum PrivacyPolicy {
             Photos are used only to generate the valuation or legit check you requested. Analytics data is used only in aggregate to understand usage and improve the app. Shared sale records are used only to measure how far our estimates are from real sale prices, and to improve them. We do not sell, rent, or share your photos, device identifier, or analytics data with third parties, except for the service providers below and as required by law.
             """),
         (heading: "Service Providers", text: """
+            Railway. Hosts our server at api.snapworth.eu, so it processes everything the app sends our server, as described above.
+
             Google (Gemini API). Photos you submit are transmitted to Google's Gemini API, which identifies the item and estimates its resale value, or reads a legit check's close-ups. A description you type instead of a photo is transmitted the same way. Google processes them under its API terms of service and does not use them to train its models. Photos and descriptions are not retained by us after the response is returned.
 
             Apple (DeviceCheck). Receives the device token described above, and stores two bits against your hardware so a reinstall does not reset the free allowance.
@@ -74,6 +76,11 @@ enum PrivacyPolicy {
             In the app, everyone can see this week's most-scanned categories and brands, each shown only once at least five scans back it. Pro subscribers also see the week's highest-value finds, shown as brand, category and estimated price range only — never the item name, the photo, or who scanned it. A find is a single scan, so one of yours may appear there.
 
             The operational record described under Telegram, the subscription record and referral records are kept for up to 400 days after they were last updated, as described above. Messages relayed through Telegram stay in the operator's chat until the operator deletes them.
+            """),
+        (heading: "Our Website", text: """
+            Our website, snapworth.eu, is hosted by Vercel, which processes the IP address of each visit in order to serve the page. Vercel Web Analytics counts page views: the page, the site that linked to it, and the visitor's country, browser, operating system and device type. It uses no cookies and does not identify you or follow you to other sites.
+
+            The website sets no cookies. The home page remembers, in your browser's local storage, whether you have hidden its guide. That stays in your browser, is never sent to us, and is removed when you clear the site's data.
             """),
         (heading: "Children's Privacy", text: """
             SnapWorth is not directed to children under 13. We do not knowingly collect personal information from children under 13.
@@ -108,7 +115,7 @@ enum TermsCopy {
 
 struct TermsOfServiceView: View {
     var body: some View {
-        LegalDocumentView(title: "Terms of Service", updated: "September 11, 2026") {
+        LegalDocumentView(title: "Terms of Service", updated: "November 1, 2026") {
             LegalSection(heading: nil, text: """
                 By downloading or using SnapWorth you agree to these Terms. If you disagree, please do not use the app.
                 """)
@@ -118,6 +125,10 @@ struct TermsOfServiceView: View {
                 """)
 
             LegalSection(heading: "Subscriptions", text: TermsCopy.subscriptions)
+
+            LegalSection(heading: "Payments and Refunds", text: """
+                All purchases are made through the App Store and processed by Apple. We never see or store your payment details. Refunds are handled by Apple under its own policies; you can request one at reportaproblem.apple.com. When Apple refunds a subscription, the Pro access it paid for ends.
+                """)
 
             LegalSection(heading: "Prohibited Use", text: """
                 You may not use SnapWorth to submit illegal content, attempt to reverse-engineer the service, or abuse the rate limits.

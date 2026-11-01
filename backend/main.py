@@ -1702,7 +1702,7 @@ def privacy():
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Privacy Policy — SnapWorth</title><style>{_STYLE}</style></head><body>
 <h1>Privacy Policy</h1>
-<p>Last updated: October 27, 2026</p>
+<p>Last updated: November 1, 2026</p>
 <p>SnapWorth ("we", "our", or "us") operates the SnapWorth mobile application.
 This page informs you of our policies regarding the collection, use, and
 disclosure of personal data when you use our Service.</p>
@@ -1776,6 +1776,8 @@ We do not sell, rent, or share your photos, device identifier, or analytics data
 with third parties, except for the service providers below and as required by law.</p>
 
 <h2>Service Providers</h2>
+<p><strong>Railway.</strong> Hosts our server at api.snapworth.eu, so it
+processes everything the app sends our server, as described above.</p>
 <p><strong>Google (Gemini API).</strong> Photos you submit are transmitted to
 Google's Gemini API, which identifies the item and estimates its resale value,
 or reads a legit check's close-ups. A description you type instead of a photo
@@ -1834,6 +1836,16 @@ referral records are kept for up to 400 days after they were last updated, as
 described above. Messages
 relayed through Telegram stay in the operator's chat until the operator
 deletes them.</p>
+
+<h2>Our Website</h2>
+<p>Our website, snapworth.eu, is hosted by <strong>Vercel</strong>, which
+processes the IP address of each visit in order to serve the page. Vercel Web
+Analytics counts page views: the page, the site that linked to it, and the
+visitor's country, browser, operating system and device type. It uses no cookies
+and does not identify you or follow you to other sites.</p>
+<p>The website sets no cookies. The home page remembers, in your browser's local
+storage, whether you have hidden its guide. That stays in your browser, is never
+sent to us, and is removed when you clear the site's data.</p>
 
 <h2>Children's Privacy</h2>
 <p>SnapWorth is not directed to children under 13. We do not knowingly collect
@@ -2120,7 +2132,7 @@ def terms():
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Terms of Service — SnapWorth</title><style>{_STYLE}</style></head><body>
 <h1>Terms of Service</h1>
-<p>Last updated: September 11, 2026</p>
+<p>Last updated: November 1, 2026</p>
 <p>By downloading or using SnapWorth you agree to these Terms. If you disagree,
 please do not use the app.</p>
 
@@ -2136,6 +2148,13 @@ subscription settings. Cancellation takes effect at the end of the current
 billing period. Any introductory offer is available to new subscribers only; its
 length, its price, and whether it is free are shown on the subscription screen
 and confirmed by the App Store before you are charged.</p>
+
+<h2>Payments and Refunds</h2>
+<p>All purchases are made through the App Store and processed by Apple. We never
+see or store your payment details. Refunds are handled by Apple under its own
+policies; you can request one at
+<a href="https://reportaproblem.apple.com">reportaproblem.apple.com</a>. When Apple
+refunds a subscription, the Pro access it paid for ends.</p>
 
 <h2>Prohibited Use</h2>
 <p>You may not use SnapWorth to submit illegal content, attempt to reverse-engineer
