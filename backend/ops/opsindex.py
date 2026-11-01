@@ -322,6 +322,45 @@ async def index_user(who: str, *, tier: str, scanned: bool = False) -> None:
     await write_index(USERS_INDEX_KEY, doc, USERS_INDEX_CAP, "last")
 
 
+async def forget_device(who: str) -> bool:
+    """Remove one device from both indexes and drop its sync note, for
+    Delete my server data. False when an index could not be read or the
+    store refused a write, so the caller can say it did not happen.
+
+    A subscription row stays, since it is Apple's record of a purchase and
+    not this device's, but the device is taken off it."""
+    if _cache is None:
+        return False
+    users = await opsstats.read_doc_for_update(USERS_INDEX_KEY)
+    subs = await opsstats.read_doc_for_update(SUBS_INDEX_KEY)
+    if users is None or subs is None:
+        return False
+    try:
+        if users.pop(who, None) is not None:
+            await write_index(USERS_INDEX_KEY, users, USERS_INDEX_CAP, "last")
+        changed = False
+        for row in subs.values():
+            if not isinstance(row, dict):
+                continue
+            devices = row.get("devices")
+            if isinstance(devices, list):
+                kept = [d for d in devices
+                        if not (isinstance(d, str) and same_device(d, who))]
+                if len(kept) != len(devices):
+                    row["devices"] = kept
+                    changed = True
+            if isinstance(row.get("who"), str) and same_device(row["who"], who):
+                row.pop("who")
+                changed = True
+        if changed:
+            await write_index(SUBS_INDEX_KEY, subs, SUBS_INDEX_CAP, "seen")
+        await _cache.delete(sync_key(who), required=True)
+    except Exception as exc:
+        log.warning("could not forget a device: %s", type(exc).__name__)
+        return False
+    return True
+
+
 def sync_key(who: str) -> str:
     return f"opsstate:sync:{who}"
 

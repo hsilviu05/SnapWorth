@@ -100,9 +100,9 @@ enum PrivacyPolicy {
         (heading: "Your Rights", text: """
             You have the right to access the personal data we hold about you, to have it corrected or deleted, to restrict or object to how we use it, to receive it in a portable form, and to withdraw a consent you gave at any time, without affecting what was done before.
 
-            SnapWorth has no accounts and does not know who you are, so we can find server records only through the device they belong to. To make a request, email us from Report a bug in Settings: the email includes your device's support ID when it has one, which is how we find its records. We answer within one month.
+            Delete my server data in Settings deletes what our server keeps for your iPhone: its operational record, its last purchase check, the record of a subscription that is no longer active, and any sale prices you shared. We keep what stops a free allowance or an invite reward from being claimed twice (the free-scan counts, the DeviceCheck token, referral records and refund records), the record of an active subscription so that Pro keeps working, the device's place on a subscription, which lapses after a month without use, the key your device signs in with, the 35-day scan tallies, and messages already sent to the operator. If you go on using the app, new records are made as described above.
 
-            Some server records are kept under an identifier only your device holds, so a support ID cannot always find them. Those expire on their own, as described under Data Retention. Your scan history and everything else stored only on your iPhone never reaches us, and you can delete it in Settings.
+            For any other request, email us from Report a bug in Settings: the email includes your device's support ID when it has one, which is how we find its records. We answer within one month. Your scan history and everything else stored only on your iPhone never reaches us, and you can delete it in Settings.
 
             You can also complain to a data protection authority: in Romania, the National Supervisory Authority for Personal Data Processing (ANSPDCP, dataprivacy.ro), or the authority where you live or work.
             """),

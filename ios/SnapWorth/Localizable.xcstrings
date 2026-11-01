@@ -10371,6 +10371,42 @@
         }
       }
     },
+    "Delete my server data" : {
+      "comment" : "Settings row: deletes what the server keeps for this device (DELETE /me/data).",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Meine Serverdaten löschen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Delete my server data"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Eliminar mis datos del servidor"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Șterge datele mele de pe server"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "删除我在服务器上的数据"
+          }
+        }
+      }
+    },
     "Delete my shared sales" : {
       "comment" : "Settings row: deletes every shared sale outcome of this install (#224).",
       "extractionState" : "manual",
@@ -10438,6 +10474,42 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "删除这件好物？"
+          }
+        }
+      }
+    },
+    "Delete your server data?" : {
+      "comment" : "Title of the confirmation before Delete my server data.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Deine Serverdaten löschen?"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Delete your server data?"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "¿Eliminar tus datos del servidor?"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ștergi datele de pe server?"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "删除你在服务器上的数据？"
           }
         }
       }
@@ -24630,6 +24702,42 @@
         }
       }
     },
+    "SnapWorth's server deletes what it keeps about this iPhone, including any sale prices you shared. Your scan history on this iPhone stays. What stops free scans from being claimed twice is kept, as the Privacy Policy explains." : {
+      "comment" : "Body of the confirmation before Delete my server data. The kept part is the anti-abuse markers the privacy policy names.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Der Server von SnapWorth löscht, was er über dieses iPhone speichert, auch geteilte Verkaufspreise. Dein Scanverlauf auf diesem iPhone bleibt. Was verhindert, dass kostenlose Scans doppelt genutzt werden, bleibt gespeichert, wie die Datenschutzerklärung erklärt."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SnapWorth's server deletes what it keeps about this iPhone, including any sale prices you shared. Your scan history on this iPhone stays. What stops free scans from being claimed twice is kept, as the Privacy Policy explains."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "El servidor de SnapWorth elimina lo que guarda sobre este iPhone, incluidos los precios de venta que hayas compartido. Tu historial de escaneos en este iPhone se mantiene. Se conserva lo que impide usar dos veces los escaneos gratis, como explica la Política de privacidad."
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Serverul SnapWorth șterge ce păstrează despre acest iPhone, inclusiv prețurile de vânzare pe care le-ai trimis. Istoricul scanărilor de pe acest iPhone rămâne. Se păstrează doar ce împiedică folosirea de două ori a scanărilor gratuite, așa cum explică Politica de confidențialitate."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SnapWorth 服务器会删除它为这台 iPhone 保存的数据，包括你分享过的售出价格。这台 iPhone 上的扫描记录会保留。用于防止免费扫描被重复使用的信息会保留，详见隐私政策。"
+          }
+        }
+      }
+    },
     "SnapWorth. Nothing scanned yet." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -32208,6 +32316,78 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "扫描都会存进你的收藏，让你看着这些藏着的价值一点点累积起来。"
+          }
+        }
+      }
+    },
+    "Your server data was deleted." : {
+      "comment" : "After Delete my server data succeeded.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Deine Serverdaten wurden gelöscht."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Your server data was deleted."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Se eliminaron tus datos del servidor."
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Datele de pe server au fost șterse."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "你在服务器上的数据已删除。"
+          }
+        }
+      }
+    },
+    "Your server data was deleted. Your subscription's record is kept while it's active, so Pro keeps working." : {
+      "comment" : "After Delete my server data succeeded on a device with an active subscription, whose record the server keeps.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Deine Serverdaten wurden gelöscht. Der Eintrag deines Abos bleibt, solange es aktiv ist, damit Pro weiter funktioniert."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Your server data was deleted. Your subscription's record is kept while it's active, so Pro keeps working."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Se eliminaron tus datos del servidor. El registro de tu suscripción se conserva mientras esté activa, para que Pro siga funcionando."
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Datele de pe server au fost șterse. Înregistrarea abonamentului se păstrează cât timp este activ, ca Pro să funcționeze în continuare."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "你在服务器上的数据已删除。订阅有效期间会保留其记录，以便 Pro 继续可用。"
           }
         }
       }

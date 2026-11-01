@@ -35,6 +35,7 @@ from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from scan import aiconfig
 from core import apierrors
+from core import background
 from security import auditlog
 from security import auth
 from core import cache as cache_module
@@ -48,6 +49,7 @@ from ops import levers
 from scan import listingclaims
 from ops import metrics
 from ops import notify
+from ops import opsindex
 from ops import opsspend
 from ops import opsstats
 from scan import promptsafety
@@ -936,6 +938,7 @@ def _client_ip(request: Request) -> str:
 LISTING_BUCKET = "listing"
 LEGIT_BUCKET = "legit"
 TRENDS_BUCKET = "trends"
+DATA_DELETION_BUCKET = "forget"
 
 
 def _scan_rate_limit(principal: Principal) -> int:
@@ -1048,6 +1051,8 @@ REFERRAL_IP_RATE_MAX_REQUESTS = int(os.environ.get("REFERRAL_IP_RATE_MAX_REQUEST
 #: Sharing sale outcomes (#224): a few sends a day from a seller, so these are
 #: loop-breakers; `outcomes.DAILY_CAP` bounds what one install can store.
 OUTCOMES_RATE_MAX_REQUESTS = int(os.environ.get("OUTCOMES_RATE_MAX_REQUESTS", "60"))
+# Delete my server data. A person taps it once; ten covers retries.
+DATA_DELETION_RATE_MAX_REQUESTS = 10
 
 
 async def _enforce_outcomes_limit(subject: str, ip: str | None) -> None:
@@ -1883,14 +1888,19 @@ or the provider's certification under the EU-U.S. Data Privacy Framework.</p>
 corrected or deleted, to restrict or object to how we use it, to receive it in a
 portable form, and to withdraw a consent you gave at any time, without affecting
 what was done before.</p>
-<p>SnapWorth has no accounts and does not know who you are, so we can find server
-records only through the device they belong to. To make a request, email us from
-Report a bug in Settings: the email includes your device's support ID when it
-has one, which is how we find its records. We answer within one month.</p>
-<p>Some server records are kept under an identifier only your device holds, so a
-support ID cannot always find them. Those expire on their own, as described
-under Data Retention. Your scan history and everything else stored only on your
-iPhone never reaches us, and you can delete it in Settings.</p>
+<p>Delete my server data in Settings deletes what our server keeps for your iPhone:
+its operational record, its last purchase check, the record of a subscription
+that is no longer active, and any sale prices you shared. We keep what stops a
+free allowance or an invite reward from being claimed twice (the free-scan
+counts, the DeviceCheck token, referral records and refund records), the record
+of an active subscription so that Pro keeps working, the device's place on a
+subscription, which lapses after a month without use, the key your device signs
+in with, the 35-day scan tallies, and messages already sent to the operator. If
+you go on using the app, new records are made as described above.</p>
+<p>For any other request, email us from Report a bug in Settings: the email
+includes your device's support ID when it has one, which is how we find its
+records. We answer within one month. Your scan history and everything else
+stored only on your iPhone never reaches us, and you can delete it in Settings.</p>
 <p>You can also complain to a data protection authority: in Romania, the National
 Supervisory Authority for Personal Data Processing (ANSPDCP, dataprivacy.ro), or
 the authority where you live or work.</p>
@@ -3393,6 +3403,63 @@ async def trends(
     await _enforce_limits(principal.subject, _client_ip(request),
                           bucket=TRENDS_BUCKET, limit=TRENDS_RATE_MAX_REQUESTS)
     return TrendsResponse(**await trends_module.trends(is_pro=principal.is_pro))
+
+
+class ServerDataDeletion(BaseModel):
+    deleted: bool
+    # True while the device holds an active subscription: its record is
+    # what keeps Pro working, so it is kept, and the app says so.
+    subscription_kept: bool
+
+
+@app.delete("/me/data", response_model=ServerDataDeletion)
+async def delete_server_data(
+    request: Request,
+    principal: Principal = Depends(require_auth),
+) -> ServerDataDeletion:
+    """Delete my server data, from Settings: the GDPR erasure request a
+    support id cannot serve, because the id is a one-way hash of the key
+    most of these records are stored under. Only the device knows that key.
+
+    Deleted: the device's row in the operator's device index, the device on
+    any subscription row, the last-sync note, and, unless a subscription is
+    active, the stored subscription record and its proof.
+
+    Kept, and the privacy policy says so: what stops a free allowance or a
+    referral reward being claimed twice (quota and welcome markers, the
+    DeviceCheck token, referral records, refund tombstones, safety-block
+    counts), the device's slot on a subscription, which lapses after a month
+    unused, the App Attest public key the device signs in with, the 35-day
+    scan tallies, and messages already sent to the operator's Telegram.
+
+    Attested callers only. The legacy principal is keyed on a header anyone
+    can send, so honouring it would let one device erase another's records.
+    """
+    if not principal.authenticated:
+        raise APIError(401, apierrors.AUTH_REQUIRED, "Authentication required.",
+                       headers={"WWW-Authenticate": "Bearer"})
+    await _enforce_limits(principal.subject, _client_ip(request),
+                          bucket=DATA_DELETION_BUCKET,
+                          limit=DATA_DELETION_RATE_MAX_REQUESTS)
+    # `require_auth` has just queued this device's activity note, and on a
+    # device's first request in a window that note writes its index row. Let
+    # it land first, or it can put the row straight back after the delete.
+    pending = [task for task in background.tasks if not task.done()]
+    if pending:
+        await asyncio.wait(pending, timeout=2)
+    kept = principal.is_pro
+    try:
+        if not kept:
+            await auth.deps.entitlements.clear(principal.subject, required=True)
+        forgotten = await opsindex.forget_device(auditlog.pseudonymise(principal.subject))
+    except Exception as exc:
+        log.warning("server data deletion failed: %s", type(exc).__name__)
+        forgotten = False
+    if not forgotten:
+        raise HTTPException(
+            status_code=503,
+            detail="Couldn't delete your data right now. Please try again shortly.")
+    return ServerDataDeletion(deleted=True, subscription_kept=kept)
 
 
 @app.post("/listing", response_model=ListingResponse,
