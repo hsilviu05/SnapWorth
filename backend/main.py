@@ -1707,6 +1707,13 @@ def privacy():
 This page informs you of our policies regarding the collection, use, and
 disclosure of personal data when you use our Service.</p>
 
+<h2>Who We Are</h2>
+<p>SnapWorth is run by Hermeneanu Ionut Silviu, an individual in Romania, who
+decides how the personal data described in this policy is used: the controller,
+in the words of the EU General Data Protection Regulation (GDPR). You can reach
+the controller at <a
+href="mailto:her.silviu.i@gmail.com">her.silviu.i@gmail.com</a>.</p>
+
 <h2>Information We Collect</h2>
 <p>We collect photos you submit for valuation or for a legit check. Photos are
 sent to our server, processed by an AI model to identify the item and estimate
@@ -1774,6 +1781,23 @@ Shared sale records are used only to measure how far our estimates are from
 real sale prices, and to improve them.
 We do not sell, rent, or share your photos, device identifier, or analytics data
 with third parties, except for the service providers below and as required by law.</p>
+
+<h2>Legal Bases</h2>
+<p>To give you the valuation, legit check or listing draft you ask for, and to
+provide a subscription you buy, including checking it with Apple and limiting
+how many devices use it: to perform our agreement with you (Article 6(1)(b)
+GDPR).</p>
+<p>Rate limits, the DeviceCheck check that stops a free allowance being reset, the
+operational record relayed through Telegram, the device tags beside each scan
+tally, and referral records: our legitimate interest in keeping the service
+secure and free of abuse, and in rewarding each invite once (Article 6(1)(f)).</p>
+<p>Anonymous app analytics, website analytics, scan tallies, trends and the week's
+highest-value finds: our legitimate interest in understanding how SnapWorth is
+used and improving it (Article 6(1)(f)). You can turn app analytics off in
+Settings at any time, and object to the rest by contacting us.</p>
+<p>Shared sale prices: your consent, given when you turn sharing on (Article
+6(1)(a)). Turning it off stops new records, and Delete my shared sales in
+Settings removes the ones already sent.</p>
 
 <h2>Service Providers</h2>
 <p><strong>Railway.</strong> Hosts our server at api.snapworth.eu, so it
@@ -1846,6 +1870,30 @@ and does not identify you or follow you to other sites.</p>
 <p>The website sets no cookies. The home page remembers, in your browser's local
 storage, whether you have hidden its guide. That stays in your browser, is never
 sent to us, and is removed when you clear the site's data.</p>
+
+<h2>International Transfers</h2>
+<p>Some of the service providers above, including Google, Railway, Vercel and
+Telegram, may process data outside the European Economic Area, including in the
+United States. Where they do, the transfer relies on the safeguards the GDPR
+provides for it, such as the European Commission's Standard Contractual Clauses
+or the provider's certification under the EU-U.S. Data Privacy Framework.</p>
+
+<h2>Your Rights</h2>
+<p>You have the right to access the personal data we hold about you, to have it
+corrected or deleted, to restrict or object to how we use it, to receive it in a
+portable form, and to withdraw a consent you gave at any time, without affecting
+what was done before.</p>
+<p>SnapWorth has no accounts and does not know who you are, so we can find server
+records only through the device they belong to. To make a request, email us from
+Report a bug in Settings: the email includes your device's support ID when it
+has one, which is how we find its records. We answer within one month.</p>
+<p>Some server records are kept under an identifier only your device holds, so a
+support ID cannot always find them. Those expire on their own, as described
+under Data Retention. Your scan history and everything else stored only on your
+iPhone never reaches us, and you can delete it in Settings.</p>
+<p>You can also complain to a data protection authority: in Romania, the National
+Supervisory Authority for Personal Data Processing (ANSPDCP, dataprivacy.ro), or
+the authority where you live or work.</p>
 
 <h2>Children's Privacy</h2>
 <p>SnapWorth is not directed to children under 13. We do not knowingly collect
@@ -2165,7 +2213,7 @@ the service, or abuse the rate limits.</p>
 EXTENT PERMITTED BY LAW, WE DISCLAIM ALL WARRANTIES, EXPRESS OR IMPLIED.</p>
 
 <h2>Contact</h2>
-<p>Questions? Email us at
+<p>SnapWorth is provided by Hermeneanu Ionut Silviu. Questions? Email us at
 <a href="mailto:her.silviu.i@gmail.com">her.silviu.i@gmail.com</a>.</p>
 </body></html>"""
 

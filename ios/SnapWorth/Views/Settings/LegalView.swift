@@ -35,6 +35,9 @@ enum PrivacyPolicy {
         (heading: nil, text: """
             SnapWorth ("we", "our", or "us") operates the SnapWorth mobile application. This page informs you of our policies regarding the collection, use, and disclosure of personal data when you use our Service.
             """),
+        (heading: "Who We Are", text: """
+            SnapWorth is run by Hermeneanu Ionut Silviu, an individual in Romania, who decides how the personal data described in this policy is used: the controller, in the words of the EU General Data Protection Regulation (GDPR). You can reach the controller at \(Config.supportEmail).
+            """),
         (heading: "Information We Collect", text: """
             We collect photos you submit for valuation or for a legit check. Photos are sent to our server, processed by an AI model to identify the item and estimate resale value, or to look for the usual signs of a replica, and are not stored after the response is returned.
 
@@ -54,6 +57,15 @@ enum PrivacyPolicy {
             """),
         (heading: "How We Use Your Information", text: """
             Photos are used only to generate the valuation or legit check you requested. Analytics data is used only in aggregate to understand usage and improve the app. Shared sale records are used only to measure how far our estimates are from real sale prices, and to improve them. We do not sell, rent, or share your photos, device identifier, or analytics data with third parties, except for the service providers below and as required by law.
+            """),
+        (heading: "Legal Bases", text: """
+            To give you the valuation, legit check or listing draft you ask for, and to provide a subscription you buy, including checking it with Apple and limiting how many devices use it: to perform our agreement with you (Article 6(1)(b) GDPR).
+
+            Rate limits, the DeviceCheck check that stops a free allowance being reset, the operational record relayed through Telegram, the device tags beside each scan tally, and referral records: our legitimate interest in keeping the service secure and free of abuse, and in rewarding each invite once (Article 6(1)(f)).
+
+            Anonymous app analytics, website analytics, scan tallies, trends and the week's highest-value finds: our legitimate interest in understanding how SnapWorth is used and improving it (Article 6(1)(f)). You can turn app analytics off in Settings at any time, and object to the rest by contacting us.
+
+            Shared sale prices: your consent, given when you turn sharing on (Article 6(1)(a)). Turning it off stops new records, and Delete my shared sales in Settings removes the ones already sent.
             """),
         (heading: "Service Providers", text: """
             Railway. Hosts our server at api.snapworth.eu, so it processes everything the app sends our server, as described above.
@@ -81,6 +93,18 @@ enum PrivacyPolicy {
             Our website, snapworth.eu, is hosted by Vercel, which processes the IP address of each visit in order to serve the page. Vercel Web Analytics counts page views: the page, the site that linked to it, and the visitor's country, browser, operating system and device type. It uses no cookies and does not identify you or follow you to other sites.
 
             The website sets no cookies. The home page remembers, in your browser's local storage, whether you have hidden its guide. That stays in your browser, is never sent to us, and is removed when you clear the site's data.
+            """),
+        (heading: "International Transfers", text: """
+            Some of the service providers above, including Google, Railway, Vercel and Telegram, may process data outside the European Economic Area, including in the United States. Where they do, the transfer relies on the safeguards the GDPR provides for it, such as the European Commission's Standard Contractual Clauses or the provider's certification under the EU-U.S. Data Privacy Framework.
+            """),
+        (heading: "Your Rights", text: """
+            You have the right to access the personal data we hold about you, to have it corrected or deleted, to restrict or object to how we use it, to receive it in a portable form, and to withdraw a consent you gave at any time, without affecting what was done before.
+
+            SnapWorth has no accounts and does not know who you are, so we can find server records only through the device they belong to. To make a request, email us from Report a bug in Settings: the email includes your device's support ID when it has one, which is how we find its records. We answer within one month.
+
+            Some server records are kept under an identifier only your device holds, so a support ID cannot always find them. Those expire on their own, as described under Data Retention. Your scan history and everything else stored only on your iPhone never reaches us, and you can delete it in Settings.
+
+            You can also complain to a data protection authority: in Romania, the National Supervisory Authority for Personal Data Processing (ANSPDCP, dataprivacy.ro), or the authority where you live or work.
             """),
         (heading: "Children's Privacy", text: """
             SnapWorth is not directed to children under 13. We do not knowingly collect personal information from children under 13.
@@ -138,7 +162,7 @@ struct TermsOfServiceView: View {
                 THE SERVICE IS PROVIDED "AS IS" WITHOUT WARRANTIES OF ANY KIND. TO THE MAXIMUM EXTENT PERMITTED BY LAW, WE DISCLAIM ALL WARRANTIES, EXPRESS OR IMPLIED.
                 """)
 
-            LegalSection(heading: "Contact", text: "Questions? Email us at \(Config.supportEmail)")
+            LegalSection(heading: "Contact", text: "SnapWorth is provided by Hermeneanu Ionut Silviu. Questions? Email us at \(Config.supportEmail)")
         }
     }
 }
