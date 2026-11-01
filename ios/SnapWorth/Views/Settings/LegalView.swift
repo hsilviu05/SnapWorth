@@ -24,16 +24,19 @@ struct PrivacyPolicyView: View {
 /// Change this and `backend/main.py`'s `/privacy` together.
 /// `PrivacyPolicyDisclosureTests` fails if a processor goes missing.
 enum PrivacyPolicy {
-    static let updated = "October 27, 2026"
+    static let updated = "November 1, 2026"
 
     /// Every third party that receives user data, by the name a reader would
     /// recognise. The test asserts each appears in `sections`.
-    static let processors = ["Google", "Gemini", "Apple", "DeviceCheck",
-                             "TypeSafe", "TelemetryDeck", "Telegram"]
+    static let processors = ["Railway", "Google", "Gemini", "Apple", "DeviceCheck",
+                             "TypeSafe", "TelemetryDeck", "Telegram", "Vercel"]
 
     static let sections: [(heading: String?, text: String)] = [
         (heading: nil, text: """
             SnapWorth ("we", "our", or "us") operates the SnapWorth mobile application. This page informs you of our policies regarding the collection, use, and disclosure of personal data when you use our Service.
+            """),
+        (heading: "Who We Are", text: """
+            SnapWorth is run by Hermeneanu Ionut Silviu, an individual in Romania, who decides how the personal data described in this policy is used: the controller, in the words of the EU General Data Protection Regulation (GDPR). You can reach the controller at \(Config.supportEmail).
             """),
         (heading: "Information We Collect", text: """
             We collect photos you submit for valuation or for a legit check. Photos are sent to our server, processed by an AI model to identify the item and estimate resale value, or to look for the usual signs of a replica, and are not stored after the response is returned.
@@ -55,7 +58,18 @@ enum PrivacyPolicy {
         (heading: "How We Use Your Information", text: """
             Photos are used only to generate the valuation or legit check you requested. Analytics data is used only in aggregate to understand usage and improve the app. Shared sale records are used only to measure how far our estimates are from real sale prices, and to improve them. We do not sell, rent, or share your photos, device identifier, or analytics data with third parties, except for the service providers below and as required by law.
             """),
+        (heading: "Legal Bases", text: """
+            To give you the valuation, legit check or listing draft you ask for, and to provide a subscription you buy, including checking it with Apple and limiting how many devices use it: to perform our agreement with you (Article 6(1)(b) GDPR).
+
+            Rate limits, the DeviceCheck check that stops a free allowance being reset, the operational record relayed through Telegram, the device tags beside each scan tally, and referral records: our legitimate interest in keeping the service secure and free of abuse, and in rewarding each invite once (Article 6(1)(f)).
+
+            Anonymous app analytics, website analytics, scan tallies, trends and the week's highest-value finds: our legitimate interest in understanding how SnapWorth is used and improving it (Article 6(1)(f)). You can turn app analytics off in Settings at any time, and object to the rest by contacting us.
+
+            Shared sale prices: your consent, given when you turn sharing on (Article 6(1)(a)). Turning it off stops new records, and Delete my shared sales in Settings removes the ones already sent.
+            """),
         (heading: "Service Providers", text: """
+            Railway. Hosts our server at api.snapworth.eu, so it processes everything the app sends our server, as described above.
+
             Google (Gemini API). Photos you submit are transmitted to Google's Gemini API, which identifies the item and estimates its resale value, or reads a legit check's close-ups. A description you type instead of a photo is transmitted the same way. Google processes them under its API terms of service and does not use them to train its models. Photos and descriptions are not retained by us after the response is returned.
 
             Apple (DeviceCheck). Receives the device token described above, and stores two bits against your hardware so a reinstall does not reset the free allowance.
@@ -74,6 +88,23 @@ enum PrivacyPolicy {
             In the app, everyone can see this week's most-scanned categories and brands, each shown only once at least five scans back it. Pro subscribers also see the week's highest-value finds, shown as brand, category and estimated price range only — never the item name, the photo, or who scanned it. A find is a single scan, so one of yours may appear there.
 
             The operational record described under Telegram, the subscription record and referral records are kept for up to 400 days after they were last updated, as described above. Messages relayed through Telegram stay in the operator's chat until the operator deletes them.
+            """),
+        (heading: "Our Website", text: """
+            Our website, snapworth.eu, is hosted by Vercel, which processes the IP address of each visit in order to serve the page. Vercel Web Analytics counts page views: the page, the site that linked to it, and the visitor's country, browser, operating system and device type. It uses no cookies and does not identify you or follow you to other sites.
+
+            The website sets no cookies. The home page remembers, in your browser's local storage, whether you have hidden its guide. That stays in your browser, is never sent to us, and is removed when you clear the site's data.
+            """),
+        (heading: "International Transfers", text: """
+            Some of the service providers above, including Google, Railway, Vercel and Telegram, may process data outside the European Economic Area, including in the United States. Where they do, the transfer relies on the safeguards the GDPR provides for it, such as the European Commission's Standard Contractual Clauses or the provider's certification under the EU-U.S. Data Privacy Framework.
+            """),
+        (heading: "Your Rights", text: """
+            You have the right to access the personal data we hold about you, to have it corrected or deleted, to restrict or object to how we use it, to receive it in a portable form, and to withdraw a consent you gave at any time, without affecting what was done before.
+
+            Delete my server data in Settings deletes what our server keeps for your iPhone: its operational record, its last purchase check, the record of a subscription that is no longer active, and any sale prices you shared. We keep what stops a free allowance or an invite reward from being claimed twice (the free-scan counts, the DeviceCheck token, referral records and refund records), the record of an active subscription so that Pro keeps working, the device's place on a subscription, which lapses after a month without use, the key your device signs in with, the 35-day scan tallies, and messages already sent to the operator. If you go on using the app, new records are made as described above.
+
+            For any other request, email us from Report a bug in Settings: the email includes your device's support ID when it has one, which is how we find its records. We answer within one month. Your scan history and everything else stored only on your iPhone never reaches us, and you can delete it in Settings.
+
+            You can also complain to a data protection authority: in Romania, the National Supervisory Authority for Personal Data Processing (ANSPDCP, dataprivacy.ro), or the authority where you live or work.
             """),
         (heading: "Children's Privacy", text: """
             SnapWorth is not directed to children under 13. We do not knowingly collect personal information from children under 13.
@@ -108,7 +139,7 @@ enum TermsCopy {
 
 struct TermsOfServiceView: View {
     var body: some View {
-        LegalDocumentView(title: "Terms of Service", updated: "September 11, 2026") {
+        LegalDocumentView(title: "Terms of Service", updated: "November 1, 2026") {
             LegalSection(heading: nil, text: """
                 By downloading or using SnapWorth you agree to these Terms. If you disagree, please do not use the app.
                 """)
@@ -119,6 +150,10 @@ struct TermsOfServiceView: View {
 
             LegalSection(heading: "Subscriptions", text: TermsCopy.subscriptions)
 
+            LegalSection(heading: "Payments and Refunds", text: """
+                All purchases are made through the App Store and processed by Apple. We never see or store your payment details. Refunds are handled by Apple under its own policies; you can request one at reportaproblem.apple.com. When Apple refunds a subscription, the Pro access it paid for ends.
+                """)
+
             LegalSection(heading: "Prohibited Use", text: """
                 You may not use SnapWorth to submit illegal content, attempt to reverse-engineer the service, or abuse the rate limits.
                 """)
@@ -127,7 +162,7 @@ struct TermsOfServiceView: View {
                 THE SERVICE IS PROVIDED "AS IS" WITHOUT WARRANTIES OF ANY KIND. TO THE MAXIMUM EXTENT PERMITTED BY LAW, WE DISCLAIM ALL WARRANTIES, EXPRESS OR IMPLIED.
                 """)
 
-            LegalSection(heading: "Contact", text: "Questions? Email us at \(Config.supportEmail)")
+            LegalSection(heading: "Contact", text: "SnapWorth is provided by Hermeneanu Ionut Silviu. Questions? Email us at \(Config.supportEmail)")
         }
     }
 }

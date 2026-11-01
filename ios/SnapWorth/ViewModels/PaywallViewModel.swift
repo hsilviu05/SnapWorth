@@ -50,18 +50,11 @@ final class PaywallViewModel {
     var errorMessage: String?
     /// A purchase that is neither done nor failed — see `PurchaseOutcome.pending`.
     var pendingMessage: String?
-    var showCloseButton: Bool = false
+    /// Shown from the first frame. It used to appear after two seconds, which
+    /// is a hidden-close dark pattern even with swipe-to-dismiss available:
+    /// the way out has to be as visible as the way in.
+    let showCloseButton = true
     var isPurchaseComplete: Bool = false
-
-    private var closeButtonTask: Task<Void, Never>?
-
-    func startCloseButtonTimer() {
-        closeButtonTask = Task {
-            try? await Task.sleep(for: .seconds(2))
-            guard !Task.isCancelled else { return }
-            withAnimation { showCloseButton = true }
-        }
-    }
 
     /// Point the selection at a plan StoreKit actually returned.
     ///
@@ -93,10 +86,8 @@ final class PaywallViewModel {
         selectedProductID = fallback
     }
 
-    /// The paywall came on screen: the close button's delay starts, and
-    /// `paywall_viewed` is sent.
+    /// The paywall came on screen: `paywall_viewed` is sent.
     func didAppear(trigger: PaywallTrigger) {
-        startCloseButtonTimer()
         // `isFirstRun`, not `isFirstScan`: both first-run paywalls open
         // after the first result has been recorded.
         Analytics.shared.track(.paywallViewed(trigger: trigger, isFirst: ScanTally.isFirstRun()))
@@ -104,18 +95,12 @@ final class PaywallViewModel {
 
     /// The paywall left the screen.
     func didDisappear(trigger: PaywallTrigger) {
-        cancelTimer()
         // Only a close *without* a purchase. A completed purchase also
         // dismisses this sheet, and counting that as a dismissal would put
         // every conversion on both sides of the look-to-buy rate.
         if !isPurchaseComplete {
             Analytics.shared.track(.paywallDismissed(trigger: trigger))
         }
-    }
-
-    func cancelTimer() {
-        closeButtonTask?.cancel()
-        closeButtonTask = nil
     }
 
     /// - Parameter trigger: the paywall's own, carried on the purchase events.

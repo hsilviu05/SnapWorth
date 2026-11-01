@@ -31,8 +31,27 @@ struct SettingsView: View {
     @AppStorage(SaleSharing.tokenKey) private var sharingToken: String?
     @State private var showDeleteSharedAlert = false
     @State private var sharedSalesMessage: String?
+    @State private var showDeleteServerDataAlert = false
+    @State private var serverDataMessage: String?
+    @State private var isDeletingServerData = false
     @AppStorage(Haptics.preferenceKey) private var hapticsEnabled = true
     @AppStorage(GuessFirst.key) private var guessFirst = GuessFirst.defaultOn
+
+    /// Shared sales first, by the install's own token, which the server
+    /// cannot find any other way; then everything kept under this device.
+    private func deleteServerData() async {
+        isDeletingServerData = true
+        defer { isDeletingServerData = false }
+        do {
+            try await SaleSharing.shared.deleteAll()
+            let outcome = try await ServerDataClient.shared.deleteAll()
+            serverDataMessage = outcome.subscriptionKept
+                ? String(localized: "Your server data was deleted. Your subscription's record is kept while it's active, so Pro keeps working.")
+                : String(localized: "Your server data was deleted.")
+        } catch {
+            serverDataMessage = String(localized: "Couldn't delete them right now. Try again later.")
+        }
+    }
 
     /// Marketing version read from the bundle so it never goes stale.
     private static var appVersion: String {
@@ -238,6 +257,11 @@ struct SettingsView: View {
                             showDeleteSharedAlert = true
                         }
                     }
+
+                    SettingsRow(icon: "server.rack", label: "Delete my server data",
+                                destructive: true, isBusy: isDeletingServerData) {
+                        showDeleteServerDataAlert = true
+                    }
                 } header: {
                     Text("Privacy")
                 } footer: {
@@ -303,6 +327,19 @@ struct SettingsView: View {
         .alert(sharedSalesMessage ?? "", isPresented: Binding(
             get: { sharedSalesMessage != nil },
             set: { if !$0 { sharedSalesMessage = nil } })) {
+            Button("OK", role: .cancel) {}
+        }
+        .alert("Delete your server data?", isPresented: $showDeleteServerDataAlert) {
+            Button("Delete", role: .destructive) {
+                Task { await deleteServerData() }
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("SnapWorth's server deletes what it keeps about this iPhone, including any sale prices you shared. Your scan history on this iPhone stays. What stops free scans from being claimed twice is kept, as the Privacy Policy explains.")
+        }
+        .alert(serverDataMessage ?? "", isPresented: Binding(
+            get: { serverDataMessage != nil },
+            set: { if !$0 { serverDataMessage = nil } })) {
             Button("OK", role: .cancel) {}
         }
         .alert("Clear history?", isPresented: $showDeleteAlert) {
