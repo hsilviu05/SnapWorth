@@ -370,9 +370,17 @@ jobs:
             echo "No iPhone Duo simulator in this Xcode"
           fi
 
+          # A simulator with two displays (iPhone Duo, and the newest test
+          # iPhone) refuses a screenshot that names none, and lists them in
+          # the error. Take one per display then.
           shoot() {  # device, name
             sleep 4
-            xcrun simctl io "$1" screenshot "$OUT/$NAME-$2.png"
+            if ! xcrun simctl io "$1" screenshot "$OUT/$NAME-$2.png" 2>"$OUT/.err"; then
+              for D in $(grep -oE -- '--display=[0-9]+' "$OUT/.err" | cut -d= -f2); do
+                xcrun simctl io "$1" screenshot --display="$D" "$OUT/$NAME-$2-display$D.png"
+              done
+            fi
+            rm -f "$OUT/.err"
           }
           for UDID in $DEVICES; do
             NAME=$(xcrun simctl list devices | grep "$UDID" | sed -E 's/^ *//; s/ \(.*//; s/ /-/g')
