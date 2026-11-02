@@ -1707,7 +1707,7 @@ def privacy():
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Privacy Policy — SnapWorth</title><style>{_STYLE}</style></head><body>
 <h1>Privacy Policy</h1>
-<p>Last updated: November 1, 2026</p>
+<p>Last updated: November 2, 2026</p>
 <p>SnapWorth ("we", "our", or "us") operates the SnapWorth mobile application.
 This page informs you of our policies regarding the collection, use, and
 disclosure of personal data when you use our Service.</p>
@@ -1716,8 +1716,8 @@ disclosure of personal data when you use our Service.</p>
 <p>SnapWorth is run by Hermeneanu Ionut Silviu, an individual in Romania, who
 decides how the personal data described in this policy is used: the controller,
 in the words of the EU General Data Protection Regulation (GDPR). You can reach
-the controller at <a
-href="mailto:her.silviu.i@gmail.com">her.silviu.i@gmail.com</a>.</p>
+the controller at <a href="mailto:her.silviu.i@gmail.com">her.silviu.i@gmail.com</a>, or by post at
+Strada Mare 170, 505800 Zarnesti, Brasov, Romania.</p>
 
 <h2>Information We Collect</h2>
 <p>We collect photos you submit for valuation or for a legit check. Photos are
@@ -2190,7 +2190,7 @@ def terms():
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Terms of Service — SnapWorth</title><style>{_STYLE}</style></head><body>
 <h1>Terms of Service</h1>
-<p>Last updated: November 1, 2026</p>
+<p>Last updated: November 2, 2026</p>
 <p>By downloading or using SnapWorth you agree to these Terms. If you disagree,
 please do not use the app.</p>
 
@@ -2223,7 +2223,7 @@ the service, or abuse the rate limits.</p>
 EXTENT PERMITTED BY LAW, WE DISCLAIM ALL WARRANTIES, EXPRESS OR IMPLIED.</p>
 
 <h2>Contact</h2>
-<p>SnapWorth is provided by Hermeneanu Ionut Silviu. Questions? Email us at
+<p>SnapWorth is provided by Hermeneanu Ionut Silviu, Strada Mare 170, 505800 Zarnesti, Brasov, Romania. Questions? Email us at
 <a href="mailto:her.silviu.i@gmail.com">her.silviu.i@gmail.com</a>.</p>
 </body></html>"""
 
