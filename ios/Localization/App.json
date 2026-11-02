@@ -7535,6 +7535,46 @@
       "es": "SnapWorth tiene un icono nuevo. ¿Prefieres otro? Elige Noche, Wow o el clásico, aquí o cuando quieras en Ajustes.",
       "de": "SnapWorth hat ein neues Symbol. Lieber ein anderes? Wähl Nacht, Wow oder das klassische, hier oder jederzeit in den Einstellungen.",
       "zh-Hans": "SnapWorth 换了新图标。想用别的？可在这里或随时在设置中选择“夜间”、“哇”或经典图标。"
+    },
+    "Delete my server data": {
+      "comment": "Settings row: deletes what the server keeps for this device (DELETE /me/data).",
+      "en": "Delete my server data",
+      "ro": "Șterge datele mele de pe server",
+      "es": "Eliminar mis datos del servidor",
+      "de": "Meine Serverdaten löschen",
+      "zh-Hans": "删除我在服务器上的数据"
+    },
+    "Delete your server data?": {
+      "comment": "Title of the confirmation before Delete my server data.",
+      "en": "Delete your server data?",
+      "ro": "Ștergi datele de pe server?",
+      "es": "¿Eliminar tus datos del servidor?",
+      "de": "Deine Serverdaten löschen?",
+      "zh-Hans": "删除你在服务器上的数据？"
+    },
+    "SnapWorth's server deletes what it keeps about this iPhone, including any sale prices you shared. Your scan history on this iPhone stays. What stops free scans from being claimed twice is kept, as the Privacy Policy explains.": {
+      "comment": "Body of the confirmation before Delete my server data. The kept part is the anti-abuse markers the privacy policy names.",
+      "en": "SnapWorth's server deletes what it keeps about this iPhone, including any sale prices you shared. Your scan history on this iPhone stays. What stops free scans from being claimed twice is kept, as the Privacy Policy explains.",
+      "ro": "Serverul SnapWorth șterge ce păstrează despre acest iPhone, inclusiv prețurile de vânzare pe care le-ai trimis. Istoricul scanărilor de pe acest iPhone rămâne. Se păstrează doar ce împiedică folosirea de două ori a scanărilor gratuite, așa cum explică Politica de confidențialitate.",
+      "es": "El servidor de SnapWorth elimina lo que guarda sobre este iPhone, incluidos los precios de venta que hayas compartido. Tu historial de escaneos en este iPhone se mantiene. Se conserva lo que impide usar dos veces los escaneos gratis, como explica la Política de privacidad.",
+      "de": "Der Server von SnapWorth löscht, was er über dieses iPhone speichert, auch geteilte Verkaufspreise. Dein Scanverlauf auf diesem iPhone bleibt. Was verhindert, dass kostenlose Scans doppelt genutzt werden, bleibt gespeichert, wie die Datenschutzerklärung erklärt.",
+      "zh-Hans": "SnapWorth 服务器会删除它为这台 iPhone 保存的数据，包括你分享过的售出价格。这台 iPhone 上的扫描记录会保留。用于防止免费扫描被重复使用的信息会保留，详见隐私政策。"
+    },
+    "Your server data was deleted.": {
+      "comment": "After Delete my server data succeeded.",
+      "en": "Your server data was deleted.",
+      "ro": "Datele de pe server au fost șterse.",
+      "es": "Se eliminaron tus datos del servidor.",
+      "de": "Deine Serverdaten wurden gelöscht.",
+      "zh-Hans": "你在服务器上的数据已删除。"
+    },
+    "Your server data was deleted. Your subscription's record is kept while it's active, so Pro keeps working.": {
+      "comment": "After Delete my server data succeeded on a device with an active subscription, whose record the server keeps.",
+      "en": "Your server data was deleted. Your subscription's record is kept while it's active, so Pro keeps working.",
+      "ro": "Datele de pe server au fost șterse. Înregistrarea abonamentului se păstrează cât timp este activ, ca Pro să funcționeze în continuare.",
+      "es": "Se eliminaron tus datos del servidor. El registro de tu suscripción se conserva mientras esté activa, para que Pro siga funcionando.",
+      "de": "Deine Serverdaten wurden gelöscht. Der Eintrag deines Abos bleibt, solange es aktiv ist, damit Pro weiter funktioniert.",
+      "zh-Hans": "你在服务器上的数据已删除。订阅有效期间会保留其记录，以便 Pro 继续可用。"
     }
   }
 }

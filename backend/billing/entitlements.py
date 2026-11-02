@@ -1470,11 +1470,14 @@ class EntitlementService:
                  extra={"tier": ent.tier, "product_id": ent.product_id})
         return ent
 
-    async def clear(self, subject: str) -> None:
-        await self._cache.delete(self._key(subject))
+    async def clear(self, subject: str, *, required: bool = False) -> None:
+        """`required` raises when the store cannot take the delete, rather
+        than deleting from one process's memory and reporting success."""
+        kwargs = {"required": True} if required else {}
+        await self._cache.delete(self._key(subject), **kwargs)
         # The proof too, or `current()` re-derives Pro straight back and this
         # stops being a revocation.
-        await self._cache.delete(self._proof_key(subject))
+        await self._cache.delete(self._proof_key(subject), **kwargs)
 
 
 # ── The operator's view of a tombstone ───────────────────────────────────────

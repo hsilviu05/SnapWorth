@@ -35,6 +35,7 @@ from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from scan import aiconfig
 from core import apierrors
+from core import background
 from security import auditlog
 from security import auth
 from core import cache as cache_module
@@ -48,6 +49,7 @@ from ops import levers
 from scan import listingclaims
 from ops import metrics
 from ops import notify
+from ops import opsindex
 from ops import opsspend
 from ops import opsstats
 from scan import promptsafety
@@ -936,6 +938,7 @@ def _client_ip(request: Request) -> str:
 LISTING_BUCKET = "listing"
 LEGIT_BUCKET = "legit"
 TRENDS_BUCKET = "trends"
+DATA_DELETION_BUCKET = "forget"
 
 
 def _scan_rate_limit(principal: Principal) -> int:
@@ -1048,6 +1051,8 @@ REFERRAL_IP_RATE_MAX_REQUESTS = int(os.environ.get("REFERRAL_IP_RATE_MAX_REQUEST
 #: Sharing sale outcomes (#224): a few sends a day from a seller, so these are
 #: loop-breakers; `outcomes.DAILY_CAP` bounds what one install can store.
 OUTCOMES_RATE_MAX_REQUESTS = int(os.environ.get("OUTCOMES_RATE_MAX_REQUESTS", "60"))
+# Delete my server data. A person taps it once; ten covers retries.
+DATA_DELETION_RATE_MAX_REQUESTS = 10
 
 
 async def _enforce_outcomes_limit(subject: str, ip: str | None) -> None:
@@ -1702,10 +1707,17 @@ def privacy():
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Privacy Policy — SnapWorth</title><style>{_STYLE}</style></head><body>
 <h1>Privacy Policy</h1>
-<p>Last updated: October 27, 2026</p>
+<p>Last updated: November 1, 2026</p>
 <p>SnapWorth ("we", "our", or "us") operates the SnapWorth mobile application.
 This page informs you of our policies regarding the collection, use, and
 disclosure of personal data when you use our Service.</p>
+
+<h2>Who We Are</h2>
+<p>SnapWorth is run by Hermeneanu Ionut Silviu, an individual in Romania, who
+decides how the personal data described in this policy is used: the controller,
+in the words of the EU General Data Protection Regulation (GDPR). You can reach
+the controller at <a
+href="mailto:her.silviu.i@gmail.com">her.silviu.i@gmail.com</a>.</p>
 
 <h2>Information We Collect</h2>
 <p>We collect photos you submit for valuation or for a legit check. Photos are
@@ -1775,7 +1787,26 @@ real sale prices, and to improve them.
 We do not sell, rent, or share your photos, device identifier, or analytics data
 with third parties, except for the service providers below and as required by law.</p>
 
+<h2>Legal Bases</h2>
+<p>To give you the valuation, legit check or listing draft you ask for, and to
+provide a subscription you buy, including checking it with Apple and limiting
+how many devices use it: to perform our agreement with you (Article 6(1)(b)
+GDPR).</p>
+<p>Rate limits, the DeviceCheck check that stops a free allowance being reset, the
+operational record relayed through Telegram, the device tags beside each scan
+tally, and referral records: our legitimate interest in keeping the service
+secure and free of abuse, and in rewarding each invite once (Article 6(1)(f)).</p>
+<p>Anonymous app analytics, website analytics, scan tallies, trends and the week's
+highest-value finds: our legitimate interest in understanding how SnapWorth is
+used and improving it (Article 6(1)(f)). You can turn app analytics off in
+Settings at any time, and object to the rest by contacting us.</p>
+<p>Shared sale prices: your consent, given when you turn sharing on (Article
+6(1)(a)). Turning it off stops new records, and Delete my shared sales in
+Settings removes the ones already sent.</p>
+
 <h2>Service Providers</h2>
+<p><strong>Railway.</strong> Hosts our server at api.snapworth.eu, so it
+processes everything the app sends our server, as described above.</p>
 <p><strong>Google (Gemini API).</strong> Photos you submit are transmitted to
 Google's Gemini API, which identifies the item and estimates its resale value,
 or reads a legit check's close-ups. A description you type instead of a photo
@@ -1834,6 +1865,45 @@ referral records are kept for up to 400 days after they were last updated, as
 described above. Messages
 relayed through Telegram stay in the operator's chat until the operator
 deletes them.</p>
+
+<h2>Our Website</h2>
+<p>Our website, snapworth.eu, is hosted by <strong>Vercel</strong>, which
+processes the IP address of each visit in order to serve the page. Vercel Web
+Analytics counts page views: the page, the site that linked to it, and the
+visitor's country, browser, operating system and device type. It uses no cookies
+and does not identify you or follow you to other sites.</p>
+<p>The website sets no cookies. The home page remembers, in your browser's local
+storage, whether you have hidden its guide. That stays in your browser, is never
+sent to us, and is removed when you clear the site's data.</p>
+
+<h2>International Transfers</h2>
+<p>Some of the service providers above, including Google, Railway, Vercel and
+Telegram, may process data outside the European Economic Area, including in the
+United States. Where they do, the transfer relies on the safeguards the GDPR
+provides for it, such as the European Commission's Standard Contractual Clauses
+or the provider's certification under the EU-U.S. Data Privacy Framework.</p>
+
+<h2>Your Rights</h2>
+<p>You have the right to access the personal data we hold about you, to have it
+corrected or deleted, to restrict or object to how we use it, to receive it in a
+portable form, and to withdraw a consent you gave at any time, without affecting
+what was done before.</p>
+<p>Delete my server data in Settings deletes what our server keeps for your iPhone:
+its operational record, its last purchase check, the record of a subscription
+that is no longer active, and any sale prices you shared. We keep what stops a
+free allowance or an invite reward from being claimed twice (the free-scan
+counts, the DeviceCheck token, referral records and refund records), the record
+of an active subscription so that Pro keeps working, the device's place on a
+subscription, which lapses after a month without use, the key your device signs
+in with, the 35-day scan tallies, and messages already sent to the operator. If
+you go on using the app, new records are made as described above.</p>
+<p>For any other request, email us from Report a bug in Settings: the email
+includes your device's support ID when it has one, which is how we find its
+records. We answer within one month. Your scan history and everything else
+stored only on your iPhone never reaches us, and you can delete it in Settings.</p>
+<p>You can also complain to a data protection authority: in Romania, the National
+Supervisory Authority for Personal Data Processing (ANSPDCP, dataprivacy.ro), or
+the authority where you live or work.</p>
 
 <h2>Children's Privacy</h2>
 <p>SnapWorth is not directed to children under 13. We do not knowingly collect
@@ -2120,7 +2190,7 @@ def terms():
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Terms of Service — SnapWorth</title><style>{_STYLE}</style></head><body>
 <h1>Terms of Service</h1>
-<p>Last updated: September 11, 2026</p>
+<p>Last updated: November 1, 2026</p>
 <p>By downloading or using SnapWorth you agree to these Terms. If you disagree,
 please do not use the app.</p>
 
@@ -2137,6 +2207,13 @@ billing period. Any introductory offer is available to new subscribers only; its
 length, its price, and whether it is free are shown on the subscription screen
 and confirmed by the App Store before you are charged.</p>
 
+<h2>Payments and Refunds</h2>
+<p>All purchases are made through the App Store and processed by Apple. We never
+see or store your payment details. Refunds are handled by Apple under its own
+policies; you can request one at
+<a href="https://reportaproblem.apple.com">reportaproblem.apple.com</a>. When Apple
+refunds a subscription, the Pro access it paid for ends.</p>
+
 <h2>Prohibited Use</h2>
 <p>You may not use SnapWorth to submit illegal content, attempt to reverse-engineer
 the service, or abuse the rate limits.</p>
@@ -2146,7 +2223,7 @@ the service, or abuse the rate limits.</p>
 EXTENT PERMITTED BY LAW, WE DISCLAIM ALL WARRANTIES, EXPRESS OR IMPLIED.</p>
 
 <h2>Contact</h2>
-<p>Questions? Email us at
+<p>SnapWorth is provided by Hermeneanu Ionut Silviu. Questions? Email us at
 <a href="mailto:her.silviu.i@gmail.com">her.silviu.i@gmail.com</a>.</p>
 </body></html>"""
 
@@ -3326,6 +3403,63 @@ async def trends(
     await _enforce_limits(principal.subject, _client_ip(request),
                           bucket=TRENDS_BUCKET, limit=TRENDS_RATE_MAX_REQUESTS)
     return TrendsResponse(**await trends_module.trends(is_pro=principal.is_pro))
+
+
+class ServerDataDeletion(BaseModel):
+    deleted: bool
+    # True while the device holds an active subscription: its record is
+    # what keeps Pro working, so it is kept, and the app says so.
+    subscription_kept: bool
+
+
+@app.delete("/me/data", response_model=ServerDataDeletion)
+async def delete_server_data(
+    request: Request,
+    principal: Principal = Depends(require_auth),
+) -> ServerDataDeletion:
+    """Delete my server data, from Settings: the GDPR erasure request a
+    support id cannot serve, because the id is a one-way hash of the key
+    most of these records are stored under. Only the device knows that key.
+
+    Deleted: the device's row in the operator's device index, the device on
+    any subscription row, the last-sync note, and, unless a subscription is
+    active, the stored subscription record and its proof.
+
+    Kept, and the privacy policy says so: what stops a free allowance or a
+    referral reward being claimed twice (quota and welcome markers, the
+    DeviceCheck token, referral records, refund tombstones, safety-block
+    counts), the device's slot on a subscription, which lapses after a month
+    unused, the App Attest public key the device signs in with, the 35-day
+    scan tallies, and messages already sent to the operator's Telegram.
+
+    Attested callers only. The legacy principal is keyed on a header anyone
+    can send, so honouring it would let one device erase another's records.
+    """
+    if not principal.authenticated:
+        raise APIError(401, apierrors.AUTH_REQUIRED, "Authentication required.",
+                       headers={"WWW-Authenticate": "Bearer"})
+    await _enforce_limits(principal.subject, _client_ip(request),
+                          bucket=DATA_DELETION_BUCKET,
+                          limit=DATA_DELETION_RATE_MAX_REQUESTS)
+    # `require_auth` has just queued this device's activity note, and on a
+    # device's first request in a window that note writes its index row. Let
+    # it land first, or it can put the row straight back after the delete.
+    pending = [task for task in background.tasks if not task.done()]
+    if pending:
+        await asyncio.wait(pending, timeout=2)
+    kept = principal.is_pro
+    try:
+        if not kept:
+            await auth.deps.entitlements.clear(principal.subject, required=True)
+        forgotten = await opsindex.forget_device(auditlog.pseudonymise(principal.subject))
+    except Exception as exc:
+        log.warning("server data deletion failed: %s", type(exc).__name__)
+        forgotten = False
+    if not forgotten:
+        raise HTTPException(
+            status_code=503,
+            detail="Couldn't delete your data right now. Please try again shortly.")
+    return ServerDataDeletion(deleted=True, subscription_kept=kept)
 
 
 @app.post("/listing", response_model=ListingResponse,

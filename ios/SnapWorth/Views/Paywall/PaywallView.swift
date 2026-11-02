@@ -280,7 +280,7 @@ struct PaywallView: View {
             }
             .background(Color.snapBackground)
 
-            // ── Delayed close button ───────────────────────────────────────
+            // ── Close button ───────────────────────────────────────────────
             if vm.showCloseButton {
                 Button {
                     dismiss()

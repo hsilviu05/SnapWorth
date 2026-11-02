@@ -92,7 +92,9 @@ DELIBERATELY_ENGLISH = {
     # legal text — see ios/Localization/README.md.
     "Information We Collect", "How We Use Your Information", "Service Providers",
     "Data Retention", "Children's Privacy", "Changes to This Policy", "Contact",
-    "Use of Service", "Subscriptions", "Prohibited Use", "Disclaimer",
+    "Our Website", "Who We Are", "Legal Bases", "International Transfers",
+    "Your Rights", "Use of Service", "Subscriptions", "Payments and Refunds",
+    "Prohibited Use", "Disclaimer",
     # The rare-find easter egg's tagline (`RareFind.tagline`): a line printed on
     # the one shirt the easter egg recognises, quoted as the shirt prints it.
     # Translated, it would describe a shirt that does not exist.

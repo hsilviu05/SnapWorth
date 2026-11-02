@@ -11580,3 +11580,27 @@ final class DailyGuessTests: XCTestCase {
         }
     }
 }
+
+// MARK: - Delete my server data
+
+final class ServerDataDeletionTests: XCTestCase {
+
+    func test_decodesTheServersAnswer() throws {
+        // The keys `DELETE /me/data` sends (backend/main.py `ServerDataDeletion`).
+        let kept = try JSONDecoder().decode(
+            ServerDataClient.Outcome.self,
+            from: Data(#"{"deleted":true,"subscription_kept":true}"#.utf8))
+        XCTAssertEqual(kept, ServerDataClient.Outcome(deleted: true, subscriptionKept: true))
+        let gone = try JSONDecoder().decode(
+            ServerDataClient.Outcome.self,
+            from: Data(#"{"deleted":true,"subscription_kept":false}"#.utf8))
+        XCTAssertFalse(gone.subscriptionKept)
+    }
+
+    func test_policyNamesTheButtonAndWhatItKeeps() {
+        let rights = PrivacyPolicy.sections.first { $0.heading == "Your Rights" }?.text ?? ""
+        XCTAssertTrue(rights.contains("Delete my server data in Settings"))
+        XCTAssertTrue(rights.contains("We keep what stops a free allowance"),
+                      "the policy must say what the button does not delete")
+    }
+}
