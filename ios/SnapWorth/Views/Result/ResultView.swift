@@ -539,7 +539,20 @@ struct ResultView: View {
         .accessibilityAddTraits(selected ? [.isButton, .isSelected] : .isButton)
     }
 
+    @ViewBuilder
     private func circleButton(icon: String) -> some View {
+        if #available(iOS 26, *) {
+            // iOS 26 already sets every toolbar item on Liquid Glass. A
+            // material circle inside it drew a bubble within a bubble.
+            Image(systemName: icon)
+                .snapSymbol(14, weight: .semibold)
+                .foregroundStyle(.primary)
+        } else {
+            legacyCircleButton(icon: icon)
+        }
+    }
+
+    private func legacyCircleButton(icon: String) -> some View {
         Image(systemName: icon)
             .snapSymbol(14, weight: .semibold)
             .foregroundStyle(Color.snapEspresso)

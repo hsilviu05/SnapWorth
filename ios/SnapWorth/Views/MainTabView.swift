@@ -50,33 +50,67 @@ struct MainTabView: View {
         }
     }
 
-    var body: some View {
-        TabView(selection: $selectedTab) {
-            ScanView(purchaseService: purchaseService)
-                .tabItem {
-                    Label("Scan", systemImage: selectedTab == 0 ? "camera.fill" : "camera")
+    /// The `Tab` API from iOS 18, with the tab bar shrinking on scroll from
+    /// iOS 26 so the My Finds grid gets the room. iOS 17 keeps `tabItem`.
+    @ViewBuilder
+    private var tabs: some View {
+        if #available(iOS 18, *) {
+            let view = TabView(selection: $selectedTab) {
+                Tab("Scan", systemImage: selectedTab == 0 ? "camera.fill" : "camera", value: 0) {
+                    ScanView(purchaseService: purchaseService)
                 }
-                .tag(0)
+                Tab("My Finds", systemImage: selectedTab == 1 ? "bag.fill" : "bag", value: 1) {
+                    HistoryView(purchaseService: purchaseService)
+                }
+                Tab("My Flips", systemImage: "chart.line.uptrend.xyaxis", value: 2) {
+                    FlipsView(purchaseService: purchaseService)
+                }
+                .badge(ledgerBadge)
+                Tab("Settings", systemImage: selectedTab == 3 ? "gearshape.fill" : "gearshape", value: 3) {
+                    SettingsView(purchaseService: purchaseService, isPro: isPro)
+                }
+            }
+            if #available(iOS 26, *) {
+                view.tabBarMinimizeBehavior(.onScrollDown)
+            } else {
+                view
+            }
+        } else {
+            TabView(selection: $selectedTab) {
+                ScanView(purchaseService: purchaseService)
+                    .tabItem {
+                        Label("Scan", systemImage: selectedTab == 0 ? "camera.fill" : "camera")
+                    }
+                    .tag(0)
 
-            HistoryView(purchaseService: purchaseService)
-                .tabItem {
-                    Label("My Finds", systemImage: selectedTab == 1 ? "bag.fill" : "bag")
-                }
-                .tag(1)
+                HistoryView(purchaseService: purchaseService)
+                    .tabItem {
+                        Label("My Finds", systemImage: selectedTab == 1 ? "bag.fill" : "bag")
+                    }
+                    .tag(1)
 
-            FlipsView(purchaseService: purchaseService)
-                .tabItem {
-                    Label("My Flips", systemImage: "chart.line.uptrend.xyaxis")
-                }
-                .badge(ledgerNeedsUpdateCount > 0 ? Text("\(ledgerNeedsUpdateCount)") : nil)
-                .tag(2)
+                FlipsView(purchaseService: purchaseService)
+                    .tabItem {
+                        Label("My Flips", systemImage: "chart.line.uptrend.xyaxis")
+                    }
+                    .badge(ledgerBadge)
+                    .tag(2)
 
-            SettingsView(purchaseService: purchaseService, isPro: isPro)
-                .tabItem {
-                    Label("Settings", systemImage: selectedTab == 3 ? "gearshape.fill" : "gearshape")
-                }
-                .tag(3)
+                SettingsView(purchaseService: purchaseService, isPro: isPro)
+                    .tabItem {
+                        Label("Settings", systemImage: selectedTab == 3 ? "gearshape.fill" : "gearshape")
+                    }
+                    .tag(3)
+            }
         }
+    }
+
+    private var ledgerBadge: Text? {
+        ledgerNeedsUpdateCount > 0 ? Text("\(ledgerNeedsUpdateCount)") : nil
+    }
+
+    var body: some View {
+        tabs
         .tint(Color.snapTerracotta)
         .onReceive(NotificationCenter.default.publisher(for: .snapSwitchToScan)) { _ in
             selectedTab = 0
