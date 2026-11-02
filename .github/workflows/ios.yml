@@ -396,10 +396,16 @@ jobs:
             xcrun simctl spawn "$UDID" defaults write "$BUNDLE" hasCompletedOnboarding -bool YES
             xcrun simctl launch "$UDID" "$BUNDLE" -mock-scans
             shoot "$UDID" 2-scan
-            xcrun simctl openurl "$UDID" snapworth://history
-            shoot "$UDID" 3-my-finds
-            xcrun simctl openurl "$UDID" snapworth://flips
-            shoot "$UDID" 4-my-flips
+            # Relaunched on each tab rather than sent a snapworth:// link: a
+            # link from outside the app puts up "Open in SnapWorth?", which
+            # covered every shot after this one.
+            TAB=1
+            for SHOT in 3-my-finds 4-my-flips 5-settings; do
+              xcrun simctl terminate "$UDID" "$BUNDLE"
+              xcrun simctl launch "$UDID" "$BUNDLE" -mock-scans -start-tab "$TAB"
+              shoot "$UDID" "$SHOT"
+              TAB=$((TAB + 1))
+            done
           done
           ls -la "$OUT"
 

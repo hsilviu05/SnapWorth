@@ -16,7 +16,7 @@ struct MainTabView: View {
     /// re-runs *this* body and rebuilds them. Removing it because "only
     /// Settings uses it" would put the stale-Pro-chrome bug back on all four.
     let isPro: Bool
-    @State private var selectedTab = 0
+    @State private var selectedTab = Config.startTab
     /// A week earned from a referral (#97) that this device has not been told
     /// about yet. Shown once per code; the code stays under Invite a friend.
     @State private var earnedReward: ReferralStatus.Reward?
