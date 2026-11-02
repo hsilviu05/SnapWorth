@@ -7,7 +7,7 @@
 # production manifest is clean and this is the last known advisory in the tree.
 pytest==9.1.1
 # Moved with pytest: pytest-asyncio 0.24.x does not support pytest 9.
-pytest-asyncio==1.4.0
+pytest-asyncio==1.4.1
 httpx==0.28.1
 # Pinned so CI and a local run check with the same rules: a new pyright can
 # report new errors, and that belongs in a Dependabot PR, not in an unrelated
