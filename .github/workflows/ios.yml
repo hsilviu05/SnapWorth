@@ -395,11 +395,13 @@ jobs:
 
           # A simulator with two displays (iPhone Duo, and the newest test
           # iPhone) refuses a screenshot that names none, and lists them in
-          # the error. Take one per display then. A fixed wait was not
-          # enough on a runtime's first boot: the iPhone 18 Pro drew blank
-          # and half-faded frames 4 s after launch, so shots are retaken
-          # until two in a row match. `run` caps any one simctl call, after
-          # a single screenshot hung for 37 minutes.
+          # the error. Take one per display then. A fixed 4 s wait was not
+          # enough on a runtime's first boot: the iPhone 18 Pro was still on
+          # its blank launch screen, or mid-fade. So each shot waits until
+          # the screen differs from the frame at launch, then lets the
+          # transition finish. Frames never match each other exactly once
+          # the app is up (it animates), so "two frames alike" is no signal.
+          # `run` caps any one simctl call, after one hung for 37 minutes.
           run() { perl -e 'alarm 90; exec @ARGV' "$@"; }
           snap() {  # device, file stem
             if ! run xcrun simctl io "$1" screenshot "$2.png" 2>"$OUT/.err"; then
@@ -411,19 +413,15 @@ jobs:
           }
           same() { cmp -s <(cat "$OUT"/."$1"*.png 2>/dev/null) <(cat "$OUT"/."$2"*.png 2>/dev/null); }
           shoot() {  # device, name; called straight after a launch
-            # The frame at launch is the blank launch screen, which also
-            # holds still: a match on it is not a settled app.
             snap "$1" "$OUT/.blank"
-            sleep 4
-            snap "$1" "$OUT/.prev"
-            for _ in 1 2 3 4 5 6 7 8; do
-              sleep 4
+            for _ in 1 2 3 4 5 6 7 8 9 10; do
+              sleep 3
               snap "$1" "$OUT/.cur"
-              if same prev cur && ! same blank cur; then break; fi
-              for F in "$OUT"/.cur*.png; do mv "$F" "${F/.cur/.prev}"; done
+              same blank cur || break
             done
-            for F in "$OUT"/.cur*.png; do mv "$F" "$OUT/$NAME-$2${F#$OUT/.cur}"; done
-            rm -f "$OUT"/.prev*.png "$OUT"/.blank*.png
+            sleep 3
+            snap "$1" "$OUT/$NAME-$2"
+            rm -f "$OUT"/.blank*.png "$OUT"/.cur*.png
           }
           for UDID in $DEVICES; do
             NAME=$(xcrun simctl list devices | grep "$UDID" | sed -E 's/^ *//; s/ \(.*//; s/ /-/g')
