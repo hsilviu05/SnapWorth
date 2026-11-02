@@ -350,6 +350,7 @@ jobs:
       - name: Screenshots (report only)
         if: success()
         continue-on-error: true
+        timeout-minutes: 30
         run: |
           set +e
           APP=$(find ~/Library/Developer/Xcode/DerivedData -maxdepth 6 -type d \
@@ -394,15 +395,35 @@ jobs:
 
           # A simulator with two displays (iPhone Duo, and the newest test
           # iPhone) refuses a screenshot that names none, and lists them in
-          # the error. Take one per display then.
-          shoot() {  # device, name
-            sleep 4
-            if ! xcrun simctl io "$1" screenshot "$OUT/$NAME-$2.png" 2>"$OUT/.err"; then
+          # the error. Take one per display then. A fixed wait was not
+          # enough on a runtime's first boot: the iPhone 18 Pro drew blank
+          # and half-faded frames 4 s after launch, so shots are retaken
+          # until two in a row match. `run` caps any one simctl call, after
+          # a single screenshot hung for 37 minutes.
+          run() { perl -e 'alarm 90; exec @ARGV' "$@"; }
+          snap() {  # device, file stem
+            if ! run xcrun simctl io "$1" screenshot "$2.png" 2>"$OUT/.err"; then
               for D in $(grep -oE -- '--display=[0-9]+' "$OUT/.err" | cut -d= -f2); do
-                xcrun simctl io "$1" screenshot --display="$D" "$OUT/$NAME-$2-display$D.png"
+                run xcrun simctl io "$1" screenshot --display="$D" "$2-display$D.png"
               done
             fi
             rm -f "$OUT/.err"
+          }
+          same() { cmp -s <(cat "$OUT"/."$1"*.png 2>/dev/null) <(cat "$OUT"/."$2"*.png 2>/dev/null); }
+          shoot() {  # device, name; called straight after a launch
+            # The frame at launch is the blank launch screen, which also
+            # holds still: a match on it is not a settled app.
+            snap "$1" "$OUT/.blank"
+            sleep 4
+            snap "$1" "$OUT/.prev"
+            for _ in 1 2 3 4 5 6 7 8; do
+              sleep 4
+              snap "$1" "$OUT/.cur"
+              if same prev cur && ! same blank cur; then break; fi
+              for F in "$OUT"/.cur*.png; do mv "$F" "${F/.cur/.prev}"; done
+            done
+            for F in "$OUT"/.cur*.png; do mv "$F" "$OUT/$NAME-$2${F#$OUT/.cur}"; done
+            rm -f "$OUT"/.prev*.png "$OUT"/.blank*.png
           }
           for UDID in $DEVICES; do
             NAME=$(xcrun simctl list devices | grep "$UDID" | sed -E 's/^ *//; s/ \(.*//; s/ /-/g')
@@ -412,6 +433,10 @@ jobs:
             xcrun simctl uninstall "$UDID" "$BUNDLE"
             xcrun simctl install "$UDID" "$APP"
             xcrun simctl privacy "$UDID" grant camera "$BUNDLE"
+            # The first launch after an install is the slowest by far; take
+            # it off the clock of the first shot.
+            run xcrun simctl launch "$UDID" "$BUNDLE" -mock-scans; sleep 20
+            xcrun simctl terminate "$UDID" "$BUNDLE"
             xcrun simctl launch "$UDID" "$BUNDLE" -mock-scans
             shoot "$UDID" 1-onboarding
             xcrun simctl terminate "$UDID" "$BUNDLE"
