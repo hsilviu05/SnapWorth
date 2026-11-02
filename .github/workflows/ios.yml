@@ -368,11 +368,15 @@ jobs:
           RT=$(xcrun simctl list runtimes | grep "iOS" | grep -v unavailable | tail -1 | awk '{print $NF}')
           add_device() {  # display name, grep pattern for the device type
             echo "$TEST_NAME" | grep -qE "$2" && return
-            TYPE=$(xcrun simctl list devicetypes | grep -E "$2" | tail -1 \
-                     | grep -oE 'com\.apple\.CoreSimulator\.SimDeviceType\.[A-Za-z0-9-]+')
-            if [ -z "$TYPE" ]; then echo "No $1 simulator in this Xcode"; return; fi
-            NEW=$(xcrun simctl create "CI-$1" "$TYPE" "$RT")
-            [ -n "$NEW" ] && xcrun simctl boot "$NEW" && DEVICES="$DEVICES $NEW"
+            # The device type list is not in release order, and older types
+            # cannot be created on the newest runtime: try newest first.
+            for TYPE in $(xcrun simctl list devicetypes | grep -E "$2" | sort -t' ' -k2 -rn \
+                            | grep -oE 'com\.apple\.CoreSimulator\.SimDeviceType\.[A-Za-z0-9-]+'); do
+              NEW=$(xcrun simctl create "CI-$1" "$TYPE" "$RT" 2>/dev/null) || continue
+              xcrun simctl boot "$NEW" && DEVICES="$DEVICES $NEW"
+              return
+            done
+            echo "No $1 simulator for this runtime"
           }
           add_device "iPhone Duo" "iPhone Duo"
           add_device "iPhone Pro" "^ *iPhone [0-9]+ Pro \("
