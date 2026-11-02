@@ -359,16 +359,23 @@ jobs:
           OUT=/tmp/screenshots
           mkdir -p "$OUT"
 
-          DEVICES="${{ steps.sim.outputs.udid }}"
-          DUO_TYPE=$(xcrun simctl list devicetypes | grep -i "iPhone Duo" | head -1 \
-                       | grep -oE 'com\.apple\.CoreSimulator\.SimDeviceType\.[A-Za-z0-9-]+')
+          # The test iPhone, plus whichever of an iPhone Duo and a regular
+          # iPhone Pro it is not: the newest test iPhone can itself be a Duo,
+          # which left the report with no ordinary iPhone in it.
+          TEST="${{ steps.sim.outputs.udid }}"
+          DEVICES="$TEST"
+          TEST_NAME=$(xcrun simctl list devices | grep "$TEST")
           RT=$(xcrun simctl list runtimes | grep "iOS" | grep -v unavailable | tail -1 | awk '{print $NF}')
-          if [ -n "$DUO_TYPE" ]; then
-            DUO=$(xcrun simctl create "CI-iPhone-Duo" "$DUO_TYPE" "$RT")
-            [ -n "$DUO" ] && xcrun simctl boot "$DUO" && DEVICES="$DEVICES $DUO"
-          else
-            echo "No iPhone Duo simulator in this Xcode"
-          fi
+          add_device() {  # display name, grep pattern for the device type
+            echo "$TEST_NAME" | grep -qE "$2" && return
+            TYPE=$(xcrun simctl list devicetypes | grep -E "$2" | tail -1 \
+                     | grep -oE 'com\.apple\.CoreSimulator\.SimDeviceType\.[A-Za-z0-9-]+')
+            if [ -z "$TYPE" ]; then echo "No $1 simulator in this Xcode"; return; fi
+            NEW=$(xcrun simctl create "CI-$1" "$TYPE" "$RT")
+            [ -n "$NEW" ] && xcrun simctl boot "$NEW" && DEVICES="$DEVICES $NEW"
+          }
+          add_device "iPhone Duo" "iPhone Duo"
+          add_device "iPhone Pro" "^ *iPhone [0-9]+ Pro \("
 
           # A simulator with two displays (iPhone Duo, and the newest test
           # iPhone) refuses a screenshot that names none, and lists them in
