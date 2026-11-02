@@ -347,7 +347,7 @@ private struct TrackFindsHero: View {
 
     var body: some View {
         LazyVGrid(columns: [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)], spacing: 10) {
-            ForEach(Array(items.enumerated()), id: \.offset) { _, item in
+            ForEach(items, id: \.0) { item in
                 VStack(alignment: .leading, spacing: 6) {
                     ZStack {
                         RoundedRectangle(cornerRadius: 8, style: .continuous)

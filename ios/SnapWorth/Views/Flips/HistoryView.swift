@@ -152,44 +152,45 @@ struct HistoryView: View {
                         } else {
                             LazyVGrid(columns: fixedColumns, spacing: gridSpacing) {
                                 ForEach(shown) { result in
-                                    ScanHistoryCard(result: result, width: cardWidth)
-                                        .onTapGesture {
-                                            guard !isEditing else { return }
-                                            selectedResult = result
+                                    Button {
+                                        guard !isEditing else { return }
+                                        selectedResult = result
+                                    } label: {
+                                        ScanHistoryCard(result: result, width: cardWidth)
+                                    }
+                                    .buttonStyle(.plain)
+                                    .contextMenu {
+                                        Button(role: .destructive) {
+                                            pendingDelete = result
+                                        } label: {
+                                            Label("Delete", systemImage: "trash")
                                         }
-                                        .contextMenu {
-                                            Button(role: .destructive) {
+                                    }
+                                    .overlay(alignment: .topTrailing) {
+                                        if isEditing {
+                                            Button {
                                                 pendingDelete = result
                                             } label: {
-                                                Label("Delete", systemImage: "trash")
+                                                Image(systemName: "minus.circle.fill")
+                                                    .snapSymbol(22)
+                                                    .foregroundStyle(.white, Color.red)
+                                                    .background(Color.white.clipShape(Circle()))
                                             }
+                                            .snapHitTarget()
+                                            .offset(x: 8, y: -8)
+                                            .transition(.scale.combined(with: .opacity))
+                                            .accessibilityLabel(String(localized: "Delete \(result.itemName)"))
                                         }
-                                        .overlay(alignment: .topTrailing) {
-                                            if isEditing {
-                                                Button {
-                                                    pendingDelete = result
-                                                } label: {
-                                                    Image(systemName: "minus.circle.fill")
-                                                        .snapSymbol(22)
-                                                        .foregroundStyle(.white, Color.red)
-                                                        .background(Color.white.clipShape(Circle()))
-                                                }
-                                                .snapHitTarget()
-                                                .offset(x: 8, y: -8)
-                                                .transition(.scale.combined(with: .opacity))
-                                                .accessibilityLabel(String(localized: "Delete \(result.itemName)"))
-                                            }
-                                        }
-                                        // The card already carries a combined
-                                        // label (DesignSystem.ScanHistoryCard);
-                                        // add the tap semantics and a rotor
-                                        // action so delete is reachable without
-                                        // entering edit mode or long-pressing.
-                                        .accessibilityHint("Opens this find")
-                                        .accessibilityAddTraits(.isButton)
-                                        .accessibilityAction(named: "Delete") {
-                                            pendingDelete = result
-                                        }
+                                    }
+                                    // The card already carries a combined
+                                    // label (DesignSystem.ScanHistoryCard);
+                                    // add a rotor action so delete is
+                                    // reachable without entering edit mode
+                                    // or long-pressing.
+                                    .accessibilityHint("Opens this find")
+                                    .accessibilityAction(named: "Delete") {
+                                        pendingDelete = result
+                                    }
                                 }
                             }
                             .padding(.horizontal, hPad)

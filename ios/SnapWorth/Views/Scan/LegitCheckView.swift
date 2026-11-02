@@ -339,7 +339,7 @@ struct LegitCheckFlow: View {
 
     private var stepDots: some View {
         HStack(spacing: 6) {
-            ForEach(Array(slots.enumerated()), id: \.offset) { index, slot in
+            ForEach(Array(slots.enumerated()), id: \.element) { index, slot in
                 Capsule()
                     .fill(photos[slot] != nil
                           ? Color.snapOnCharcoal
