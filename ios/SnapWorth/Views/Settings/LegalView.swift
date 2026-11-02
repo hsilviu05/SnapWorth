@@ -24,7 +24,7 @@ struct PrivacyPolicyView: View {
 /// Change this and `backend/main.py`'s `/privacy` together.
 /// `PrivacyPolicyDisclosureTests` fails if a processor goes missing.
 enum PrivacyPolicy {
-    static let updated = "November 1, 2026"
+    static let updated = "November 2, 2026"
 
     /// Every third party that receives user data, by the name a reader would
     /// recognise. The test asserts each appears in `sections`.
@@ -36,7 +36,7 @@ enum PrivacyPolicy {
             SnapWorth ("we", "our", or "us") operates the SnapWorth mobile application. This page informs you of our policies regarding the collection, use, and disclosure of personal data when you use our Service.
             """),
         (heading: "Who We Are", text: """
-            SnapWorth is run by Hermeneanu Ionut Silviu, an individual in Romania, who decides how the personal data described in this policy is used: the controller, in the words of the EU General Data Protection Regulation (GDPR). You can reach the controller at \(Config.supportEmail).
+            SnapWorth is run by Hermeneanu Ionut Silviu, an individual in Romania, who decides how the personal data described in this policy is used: the controller, in the words of the EU General Data Protection Regulation (GDPR). You can reach the controller at \(Config.supportEmail), or by post at Strada Mare 170, 505800 Zarnesti, Brasov, Romania.
             """),
         (heading: "Information We Collect", text: """
             We collect photos you submit for valuation or for a legit check. Photos are sent to our server, processed by an AI model to identify the item and estimate resale value, or to look for the usual signs of a replica, and are not stored after the response is returned.
@@ -139,7 +139,7 @@ enum TermsCopy {
 
 struct TermsOfServiceView: View {
     var body: some View {
-        LegalDocumentView(title: "Terms of Service", updated: "November 1, 2026") {
+        LegalDocumentView(title: "Terms of Service", updated: "November 2, 2026") {
             LegalSection(heading: nil, text: """
                 By downloading or using SnapWorth you agree to these Terms. If you disagree, please do not use the app.
                 """)
@@ -162,7 +162,7 @@ struct TermsOfServiceView: View {
                 THE SERVICE IS PROVIDED "AS IS" WITHOUT WARRANTIES OF ANY KIND. TO THE MAXIMUM EXTENT PERMITTED BY LAW, WE DISCLAIM ALL WARRANTIES, EXPRESS OR IMPLIED.
                 """)
 
-            LegalSection(heading: "Contact", text: "SnapWorth is provided by Hermeneanu Ionut Silviu. Questions? Email us at \(Config.supportEmail)")
+            LegalSection(heading: "Contact", text: "SnapWorth is provided by Hermeneanu Ionut Silviu, Strada Mare 170, 505800 Zarnesti, Brasov, Romania. Questions? Email us at \(Config.supportEmail)")
         }
     }
 }
