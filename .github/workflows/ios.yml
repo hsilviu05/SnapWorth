@@ -379,7 +379,18 @@ jobs:
             echo "No $1 simulator for this runtime"
           }
           add_device "iPhone Duo" "iPhone Duo"
-          add_device "iPhone Pro" "^ *iPhone [0-9]+ Pro \("
+          # The newest runtime can carry only the Duo (iOS 27.1 does), so the
+          # Pro is an existing simulator from any runtime: the last listed is
+          # the newest.
+          if ! echo "$TEST_NAME" | grep -qE "iPhone [0-9]+ Pro \("; then
+            PRO=$(xcrun simctl list devices available | grep -E "^ *iPhone [0-9]+ Pro \(" | tail -1 \
+                    | grep -oE '[A-F0-9]{8}-[A-F0-9]{4}-[A-F0-9]{4}-[A-F0-9]{4}-[A-F0-9]{12}')
+            if [ -n "$PRO" ]; then
+              xcrun simctl boot "$PRO"; DEVICES="$DEVICES $PRO"
+            else
+              echo "No iPhone Pro simulator installed"
+            fi
+          fi
 
           # A simulator with two displays (iPhone Duo, and the newest test
           # iPhone) refuses a screenshot that names none, and lists them in
