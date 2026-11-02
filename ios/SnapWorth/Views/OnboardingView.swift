@@ -110,42 +110,54 @@ private struct SlideView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
-        // Scrollable so accessibility text sizes overflow gracefully instead of
-        // clipping the hero and truncating the body copy. When the content fits
-        // (the common case) `minHeight` keeps it optically centred as before.
+        // The first layout that fits wins. A short display (the folded iPhone
+        // Duo, landscape) used to cut the body copy off mid-line under the
+        // full-size hero, with nothing to say it scrolled; a smaller hero fits
+        // it there. Accessibility text sizes that fit neither still scroll.
         GeometryReader { proxy in
-            ScrollView(.vertical, showsIndicators: false) {
-                VStack(spacing: 32) {
-                    OnboardingHeroView(slide: slide)
-                        .scaleEffect(isActive ? 1 : 0.94)
-                        .opacity(isActive ? 1 : 0.55)
-                        .animation(
-                            reduceMotion ? nil : .spring(response: 0.5, dampingFraction: 0.82),
-                            value: isActive
-                        )
-
-                    VStack(spacing: 12) {
-                        Text(slide.headline)
-                            .font(.fraunces(30, weight: .bold, relativeTo: .title))
-                            .foregroundStyle(Color.snapEspresso)
-                            .multilineTextAlignment(.center)
-                            .fixedSize(horizontal: false, vertical: true)
-
-                        Text(slide.body)
-                            .font(.snapBody)
-                            .foregroundStyle(Color.snapWarmGray)
-                            .multilineTextAlignment(.center)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-                    .padding(.horizontal, 28)
-                    // One VoiceOver stop per slide, read as a single sentence.
-                    .accessibilityElement(children: .combine)
+            ViewThatFits(in: .vertical) {
+                content(heroScale: 1)
+                    .frame(minHeight: proxy.size.height)
+                content(heroScale: 0.65)
+                    .frame(minHeight: proxy.size.height)
+                ScrollView(.vertical, showsIndicators: false) {
+                    content(heroScale: 1)
+                        .frame(minHeight: proxy.size.height)
                 }
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 24)
-                .frame(minHeight: proxy.size.height)
             }
         }
+    }
+
+    private func content(heroScale: CGFloat) -> some View {
+        VStack(spacing: 32 * heroScale) {
+            OnboardingHeroView(slide: slide)
+                .scaleEffect((isActive ? 1 : 0.94) * heroScale)
+                .frame(height: OnboardingHeroView.height * heroScale)
+                .opacity(isActive ? 1 : 0.55)
+                .animation(
+                    reduceMotion ? nil : .spring(response: 0.5, dampingFraction: 0.82),
+                    value: isActive
+                )
+
+            VStack(spacing: 12) {
+                Text(slide.headline)
+                    .font(.fraunces(30, weight: .bold, relativeTo: .title))
+                    .foregroundStyle(Color.snapEspresso)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                Text(slide.body)
+                    .font(.snapBody)
+                    .foregroundStyle(Color.snapWarmGray)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .padding(.horizontal, 28)
+            // One VoiceOver stop per slide, read as a single sentence.
+            .accessibilityElement(children: .combine)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 24)
     }
 }
 
@@ -154,6 +166,8 @@ private struct SlideView: View {
 // ═══════════════════════════════════════════════════════════════════
 
 private struct OnboardingHeroView: View {
+    static let height: CGFloat = 220
+
     let slide: OnboardingSlide
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var float = false
@@ -164,7 +178,7 @@ private struct OnboardingHeroView: View {
             // like an image of text, it must not scale with Dynamic Type or it
             // overflows its own mock card. The real copy below scales freely.
             .dynamicTypeSize(...DynamicTypeSize.large)
-            .frame(height: 220)
+            .frame(height: Self.height)
             // Decorative idle motion — skipped entirely under Reduce Motion.
             .offset(y: reduceMotion ? 0 : (float ? -6 : 6))
             .animation(

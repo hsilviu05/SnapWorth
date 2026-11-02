@@ -24,6 +24,18 @@ enum Config {
         mockMode || CommandLine.arguments.contains(mockScansLaunchArgument)
     }
 
+    /// `-start-tab 2` opens on that tab (0 Scan, 1 My Finds, 2 My Flips,
+    /// 3 Settings). CI's screenshot step uses it: opening a `snapworth://`
+    /// link from outside the app puts up "Open in SnapWorth?", which covered
+    /// every shot after the first. Like `-mock-scans`, an App Store build can
+    /// never receive it.
+    static var startTab: Int {
+        let args = CommandLine.arguments
+        guard let i = args.firstIndex(of: "-start-tab"), i + 1 < args.count,
+              let tab = Int(args[i + 1]), (0...3).contains(tab) else { return 0 }
+        return tab
+    }
+
     // ── Transport security ───────────────────────────────────────────────────
     /// Base64 SHA-256 hashes of pinned SubjectPublicKeyInfo blobs for
     /// `api.snapworth.eu`: the four root keys every Let's Encrypt chain ends

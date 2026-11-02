@@ -350,6 +350,7 @@ jobs:
       - name: Screenshots (report only)
         if: success()
         continue-on-error: true
+        timeout-minutes: 30
         run: |
           set +e
           APP=$(find ~/Library/Developer/Xcode/DerivedData -maxdepth 6 -type d \
@@ -359,28 +360,68 @@ jobs:
           OUT=/tmp/screenshots
           mkdir -p "$OUT"
 
-          DEVICES="${{ steps.sim.outputs.udid }}"
-          DUO_TYPE=$(xcrun simctl list devicetypes | grep -i "iPhone Duo" | head -1 \
-                       | grep -oE 'com\.apple\.CoreSimulator\.SimDeviceType\.[A-Za-z0-9-]+')
+          # The test iPhone, plus whichever of an iPhone Duo and a regular
+          # iPhone Pro it is not: the newest test iPhone can itself be a Duo,
+          # which left the report with no ordinary iPhone in it.
+          TEST="${{ steps.sim.outputs.udid }}"
+          DEVICES="$TEST"
+          TEST_NAME=$(xcrun simctl list devices | grep "$TEST")
           RT=$(xcrun simctl list runtimes | grep "iOS" | grep -v unavailable | tail -1 | awk '{print $NF}')
-          if [ -n "$DUO_TYPE" ]; then
-            DUO=$(xcrun simctl create "CI-iPhone-Duo" "$DUO_TYPE" "$RT")
-            [ -n "$DUO" ] && xcrun simctl boot "$DUO" && DEVICES="$DEVICES $DUO"
-          else
-            echo "No iPhone Duo simulator in this Xcode"
+          add_device() {  # display name, grep pattern for the device type
+            echo "$TEST_NAME" | grep -qE "$2" && return
+            # The device type list is not in release order, and older types
+            # cannot be created on the newest runtime: try newest first.
+            for TYPE in $(xcrun simctl list devicetypes | grep -E "$2" | sort -t' ' -k2 -rn \
+                            | grep -oE 'com\.apple\.CoreSimulator\.SimDeviceType\.[A-Za-z0-9-]+'); do
+              NEW=$(xcrun simctl create "CI-$1" "$TYPE" "$RT" 2>/dev/null) || continue
+              xcrun simctl boot "$NEW" && DEVICES="$DEVICES $NEW"
+              return
+            done
+            echo "No $1 simulator for this runtime"
+          }
+          add_device "iPhone Duo" "iPhone Duo"
+          # The newest runtime can carry only the Duo (iOS 27.1 does), so the
+          # Pro is an existing simulator from any runtime: the last listed is
+          # the newest.
+          if ! echo "$TEST_NAME" | grep -qE "iPhone [0-9]+ Pro \("; then
+            PRO=$(xcrun simctl list devices available | grep -E "^ *iPhone [0-9]+ Pro \(" | tail -1 \
+                    | grep -oE '[A-F0-9]{8}-[A-F0-9]{4}-[A-F0-9]{4}-[A-F0-9]{4}-[A-F0-9]{12}')
+            if [ -n "$PRO" ]; then
+              xcrun simctl boot "$PRO"; DEVICES="$DEVICES $PRO"
+            else
+              echo "No iPhone Pro simulator installed"
+            fi
           fi
 
           # A simulator with two displays (iPhone Duo, and the newest test
           # iPhone) refuses a screenshot that names none, and lists them in
-          # the error. Take one per display then.
-          shoot() {  # device, name
-            sleep 4
-            if ! xcrun simctl io "$1" screenshot "$OUT/$NAME-$2.png" 2>"$OUT/.err"; then
+          # the error. Take one per display then. A fixed 4 s wait was not
+          # enough on a runtime's first boot: the iPhone 18 Pro was still on
+          # its blank launch screen, or mid-fade. So each shot waits until
+          # the screen differs from the frame at launch, then lets the
+          # transition finish. Frames never match each other exactly once
+          # the app is up (it animates), so "two frames alike" is no signal.
+          # `run` caps any one simctl call, after one hung for 37 minutes.
+          run() { perl -e 'alarm 90; exec @ARGV' "$@"; }
+          snap() {  # device, file stem
+            if ! run xcrun simctl io "$1" screenshot "$2.png" 2>"$OUT/.err"; then
               for D in $(grep -oE -- '--display=[0-9]+' "$OUT/.err" | cut -d= -f2); do
-                xcrun simctl io "$1" screenshot --display="$D" "$OUT/$NAME-$2-display$D.png"
+                run xcrun simctl io "$1" screenshot --display="$D" "$2-display$D.png"
               done
             fi
             rm -f "$OUT/.err"
+          }
+          same() { cmp -s <(cat "$OUT"/."$1"*.png 2>/dev/null) <(cat "$OUT"/."$2"*.png 2>/dev/null); }
+          shoot() {  # device, name; called straight after a launch
+            snap "$1" "$OUT/.blank"
+            for _ in 1 2 3 4 5 6 7 8 9 10; do
+              sleep 3
+              snap "$1" "$OUT/.cur"
+              same blank cur || break
+            done
+            sleep 3
+            snap "$1" "$OUT/$NAME-$2"
+            rm -f "$OUT"/.blank*.png "$OUT"/.cur*.png
           }
           for UDID in $DEVICES; do
             NAME=$(xcrun simctl list devices | grep "$UDID" | sed -E 's/^ *//; s/ \(.*//; s/ /-/g')
@@ -390,16 +431,26 @@ jobs:
             xcrun simctl uninstall "$UDID" "$BUNDLE"
             xcrun simctl install "$UDID" "$APP"
             xcrun simctl privacy "$UDID" grant camera "$BUNDLE"
+            # The first launch after an install is the slowest by far; take
+            # it off the clock of the first shot.
+            run xcrun simctl launch "$UDID" "$BUNDLE" -mock-scans; sleep 20
+            xcrun simctl terminate "$UDID" "$BUNDLE"
             xcrun simctl launch "$UDID" "$BUNDLE" -mock-scans
             shoot "$UDID" 1-onboarding
             xcrun simctl terminate "$UDID" "$BUNDLE"
             xcrun simctl spawn "$UDID" defaults write "$BUNDLE" hasCompletedOnboarding -bool YES
             xcrun simctl launch "$UDID" "$BUNDLE" -mock-scans
             shoot "$UDID" 2-scan
-            xcrun simctl openurl "$UDID" snapworth://history
-            shoot "$UDID" 3-my-finds
-            xcrun simctl openurl "$UDID" snapworth://flips
-            shoot "$UDID" 4-my-flips
+            # Relaunched on each tab rather than sent a snapworth:// link: a
+            # link from outside the app puts up "Open in SnapWorth?", which
+            # covered every shot after this one.
+            TAB=1
+            for SHOT in 3-my-finds 4-my-flips 5-settings; do
+              xcrun simctl terminate "$UDID" "$BUNDLE"
+              xcrun simctl launch "$UDID" "$BUNDLE" -mock-scans -start-tab "$TAB"
+              shoot "$UDID" "$SHOT"
+              TAB=$((TAB + 1))
+            done
           done
           ls -la "$OUT"
 
