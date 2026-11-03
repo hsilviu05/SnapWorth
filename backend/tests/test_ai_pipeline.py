@@ -1072,10 +1072,20 @@ class TestGenerationConfigIsSendable:
                 "and is rejected on the way out."
             ) from None
 
-    def test_scan_config_is_sendable(self):
+    def test_scan_config_is_sendable(self, monkeypatch):
+        monkeypatch.setattr(aiconfig, "MODEL_NAME", "gemini-2.5-flash")
         wire = self._wire(aiconfig.generation_config(), "scan")
         assert wire["temperature"] == aiconfig.TEMPERATURE
         assert wire["candidate_count"] == 1
+
+    def test_gemini_3_gets_no_sampling_knobs(self):
+        """Gemini 3+ ignores temperature, top_p and top_k, and Google says to
+        remove them; candidate_count above 1 is a 400 there."""
+        assert aiconfig.uses_thinking_level()      # the default model
+        wire = self._wire(aiconfig.generation_config(), "scan")
+        assert not {"temperature", "top_p", "top_k"} & set(wire)
+        assert wire["candidate_count"] == 1
+        assert wire["seed"] == aiconfig.SEED
 
     def test_listing_config_is_sendable(self):
         cfg = aiconfig.generation_config(
@@ -1688,6 +1698,7 @@ class TestThinkingIsOffForTextCalls:
         assert aiconfig.TEXT_THINKING_BUDGET == 0
 
     def test_a_per_call_budget_is_sent_and_beats_the_global_one(self, monkeypatch):
+        monkeypatch.setattr(aiconfig, "MODEL_NAME", "gemini-2.5-flash")
         monkeypatch.setattr(aiconfig, "THINKING_BUDGET", 512)
         wire = aiconfig.generation_config(thinking_budget=0).model_dump(
             exclude_none=True, mode="json")
@@ -1696,7 +1707,47 @@ class TestThinkingIsOffForTextCalls:
             exclude_none=True, mode="json")["thinking_config"] == {"thinking_budget": 512}
 
     def test_an_unset_global_budget_still_sends_nothing(self, monkeypatch):
+        monkeypatch.setattr(aiconfig, "MODEL_NAME", "gemini-2.5-flash")
         monkeypatch.setattr(aiconfig, "THINKING_BUDGET", None)
+        wire = aiconfig.generation_config().model_dump(exclude_none=True, mode="json")
+        assert "thinking_config" not in wire
+
+    # ── Gemini 3+: a level, never a budget ──────────────────────────────────
+
+    def test_the_level_parser(self):
+        assert aiconfig._level("", "X") is None
+        assert aiconfig._level(" Medium ", "X") == "medium"
+        assert aiconfig._level("512", "X") is None       # a budget is not a level
+        assert aiconfig._level("extreme", "X") is None
+
+    def test_which_models_take_a_level(self):
+        assert aiconfig.uses_thinking_level("gemini-3.5-flash-lite")
+        assert aiconfig.uses_thinking_level("models/gemini-3-flash")
+        assert aiconfig.uses_thinking_level("gemini-10-pro")
+        assert not aiconfig.uses_thinking_level("gemini-2.5-flash")
+        assert not aiconfig.uses_thinking_level("gemini-flash-latest")
+
+    def test_scans_think_at_medium_not_the_models_minimal(self):
+        """Flash-Lite defaults to minimal. 2.5 Flash reasoned freely on every
+        scan, so sending nothing would be an unmeasured quality cut."""
+        assert aiconfig.THINKING_LEVEL == "medium"
+        assert aiconfig.TEXT_THINKING_LEVEL == "minimal"
+        wire = aiconfig.generation_config().model_dump(exclude_none=True, mode="json")
+        assert wire["thinking_config"] == {"thinking_level": "MEDIUM"}
+
+    def test_a_budget_is_never_sent_to_a_level_model(self, monkeypatch):
+        """Both in one request is a 400, and a budget alone is legacy."""
+        monkeypatch.setattr(aiconfig, "THINKING_BUDGET", 512)
+        wire = aiconfig.generation_config(thinking_budget=0).model_dump(
+            exclude_none=True, mode="json")
+        assert wire["thinking_config"] == {"thinking_level": "MEDIUM"}
+        wire = aiconfig.generation_config(
+            thinking_budget=0, thinking_level="minimal").model_dump(
+            exclude_none=True, mode="json")
+        assert wire["thinking_config"] == {"thinking_level": "MINIMAL"}
+
+    def test_an_unset_level_sends_nothing(self, monkeypatch):
+        monkeypatch.setattr(aiconfig, "THINKING_LEVEL", None)
         wire = aiconfig.generation_config().model_dump(exclude_none=True, mode="json")
         assert "thinking_config" not in wire
 
@@ -1710,7 +1761,8 @@ class TestThinkingIsOffForTextCalls:
             model.generate_content_async = AsyncMock(return_value=reply)
             assert _post_listing("no-thinking").status_code == 200
         [config] = self._sent(model)
-        assert config.thinking_config.thinking_budget == 0
+        assert config.thinking_config.thinking_level == "MINIMAL"
+        assert config.thinking_config.thinking_budget is None
         assert config.max_output_tokens == aiconfig.LISTING_MAX_OUTPUT_TOKENS
 
     def test_the_reformat_is_asked_without_thinking(self):
@@ -1724,7 +1776,7 @@ class TestThinkingIsOffForTextCalls:
             assert asyncio.run(main._retry_as_json("Sure! The item is a lamp.")) == {
                 "item_name": "Lamp"}
         [config] = self._sent(model)
-        assert config.thinking_config.thinking_budget == 0
+        assert config.thinking_config.thinking_level == "MINIMAL"
 
     def test_the_scan_keeps_the_models_own_config(self, monkeypatch):
         """No per-call config at all, so the scan runs on the model's default

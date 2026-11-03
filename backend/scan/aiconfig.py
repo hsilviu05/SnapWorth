@@ -21,7 +21,9 @@ Four settings, and why each
 ---------------------------
 * **temperature 0.15** — near-greedy. Preserves enough sampling to escape a
   degenerate token loop, while making repeat scans of one item cluster tightly.
-  Measured by the `consistency` metric in `backend/eval/`.
+  Measured by the `consistency` metric in `backend/eval/`. Gemini 2.5 only:
+  Gemini 3 ignores temperature and top_p, so they are no longer sent to it
+  (see `uses_thinking_level`).
 
 * **response_mime_type "application/json"** — constrains decoding to valid JSON
   at the sampler. This is what makes `_extract_json`'s regex scraping and the
@@ -65,6 +67,7 @@ from __future__ import annotations
 
 import base64
 import logging
+import re
 import os
 from functools import lru_cache
 from typing import Any
@@ -74,9 +77,33 @@ from google.genai import types
 
 log = logging.getLogger("snapworth.aiconfig")
 
-MODEL_NAME = os.environ.get("GEMINI_MODEL", "gemini-2.5-flash")
+MODEL_NAME = os.environ.get("GEMINI_MODEL", "gemini-3.5-flash-lite")
 
-# Near-greedy: the same photo should produce the same price.
+# Google retired gemini-2.5-flash on 2026-12-01, redirecting its traffic to
+# gemini-3.5-flash-lite. Gemini 3 and later changed two parts of the config:
+#
+# * temperature, top_p and top_k are deprecated and ignored, so they are not
+#   sent. Repeat-scan consistency now rests on the seed and the prompt, and is
+#   what the eval's `consistency` metric is there to watch.
+# * thinking is set by `thinking_level` (minimal, low, medium, high), not a
+#   token budget, and Flash-Lite defaults to "minimal". 2.5 Flash thought
+#   dynamically, ~1100-1800 tokens a scan, so sending nothing would quietly
+#   take most of the scan's reasoning away. See THINKING_LEVEL.
+#
+# The 2.5 path stays, so pointing GEMINI_MODEL back is a rollback with no
+# deploy, until Google stops serving it.
+_GENERATION = re.compile(r"gemini-(\d+)")
+
+
+def uses_thinking_level(model: str | None = None) -> bool:
+    """Whether `model` is Gemini 3 or later: thinking by level, no sampling
+    knobs. An unrecognised name is treated as the older family."""
+    match = _GENERATION.search(model or MODEL_NAME)
+    return bool(match) and int(match.group(1)) >= 3
+
+
+# Near-greedy: the same photo should produce the same price. 2.5 only — see
+# above.
 TEMPERATURE = float(os.environ.get("GEMINI_TEMPERATURE", "0.15"))
 TOP_P = float(os.environ.get("GEMINI_TOP_P", "0.90"))
 SEED = int(os.environ.get("GEMINI_SEED", "20260728"))
@@ -147,7 +174,7 @@ def _safety_settings() -> list[types.SafetySetting]:
 
 def generation_config(
     *, json_mode: bool = True, max_output_tokens: int | None = None,
-    thinking_budget: int | None = None,
+    thinking_budget: int | None = None, thinking_level: str | None = None,
 ) -> types.GenerateContentConfig:
     """Sampling parameters, plus the safety thresholds.
 
@@ -160,24 +187,33 @@ def generation_config(
     Safety settings live here rather than on the client because this SDK takes
     the whole configuration per call.
 
-    `thinking_budget` overrides `THINKING_BUDGET` for this call; None keeps
-    it. See `TEXT_THINKING_BUDGET` for the calls that pass one.
+    `thinking_budget` overrides `THINKING_BUDGET` for this call, on a 2.5
+    model; `thinking_level` overrides `THINKING_LEVEL`, on Gemini 3 and later.
+    None keeps the global one. Each is ignored on the other family, so a text
+    call passes both (`TEXT_THINKING_BUDGET`, `TEXT_THINKING_LEVEL`).
     """
+    level_model = uses_thinking_level()
     kwargs: dict[str, Any] = {
-        "temperature": TEMPERATURE,
-        "top_p": TOP_P,
         "candidate_count": 1,
         "max_output_tokens": max_output_tokens or MAX_OUTPUT_TOKENS,
         "seed": SEED,
         "safety_settings": _safety_settings(),
     }
+    if not level_model:
+        kwargs["temperature"] = TEMPERATURE
+        kwargs["top_p"] = TOP_P
     if json_mode and JSON_MODE:
         kwargs["response_mime_type"] = "application/json"
-    # Only when explicitly configured — see THINKING_BUDGET. Passing the
-    # field at all changes model behaviour, so an unset knob must not.
-    budget = THINKING_BUDGET if thinking_budget is None else thinking_budget
-    if budget is not None:
-        kwargs["thinking_config"] = types.ThinkingConfig(thinking_budget=budget)
+    if level_model:
+        level = THINKING_LEVEL if thinking_level is None else thinking_level
+        if level is not None:
+            kwargs["thinking_config"] = types.ThinkingConfig(thinking_level=types.ThinkingLevel(level.upper()))
+    else:
+        # Only when explicitly configured — see THINKING_BUDGET. Passing the
+        # field at all changes model behaviour, so an unset knob must not.
+        budget = THINKING_BUDGET if thinking_budget is None else thinking_budget
+        if budget is not None:
+            kwargs["thinking_config"] = types.ThinkingConfig(thinking_budget=budget)
     return types.GenerateContentConfig(**kwargs)
 
 
@@ -253,6 +289,44 @@ THINKING_BUDGET: int | None = _budget(os.environ.get("GEMINI_THINKING_BUDGET", "
 # model decide"), or blank to follow GEMINI_THINKING_BUDGET like scans do.
 TEXT_THINKING_BUDGET: int | None = _budget(
     os.environ.get("GEMINI_TEXT_THINKING_BUDGET", "0"))
+
+# The same two knobs for Gemini 3 and later, where the budgets above are
+# ignored (sending both in one request is a 400).
+#
+# The scan's is "medium", not the model's own default of "minimal": 2.5 Flash
+# reasoned freely on every scan, and "minimal" is close to thinking off — a
+# quality cut nobody measured. "medium" is the nearest level to what was
+# running, and is itself a starting point for `backend/eval/runner.py`
+# (`--compare v2@low v2@medium`), not a finding. Blank sends no thinking
+# config, i.e. the model's default.
+#
+# The text calls take "minimal", the level counterpart of a zero budget: Gemini
+# 3 cannot switch thinking off entirely.
+THINKING_LEVELS = ("minimal", "low", "medium", "high")
+
+
+def _level(raw: str, name: str) -> str | None:
+    """A thinking level from the environment, or None when blank. A value the
+    API would refuse is dropped with a warning, because sent it would be a 400
+    on every call."""
+    raw = raw.strip().lower()
+    if not raw:
+        return None
+    if raw not in THINKING_LEVELS:
+        log.warning("%s=%r is not one of %s; sending no thinking level",
+                    name, raw, ", ".join(THINKING_LEVELS))
+        return None
+    return raw
+
+
+THINKING_LEVEL: str | None = _level(
+    os.environ.get("GEMINI_THINKING_LEVEL", "medium"), "GEMINI_THINKING_LEVEL")
+TEXT_THINKING_LEVEL: str | None = _level(
+    os.environ.get("GEMINI_TEXT_THINKING_LEVEL", "minimal"), "GEMINI_TEXT_THINKING_LEVEL")
+
+if uses_thinking_level() and THINKING_BUDGET is not None:
+    log.warning("GEMINI_THINKING_BUDGET is ignored on %s; set GEMINI_THINKING_LEVEL",
+                MODEL_NAME)
 
 
 @lru_cache(maxsize=1)

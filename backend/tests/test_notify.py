@@ -1390,6 +1390,7 @@ class TestSpend:
             self, enabled_notify, cache, monkeypatch):
         """#217: the number a thinking budget moves, apart from the answer."""
         from scan import aiconfig
+        monkeypatch.setattr(aiconfig, "MODEL_NAME", "gemini-2.5-flash")
         monkeypatch.setattr(aiconfig, "THINKING_BUDGET", None)
         opsspend.model_usage("scan", {"prompt_tokens": 1_000, "output_tokens": 800,
                                     "thoughts_tokens": 1_500})
@@ -1406,6 +1407,13 @@ class TestSpend:
 
         monkeypatch.setattr(aiconfig, "THINKING_BUDGET", 512)
         assert "budget 512 (GEMINI_THINKING_BUDGET)" in await notify.handle_command("/costs")
+
+        # Gemini 3+ reads a level, and /costs names the knob that is live.
+        monkeypatch.setattr(aiconfig, "MODEL_NAME", "gemini-3.5-flash-lite")
+        monkeypatch.setattr(aiconfig, "THINKING_LEVEL", "medium")
+        text = await notify.handle_command("/costs")
+        assert "level medium (GEMINI_THINKING_LEVEL)" in text
+        assert "GEMINI_THINKING_BUDGET" not in text
 
     @pytest.mark.asyncio
     async def test_costs_says_dash_with_no_scans(self, enabled_notify):

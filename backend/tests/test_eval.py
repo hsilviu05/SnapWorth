@@ -7,6 +7,7 @@ these run without a model, an API key, or a network.
 
 from __future__ import annotations
 
+import argparse
 import json
 import os
 import sys
@@ -463,6 +464,9 @@ class TestRunnerLoading:
         assert runner.parse_arm("v2") == ("v2", None)
         assert runner.parse_arm("v2@512") == ("v2", 512)
         assert runner.parse_arm("v1@0") == ("v1", 0)
+        assert runner.parse_arm("v2@Low") == ("v2", "low")
+        with pytest.raises(argparse.ArgumentTypeError):
+            runner.parse_arm("v2@extreme")
 
 
 # ── Measuring without labels ─────────────────────────────────────────────────
@@ -619,6 +623,12 @@ class TestLiveArm:
         assert p.output_tokens == 2100 and p.thoughts_tokens == 480
         assert p.prompt_version == "v2@512"
         assert seen[0].thinking_config.thinking_budget == 512
+
+    def test_a_level_arm_sends_that_level_and_no_budget(self, tmp_path, monkeypatch):
+        predictions, seen = self._run(tmp_path, monkeypatch, "low")
+        assert predictions[0].prompt_version == "v2@low"
+        assert seen[0].thinking_config.thinking_level == "LOW"
+        assert seen[0].thinking_config.thinking_budget is None
 
     def test_an_arm_without_a_budget_uses_the_production_config(self, tmp_path, monkeypatch):
         _, seen = self._run(tmp_path, monkeypatch, None)

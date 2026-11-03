@@ -52,7 +52,7 @@ actually arrives:
 |---|---|---|
 | Is anything broken right now | `🩺 Checkup` | Probes the model, Redis, DeviceCheck and the App Store build in one message |
 | Current state | `/status` | Build, cache backend, auth enforcement, last deploy ping, today's counters |
-| What it costs | `/costs` | Gemini spend by window, `$/scan`, a Pro block over 30 days (paying devices, Pro spend per device-month, net revenue per paying month, Pro scans per device-day p50/p90/max, the three heaviest devices by $/day, each with its n), the free tier's cost per active device-day, thinking tokens per scan call (today, 7 and 30 days) beside the live `GEMINI_THINKING_BUDGET` (#217), and the operator's own bot usage listed separately |
+| What it costs | `/costs` | Gemini spend by window, `$/scan`, a Pro block over 30 days (paying devices, Pro spend per device-month, net revenue per paying month, Pro scans per device-day p50/p90/max, the three heaviest devices by $/day, each with its n), the free tier's cost per active device-day, thinking tokens per scan call (today, 7 and 30 days) beside the live `GEMINI_THINKING_BUDGET`, or `GEMINI_THINKING_LEVEL` on Gemini 3+ (#217), and the operator's own bot usage listed separately |
 | Subscribers | `/subs` | Active, paid, comped, and MRR |
 | Is revenue growing | `/revenue` | MRR now against the daily snapshots from 7, 30 and 90 days ago, then six months of: customer-price revenue and payments, refunds, paid subscriptions that ended (split into "chose to leave" and "card failed", and as a rate over those paying on the 1st), and auto-renew turned off. From App Store notifications. `/revenue backfill` (⏪ under `/revenue`, two taps) replays Apple's notification history — 180 days in Production — into the same counters, needs the In-App Purchase key `/sub` uses, and never counts a notification twice, so it is safe to re-run. Backfilled months have no churn rate: there is no snapshot of who was paying on their 1st. Customer prices before Apple's commission and VAT: proceeds and retention cohorts are in App Store Connect. Mixed currencies end with an approximate dollar total at the last rate in the pinned ECB table (`backend/eval/data/fx/`), held fixed so months compare; a currency the table lacks is named and left out |
 | Is the free-scan experiment working | `/experiment` | The whole window at once: limit hits against trial starts and paid (converted trials plus direct purchases), day by day, with a running total, and whether a new user gets a first-day welcome right now — as the quota resolves it, so `FREE_SCANS_FIRST_DAY=1` at a daily limit of 1 reads "lever not armed" |
@@ -1268,6 +1268,12 @@ weeks of production data behind it.
    produces a valuation, so they are not that quality decision. Set it to
    `-1` before pointing `GEMINI_MODEL` at a model that cannot run without
    thinking — 2.5 Pro refuses 0, which would fail every listing.
+   **On Gemini 3 and later** (the default since gemini-2.5-flash's retirement,
+   2026-12-01) the budgets are ignored and `GEMINI_THINKING_LEVEL` (default
+   `medium`) and `GEMINI_TEXT_THINKING_LEVEL` (default `minimal`) take their
+   place. The model's own default is `minimal`, which would have cut the scan's
+   reasoning unmeasured; `medium` is the nearest to what 2.5 Flash did, and is
+   still a starting point for `--compare v2@low v2@medium`, not a finding.
 4. **Prompt length** — v2 is ~700 tokens of the ~960 input. Input is ~5% of
    per-scan cost, so trimming saves ~$85/mo at 1M users; not worth degrading
    output for. (The old model put this at ~$40/mo on prices 4× too low.)
