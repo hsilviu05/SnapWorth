@@ -49,7 +49,7 @@ struct SettingsView: View {
                 ? String(localized: "Your server data was deleted. Your subscription's record is kept while it's active, so Pro keeps working.")
                 : String(localized: "Your server data was deleted.")
         } catch {
-            serverDataMessage = String(localized: "Couldn't delete them right now. Try again later.")
+            serverDataMessage = String(localized: "Couldn't delete your server data right now. Try again later.")
         }
     }
 
