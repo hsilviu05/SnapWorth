@@ -19,6 +19,8 @@ struct HistoryView: View {
     @State private var paywallTrigger: PaywallTrigger = .portfolioTrend
     @State private var vm = HistoryViewModel()
     @State private var selectedResult: ScanResult?
+    /// The card a result zooms out of (`snapZoomSource`).
+    @Namespace private var zoom
     @State private var isEditing = false
     @State private var recapLabel: String?
     @State private var trends: Trends?
@@ -157,8 +159,10 @@ struct HistoryView: View {
                                         selectedResult = result
                                     } label: {
                                         ScanHistoryCard(result: result, width: cardWidth)
+                                            .snapZoomSource(id: result.id, in: zoom)
                                     }
                                     .buttonStyle(.plain)
+                                    .snapScrollFade()
                                     .contextMenu {
                                         Button(role: .destructive) {
                                             pendingDelete = result
@@ -283,6 +287,7 @@ struct HistoryView: View {
         .sheet(item: $selectedResult) { result in
             Self.resultView(for: result, purchaseService: purchaseService) { selectedResult = nil }
                 .presentationDragIndicator(.visible)
+                .snapZoomDestination(id: result.id, in: zoom)
         }
         // A deep link to another tab: a sheet left up here would cover it.
         // See `SnapWorthApp.open(_:center:)`.

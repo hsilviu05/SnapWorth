@@ -95,6 +95,9 @@ struct ScanView: View {
     /// `authStatus` handler.
     @State private var restrictedCounted = false
 
+    /// The library and Flip buttons beside the shutter: glass on iOS 26.
+    private let sideControlShape = RoundedRectangle(cornerRadius: 14, style: .continuous)
+
     /// Anything presented on top of the camera. See the `onChange` below.
     private var isCameraObscured: Bool {
         showResult || showThriftFlip || showNotifPriming || vm.showPaywall || showHaul || showRack
@@ -338,14 +341,13 @@ struct ScanView: View {
                 HStack(alignment: .center) {
                     // Photo library picker
                     PhotosPicker(selection: $vm.selectedPhotoItem, matching: .images) {
-                        RoundedRectangle(cornerRadius: 8, style: .continuous)
-                            .fill(Color.snapOnCharcoal.opacity(isAnalyzing ? 0.1 : 0.2))
+                        Image(systemName: "photo.on.rectangle")
+                            .snapSymbol(22, weight: .light)
+                            .snapBounce(on: vm.selectedPhotoItem)
+                            .foregroundStyle(Color.snapOnCharcoal.opacity(isAnalyzing ? 0.4 : 1))
                             .frame(width: 52, height: 52)
-                            .overlay(
-                                Image(systemName: "photo.on.rectangle")
-                                    .snapSymbol(22, weight: .light)
-                                    .foregroundStyle(Color.snapOnCharcoal.opacity(isAnalyzing ? 0.4 : 1))
-                            )
+                            .snapGlass(in: sideControlShape,
+                                       fallback: Color.snapOnCharcoal.opacity(isAnalyzing ? 0.1 : 0.2))
                     }
                     .disabled(vm.isAnalyzing)
                     .snapHitTarget()
@@ -384,6 +386,9 @@ struct ScanView: View {
                                 .frame(width: 94, height: 94)
                         }
                     }
+                    // A deeper press than other buttons: the shutter is the
+                    // one control people press hard and watch.
+                    .buttonStyle(PressableButtonStyle(scale: 0.9))
                     .disabled(vm.isAnalyzing || captureInFlight
                               || cameraManager.authStatus != .authorized)
                     .accessibilityLabel(vm.isAnalyzing
@@ -401,18 +406,16 @@ struct ScanView: View {
                     Button {
                         showThriftFlip = true
                     } label: {
-                        RoundedRectangle(cornerRadius: 8, style: .continuous)
-                            .fill(Color.snapOnCharcoal.opacity(isAnalyzing ? 0.1 : 0.2))
-                            .frame(width: 52, height: 52)
-                            .overlay(
-                                VStack(spacing: 1) {
-                                    Image(systemName: "arrow.triangle.2.circlepath")
-                                        .snapSymbol(20, weight: .light)
-                                    Text("Flip")
-                                        .font(.dmSans(9, weight: .semibold, relativeTo: .caption2))
-                                }
-                                .foregroundStyle(Color.snapOnCharcoal.opacity(isAnalyzing ? 0.4 : 1))
-                            )
+                        VStack(spacing: 1) {
+                            Image(systemName: "arrow.triangle.2.circlepath")
+                                .snapSymbol(20, weight: .light)
+                            Text("Flip")
+                                .font(.dmSans(9, weight: .semibold, relativeTo: .caption2))
+                        }
+                        .foregroundStyle(Color.snapOnCharcoal.opacity(isAnalyzing ? 0.4 : 1))
+                        .frame(width: 52, height: 52)
+                        .snapGlass(in: sideControlShape,
+                                   fallback: Color.snapOnCharcoal.opacity(isAnalyzing ? 0.1 : 0.2))
                     }
                     .disabled(vm.isAnalyzing)
                     .snapHitTarget()

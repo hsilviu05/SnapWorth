@@ -289,6 +289,7 @@ struct ThriftFlipView: View {
             // Headline verdict
             HStack(spacing: 8) {
                 Image(systemName: green ? "checkmark.seal.fill" : "xmark.seal.fill")
+                    .contentTransition(.symbolEffect(.replace))
                 Text(green
                      ? String(localized: "Worth flipping")
                      : String(localized: "Skip it"))

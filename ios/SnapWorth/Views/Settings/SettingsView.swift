@@ -379,6 +379,8 @@ private struct SubscriptionCard: View {
         HStack(spacing: 16) {
             Image(systemName: isSubscribed ? "crown.fill" : "crown")
                 .snapSymbol(24)
+                .contentTransition(.symbolEffect(.replace))
+                .snapBounce(on: isSubscribed)
                 .foregroundStyle(Color.snapAmber)
                 .accessibilityHidden(true)
 

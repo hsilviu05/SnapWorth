@@ -469,6 +469,18 @@ extension NumberFormatter {
 
 struct SnapCardModifier: ViewModifier {
     func body(content: Content) -> some View {
+        if #available(iOS 26, *) {
+            // Liquid Glass, which brings its own edge and depth: the stroke
+            // and shadow below would draw a second rim around it.
+            content
+                .glassEffect(.regular,
+                             in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+        } else {
+            legacyCard(content)
+        }
+    }
+
+    private func legacyCard(_ content: Content) -> some View {
         content
             .background(Color.snapCard)
             .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
@@ -565,13 +577,32 @@ struct PrimaryButton: View {
             }
             .frame(maxWidth: .infinity)
             .frame(minHeight: 56)          // min, not fixed: grows with Dynamic Type
-            .background(Color.snapTerracottaFill.opacity(isEnabled ? 1 : 0.4))
-            .clipShape(Capsule())
+            .modifier(PrimaryFill(isEnabled: isEnabled))
         }
         .buttonStyle(PressableButtonStyle(scale: isEnabled ? 0.97 : 1))
         .disabled(isLoading)
         .animation(.easeInOut(duration: 0.2), value: isEnabled)
         .animation(.easeInOut(duration: 0.2), value: isLoading)
+    }
+}
+
+/// Terracotta-tinted Liquid Glass on iOS 26, the solid capsule before it. The
+/// tint keeps the full fill's opacity rules, so the label contrast notes in
+/// `PrimaryButton` still hold.
+private struct PrimaryFill: ViewModifier {
+    let isEnabled: Bool
+
+    func body(content: Content) -> some View {
+        let fill = Color.snapTerracottaFill.opacity(isEnabled ? 1 : 0.4)
+        if #available(iOS 26, *) {
+            content.glassEffect(
+                isEnabled ? .regular.tint(fill).interactive() : .regular.tint(fill),
+                in: Capsule())
+        } else {
+            content
+                .background(fill)
+                .clipShape(Capsule())
+        }
     }
 }
 
@@ -598,6 +629,7 @@ struct GhostButton: View {
             }
             .frame(maxWidth: .infinity)
             .frame(height: 56)
+            .modifier(GhostGlass())
             .overlay(
                 Capsule()
                     .strokeBorder(Color.snapTerracotta, lineWidth: 1.5)
@@ -605,6 +637,17 @@ struct GhostButton: View {
         }
         .buttonStyle(PressableButtonStyle())
         .disabled(isLoading)
+    }
+}
+
+/// Clear Liquid Glass behind the outline on iOS 26; nothing before it.
+private struct GhostGlass: ViewModifier {
+    func body(content: Content) -> some View {
+        if #available(iOS 26, *) {
+            content.glassEffect(.regular.interactive(), in: Capsule())
+        } else {
+            content
+        }
     }
 }
 
@@ -635,8 +678,16 @@ struct ChipView: View {
 struct ValueRangeView: View {
     let low: Double
     let high: Double
+    /// Rolls the digits up from zero when the view first appears. Off for a
+    /// range that is only ever seen blurred, where the roll would be wasted.
+    var countsUp = false
 
-    private var formatted: String {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var hasCountedUp = false
+
+    private var rolling: Bool { countsUp && !hasCountedUp && !reduceMotion }
+
+    private static func formatted(low: Double, high: Double) -> String {
         guard low.isFinite && high.isFinite else {
             return String(localized: "Price unavailable")
         }
@@ -647,11 +698,25 @@ struct ValueRangeView: View {
     }
 
     var body: some View {
-        Text(formatted)
+        Text(rolling ? Self.formatted(low: 0, high: 0)
+                     : Self.formatted(low: low, high: high))
             .font(.snapValueHero)
             .foregroundStyle(Color.snapSageText)
             .minimumScaleFactor(0.6)
             .lineLimit(1)
+            // Digits roll rather than cross-fade, both for the count-up and
+            // when a condition chip re-prices the range.
+            .contentTransition(.numericText(value: high))
+            .snapAnimation(.smooth(duration: 0.7), value: [low, high])
+            // VoiceOver reads the real range even mid-roll.
+            .accessibilityLabel(Self.formatted(low: low, high: high))
+            .task {
+                guard rolling else { return }
+                // Lets a presenting sheet or reveal spring settle first, so the
+                // roll is seen rather than finished behind the transition.
+                try? await Task.sleep(for: .milliseconds(250))
+                withAnimation(.smooth(duration: 0.7)) { hasCountedUp = true }
+            }
     }
 }
 
@@ -797,6 +862,52 @@ extension View {
             .contentShape(Rectangle())
     }
 
+    /// The card a zoom transition grows out of (iOS 18+). Pair with
+    /// `snapZoomDestination` on the presented view, same id and namespace.
+    @ViewBuilder
+    func snapZoomSource<ID: Hashable>(id: ID, in namespace: Namespace.ID,
+                                      cornerRadius: CGFloat = 24) -> some View {
+        if #available(iOS 18, *) {
+            matchedTransitionSource(id: id, in: namespace) { source in
+                source.clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+            }
+        } else {
+            self
+        }
+    }
+
+    /// Presents this sheet or cover by zooming out of the matching
+    /// `snapZoomSource`. Below iOS 18, and with Reduce Motion on, it keeps the
+    /// standard slide.
+    func snapZoomDestination<ID: Hashable>(id: ID, in namespace: Namespace.ID) -> some View {
+        modifier(ZoomDestinationModifier(id: id, namespace: namespace))
+    }
+
+    /// Liquid Glass on iOS 26 for a control floating over content; below it,
+    /// the `fallback` fill in the same shape, which is what these controls
+    /// drew before glass existed.
+    @ViewBuilder
+    func snapGlass<S: Shape, F: ShapeStyle>(in shape: S, fallback: F,
+                                           interactive: Bool = true) -> some View {
+        if #available(iOS 26, *) {
+            glassEffect(interactive ? .regular.interactive() : .regular, in: shape)
+        } else {
+            background(fallback, in: shape)
+        }
+    }
+
+    /// Eases a card in and out at the edges of a scroll view. Off under
+    /// Reduce Motion.
+    func snapScrollFade() -> some View {
+        modifier(ScrollFadeModifier())
+    }
+
+    /// An SF Symbol bounce each time `value` changes (iOS 17+), skipped under
+    /// Reduce Motion.
+    func snapBounce<V: Equatable>(on value: V) -> some View {
+        modifier(MotionAwareBounce(value: value))
+    }
+
     /// Applies an animation unless Reduce Motion is enabled, in which case the
     /// state change still happens — just without the movement. Use this instead
     /// of `.animation(_:value:)` for anything decorative or continuous.
@@ -816,6 +927,53 @@ private struct ScaledSymbolModifier: ViewModifier {
 
     func body(content: Content) -> some View {
         content.font(.system(size: scaledSize, weight: weight))
+    }
+}
+
+private struct ZoomDestinationModifier<ID: Hashable>: ViewModifier {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    let id: ID
+    let namespace: Namespace.ID
+
+    func body(content: Content) -> some View {
+        if #available(iOS 18, *) {
+            if reduceMotion {
+                content
+            } else {
+                content.navigationTransition(.zoom(sourceID: id, in: namespace))
+            }
+        } else {
+            content
+        }
+    }
+}
+
+private struct ScrollFadeModifier: ViewModifier {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    func body(content: Content) -> some View {
+        if reduceMotion {
+            content
+        } else {
+            content.scrollTransition(.interactive, axis: .vertical) { view, phase in
+                view
+                    .opacity(phase.isIdentity ? 1 : 0.6)
+                    .scaleEffect(phase.isIdentity ? 1 : 0.94)
+            }
+        }
+    }
+}
+
+private struct MotionAwareBounce<V: Equatable>: ViewModifier {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    let value: V
+
+    func body(content: Content) -> some View {
+        if reduceMotion {
+            content
+        } else {
+            content.symbolEffect(.bounce, value: value)
+        }
     }
 }
 
@@ -910,6 +1068,7 @@ struct TagMascot: View {
 // ═══════════════════════════════════════════════════════════════════
 
 struct AnalyzingOverlay: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var messageIndex = 0
     @State private var opacity: Double = 1
     @State private var rotationTask: Task<Void, Never>?
@@ -928,6 +1087,12 @@ struct AnalyzingOverlay: View {
             Color.snapCharcoal.opacity(0.72)
                 .ignoresSafeArea()
 
+            if !reduceMotion {
+                ScanSweep()
+                    .ignoresSafeArea()
+                    .accessibilityHidden(true)
+            }
+
             VStack(spacing: 20) {
                 // Always the Dark artwork: the scrim is charcoal in both themes.
                 TagMascot(mood: moods[messageIndex], height: 96)
@@ -940,6 +1105,7 @@ struct AnalyzingOverlay: View {
                     .animation(.easeInOut(duration: 0.35), value: opacity)
 
                 Label("Photo captured — you can lower your phone", systemImage: "checkmark.circle.fill")
+                    .symbolEffect(.pulse, isActive: !reduceMotion)
                     .font(.dmSans(13, weight: .medium))
                     // 0.8, not 0.7. This sits on `snapCharcoal.opacity(0.72)`
                     // over the *captured photo*, so the ground is only as dark
@@ -980,6 +1146,29 @@ struct AnalyzingOverlay: View {
             }
         }
         .onDisappear { rotationTask?.cancel() }
+    }
+}
+
+/// A soft band of light passing down the frozen photo while it is analysed.
+/// Decorative: callers leave it out under Reduce Motion.
+private struct ScanSweep: View {
+    @State private var atBottom = false
+    private let band: CGFloat = 180
+
+    var body: some View {
+        GeometryReader { geo in
+            LinearGradient(
+                colors: [.clear, Color.snapOnCharcoal.opacity(0.16), .clear],
+                startPoint: .top, endPoint: .bottom)
+                .frame(height: band)
+                .offset(y: atBottom ? geo.size.height : -band)
+        }
+        .allowsHitTesting(false)
+        .onAppear {
+            withAnimation(.easeInOut(duration: 1.8).repeatForever(autoreverses: false)) {
+                atBottom = true
+            }
+        }
     }
 }
 
