@@ -16,6 +16,8 @@ building the real `SignedDataVerifier` and checking what it was given.
 
 from __future__ import annotations
 
+import asyncio
+
 import os
 import sys
 
@@ -540,6 +542,50 @@ class TestNotificationPayloads:
     async def test_a_refused_key_says_so(self):
         client, _ = _history_client(APIException(401))
         with pytest.raises(appstorestatus.StatusCredentialsRejected):
+            await client.notification_payloads(0, 1)
+
+    def _windowed(self, slow_from: int | None = None):
+        """One payload per request, named after its window's start; requests
+        from index `slow_from` on never answer."""
+        client = appstorestatus.AppStoreStatusClient(fake_credentials())
+        requests: list[object] = []
+
+        class _API:
+            async def get_notification_history(self, pagination_token, request):
+                requests.append(request)
+                if slow_from is not None and len(requests) > slow_from:
+                    await asyncio.sleep(3600)
+                response = _HistoryResponse([TestNotificationPayloads._Item(str(request.startDate))])
+                response.paginationToken = None     # type: ignore[attr-defined]
+                return response
+
+        client._client_for = lambda name, env: _API()          # type: ignore[assignment]
+        return client, requests
+
+    @pytest.mark.asyncio
+    async def test_asks_a_month_at_a_time_oldest_first(self):
+        """180 days in one request timed out in Production."""
+        client, requests = self._windowed()
+        month = appstorestatus.HISTORY_WINDOW_MS
+        end = 6 * month + 5
+        payloads, truncated = await client.notification_payloads(0, end)
+        assert not truncated
+        assert [(r.startDate, r.endDate) for r in requests] == (
+            [(i * month, (i + 1) * month) for i in range(6)] + [(6 * month, end)])
+        assert payloads == [str(i * month) for i in range(7)]
+
+    @pytest.mark.asyncio
+    async def test_a_timeout_keeps_the_months_already_read(self, monkeypatch):
+        monkeypatch.setattr(appstorestatus, "HISTORY_TIMEOUT_SECONDS", 0.01)
+        client, _ = self._windowed(slow_from=2)
+        month = appstorestatus.HISTORY_WINDOW_MS
+        assert await client.notification_payloads(0, 6 * month) == (["0", str(month)], True)
+
+    @pytest.mark.asyncio
+    async def test_a_timeout_before_anything_is_read_says_so(self, monkeypatch):
+        monkeypatch.setattr(appstorestatus, "HISTORY_TIMEOUT_SECONDS", 0.01)
+        client, _ = self._windowed(slow_from=0)
+        with pytest.raises(appstorestatus.StatusUnavailable, match="did not answer"):
             await client.notification_payloads(0, 1)
 
 
