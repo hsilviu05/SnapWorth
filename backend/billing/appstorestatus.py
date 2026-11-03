@@ -64,6 +64,13 @@ HISTORY_MAX_PAGES = 200
 # that hangs for the library's default 30s reads as a broken bot.
 TIMEOUT_SECONDS = 15.0
 
+# Notification history is the exception: Apple searches the whole date range
+# before it answers the first page, and 180 days of Production did not answer
+# within 15s. The backfill asks for it a month at a time, and waits longer for
+# each page, because the operator asked for a long job.
+HISTORY_TIMEOUT_SECONDS = 60.0
+HISTORY_WINDOW_MS = 30 * 24 * 60 * 60 * 1000
+
 
 class StatusError(Exception):
     """Base for every failure of a live status lookup.
@@ -459,8 +466,10 @@ class AppStoreStatusClient:
     async def notification_payloads(self, start_ms: int, end_ms: int,
                                     max_pages: int = HISTORY_MAX_PAGES) -> tuple[list[str], bool]:
         """Every notification Apple sent us between two times, as the
-        `signedPayload` strings it delivered, and whether `max_pages` cut the
-        list short.
+        `signedPayload` strings it delivered, and whether the list was cut
+        short: by `max_pages`, or by Apple timing out after some months had
+        already been read. Those months are returned rather than dropped, and
+        the caller counts each notification once, so running it again resumes.
 
         Get Notification History without `onlyFailures`: delivered and failed
         alike. It is what `/revenue backfill` replays, because Apple keeps it
@@ -475,29 +484,42 @@ class AppStoreStatusClient:
 
         name, environment = self._environments()[0]
         client = self._client_for(name, environment)
-        request = NotificationHistoryRequest(startDate=start_ms, endDate=end_ms)
         payloads: list[str] = []
-        token: str | None = None
+        pages = 0
         async with self._lock:
-            for _ in range(max_pages):
-                try:
-                    response = await asyncio.wait_for(
-                        client.get_notification_history(token, request),  # type: ignore[attr-defined]
-                        timeout=TIMEOUT_SECONDS)
-                except TimeoutError:
-                    raise StatusUnavailable(
-                        f"Apple did not answer within {TIMEOUT_SECONDS:.0f}s ({name}).") from None
-                except APIException as exc:
-                    raise self._translate(exc, name) from None
-                except Exception as exc:
-                    raise StatusUnavailable(
-                        f"Could not reach Apple ({type(exc).__name__}).") from None
-                payloads.extend(item.signedPayload for item in (response.notificationHistory or [])
-                                if isinstance(item.signedPayload, str))
-                token = response.paginationToken
-                if not response.hasMore or not token:
-                    return payloads, False
-        return payloads, True
+            # Oldest month first, so a timeout keeps the months before it.
+            window_start = start_ms
+            while window_start < end_ms:
+                window_end = min(window_start + HISTORY_WINDOW_MS, end_ms)
+                request = NotificationHistoryRequest(startDate=window_start, endDate=window_end)
+                token: str | None = None
+                while True:
+                    if pages >= max_pages:
+                        return payloads, True
+                    pages += 1
+                    try:
+                        response = await asyncio.wait_for(
+                            client.get_notification_history(token, request),  # type: ignore[attr-defined]
+                            timeout=HISTORY_TIMEOUT_SECONDS)
+                    except TimeoutError:
+                        if payloads:
+                            return payloads, True
+                        raise StatusUnavailable(
+                            f"Apple did not answer within {HISTORY_TIMEOUT_SECONDS:.0f}s "
+                            f"({name}).") from None
+                    except APIException as exc:
+                        raise self._translate(exc, name) from None
+                    except Exception as exc:
+                        raise StatusUnavailable(
+                            f"Could not reach Apple ({type(exc).__name__}).") from None
+                    payloads.extend(item.signedPayload
+                                    for item in (response.notificationHistory or [])
+                                    if isinstance(item.signedPayload, str))
+                    token = response.paginationToken
+                    if not response.hasMore or not token:
+                        break
+                window_start = window_end
+        return payloads, False
 
     async def _statuses_in(self, name: str, environment,
                            transaction_id: str) -> list[SubscriptionStatus]:

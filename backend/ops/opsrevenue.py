@@ -217,8 +217,8 @@ async def backfill(now: datetime | None = None, days: int = BACKFILL_DAYS) -> st
              f"{skipped} not revenue (tests, other types)"
              + (f" · {rejected} did not verify" if rejected else "")]
     if truncated:
-        lines.append("⚠️ Stopped at the page limit: run it again to continue "
-                     "from where the counts now stand.")
+        lines.append("⚠️ Stopped before the end (Apple's page limit, or Apple stopped "
+                     "answering): run it again. Nothing already counted is counted twice.")
     lines.append("Backfilled months have no churn rate: there is no snapshot of "
                  "who was paying on their 1st.")
     return "\n".join(lines)
