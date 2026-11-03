@@ -621,8 +621,9 @@ private func sample(
         .modelContainer(previewContainer { _ in })
 }
 
-/// A 46pt ledger-row thumbnail, decoded off the main actor.
-private struct FlipThumbnail: View {
+/// A 46pt ledger-row thumbnail, decoded off the main actor. Also the search
+/// tab's row thumbnail (`FindsSearchView`).
+struct FlipThumbnail: View {
     let imageData: Data?
     @State private var image: UIImage?
 

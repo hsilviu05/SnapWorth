@@ -445,7 +445,8 @@ jobs:
             # link from outside the app puts up "Open in SnapWorth?", which
             # covered every shot after this one.
             TAB=1
-            for SHOT in 3-my-finds 4-my-flips 5-settings; do
+            # 6-search is the iOS 26 search tab; below 26 it shows no tab.
+            for SHOT in 3-my-finds 4-my-flips 5-settings 6-search; do
               xcrun simctl terminate "$UDID" "$BUNDLE"
               xcrun simctl launch "$UDID" "$BUNDLE" -mock-scans -start-tab "$TAB"
               shoot "$UDID" "$SHOT"

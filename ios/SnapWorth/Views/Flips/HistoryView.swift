@@ -753,3 +753,80 @@ struct TrendingCard: View {
         NumberFormatter.snapCurrency.string(from: NSNumber(value: value)) ?? "$\(Int(value))"
     }
 }
+
+// MARK: - Search tab (iOS 26)
+
+/// The tab bar's search tab on iOS 26, where the field sits at the bottom of
+/// the screen as it does in Apple's own apps. Searches the same fields as the
+/// My Finds filter (`HistoryViewModel.filtered`), and opens a find the same
+/// way, so the two cannot disagree about what matches.
+@available(iOS 26, *)
+struct FindsSearchView: View {
+    let purchaseService: any PurchaseService
+
+    @Query(sort: \ScanResult.timestamp, order: .reverse) private var results: [ScanResult]
+    @State private var vm = HistoryViewModel()
+    @State private var selectedResult: ScanResult?
+    @Namespace private var zoom
+
+    var body: some View {
+        NavigationStack {
+            let shown = vm.filtered(results)
+            List(shown) { result in
+                Button { selectedResult = result } label: {
+                    HStack(spacing: 12) {
+                        FlipThumbnail(imageData: result.imageData)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(result.itemName)
+                                .font(.dmSans(15, weight: .semibold))
+                                .foregroundStyle(Color.snapEspresso)
+                                .lineLimit(2)
+                            if !result.brand.isEmpty {
+                                Text(result.brand)
+                                    .font(.snapCaption)
+                                    .foregroundStyle(Color.snapWarmGray)
+                                    .lineLimit(1)
+                            }
+                        }
+                        Spacer(minLength: 8)
+                        Text(result.formattedRange)
+                            .font(.fraunces(15, weight: .bold))
+                            .foregroundStyle(Color.snapSageText)
+                            .lineLimit(1)
+                    }
+                    .contentShape(Rectangle())
+                    .snapZoomSource(id: result.id, in: zoom, cornerRadius: 12)
+                }
+                .buttonStyle(.plain)
+                .accessibilityElement(children: .combine)
+                .accessibilityLabel(String(localized:
+                    "\(result.itemName), estimated \(result.formattedRange)"))
+                .accessibilityHint("Opens this find")
+                .accessibilityAddTraits(.isButton)
+            }
+            .listStyle(.plain)
+            .scrollContentBackground(.hidden)
+            .background(Color.snapBackground)
+            .overlay {
+                if results.isEmpty {
+                    EmptyFindsView()
+                } else if shown.isEmpty {
+                    NoSearchResultsView(query: vm.searchText)
+                }
+            }
+            .navigationTitle("Search finds")
+            .searchable(text: $vm.searchText, prompt: "Search finds…")
+        }
+        .sheet(item: $selectedResult) { result in
+            HistoryView.resultView(for: result, purchaseService: purchaseService) {
+                selectedResult = nil
+            }
+            .presentationDragIndicator(.visible)
+            .snapZoomDestination(id: result.id, in: zoom)
+        }
+        // A deep link to another tab: a sheet left up here would cover it.
+        .onReceive(NotificationCenter.default.publisher(for: .snapDismissForRoute)) { _ in
+            selectedResult = nil
+        }
+    }
+}
