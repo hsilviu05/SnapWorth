@@ -108,6 +108,11 @@ async def totals(now: datetime | None = None) -> tuple[dict[str, int], str | Non
     return out, since or (today if any(out.values()) else None)
 
 
+def _signed_usd(amount: float) -> str:
+    """"-$3.68", not "$-3.68"."""
+    return ("-" if amount < 0 else "") + opsformat.usd(abs(amount))
+
+
 def _since_text(since: str | None) -> str:
     if not since:
         return "nothing counted yet"
@@ -134,13 +139,18 @@ async def lifetime_lines(now: datetime | None = None) -> list[str]:
         f"({conversions} converted trial{'s' if conversions != 1 else ''} · {direct} direct)",
         f"Gemini spend: {opsformat.usd(spend)} · {t['model_calls']} calls"
         + (f" · {opsformat.usd_fine(spend / scans)}/scan" if scans else ""),
-        f"Revenue: {opsformat.money_total(gross)}"
-        + (f" · refunds {opsformat.money_total(refunds)}" if refunds else ""),
     ]
-    if set(gross) <= {"USD"} and set(refunds) <= {"USD"}:
-        net = (gross.get("USD", 0.0) - refunds.get("USD", 0.0)) * (1 - opsspend.APPLE_COMMISSION)
-        lines.append(f"After {opsspend.APPLE_COMMISSION:.0%} Apple: ≈ {opsformat.usd(net)} · "
-                     f"minus Gemini ≈ {opsformat.usd(net - spend)}")
+    if not gross and not refunds:
+        # The revenue counters only see notifications from when /revenue was
+        # added on; earlier payments need its backfill from Apple.
+        lines.append("Revenue: none recorded · /revenue → Backfill loads Apple's history")
+    else:
+        lines.append(f"Revenue: {opsformat.money_total(gross)}"
+                     + (f" · refunds {opsformat.money_total(refunds)}" if refunds else ""))
+        if set(gross) <= {"USD"} and set(refunds) <= {"USD"}:
+            net = (gross.get("USD", 0.0) - refunds.get("USD", 0.0)) * (1 - opsspend.APPLE_COMMISSION)
+            lines.append(f"After {opsspend.APPLE_COMMISSION:.0%} Apple: ≈ {_signed_usd(net)} · "
+                         f"minus Gemini ≈ {_signed_usd(net - spend)}")
     lines.append("Counts start at the oldest day still on record (35 days before this "
                  "was added); revenue goes back to Apple's history. Customer prices, "
                  "before VAT.")

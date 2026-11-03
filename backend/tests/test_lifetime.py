@@ -136,6 +136,17 @@ class TestText:
         text = await opslifetime.lifetime_text(NOW)
         assert "nothing counted yet" in text
         assert "Scans: 0" in text
+        assert "Revenue: none recorded · /revenue → Backfill" in text
+        assert "After 15% Apple" not in text
+
+    @pytest.mark.asyncio
+    async def test_a_loss_puts_the_sign_before_the_dollar(self, configured):
+        await put(configured, 1, "tok_out", 1_000_000)
+        month = opsrevenue.month(NOW)
+        await configured.set(opsrevenue.month_key(month, "gross:USD"), "100")
+        await configured.set(opsrevenue.month_key(month, "currencies"), '["USD"]')
+        text = await opslifetime.lifetime_text(NOW)
+        assert "minus Gemini ≈ -$1.65" in text
 
     @pytest.mark.asyncio
     async def test_command_and_weekly_report(self, configured):
