@@ -468,19 +468,12 @@ extension NumberFormatter {
 // ═══════════════════════════════════════════════════════════════════
 
 struct SnapCardModifier: ViewModifier {
+    // Deliberately not Liquid Glass on iOS 26. Apple's guidance keeps glass
+    // for the controls and navigation that float above content; a card *is*
+    // the content, and a grid of glass cards both reads worse (the price and
+    // name sit on whatever blurs behind them) and costs a glass pass per card
+    // while scrolling.
     func body(content: Content) -> some View {
-        if #available(iOS 26, *) {
-            // Liquid Glass, which brings its own edge and depth: the stroke
-            // and shadow below would draw a second rim around it.
-            content
-                .glassEffect(.regular,
-                             in: RoundedRectangle(cornerRadius: 24, style: .continuous))
-        } else {
-            legacyCard(content)
-        }
-    }
-
-    private func legacyCard(_ content: Content) -> some View {
         content
             .background(Color.snapCard)
             .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
