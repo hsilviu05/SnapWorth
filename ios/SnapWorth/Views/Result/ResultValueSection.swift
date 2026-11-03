@@ -210,7 +210,8 @@ struct ResultValueCard: View {
                     .font(.snapCaption)
                     .foregroundStyle(Color.snapWarmGray)
 
-                ValueRangeView(low: result.displayValueLow, high: result.displayValueHigh)
+                ValueRangeView(low: result.displayValueLow, high: result.displayValueHigh,
+                               countsUp: true)
             }
 
             if let quickVerdict {

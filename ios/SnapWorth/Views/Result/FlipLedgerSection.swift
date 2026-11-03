@@ -170,9 +170,11 @@ struct FlipStatusCard: View {
                 // is distinguishable without relying on green vs terracotta.
                 Label {
                     Text(signedProfit(profit))
+                        .contentTransition(.numericText(value: NSDecimalNumber(decimal: profit).doubleValue))
                 } icon: {
                     Image(systemName: profit < 0 ? "arrow.down.right" : "arrow.up.right")
                         .snapSymbol(13, weight: .bold)
+                        .contentTransition(.symbolEffect(.replace))
                 }
                 .labelStyle(.titleAndIcon)
                 .font(.dmSans(17, weight: .bold))

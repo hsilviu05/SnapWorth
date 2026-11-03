@@ -50,12 +50,13 @@ struct MainTabView: View {
         }
     }
 
-    /// The `Tab` API from iOS 18, with the tab bar shrinking on scroll from
-    /// iOS 26 so the My Finds grid gets the room. iOS 17 keeps `tabItem`.
+    /// The `Tab` API from iOS 18. On iOS 26 the tab bar also shrinks on
+    /// scroll, so the My Finds grid gets the room, and carries a search tab
+    /// (`FindsSearchView`). iOS 17 keeps `tabItem`.
     @ViewBuilder
     private var tabs: some View {
-        if #available(iOS 18, *) {
-            let view = TabView(selection: $selectedTab) {
+        if #available(iOS 26, *) {
+            TabView(selection: $selectedTab) {
                 Tab("Scan", systemImage: selectedTab == 0 ? "camera.fill" : "camera", value: 0) {
                     ScanView(purchaseService: purchaseService)
                 }
@@ -69,11 +70,26 @@ struct MainTabView: View {
                 Tab("Settings", systemImage: selectedTab == 3 ? "gearshape.fill" : "gearshape", value: 3) {
                     SettingsView(purchaseService: purchaseService, isPro: isPro)
                 }
+                Tab(value: 4, role: .search) {
+                    FindsSearchView(purchaseService: purchaseService)
+                }
             }
-            if #available(iOS 26, *) {
-                view.tabBarMinimizeBehavior(.onScrollDown)
-            } else {
-                view
+            .tabBarMinimizeBehavior(.onScrollDown)
+        } else if #available(iOS 18, *) {
+            TabView(selection: $selectedTab) {
+                Tab("Scan", systemImage: selectedTab == 0 ? "camera.fill" : "camera", value: 0) {
+                    ScanView(purchaseService: purchaseService)
+                }
+                Tab("My Finds", systemImage: selectedTab == 1 ? "bag.fill" : "bag", value: 1) {
+                    HistoryView(purchaseService: purchaseService)
+                }
+                Tab("My Flips", systemImage: "chart.line.uptrend.xyaxis", value: 2) {
+                    FlipsView(purchaseService: purchaseService)
+                }
+                .badge(ledgerBadge)
+                Tab("Settings", systemImage: selectedTab == 3 ? "gearshape.fill" : "gearshape", value: 3) {
+                    SettingsView(purchaseService: purchaseService, isPro: isPro)
+                }
             }
         } else {
             TabView(selection: $selectedTab) {

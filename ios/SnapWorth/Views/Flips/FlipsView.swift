@@ -12,6 +12,8 @@ struct FlipsView: View {
     @State private var vm = FlipsViewModel()
 
     @State private var selectedItem: ScanResult?
+    /// The row a result zooms out of (`snapZoomSource`).
+    @Namespace private var zoom
     @State private var showPaywall = false
     @State private var paywallTrigger: PaywallTrigger = .ledgerHistory
     @State private var shareItems: [Any]?
@@ -41,6 +43,7 @@ struct FlipsView: View {
         .onAppear { Analytics.shared.track(.ledgerDashboardViewed) }
         .sheet(item: $selectedItem) { item in
             Self.resultView(for: item, purchaseService: purchaseService) { selectedItem = nil }
+                .snapZoomDestination(id: item.id, in: zoom)
         }
         .sheet(isPresented: $showPaywall) {
             PaywallView(purchaseService: purchaseService, trigger: paywallTrigger)
@@ -322,6 +325,7 @@ struct FlipsView: View {
             .padding(12)
             .background(Color.snapCard)
             .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .snapZoomSource(id: item.id, in: zoom, cornerRadius: 14)
         }
         .buttonStyle(.plain)
         // One stop per row: name, status, and the money figure — rather than a
@@ -617,8 +621,9 @@ private func sample(
         .modelContainer(previewContainer { _ in })
 }
 
-/// A 46pt ledger-row thumbnail, decoded off the main actor.
-private struct FlipThumbnail: View {
+/// A 46pt ledger-row thumbnail, decoded off the main actor. Also the search
+/// tab's row thumbnail (`FindsSearchView`).
+struct FlipThumbnail: View {
     let imageData: Data?
     @State private var image: UIImage?
 

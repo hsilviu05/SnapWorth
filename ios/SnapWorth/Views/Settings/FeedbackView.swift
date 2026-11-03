@@ -260,6 +260,7 @@ struct FeedbackView: View {
                 HStack(spacing: 6) {
                     Image(systemName: didCopy ? "checkmark" : "doc.on.doc")
                         .snapSymbol(12, weight: .medium)
+                        .contentTransition(.symbolEffect(.replace))
                     Text(didCopy
                          ? String(localized: "Copied")
                          : String(localized: "Copy message and address"))
