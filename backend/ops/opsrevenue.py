@@ -323,6 +323,20 @@ def _previous_month(at: datetime) -> datetime:
     return _month_start(_month_start(at) - timedelta(days=1))
 
 
+async def lifetime_money(now: datetime | None = None) -> tuple[dict[str, float], dict[str, float]]:
+    """(gross, refunds) per currency, over every month the counters still
+    hold (`REVENUE_TTL`)."""
+    gross: dict[str, float] = {}
+    refunds: dict[str, float] = {}
+    at = _month_start(now or datetime.now(timezone.utc))
+    for _ in range(REVENUE_TTL // (60 * 60 * 24 * 28) + 1):
+        for prefix, into in (("gross", gross), ("refunds", refunds)):
+            for currency, amount in (await _money(month(at), prefix)).items():
+                into[currency] = round(into.get(currency, 0.0) + amount, 2)
+        at = _previous_month(at)
+    return gross, refunds
+
+
 def churn_rate(churned: int, paid_at_start: int | None) -> float | None:
     """Churned paying subscriptions over those paying when the month began.
 

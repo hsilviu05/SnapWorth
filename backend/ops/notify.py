@@ -91,6 +91,7 @@ from ops import levers
 from ops import opsformat
 from ops import opsexperiment
 from ops import opsindex
+from ops import opslifetime
 from ops import opsrevenue
 from ops import planexperiment
 from ops import opsspend
@@ -225,6 +226,7 @@ COMMANDS: tuple[tuple[str, str], ...] = (
     ("lever", "Arm or disarm the free-scan allowance without a redeploy"),
     ("paywall", "28 days: trial starts and direct purchases per paywall, trial → paid"),
     ("revenue", "MRR over time, and each month's payments, refunds and churn"),
+    ("lifetime", "Totals since launch: scans, users, trials, paid, Gemini spend, revenue"),
     ("minbuild", "Tell app builds below a number to update, without a redeploy"),
     ("referrals", "Referrals on or off, and the oldest build shown them"),
     ("social", "TikTok: followers, likes and the latest videos"),
@@ -321,6 +323,7 @@ def configure(cache, notifier: telegram.TelegramNotifier | None = None,
     opssupport.bind(cache)
     opsspend.bind(cache)
     opsrevenue.bind(cache)
+    opslifetime.bind(cache)
     planexperiment.bind(cache)
     trends.bind(cache)
     _status_provider = status_provider
@@ -1317,6 +1320,7 @@ async def send_digest(now: datetime | None = None) -> bool:
     # Before the guard, so a replica that loses the race still takes the
     # day's snapshot if nobody has. `/revenue`'s MRR history is these.
     await opsrevenue.snapshot(now)
+    await opslifetime.roll_up(now)
     yesterday = now - timedelta(days=1)
     day = opsstats.day(yesterday)
     try:
@@ -1636,6 +1640,8 @@ async def handle_command_with_buttons(text: str) -> tuple[str, opsformat.Buttons
         return text, offers + (await _buttons() if menu else [])
     if command == "/users":
         return await _users_text(), await _buttons()
+    if command == "/lifetime":
+        return await opslifetime.lifetime_text(), await _buttons()
     if command == "/costs":
         return await opsspend.costs_text(), await _buttons()
     if command == "/experiment":
@@ -2055,6 +2061,8 @@ async def _weekly_text(now: datetime) -> str:
         f"vs {scans_prev} scans · {users_prev} user-days · {trials_prev} trial starts · "
         f"{paid_prev} paid · "
         f"{opsformat.usd(spend_prev)} the week before",
+        "",
+        *await opslifetime.lifetime_lines(now),
     ])
 
 
