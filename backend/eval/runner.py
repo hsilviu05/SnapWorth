@@ -20,7 +20,9 @@ calibration, consistency, hallucination rate and latency.
 so a run's own output is also a valid baseline file.
 
 An arm is a prompt version, optionally with `@N` to cap the model's thinking
-budget at N tokens for that arm only (`aiconfig.THINKING_BUDGET`).
+budget at N tokens for that arm only (`aiconfig.THINKING_BUDGET`), or, on
+Gemini 3 and later, `@low` etc. to set its thinking level
+(`aiconfig.THINKING_LEVEL`).
 A thinking cap is measured on v2.1, and shipped only while v2.1 serves;
 `aiconfig.THINKING_BUDGET` says why.
 
@@ -203,16 +205,23 @@ def load_photos(folder: Path) -> list[EvalItem]:
             if p.is_file() and p.suffix.lower() in PHOTO_SUFFIXES]
 
 
-def parse_arm(arm: str) -> tuple[str, int | None]:
-    """`v2` → ("v2", None); `v2@512` → ("v2", 512)."""
+def parse_arm(arm: str) -> tuple[str, int | str | None]:
+    """`v2` → ("v2", None); `v2@512` → ("v2", 512); `v2@low` → ("v2", "low").
+
+    A number is a thinking budget (Gemini 2.5), a name a thinking level
+    (Gemini 3 and later, `aiconfig.THINKING_LEVELS`)."""
+    from scan import aiconfig
     version, _, budget = arm.partition("@")
     if not budget:
         return version, None
+    if budget.lower() in aiconfig.THINKING_LEVELS:
+        return version, budget.lower()
     try:
         return version, int(budget)
     except ValueError:
         raise argparse.ArgumentTypeError(
-            f"{arm!r}: the thinking budget after '@' must be an integer") from None
+            f"{arm!r}: after '@' give a thinking budget (an integer) or a "
+            f"thinking level ({', '.join(aiconfig.THINKING_LEVELS)})") from None
 
 
 @dataclass
@@ -492,7 +501,7 @@ def load_config(path: Path) -> dict:
     return {k: v for k, v in raw.items() if not k.startswith("_")}
 
 
-def arm_config(version: str, budget: int | None) -> dict:
+def arm_config(version: str, budget: int | str | None) -> dict:
     """What an arm ran under, recorded with it so two runs made under
     different settings are never compared as if they were alike."""
     from scan import aiconfig
@@ -723,7 +732,7 @@ async def _predict_one(model, item: EvalItem, prompt_text: str, version: str, ro
 
 
 async def run_live(items: list[EvalItem], version: str, root: Path, concurrency: int = 4,
-                   thinking_budget: int | None = None) -> list[Prediction]:
+                   thinking_budget: int | str | None = None) -> list[Prediction]:
     from scan import aiconfig
 
     prompt_text, resolved = prompts.get_prompt(version)
@@ -734,8 +743,11 @@ async def run_live(items: list[EvalItem], version: str, root: Path, concurrency:
         # call — so the other arm, and the process's own GEMINI_THINKING_BUDGET,
         # are untouched.
         from google.genai import types
-        config = aiconfig.generation_config().model_copy(update={
-            "thinking_config": types.ThinkingConfig(thinking_budget=thinking_budget)})
+        thinking = (types.ThinkingConfig(
+                        thinking_level=types.ThinkingLevel(thinking_budget.upper()))
+                    if isinstance(thinking_budget, str)
+                    else types.ThinkingConfig(thinking_budget=thinking_budget))
+        config = aiconfig.generation_config().model_copy(update={"thinking_config": thinking})
         resolved = f"{resolved}@{thinking_budget}"
     semaphore = asyncio.Semaphore(concurrency)
 
@@ -898,7 +910,8 @@ def main(argv=None) -> int:
                              "and tokens only, never accuracy")
     parser.add_argument("--prompt-version", default=prompts.DEFAULT_PROMPT_VERSION,
                         help="the arm to run: a prompt version, optionally @N to "
-                             "cap the thinking budget at N tokens")
+                             "cap the thinking budget at N tokens (Gemini 2.5), or "
+                             "@minimal/@low/@medium/@high for a thinking level (Gemini 3+)")
     parser.add_argument("--compare", nargs=2, metavar=("A", "B"),
                         help="run two arms (e.g. v2.1 v2.1@512) and print both reports")
     parser.add_argument("--repeats", type=int, default=1,

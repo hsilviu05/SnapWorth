@@ -136,7 +136,8 @@ async def write_draft(scan: Scan, marketplace: str) -> tuple[str, str, bool] | N
         raw, _ = await main._generate_with_retry(
             main._listing_prompt(req), label="listing", record_health=False,
             max_tokens=aiconfig.LISTING_MAX_OUTPUT_TOKENS,
-            thinking_budget=aiconfig.TEXT_THINKING_BUDGET)
+            thinking_budget=aiconfig.TEXT_THINKING_BUDGET,
+            thinking_level=aiconfig.TEXT_THINKING_LEVEL)
         result = main._validate_listing(main._extract_json(raw), req)
         return result.title, result.description, False
     except (aiconfig.ModelBlocked, json.JSONDecodeError, ValueError):

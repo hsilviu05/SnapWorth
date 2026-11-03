@@ -31,8 +31,9 @@ if TYPE_CHECKING:
 log = logging.getLogger("snapworth.notify")
 
 # What the model costs, per million tokens, so spend can be derived from the
-# token counts every call already reports. Defaults are Gemini 2.5 Flash's
-# published rates (thinking tokens bill as output); Google changes prices and
+# token counts every call already reports. Defaults are Gemini 3.5 Flash-Lite's
+# published rates, the same as 2.5 Flash's for text and images (thinking tokens
+# bill as output); Google changes prices and
 # GEMINI_MODEL can point elsewhere, so both are env-overridable.
 GEMINI_PRICE_INPUT_PER_M = float(os.environ.get("GEMINI_PRICE_INPUT_PER_M", "0.30"))
 GEMINI_PRICE_OUTPUT_PER_M = float(os.environ.get("GEMINI_PRICE_OUTPUT_PER_M", "2.50"))
@@ -351,19 +352,22 @@ async def _free_line(month: list[str]) -> str:
 
 async def _thinking_line() -> str:
     """Thinking tokens per scan call, today and over 7 and 30 days, and the
-    budget this process runs with (#217): the before and after a
-    `GEMINI_THINKING_BUDGET` change is read against."""
+    budget or level this process runs with (#217): the before and after a
+    `GEMINI_THINKING_BUDGET` or `GEMINI_THINKING_LEVEL` change is read against."""
     from scan import aiconfig    # the live value, as this process parsed it at start
-    budget = aiconfig.THINKING_BUDGET
+    if aiconfig.uses_thinking_level():
+        level = aiconfig.THINKING_LEVEL
+        setting = f"level {'unset' if level is None else level} (GEMINI_THINKING_LEVEL)"
+    else:
+        budget = aiconfig.THINKING_BUDGET
+        setting = f"budget {'unset' if budget is None else budget} (GEMINI_THINKING_BUDGET)"
     parts = []
     for label, n in (("today", 1), ("7d", 7), ("30d", 30)):
         days = opsstats.days_ending_today(n)
         calls = sum([await opsstats.sum_stat(days, f"calls_{name}") for name in _SCAN_LABELS])
         thoughts = await opsstats.sum_stat(days, "scan_thoughts")
         parts.append(f"{label} {thoughts // calls:,}" if calls else f"{label} —")
-    return ("🧠 Thinking per scan call: " + " · ".join(parts)
-            + f" · budget {'unset' if budget is None else budget}"
-            " (GEMINI_THINKING_BUDGET)")
+    return "🧠 Thinking per scan call: " + " · ".join(parts) + f" · {setting}"
 
 
 async def costs_text() -> str:

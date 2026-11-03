@@ -57,7 +57,7 @@ def test_production_json_names_what_production_runs():
     # are unset (checked 2026-10-06). A default change must move this too.
     assert pinned["prompt_version"] == prompts.DEFAULT_PROMPT_VERSION
     assert pinned["thinking_budget"] is None
-    assert pinned["model"] == "gemini-2.5-flash"
+    assert pinned["model"] == "gemini-3.5-flash-lite"
 
 
 def test_the_pinned_model_is_aiconfigs_default():
@@ -120,10 +120,10 @@ def test_config_cannot_be_combined_with_compare():
 
 def test_config_refuses_a_different_model(monkeypatch, capsys):
     from scan import aiconfig
-    monkeypatch.setattr(aiconfig, "MODEL_NAME", "gemini-3-flash")
+    monkeypatch.setattr(aiconfig, "MODEL_NAME", "gemini-2.5-flash")
     with pytest.raises(SystemExit):
         runner.main(["--dataset", "x.jsonl", "--config", str(PRODUCTION)])
-    assert "pins model 'gemini-2.5-flash'" in capsys.readouterr().err
+    assert "pins model 'gemini-3.5-flash-lite'" in capsys.readouterr().err
 
 
 # ── Scoring ──────────────────────────────────────────────────────────────────
