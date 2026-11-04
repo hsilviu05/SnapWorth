@@ -144,7 +144,10 @@ def acquisition(ent) -> str:
 
 async def index_subscription(subject: str | None, ent,
                               auto_renew: bool | None = None, *,
-                              current: bool = False) -> dict | None:
+                              current: bool = False,
+                              event_at: int | None = None,
+                              billing_failed: bool = False,
+                              grace_until: int | None = None) -> dict | None:
     """Record what we now know about one subscription. Returns the previous row,
     or None when the index could not be read and nothing was written.
 
@@ -219,8 +222,23 @@ async def index_subscription(subject: str | None, ent,
         who = auditlog.pseudonymise(subject)
         entry["devices"] = with_device(row_devices(entry), who)
         entry["who"] = who
+    when = int(event_at) if isinstance(event_at, (int, float)) else int(time.time())
     if auto_renew is not None:
+        # When auto-renew went off, for /trials: how long a trial lasted
+        # before its user decided against paying. Cleared if they turn it
+        # back on, so it always dates the cancellation that stands.
+        if auto_renew is False and before.get("auto_renew") is not False:
+            entry["renew_off_at"] = when
+        elif auto_renew:
+            entry.pop("renew_off_at", None)
         entry["auto_renew"] = auto_renew
+    if billing_failed:
+        # A charge Apple could not take: the first one is what /trials reads
+        # (a trial that ended in a failed card, not a choice). `grace_until`
+        # is when Billing Grace Period ends, if Apple granted one.
+        entry.setdefault("billing_failed_at", when)
+        if grace_until:
+            entry["grace_until"] = int(grace_until)
     # The revocation is a tombstone on a *term*, not on the row.
     #
     # This only ever set `revoked` and never cleared it, and the row is keyed
