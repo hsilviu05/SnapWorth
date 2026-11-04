@@ -36,6 +36,7 @@
 		AA00000000000000000000CD /* StoreKitPurchaseService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000000CC /* StoreKitPurchaseService.swift */; };
 		AA00000000000000000000CF /* ScanAPIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000000CE /* ScanAPIClient.swift */; };
 		DA7A0DE1000000000000B001 /* ServerDataClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA7A0DE1000000000000A001 /* ServerDataClient.swift */; };
+		9A7E0F1E000000000000B001 /* PaywallViewClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9A7E0F1E000000000000A001 /* PaywallViewClient.swift */; };
 		AA00000000000000000000D1 /* CameraManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000000D0 /* CameraManager.swift */; };
 		AA00000000000000000000D3 /* OnboardingViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000000D2 /* OnboardingViewModel.swift */; };
 		AA00000000000000000000D5 /* PaywallViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000000D4 /* PaywallViewModel.swift */; };
@@ -186,6 +187,7 @@
 		AA00000000000000000000CC /* StoreKitPurchaseService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoreKitPurchaseService.swift; sourceTree = "<group>"; };
 		AA00000000000000000000CE /* ScanAPIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanAPIClient.swift; sourceTree = "<group>"; };
 		DA7A0DE1000000000000A001 /* ServerDataClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServerDataClient.swift; sourceTree = "<group>"; };
+		9A7E0F1E000000000000A001 /* PaywallViewClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaywallViewClient.swift; sourceTree = "<group>"; };
 		AA00000000000000000000D0 /* CameraManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraManager.swift; sourceTree = "<group>"; };
 		AA00000000000000000000D2 /* OnboardingViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingViewModel.swift; sourceTree = "<group>"; };
 		AA00000000000000000000D4 /* PaywallViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaywallViewModel.swift; sourceTree = "<group>"; };
@@ -419,6 +421,7 @@
 			children = (
 				AA00000000000000000000CE /* ScanAPIClient.swift */,
 				DA7A0DE1000000000000A001 /* ServerDataClient.swift */,
+				9A7E0F1E000000000000A001 /* PaywallViewClient.swift */,
 				FEED0000000000000000C10 /* AttestationService.swift */,
 				FEED0000000000000000C30 /* CertificatePinning.swift */,
 				FEED0000000000000000C20 /* TokenStore.swift */,
@@ -897,6 +900,7 @@
 				ADD1EC0000000000000000BA /* FlipsView.swift in Sources */,
 				AA00000000000000000000CF /* ScanAPIClient.swift in Sources */,
 				DA7A0DE1000000000000B001 /* ServerDataClient.swift in Sources */,
+				9A7E0F1E000000000000B001 /* PaywallViewClient.swift in Sources */,
 				FEED000000000000000000B5 /* ThriftFlipView.swift in Sources */,
 				FEED000000000000000097B2 /* ReferralViews.swift in Sources */,
 				FEED000000000000000000B4 /* ThriftFlipViewModel.swift in Sources */,

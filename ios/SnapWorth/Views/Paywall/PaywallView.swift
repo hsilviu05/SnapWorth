@@ -321,7 +321,10 @@ struct PaywallView: View {
             // sitting right there unselected.
             vm.reconcileSelection(with: shownPricing)
         }
-        .onAppear { vm.didAppear(trigger: trigger) }
+        .onAppear {
+            vm.didAppear(trigger: trigger)
+            PaywallViewClient.report(trigger)
+        }
         .onDisappear { vm.didDisappear(trigger: trigger) }
         .onChange(of: vm.isPurchaseComplete) { _, complete in
             if complete { dismiss() }

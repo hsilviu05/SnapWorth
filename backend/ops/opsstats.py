@@ -56,6 +56,16 @@ PAYWALL_TRIGGERS: tuple[str, ...] = (
     "visual_intelligence",
 )
 
+#: Device-days that opened any paywall, and per trigger `paywall_views:<t>`.
+#: Reported by the app from 1.7.2 (`POST /events/paywall`); before that the
+#: server saw only the purchases a paywall led to, never the looks.
+PAYWALL_VIEWERS = "paywall_viewers"
+
+
+def paywall_views_counter(trigger: str) -> str:
+    return f"paywall_views:{trigger}"
+
+
 _cache: ResilientCache | None = None
 
 

@@ -404,6 +404,31 @@ def count_limit_hit() -> None:
     _spawn(opsstats.bump("limit_hits"))
 
 
+async def _note_paywall_view(subject: str, trigger: str) -> None:
+    try:
+        # Once per device per day, overall and per trigger: a user opening the
+        # paywall five times is one person who looked, which is what the
+        # funnel compares with active devices and trial starts.
+        who = auditlog.pseudonymise(subject)
+        day = opsstats.day()
+        if await _cache.add(f"opsseen:pw:{day}:{who}", "1", opsstats.SEEN_DAY_TTL):
+            await _cache.incr(opsstats.stat_key(day, opsstats.PAYWALL_VIEWERS), STATS_TTL)
+        if await _cache.add(f"opsseen:pw:{day}:{trigger}:{who}", "1", opsstats.SEEN_DAY_TTL):
+            await _cache.incr(opsstats.stat_key(day, opsstats.paywall_views_counter(trigger)), STATS_TTL)
+    except Exception as exc:
+        log.debug("paywall view note failed: %s", type(exc).__name__)
+
+
+def paywall_viewed(subject: str, trigger: str) -> None:
+    """Count one device seeing a paywall today. Fire-and-forget.
+
+    `trigger` must already be one of `opsstats.PAYWALL_TRIGGERS`; the route
+    refuses anything else, so a client cannot mint counter names."""
+    if _cache is None or not subject or trigger not in opsstats.PAYWALL_TRIGGERS:
+        return
+    _spawn(_note_paywall_view(subject, trigger))
+
+
 # The ways a scan that reached the model can still fail the user. They are
 # counted apart because they call for different responses: "provider" is the
 # AI service being down and nothing to do with the photo, "no price" usually
@@ -2041,6 +2066,27 @@ def _trend(current: int, previous: int) -> str:
     return "＝"
 
 
+def _share(n: int, of: int) -> str:
+    return f" · {n / of:.0%} of active" if of else ""
+
+
+def _funnel_lines(active: int, limit_hits: int, viewers: int, trials: int,
+                  paid: int) -> list[str]:
+    """The week's path from opening the app to paying, from the server's own
+    counters. Each step is counted on its own, not as a sequence: the paywall
+    also opens from Settings, so it is not a subset of the limit hits."""
+    return [
+        "🔻 <b>Funnel</b> (shares of active user-days)",
+        f"Active user-days: {active}",
+        f"Free-limit refusals: {limit_hits} (requests, not devices)",
+        f"Saw a paywall: {viewers} device-days{_share(viewers, active)}"
+        + ("" if viewers else " (reported by app 1.7.2+)"),
+        f"Started a trial: {trials}{_share(trials, active)}"
+        + (f" · {trials / viewers:.0%} of paywall views" if viewers else ""),
+        f"Paid: {paid}",
+    ]
+
+
 async def _weekly_text(now: datetime) -> str:
     """The seven days ending yesterday, against the seven before."""
     end = (now - timedelta(days=1)).date()
@@ -2062,6 +2108,8 @@ async def _weekly_text(now: datetime) -> str:
     scans_now, scans_prev = free_now + pro_now, free_prev + pro_prev
     spend_now = await opsspend.total_spend(this_week)
     spend_prev = await opsspend.total_spend(last_week)
+    limits_now = await opsstats.sum_stat(this_week, "limit_hits")
+    viewers_now = await opsstats.sum_stat(this_week, opsstats.PAYWALL_VIEWERS)
 
     start = end - timedelta(days=6)
     return "\n".join([
@@ -2076,6 +2124,8 @@ async def _weekly_text(now: datetime) -> str:
         f"vs {scans_prev} scans · {users_prev} user-days · {trials_prev} trial starts · "
         f"{paid_prev} paid · "
         f"{opsformat.usd(spend_prev)} the week before",
+        "",
+        *_funnel_lines(users_now, limits_now, viewers_now, trials_now, paid_now),
         "",
         *await opslifetime.lifetime_lines(now),
     ])

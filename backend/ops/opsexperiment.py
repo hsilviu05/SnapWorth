@@ -355,42 +355,46 @@ async def experiment_export(now: datetime | None = None) -> str:
 async def paywall_text(now: datetime | None = None) -> str:
     """`/paywall`: the server's half of reading which paywall sells (#218).
 
-    Trial starts and direct purchases per trigger over PAYWALL_WINDOW_DAYS,
-    and the trial-to-paid rate for the trials whose free period ended in that
+    Views (device-days, app 1.7.2+), trial starts and direct purchases per
+    trigger over PAYWALL_WINDOW_DAYS, and the trial-to-paid rate for the trials whose free period ended in that
     window. Per trigger is counts only: the trigger is never on the row, so
     trial-to-paid *by trigger* cannot be read here (#218, Notes).
 
     Counts, not significance: at a few scans a day every figure here is small,
     which is why each rate carries its n. TelemetryDeck's
     `paywall_viewed → purchase_started → purchase_completed` is the other
-    instrument, and it has the views this cannot see.
+    instrument; it also has the views of builds before 1.7.2.
     """
     now = now or datetime.now(timezone.utc)
     days = [opsstats.day(now - timedelta(days=i)) for i in range(PAYWALL_WINDOW_DAYS)]
     trials, conversions, direct = await opsstats.sub_counts(days)
 
-    per: list[tuple[str, int, int]] = []
+    per: list[tuple[str, int, int, int]] = []
     for trigger in opsstats.PAYWALL_TRIGGERS:
+        v = await opsstats.sum_stat(days, opsstats.paywall_views_counter(trigger))
         t = await opsstats.sum_stat(days, f"{opsstats.START_COUNTERS['trial']}:{trigger}")
         p = await opsstats.sum_stat(days, f"{opsstats.START_COUNTERS['paid']}:{trigger}")
-        if t or p:
-            per.append((trigger, t, p))
-    per.sort(key=lambda row: (-(row[1] + row[2]), row[0]))
+        if v or t or p:
+            per.append((trigger, v, t, p))
+    per.sort(key=lambda row: (-(row[2] + row[3]), -row[1], row[0]))
+    viewers = await opsstats.sum_stat(days, opsstats.PAYWALL_VIEWERS)
 
     lines = [f"💳 <b>Paywall — last {PAYWALL_WINDOW_DAYS} days</b>",
              f"Trial starts: {trials} · direct purchases: {direct} · "
-             f"converted trials: {conversions}"]
+             f"converted trials: {conversions}",
+             f"Seen by: {viewers} device-days"
+             + ("" if viewers else " (app 1.7.2+ reports views)")]
     if per:
-        lines.append(f"<code>{'trigger':<17}{'trial':>6}{'direct':>7}</code>")
-        lines += [f"<code>{html.escape(t):<17}{ts:>6}{pd:>7}</code>"
-                  for t, ts, pd in per]
-    untagged_t = max(0, trials - sum(r[1] for r in per))
-    untagged_p = max(0, direct - sum(r[2] for r in per))
+        lines.append(f"<code>{'trigger':<17}{'views':>6}{'trial':>6}{'direct':>7}</code>")
+        lines += [f"<code>{html.escape(t):<17}{vs:>6}{ts:>6}{pd:>7}</code>"
+                  for t, vs, ts, pd in per]
+    untagged_t = max(0, trials - sum(r[2] for r in per))
+    untagged_p = max(0, direct - sum(r[3] for r in per))
     if untagged_t or untagged_p:
-        lines.append(f"<code>{'no trigger':<17}{untagged_t:>6}{untagged_p:>7}</code>")
+        lines.append(f"<code>{'no trigger':<17}{'':>6}{untagged_t:>6}{untagged_p:>7}</code>")
         lines.append("No trigger: a build before 1.5.2, a sync that was not the "
                      "one after the paywall, or Apple reported it first.")
-    elif not per:
+    elif not trials and not direct:
         lines.append("No trial starts or direct purchases in the window.")
 
     # The rate is read off the subscription index rather than the counters:
