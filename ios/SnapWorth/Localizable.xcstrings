@@ -4587,6 +4587,42 @@
         }
       }
     },
+    "A higher-value find. Buyers look closely, so photograph the label and every flaw." : {
+      "comment" : "Tag's tip for a find worth $150 or more.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ein wertvollerer Fund. Käufer schauen genau hin, also fotografiere das Etikett und jeden Makel."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A higher-value find. Buyers look closely, so photograph the label and every flaw."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Un hallazgo de más valor. Los compradores se fijan mucho, así que fotografía la etiqueta y cada defecto."
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "O găsire mai valoroasă. Cumpărătorii se uită atent, așa că fotografiază eticheta și fiecare defect."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这件价值较高。买家会看得很仔细，记得拍下标签和每一处瑕疵。"
+          }
+        }
+      }
+    },
     "A marketplace-ready listing, tailored to where you sell." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -13212,6 +13248,42 @@
         }
       }
     },
+    "Get Tag's advice on pricing and listing for every find." : {
+      "comment" : "Free user's Tag's tips card: what Pro unlocks.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hol dir Tags Rat zu Preis und Inserat für jeden Fund."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Get Tag's advice on pricing and listing for every find."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Recibe los consejos de Tag sobre precio y anuncio para cada hallazgo."
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Primește sfaturile lui Tag despre preț și anunț pentru fiecare găsire."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "每件好物都能收到 Tag 关于定价和发布的建议。"
+          }
+        }
+      }
+    },
     "Get a free week of SnapWorth Pro: enter my invite code %@ in the app. %@" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -14402,6 +14474,42 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "我想…"
+          }
+        }
+      }
+    },
+    "I'm not sure about this one. A close-up of the label or care tag will sharpen the estimate." : {
+      "comment" : "Tag's tip when the estimate's confidence is low. 'care tag' is the garment's label, not the mascot.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bei diesem bin ich mir unsicher. Eine Nahaufnahme vom Etikett oder Pflegeetikett macht die Schätzung genauer."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "I'm not sure about this one. A close-up of the label or care tag will sharpen the estimate."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No estoy seguro de este. Un primer plano de la etiqueta o de la etiqueta de cuidado afinará la estimación."
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nu sunt sigur de acesta. Un prim-plan cu eticheta de marcă sau de îngrijire va face estimarea mai precisă."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这件我不太确定。拍一张标签或洗标的特写，估价会更准。"
           }
         }
       }
@@ -15717,6 +15825,42 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "商品照片"
+          }
+        }
+      }
+    },
+    "Listings with four or more daylight photos tend to sell faster." : {
+      "comment" : "Tag's default resale tip.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Inserate mit vier oder mehr Fotos bei Tageslicht verkaufen sich meist schneller."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Listings with four or more daylight photos tend to sell faster."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Los anuncios con cuatro o más fotos con luz natural suelen venderse antes."
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Anunțurile cu patru sau mai multe fotografii la lumina zilei se vând de obicei mai repede."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "有四张以上自然光照片的商品，通常卖得更快。"
           }
         }
       }
@@ -17148,6 +17292,42 @@
         }
       }
     },
+    "Next tip" : {
+      "comment" : "VoiceOver label: tapping Tag shows Tag's next resale tip.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nächster Tipp"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Next tip"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Siguiente consejo"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sfatul următor"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "下一条小贴士"
+          }
+        }
+      }
+    },
     "Night" : {
       "comment" : "App icon choice: Tag on a dark background.",
       "extractionState" : "manual",
@@ -18392,6 +18572,42 @@
         }
       }
     },
+    "Only a few recent sales to compare. Start near the top of the range; you can always lower it." : {
+      "comment" : "Tag's tip when the scan found fewer than five sold listings.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nur wenige aktuelle Verkäufe zum Vergleich. Starte nahe am oberen Ende der Spanne; senken kannst du immer noch."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Only a few recent sales to compare. Start near the top of the range; you can always lower it."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hay pocas ventas recientes para comparar. Empieza cerca del máximo del rango; siempre puedes bajarlo."
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sunt doar câteva vânzări recente de comparat. Pornește de aproape de capătul de sus al intervalului; poți oricând să scazi prețul."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "可参考的近期成交不多。先按区间上限附近定价，之后随时可以降价。"
+          }
+        }
+      }
+    },
     "Open %@" : {
       "comment" : "%@ is a marketplace name.",
       "extractionState" : "manual",
@@ -19559,6 +19775,42 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "请等当前这次扫描完成"
+          }
+        }
+      }
+    },
+    "Plenty of these sell. Price near the middle of the range to sell it quickly." : {
+      "comment" : "Tag's tip when the scan found twenty or more sold listings.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Davon wird viel verkauft. Setz den Preis etwa in die Mitte der Spanne, dann geht es schnell weg."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Plenty of these sell. Price near the middle of the range to sell it quickly."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Se venden muchos como este. Ponle un precio cerca del centro del rango para venderlo rápido."
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Se vând multe de felul ăsta. Pune un preț pe la mijlocul intervalului ca să-l vinzi repede."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这类东西卖得很多。定价在区间中间附近，能更快卖出。"
           }
         }
       }
@@ -22895,6 +23147,42 @@
         }
       }
     },
+    "Sell smarter with Tag" : {
+      "comment" : "Paywall headline when opened from Tag's tips. Must not say 'free'.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Clever verkaufen mit Tag"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sell smarter with Tag"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vende mejor con Tag"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vinde mai inteligent cu Tag"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "有 Tag 帮你，卖得更聪明"
+          }
+        }
+      }
+    },
     "Send Feedback" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -23669,6 +23957,42 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "查看完整分析"
+          }
+        }
+      }
+    },
+    "Shows Tag's pricing and listing advice on each result" : {
+      "comment" : "VoiceOver hint for the Tag's tips toggle in Settings.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zeigt Tags Rat zu Preis und Inserat bei jedem Ergebnis"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Shows Tag's pricing and listing advice on each result"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Muestra los consejos de Tag sobre precio y anuncio en cada resultado"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Arată sfaturile lui Tag despre preț și anunț pe fiecare rezultat"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在每个结果中显示 Tag 关于定价和发布的建议"
           }
         }
       }
@@ -24950,6 +25274,42 @@
         }
       }
     },
+    "Sold! Nice flip. Scan your next find while you're on a roll." : {
+      "comment" : "Tag's tip on a find marked sold. Tag speaks in the first person, friendly.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Verkauft! Starker Flip. Scanne gleich deinen nächsten Fund, solange es läuft."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sold! Nice flip. Scan your next find while you're on a roll."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "¡Vendido! Buena reventa. Escanea tu próximo hallazgo ahora que estás en racha."
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vândut! Frumos flip. Scanează următoarea găsire cât ești în formă."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "卖出啦！这单转得漂亮。趁手感正好，扫描下一件吧。"
+          }
+        }
+      }
+    },
     "Some details look off" : {
       "comment" : "Legit check verdict (#90). An observation about photos, never a certification: must not say the item is authentic, genuine or fake.",
       "extractionState" : "manual",
@@ -26049,6 +26409,42 @@
         }
       }
     },
+    "Tag's tips" : {
+      "comment" : "Title of the card on a result where Tag, the mascot, gives resale advice; also its Settings toggle. Tag is a name and stays Tag.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tags Tipps"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tag's tips"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Consejos de Tag"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sfaturile lui Tag"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tag 的小贴士"
+          }
+        }
+      }
+    },
     "Take another photo" : {
       "comment" : "Rack scan: go back to the camera.",
       "extractionState" : "manual",
@@ -26227,6 +26623,42 @@
         }
       }
     },
+    "Tap Tag for another tip" : {
+      "comment" : "Caption under Tag's tip; Tag is the mascot's name.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tippe auf Tag für einen weiteren Tipp"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tap Tag for another tip"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Toca a Tag para otro consejo"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Atinge-l pe Tag pentru alt sfat"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "点一下 Tag，看另一条小贴士"
+          }
+        }
+      }
+    },
     "Terms of Service" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -26399,6 +26831,42 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "这张没拍成，请再拍一次。"
+          }
+        }
+      }
+    },
+    "That's at least double what you paid. Worth listing soon." : {
+      "comment" : "Tag's tip when the likely value is at least twice the price paid.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Das ist mindestens das Doppelte von dem, was du bezahlt hast. Bald inserieren lohnt sich."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "That's at least double what you paid. Worth listing soon."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Es al menos el doble de lo que pagaste. Vale la pena anunciarlo pronto."
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Asta e cel puțin dublu față de cât ai plătit. Merită listat curând."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这至少是你买入价的两倍，值得尽快发布。"
           }
         }
       }
@@ -29055,6 +29523,42 @@
         }
       }
     },
+    "Unlock Tag's tips" : {
+      "comment" : "Button on a free user's Tag's tips card; opens the Pro paywall.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tags Tipps freischalten"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Unlock Tag's tips"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Desbloquea los consejos de Tag"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Deblochează sfaturile lui Tag"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "解锁 Tag 的小贴士"
+          }
+        }
+      }
+    },
     "Unlock marketplace listings" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -31518,6 +32022,42 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "账本里有物品需要更新。"
+          }
+        }
+      }
+    },
+    "You paid more than this usually sells for. Bundling it with something similar can make it worth listing." : {
+      "comment" : "Tag's tip when the price paid is above the top of the estimate.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Du hast mehr bezahlt, als es meist einbringt. Im Paket mit etwas Ähnlichem kann sich ein Inserat lohnen."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You paid more than this usually sells for. Bundling it with something similar can make it worth listing."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pagaste más de lo que suele venderse. Venderlo en un lote con algo parecido puede hacer que valga la pena anunciarlo."
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ai plătit mai mult decât se vinde de obicei. Dacă îl vinzi la pachet cu ceva asemănător, poate merita listat."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "你买入的价格高于它通常的售价。和类似的东西打包出售，也许就值得发布了。"
           }
         }
       }

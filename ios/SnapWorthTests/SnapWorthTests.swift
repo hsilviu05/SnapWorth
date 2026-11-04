@@ -3089,6 +3089,73 @@ final class TagMascotAssetTests: XCTestCase {
     }
 }
 
+// MARK: - Tag's tips
+
+final class TagTipTests: XCTestCase {
+
+    private func facts(status: FlipStatus = .scanned, confidence: String = "High",
+                       paid: Double? = nil, likely: Double = 40, high: Double = 60,
+                       soldListings: Int = 10) -> TagTip.Facts {
+        TagTip.Facts(status: status, confidence: confidence, paid: paid,
+                     likely: likely, high: high, soldListings: soldListings)
+    }
+
+    func test_anOrdinaryFindGetsThePhotoTipAlone() {
+        XCTAssertEqual(TagTip.tips(for: facts()), [.photos])
+    }
+
+    func test_aSoldFindGetsOnlyTheSoldTip() {
+        XCTAssertEqual(TagTip.tips(for: facts(status: .sold, confidence: "Low", paid: 5,
+                                              likely: 200, soldListings: 2)), [.sold])
+    }
+
+    func test_paidAboveTheTopOfTheRangeIsUnderwater() {
+        XCTAssertEqual(TagTip.tips(for: facts(paid: 70)), [.underwater, .photos])
+        XCTAssertEqual(TagTip.tips(for: facts(paid: 60)), [.photos], "the top of the range is not above it")
+    }
+
+    func test_doubleWhatWasPaid() {
+        XCTAssertEqual(TagTip.tips(for: facts(paid: 20)), [.doubled, .photos])
+        XCTAssertEqual(TagTip.tips(for: facts(paid: 21)), [.photos])
+    }
+
+    /// Zero is a free find, and a non-finite paste has no cost basis: neither
+    /// may say "double what you paid".
+    func test_aFreeOrUnreadablePaidPriceComparesWithNothing() {
+        for paid in [0, -5, Double.infinity, Double.nan] {
+            XCTAssertEqual(TagTip.tips(for: facts(paid: paid)), [.photos], "\(paid)")
+        }
+    }
+
+    func test_lowConfidenceInAnyCase() {
+        XCTAssertEqual(TagTip.tips(for: facts(confidence: "low")), [.lowConfidence, .photos])
+        XCTAssertEqual(TagTip.tips(for: facts(confidence: "Medium")), [.photos])
+    }
+
+    func test_soldListingCounts() {
+        XCTAssertEqual(TagTip.tips(for: facts(soldListings: 0)), [.photos], "zero says nothing")
+        XCTAssertEqual(TagTip.tips(for: facts(soldListings: 4)), [.fewSales, .photos])
+        XCTAssertEqual(TagTip.tips(for: facts(soldListings: 5)), [.photos])
+        XCTAssertEqual(TagTip.tips(for: facts(soldListings: 20)), [.manySales, .photos])
+    }
+
+    func test_higherValueFrom150() {
+        XCTAssertEqual(TagTip.tips(for: facts(likely: 150, high: 200)), [.highValue, .photos])
+        XCTAssertEqual(TagTip.tips(for: facts(likely: 149, high: 200)), [.photos])
+    }
+
+    func test_everyTipHasItsOwnMessage() {
+        let messages = TagTip.allCases.map(\.message)
+        XCTAssertEqual(Set(messages).count, messages.count)
+        XCTAssertFalse(messages.contains(where: \.isEmpty))
+    }
+
+    func test_itsPaywallTriggerIsReportedAsTagTips() {
+        XCTAssertEqual(PaywallTrigger.tagTips.rawValue, "tag_tips")
+        XCTAssertEqual(PaywallCopy.pitch(for: .tagTips)?.leadIcon, "cart.fill")
+    }
+}
+
 // MARK: - Listing photo cleanup (#91)
 
 /// Vision's foreground mask cannot run in the simulator ("Could not create
