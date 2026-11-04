@@ -2040,6 +2040,8 @@ async def apple_notifications(body: AppleNotification, request: Request) -> dict
     if duplicate:
         return {"status": "duplicate"}
 
+    await _apply_billing_grace(note)
+
     # Idempotency. Apple redelivers until it gets a 2xx, and a retry that
     # re-ran the handler would push the operator a second "trial converted"
     # for one conversion. Fail *open* if the cache is unreachable: a duplicate
@@ -2065,6 +2067,28 @@ async def apple_notifications(body: AppleNotification, request: Request) -> dict
 
     await notify.subscription_event(note, reinstated=reinstated)
     return {"status": "ok", "type": note.notification_type}
+
+
+async def _apply_billing_grace(note: appstorenotify.Notification) -> None:
+    """Start or end the Billing Grace Period the access path honours.
+
+    Before the idempotency claim and safe to repeat: a redelivery writes the
+    same record again. Best-effort, because the grace is a courtesy on top of
+    the transaction: failing Apple's delivery over it buys hours of retries
+    for a fact the next DID_FAIL_TO_RENEW carries again.
+    """
+    ent = note.entitlement
+    if ent is None or _cache is None:
+        return
+    try:
+        if note.is_billing_failure and note.grace_until:
+            await entitlements.record_grace(_cache, ent, note.grace_until)
+        elif note.notification_type in {appstorenotify.DID_RENEW, appstorenotify.EXPIRED,
+                                        appstorenotify.REFUND, appstorenotify.REVOKE}:
+            await entitlements.clear_grace(_cache, ent)
+    except Exception as exc:
+        log.warning("billing grace not updated for %s: %s",
+                    note.notification_type, type(exc).__name__)
 
 
 async def _apply_refund_change(note: appstorenotify.Notification, seen_key: str

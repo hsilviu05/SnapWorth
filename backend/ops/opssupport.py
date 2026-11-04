@@ -482,6 +482,21 @@ async def _sub_text(argument: str) -> tuple[str, opsformat.Buttons]:
             # The answer above is the point of the command; failing to cache it
             # must not lose it.
             log.warning("could not index a live status result", exc_info=True)
+    # A grace period Apple reports here is honoured from now on, which is
+    # how one that began before the server read DID_FAIL_TO_RENEW for it, or
+    # whose notification never arrived, is put right.
+    for status in statuses:
+        until = getattr(status, "grace_until", None)
+        if (status.state != "grace period" or not until or _cache is None
+                or status.entitlement.environment not in entitlements.ALLOWED_ENVIRONMENTS):
+            continue
+        try:
+            if await entitlements.record_grace(_cache, status.entitlement, until):
+                lines.append("")
+                lines.append(f"🛟 In billing grace until {opsformat.date(until)}: "
+                             "the server keeps them on Pro until then.")
+        except Exception:
+            log.warning("could not record a live grace period", exc_info=True)
     if indexed:
         lines.append("")
         lines.append(f"Index updated from this lookup ({indexed} row"
