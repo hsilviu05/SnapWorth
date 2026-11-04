@@ -50,6 +50,7 @@ from scan import listingclaims
 from ops import metrics
 from ops import notify
 from ops import opsindex
+from ops import opsreport
 from ops import opsspend
 from ops import opsstats
 from scan import promptsafety
@@ -1692,6 +1693,32 @@ async def prometheus_metrics(authorization: str = Header(default="")):
 
     return Response(content=metrics.render(),
                     media_type="text/plain; version=0.0.4; charset=utf-8")
+
+
+@app.get("/ops/report")
+async def ops_report(names: str = "", authorization: str = Header(default="")):
+    """The bot's read-only reports as plain text (`opsreport`).
+
+    `?names=trials,subs` picks some; empty means all. Guarded like `/metrics`,
+    with its own token so the two can be rotated apart: 404 when
+    `OPS_REPORT_TOKEN` is unset, the token is wrong, or a name is not a
+    read-only report. These reports do carry short subscription and device
+    ids, which is why the token is separate from the scrape one.
+    """
+    expected = os.environ.get("OPS_REPORT_TOKEN", "").strip()
+    if not expected:
+        raise HTTPException(status_code=404, detail="Not found.")
+    presented = ""
+    if authorization.lower().startswith("bearer "):
+        presented = authorization[7:].strip()
+    if not hmac.compare_digest(presented.encode("utf-8"), expected.encode("utf-8")):
+        raise HTTPException(status_code=404, detail="Not found.")
+    wanted = opsreport.requested(names)
+    if wanted is None:
+        raise HTTPException(status_code=404, detail="Not found.")
+    return Response(content=await opsreport.report(wanted),
+                    media_type="text/plain; charset=utf-8",
+                    headers={"Cache-Control": "no-store"})
 
 
 _STYLE = """
