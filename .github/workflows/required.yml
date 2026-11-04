@@ -47,7 +47,10 @@ name: Required
 #   - failure at DEADLINE_MINUTES if it is still waiting, naming what it was
 #     waiting for. That is under the job's timeout so the table is printed
 #     rather than the job killed. `Build & Test` took 5–13 min across 12 runs
-#     on 2026-09-27, before any wait for a macOS runner.
+#     on 2026-09-27, before any wait for a macOS runner. Since the report-only
+#     screenshots step (#361, #428) it takes 27–46 min (#440, #441 on
+#     2026-11-04), so a 27 min deadline failed every PR that ran it
+#     and needed a manual re-run. 50 leaves room for a queued runner.
 #
 # It decides once. If a check fails and is re-run green, this job stays red
 # until it is re-run as well (RUNBOOK §6, Merging).
@@ -78,7 +81,7 @@ jobs:
   all-required:
     name: All required checks
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 55
 
     steps:
       - name: Wait for every other check on the PR head
@@ -87,7 +90,7 @@ jobs:
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           QUIET_SECONDS: '60'
           POLL_SECONDS: '15'
-          DEADLINE_MINUTES: '27'
+          DEADLINE_MINUTES: '50'
         run: |
           python3 - <<'PY'
           import json, os, sys, time, urllib.error, urllib.request
