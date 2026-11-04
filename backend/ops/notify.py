@@ -89,6 +89,7 @@ from ops import checkup
 from insights import ideas
 from ops import levers
 from ops import opsformat
+from ops import opsfunnel
 from ops import opsexperiment
 from ops import opsindex
 from ops import opslifetime
@@ -2076,6 +2077,7 @@ async def _weekly_text(now: datetime) -> str:
         f"vs {scans_prev} scans · {users_prev} user-days · {trials_prev} trial starts · "
         f"{paid_prev} paid · "
         f"{opsformat.usd(spend_prev)} the week before",
+        *(["", *funnel] if (funnel := await opsfunnel.funnel_lines(start, end)) else []),
         "",
         *await opslifetime.lifetime_lines(now),
     ])
