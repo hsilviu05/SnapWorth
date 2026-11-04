@@ -248,6 +248,12 @@ def credentials_from_env() -> _Credentials | None:
     )
 
 
+def _der(pem: bytes) -> bytes:
+    from cryptography import x509
+    from cryptography.hazmat.primitives.serialization import Encoding
+    return x509.load_pem_x509_certificate(pem).public_bytes(Encoding.DER)
+
+
 class AppStoreStatusClient:
     """Looks one subscriber up, in Production, then Sandbox.
 
@@ -306,7 +312,9 @@ class AppStoreStatusClient:
         from appstoreserverlibrary.signed_data_verifier import SignedDataVerifier
         if name not in self._verifiers:
             self._verifiers[name] = SignedDataVerifier(
-                root_certificates=[entitlements.APPLE_ROOT_CA_G3_PEM],
+                # DER, not PEM: the library loads each root as ASN.1, and a PEM
+                # root fails that load, so every lookup said INVALID_CERTIFICATE.
+                root_certificates=[_der(entitlements.APPLE_ROOT_CA_G3_PEM)],
                 # OCSP would put a second network dependency inside what is
                 # otherwise an offline signature check against a pinned root,
                 # on a path an operator is waiting on. The chain walk itself is

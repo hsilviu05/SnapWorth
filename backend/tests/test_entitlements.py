@@ -47,7 +47,7 @@ PRODUCTS = {"com.snapworth.monthly", "com.snapworth.yearly"}
 # ── Helpers: build a locally-signed JWS mimicking Apple's shape ──────────────
 
 def _make_cert(subject_name, issuer_name, subject_key, issuer_key, ca=False,
-               purpose_oid=None):
+               purpose_oid=None, key_ids=False):
     """Build one certificate.
 
     `purpose_oid` adds the marker extension Apple puts on its App Store signing
@@ -65,6 +65,21 @@ def _make_cert(subject_name, issuer_name, subject_key, issuer_key, ca=False,
         .not_valid_before(now - dt.timedelta(days=1))
         .not_valid_after(now + dt.timedelta(days=365))
     )
+    if key_ids:
+        # Key identifiers and CA key usage, as Apple's certificates carry: the
+        # App Store library verifies with OpenSSL's strict flag, which needs
+        # them. Off by default, because the chain-length test needs small certs.
+        builder = (builder
+                   .add_extension(x509.SubjectKeyIdentifier.from_public_key(
+                       subject_key.public_key()), critical=False)
+                   .add_extension(x509.AuthorityKeyIdentifier.from_issuer_public_key(
+                       issuer_key.public_key()), critical=False))
+        if ca:
+            builder = builder.add_extension(x509.KeyUsage(
+                digital_signature=False, content_commitment=False,
+                key_encipherment=False, data_encipherment=False, key_agreement=False,
+                key_cert_sign=True, crl_sign=True, encipher_only=False,
+                decipher_only=False), critical=True)
     if ca:
         builder = builder.add_extension(x509.BasicConstraints(True, None), critical=True)
     if purpose_oid is not None:
@@ -75,7 +90,7 @@ def _make_cert(subject_name, issuer_name, subject_key, issuer_key, ca=False,
 
 
 def build_chain(leaf_purpose=entitlements.LEAF_PURPOSE_OID,
-                intermediate_purpose=entitlements.INTERMEDIATE_PURPOSE_OID):
+                intermediate_purpose=entitlements.INTERMEDIATE_PURPOSE_OID, key_ids=False):
     """A three-certificate chain shaped like Apple's.
 
     The purpose OIDs are parameters so a test can build a chain that is
@@ -85,11 +100,11 @@ def build_chain(leaf_purpose=entitlements.LEAF_PURPOSE_OID,
     root_key = ec.generate_private_key(ec.SECP256R1())
     inter_key = ec.generate_private_key(ec.SECP256R1())
     leaf_key = ec.generate_private_key(ec.SECP256R1())
-    root = _make_cert("Test Root", "Test Root", root_key, root_key, ca=True)
+    root = _make_cert("Test Root", "Test Root", root_key, root_key, ca=True, key_ids=key_ids)
     inter = _make_cert("Test Intermediate", "Test Root", inter_key, root_key,
-                       ca=True, purpose_oid=intermediate_purpose)
+                       ca=True, purpose_oid=intermediate_purpose, key_ids=key_ids)
     leaf = _make_cert("Test Leaf", "Test Intermediate", leaf_key, inter_key,
-                      purpose_oid=leaf_purpose)
+                      purpose_oid=leaf_purpose, key_ids=key_ids)
     return leaf_key, [leaf, inter, root]
 
 
