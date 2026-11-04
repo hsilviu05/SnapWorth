@@ -461,9 +461,9 @@ class TestPaywallReadout:
         text = await opsexperiment.paywall_text(self.NOW)
         assert text.startswith("💳 <b>Paywall — last 28 days</b>")
         assert "Trial starts: 3 · direct purchases: 1 · converted trials: 1" in text
-        assert "<code>scan_limit            2      0</code>" in text
-        assert "<code>onboarding            0      1</code>" in text
-        assert "<code>no trigger            1      0</code>" in text
+        assert "<code>scan_limit            0     2      0</code>" in text
+        assert "<code>onboarding            0     0      1</code>" in text
+        assert "<code>no trigger                  1      0</code>" in text
         assert "haul" not in text
 
     @pytest.mark.asyncio

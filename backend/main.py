@@ -28,7 +28,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi import Response
 from fastapi.responses import HTMLResponse, JSONResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 from starlette.datastructures import Headers, MutableHeaders
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
@@ -1734,7 +1734,7 @@ def privacy():
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Privacy Policy — SnapWorth</title><style>{_STYLE}</style></head><body>
 <h1>Privacy Policy</h1>
-<p>Last updated: November 2, 2026</p>
+<p>Last updated: November 4, 2026</p>
 <p>SnapWorth ("we", "our", or "us") operates the SnapWorth mobile application.
 This page informs you of our policies regarding the collection, use, and
 disclosure of personal data when you use our Service.</p>
@@ -1804,7 +1804,10 @@ how often and on how many separate days you have opened the app.
 A one-way salted hash is used as an anonymous identifier. This data contains no
 photos, item names, prices, or advertising identifiers (IDFA), is not linked to
 your identity, and is never used to track you across other apps or websites. You
-can turn analytics off at any time in the app's Settings.</p>
+can turn analytics off at any time in the app's Settings.
+The app also tells our server when a paywall opens and which feature opened it;
+the server keeps only daily totals, counting each device once a day, and the same
+setting turns this off.</p>
 
 <h2>How We Use Your Information</h2>
 <p>Photos are used only to generate the valuation or legit check you requested.
@@ -3459,6 +3462,61 @@ async def trends(
     await _enforce_limits(principal.subject, _client_ip(request),
                           bucket=TRENDS_BUCKET, limit=TRENDS_RATE_MAX_REQUESTS)
     return TrendsResponse(**await trends_module.trends(is_pro=principal.is_pro))
+
+
+#: A paywall view is one tap away from another, so this is a loop-breaker:
+#: the counter itself is once per device per day and trigger.
+PAYWALL_VIEW_BUCKET = "pwview"
+PAYWALL_VIEW_RATE_MAX_REQUESTS = int(os.environ.get("PAYWALL_VIEW_RATE_MAX_REQUESTS", "60"))
+
+
+async def _enforce_paywall_view_limit(subject: str, ip: str | None) -> None:
+    try:
+        if ip is not None:
+            key, limit = f"{PAYWALL_VIEW_BUCKET}-ip:{ip}", 2 * PAYWALL_VIEW_RATE_MAX_REQUESTS
+            if _ip_limiter is None:
+                _ip_memory.check_sync(key, limit)
+            else:
+                await _ip_limiter.check(key, limit)
+        key = f"{PAYWALL_VIEW_BUCKET}:{subject[:64]}"
+        if _device_limiter is None:
+            _device_memory.check_sync(key, PAYWALL_VIEW_RATE_MAX_REQUESTS)
+        else:
+            await _device_limiter.check(key, PAYWALL_VIEW_RATE_MAX_REQUESTS)
+    except RateLimitExceeded as exc:
+        raise APIError(429, apierrors.RATE_LIMITED, exc.message,
+                       headers={"Retry-After": str(exc.retry_after)}) from None
+
+
+class PaywallView(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    trigger: str = Field(min_length=1, max_length=32)
+
+
+@app.post("/events/paywall", status_code=204, response_class=Response)
+async def paywall_view(
+    body: PaywallView,
+    request: Request,
+    principal: Principal = Depends(require_auth),
+) -> Response:
+    """The app opened a paywall (1.7.2+), for the funnel in `/week` and the
+    views column in `/paywall`. Before this the server saw the purchases a
+    paywall led to and never the looks, so "how many people see it and do not
+    buy" was TelemetryDeck's alone, and that needs a paid plan to query.
+
+    Counted once per device per UTC day, overall and per trigger, against the
+    pseudonym. Nothing is stored per device beyond a two-day "already
+    counted" marker. A trigger outside `opsstats.PAYWALL_TRIGGERS` is refused
+    with a 422, so a client cannot create counter names. Its own buckets,
+    not the scan route's `ip:`, so opening the paywall never spends scans.
+    """
+    if body.trigger not in opsstats.PAYWALL_TRIGGERS:
+        raise HTTPException(status_code=422, detail="Unknown paywall trigger.")
+    # The legacy principal is a header anyone can send, so it is not counted.
+    if principal.authenticated:
+        await _enforce_paywall_view_limit(principal.subject, _client_ip(request))
+        notify.paywall_viewed(principal.subject, body.trigger)
+    return Response(status_code=204)
 
 
 class ServerDataDeletion(BaseModel):
