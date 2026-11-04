@@ -41,6 +41,9 @@ on:
       - 'backend/main.py'
       - 'backend/scan/valuation.py'
       - 'backend/scan/prompts.py'
+  # Screenshots of a branch before it merges: Actions → iOS → Run workflow,
+  # on the PR's branch. Pull requests skip them (see the Screenshots step).
+  workflow_dispatch:
 
 # A newer push to the same pull request makes the run in progress worthless,
 # and on a macOS runner it holds the slot for up to ten minutes. Pushes to main
@@ -347,8 +350,13 @@ jobs:
       # gate: every command is allowed to fail, and the job's result is the
       # tests'. Debug build, so `-mock-scans` is honoured; the Simulator has
       # no camera, so the viewfinder is black.
+      #
+      # Not on pull requests. It took 16-25 of the 31-46 minutes a PR's
+      # Build & Test ran in on 2026-11-03/04, three quarters of the wait for
+      # a report nothing gates on. It runs on every push to main, and on a
+      # manual run (`workflow_dispatch`) of any branch that needs one.
       - name: Screenshots (report only)
-        if: success()
+        if: success() && github.event_name != 'pull_request'
         continue-on-error: true
         timeout-minutes: 30
         run: |
@@ -456,7 +464,7 @@ jobs:
           ls -la "$OUT"
 
       - name: Upload screenshots
-        if: success()
+        if: success() && github.event_name != 'pull_request'
         continue-on-error: true
         uses: actions/upload-artifact@v7
         with:
