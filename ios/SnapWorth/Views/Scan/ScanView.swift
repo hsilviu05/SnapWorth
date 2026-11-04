@@ -106,6 +106,8 @@ struct ScanView: View {
 
     var body: some View {
         let isAnalyzing = vm.isAnalyzing
+        // Read here because PhotosPicker's label closure is @Sendable.
+        let selectedPhotoItem = vm.selectedPhotoItem
         ZStack {
             // ── Camera background (warm charcoal) ─────────────────────────
             Color.snapCharcoal.ignoresSafeArea()
@@ -343,7 +345,7 @@ struct ScanView: View {
                     PhotosPicker(selection: $vm.selectedPhotoItem, matching: .images) {
                         Image(systemName: "photo.on.rectangle")
                             .snapSymbol(22, weight: .light)
-                            .snapBounce(on: vm.selectedPhotoItem)
+                            .snapBounce(on: selectedPhotoItem)
                             .foregroundStyle(Color.snapOnCharcoal.opacity(isAnalyzing ? 0.4 : 1))
                             .frame(width: 52, height: 52)
                             .snapGlass(in: sideControlShape,
