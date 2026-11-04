@@ -7583,6 +7583,126 @@
       "es": "Se eliminaron tus datos del servidor. El registro de tu suscripción se conserva mientras esté activa, para que Pro siga funcionando.",
       "de": "Deine Serverdaten wurden gelöscht. Der Eintrag deines Abos bleibt, solange es aktiv ist, damit Pro weiter funktioniert.",
       "zh-Hans": "你在服务器上的数据已删除。订阅有效期间会保留其记录，以便 Pro 继续可用。"
+    },
+    "Tag's tips": {
+      "comment": "Title of the card on a result where Tag, the mascot, gives resale advice; also its Settings toggle. Tag is a name and stays Tag.",
+      "en": "Tag's tips",
+      "ro": "Sfaturile lui Tag",
+      "es": "Consejos de Tag",
+      "de": "Tags Tipps",
+      "zh-Hans": "Tag 的小贴士"
+    },
+    "Unlock Tag's tips": {
+      "comment": "Button on a free user's Tag's tips card; opens the Pro paywall.",
+      "en": "Unlock Tag's tips",
+      "ro": "Deblochează sfaturile lui Tag",
+      "es": "Desbloquea los consejos de Tag",
+      "de": "Tags Tipps freischalten",
+      "zh-Hans": "解锁 Tag 的小贴士"
+    },
+    "Next tip": {
+      "comment": "VoiceOver label: tapping Tag shows Tag's next resale tip.",
+      "en": "Next tip",
+      "ro": "Sfatul următor",
+      "es": "Siguiente consejo",
+      "de": "Nächster Tipp",
+      "zh-Hans": "下一条小贴士"
+    },
+    "Tap Tag for another tip": {
+      "comment": "Caption under Tag's tip; Tag is the mascot's name.",
+      "en": "Tap Tag for another tip",
+      "ro": "Atinge-l pe Tag pentru alt sfat",
+      "es": "Toca a Tag para otro consejo",
+      "de": "Tippe auf Tag für einen weiteren Tipp",
+      "zh-Hans": "点一下 Tag，看另一条小贴士"
+    },
+    "Get Tag's advice on pricing and listing for every find.": {
+      "comment": "Free user's Tag's tips card: what Pro unlocks.",
+      "en": "Get Tag's advice on pricing and listing for every find.",
+      "ro": "Primește sfaturile lui Tag despre preț și anunț pentru fiecare găsire.",
+      "es": "Recibe los consejos de Tag sobre precio y anuncio para cada hallazgo.",
+      "de": "Hol dir Tags Rat zu Preis und Inserat für jeden Fund.",
+      "zh-Hans": "每件好物都能收到 Tag 关于定价和发布的建议。"
+    },
+    "Shows Tag's pricing and listing advice on each result": {
+      "comment": "VoiceOver hint for the Tag's tips toggle in Settings.",
+      "en": "Shows Tag's pricing and listing advice on each result",
+      "ro": "Arată sfaturile lui Tag despre preț și anunț pe fiecare rezultat",
+      "es": "Muestra los consejos de Tag sobre precio y anuncio en cada resultado",
+      "de": "Zeigt Tags Rat zu Preis und Inserat bei jedem Ergebnis",
+      "zh-Hans": "在每个结果中显示 Tag 关于定价和发布的建议"
+    },
+    "Sell smarter with Tag": {
+      "comment": "Paywall headline when opened from Tag's tips. Must not say 'free'.",
+      "en": "Sell smarter with Tag",
+      "ro": "Vinde mai inteligent cu Tag",
+      "es": "Vende mejor con Tag",
+      "de": "Clever verkaufen mit Tag",
+      "zh-Hans": "有 Tag 帮你，卖得更聪明"
+    },
+    "Sold! Nice flip. Scan your next find while you're on a roll.": {
+      "comment": "Tag's tip on a find marked sold. Tag speaks in the first person, friendly.",
+      "en": "Sold! Nice flip. Scan your next find while you're on a roll.",
+      "ro": "Vândut! Frumos flip. Scanează următoarea găsire cât ești în formă.",
+      "es": "¡Vendido! Buena reventa. Escanea tu próximo hallazgo ahora que estás en racha.",
+      "de": "Verkauft! Starker Flip. Scanne gleich deinen nächsten Fund, solange es läuft.",
+      "zh-Hans": "卖出啦！这单转得漂亮。趁手感正好，扫描下一件吧。"
+    },
+    "You paid more than this usually sells for. Bundling it with something similar can make it worth listing.": {
+      "comment": "Tag's tip when the price paid is above the top of the estimate.",
+      "en": "You paid more than this usually sells for. Bundling it with something similar can make it worth listing.",
+      "ro": "Ai plătit mai mult decât se vinde de obicei. Dacă îl vinzi la pachet cu ceva asemănător, poate merita listat.",
+      "es": "Pagaste más de lo que suele venderse. Venderlo en un lote con algo parecido puede hacer que valga la pena anunciarlo.",
+      "de": "Du hast mehr bezahlt, als es meist einbringt. Im Paket mit etwas Ähnlichem kann sich ein Inserat lohnen.",
+      "zh-Hans": "你买入的价格高于它通常的售价。和类似的东西打包出售，也许就值得发布了。"
+    },
+    "I'm not sure about this one. A close-up of the label or care tag will sharpen the estimate.": {
+      "comment": "Tag's tip when the estimate's confidence is low. 'care tag' is the garment's label, not the mascot.",
+      "en": "I'm not sure about this one. A close-up of the label or care tag will sharpen the estimate.",
+      "ro": "Nu sunt sigur de acesta. Un prim-plan cu eticheta de marcă sau de îngrijire va face estimarea mai precisă.",
+      "es": "No estoy seguro de este. Un primer plano de la etiqueta o de la etiqueta de cuidado afinará la estimación.",
+      "de": "Bei diesem bin ich mir unsicher. Eine Nahaufnahme vom Etikett oder Pflegeetikett macht die Schätzung genauer.",
+      "zh-Hans": "这件我不太确定。拍一张标签或洗标的特写，估价会更准。"
+    },
+    "That's at least double what you paid. Worth listing soon.": {
+      "comment": "Tag's tip when the likely value is at least twice the price paid.",
+      "en": "That's at least double what you paid. Worth listing soon.",
+      "ro": "Asta e cel puțin dublu față de cât ai plătit. Merită listat curând.",
+      "es": "Es al menos el doble de lo que pagaste. Vale la pena anunciarlo pronto.",
+      "de": "Das ist mindestens das Doppelte von dem, was du bezahlt hast. Bald inserieren lohnt sich.",
+      "zh-Hans": "这至少是你买入价的两倍，值得尽快发布。"
+    },
+    "Only a few recent sales to compare. Start near the top of the range; you can always lower it.": {
+      "comment": "Tag's tip when the scan found fewer than five sold listings.",
+      "en": "Only a few recent sales to compare. Start near the top of the range; you can always lower it.",
+      "ro": "Sunt doar câteva vânzări recente de comparat. Pornește de aproape de capătul de sus al intervalului; poți oricând să scazi prețul.",
+      "es": "Hay pocas ventas recientes para comparar. Empieza cerca del máximo del rango; siempre puedes bajarlo.",
+      "de": "Nur wenige aktuelle Verkäufe zum Vergleich. Starte nahe am oberen Ende der Spanne; senken kannst du immer noch.",
+      "zh-Hans": "可参考的近期成交不多。先按区间上限附近定价，之后随时可以降价。"
+    },
+    "Plenty of these sell. Price near the middle of the range to sell it quickly.": {
+      "comment": "Tag's tip when the scan found twenty or more sold listings.",
+      "en": "Plenty of these sell. Price near the middle of the range to sell it quickly.",
+      "ro": "Se vând multe de felul ăsta. Pune un preț pe la mijlocul intervalului ca să-l vinzi repede.",
+      "es": "Se venden muchos como este. Ponle un precio cerca del centro del rango para venderlo rápido.",
+      "de": "Davon wird viel verkauft. Setz den Preis etwa in die Mitte der Spanne, dann geht es schnell weg.",
+      "zh-Hans": "这类东西卖得很多。定价在区间中间附近，能更快卖出。"
+    },
+    "A higher-value find. Buyers look closely, so photograph the label and every flaw.": {
+      "comment": "Tag's tip for a find worth $150 or more.",
+      "en": "A higher-value find. Buyers look closely, so photograph the label and every flaw.",
+      "ro": "O găsire mai valoroasă. Cumpărătorii se uită atent, așa că fotografiază eticheta și fiecare defect.",
+      "es": "Un hallazgo de más valor. Los compradores se fijan mucho, así que fotografía la etiqueta y cada defecto.",
+      "de": "Ein wertvollerer Fund. Käufer schauen genau hin, also fotografiere das Etikett und jeden Makel.",
+      "zh-Hans": "这件价值较高。买家会看得很仔细，记得拍下标签和每一处瑕疵。"
+    },
+    "Listings with four or more daylight photos tend to sell faster.": {
+      "comment": "Tag's default resale tip.",
+      "en": "Listings with four or more daylight photos tend to sell faster.",
+      "ro": "Anunțurile cu patru sau mai multe fotografii la lumina zilei se vând de obicei mai repede.",
+      "es": "Los anuncios con cuatro o más fotos con luz natural suelen venderse antes.",
+      "de": "Inserate mit vier oder mehr Fotos bei Tageslicht verkaufen sich meist schneller.",
+      "zh-Hans": "有四张以上自然光照片的商品，通常卖得更快。"
     }
   }
 }

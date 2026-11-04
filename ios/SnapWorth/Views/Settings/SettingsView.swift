@@ -36,6 +36,7 @@ struct SettingsView: View {
     @State private var isDeletingServerData = false
     @AppStorage(Haptics.preferenceKey) private var hapticsEnabled = true
     @AppStorage(GuessFirst.key) private var guessFirst = GuessFirst.defaultOn
+    @AppStorage(TagTip.preferenceKey) private var tagTipsOn = true
 
     /// Shared sales first, by the install's own token, which the server
     /// cannot find any other way; then everything kept under this device.
@@ -200,6 +201,23 @@ struct SettingsView: View {
                     .tint(Color.snapTerracotta)
                     .accessibilityLabel("Guess before the estimate")
                     .accessibilityHint("When on, each result opens with the price covered until you tap Reveal")
+
+                    Toggle(isOn: $tagTipsOn) {
+                        HStack(spacing: 14) {
+                            Image(systemName: "lightbulb")
+                                .snapSymbol(16, weight: .medium)
+                                .foregroundStyle(Color.snapTerracottaText)
+                                .frame(minWidth: 24)
+                                .accessibilityHidden(true)
+                            Text("Tag's tips")
+                                .font(.snapBody)
+                                .foregroundStyle(Color.snapEspresso)
+                        }
+                        .frame(minHeight: 44)
+                    }
+                    .tint(Color.snapTerracotta)
+                    .accessibilityLabel("Tag's tips")
+                    .accessibilityHint("Shows Tag's pricing and listing advice on each result")
                 } header: {
                     Text("Feel")
                 } footer: {

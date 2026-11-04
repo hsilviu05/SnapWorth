@@ -479,6 +479,8 @@ enum PaywallTrigger: String, CaseIterable {
     /// A free user's tap on "Value this with SnapWorth" in visual
     /// intelligence (#412).
     case visualIntelligence = "visual_intelligence"
+    /// "Unlock Tag's tips" on a free user's result.
+    case tagTips = "tag_tips"
 }
 
 // ═══════════════════════════════════════════════════════════════════

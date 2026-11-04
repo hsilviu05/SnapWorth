@@ -608,6 +608,9 @@ enum PaywallCopy {
                          leadIcon: "chart.line.uptrend.xyaxis")
         case .snapSell:
             return Pitch(headline: String(localized: "Turn finds into listings"), leadIcon: "cart.fill")
+        // Tag's tips are listing advice, so they lead with the listing row.
+        case .tagTips:
+            return Pitch(headline: String(localized: "Sell smarter with Tag"), leadIcon: "cart.fill")
         case .addTag:
             return Pitch(headline: String(localized: "Read the care tag"), leadIcon: "tag.fill")
         case .legitCheck:

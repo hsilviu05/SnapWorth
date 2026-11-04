@@ -71,6 +71,7 @@ struct ResultView: View {
 
     // ── Guess before the estimate ─────────────────────────────────────────────
     @AppStorage(GuessFirst.key) private var guessFirst = GuessFirst.defaultOn
+    @AppStorage(TagTip.preferenceKey) private var tagTipsOn = true
     @Environment(\.modelContext) private var modelContext
     /// Per result: a fresh sheet starts covered when the preference is on.
     @State private var priceRevealed = false
@@ -197,6 +198,14 @@ struct ResultView: View {
                                 LegitCheckCard(result: result, isPro: isPro,
                                                onStart: { showLegitCheck = true },
                                                onPaywall: openPaywall)
+                                    .padding(.horizontal, 20)
+                                    .padding(.bottom, 8)
+                            }
+
+                            // In the cover's branch because a tip can give
+                            // the price away ("at least double what you paid").
+                            if tagTipsOn {
+                                TagTipsCard(result: result, isPro: isPro, onPaywall: openPaywall)
                                     .padding(.horizontal, 20)
                                     .padding(.bottom, 8)
                             }
