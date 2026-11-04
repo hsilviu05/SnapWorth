@@ -93,6 +93,11 @@ class Notification:
     # for a TEST notification and for the envelope shapes that carry no `data`
     # at all, and must stay distinguishable from a definite "off".
     auto_renew: bool | None = None
+    # When Apple's Billing Grace Period ends (epoch seconds), from the same
+    # renewal info's `gracePeriodExpiresDate`. Set on a DID_FAIL_TO_RENEW with
+    # subtype GRACE_PERIOD: the card failed, and the customer keeps access
+    # until then while Apple retries.
+    grace_until: int | None = None
 
     @property
     def is_test(self) -> bool:
@@ -161,6 +166,31 @@ class Notification:
         return self.notification_type == DID_FAIL_TO_RENEW
 
 
+def _renewal_info(signed_renewal_info: object) -> dict | None:
+    """The verified renewal info beside the transaction, or None.
+
+    See `_auto_renew_status` for why a renewal info that does not verify is
+    None rather than a failed notification.
+    """
+    if not isinstance(signed_renewal_info, str):
+        return None
+    try:
+        return entitlements.verify_apple_jws(
+            signed_renewal_info, max_length=MAX_SIGNED_PAYLOAD)
+    except EntitlementError as exc:
+        log.warning("renewal info did not verify, auto-renew left unknown",
+                    extra={"reason": str(exc)})
+        return None
+
+
+def _grace_until(renewal: dict | None) -> int | None:
+    """`gracePeriodExpiresDate` in epoch seconds, when Apple sent one."""
+    raw = (renewal or {}).get("gracePeriodExpiresDate")
+    if isinstance(raw, bool) or not isinstance(raw, (int, float)) or raw <= 0:
+        return None
+    return int(raw / 1000)
+
+
 def _auto_renew_status(signed_renewal_info: object) -> bool | None:
     """Read `autoRenewStatus` out of the renewal info beside the transaction.
 
@@ -180,14 +210,9 @@ def _auto_renew_status(signed_renewal_info: object) -> bool | None:
     buys hours of redelivery for a fact the next notification will carry again.
     The warning is there for whoever has to notice that.
     """
-    if not isinstance(signed_renewal_info, str):
-        return None
-    try:
-        payload = entitlements.verify_apple_jws(
-            signed_renewal_info, max_length=MAX_SIGNED_PAYLOAD)
-    except EntitlementError as exc:
-        log.warning("renewal info did not verify, auto-renew left unknown",
-                    extra={"reason": str(exc)})
+    payload = (signed_renewal_info if isinstance(signed_renewal_info, dict)
+               else _renewal_info(signed_renewal_info))
+    if payload is None:
         return None
 
     raw = payload.get("autoRenewStatus")
@@ -305,6 +330,7 @@ def parse_notification(
     ent = entitlements.verify_signed_transaction(
         signed_transaction, bundle_id, allowed_product_ids, allowed_environments,
         allow_inactive=True)
+    renewal = _renewal_info(data.get("signedRenewalInfo"))
 
     return Notification(
         notification_type=notification_type,
@@ -313,5 +339,6 @@ def parse_notification(
         entitlement=ent,
         environment=environment,
         signed_date=signed_date,
-        auto_renew=_auto_renew_status(data.get("signedRenewalInfo")),
+        auto_renew=_auto_renew_status(renewal),
+        grace_until=_grace_until(renewal),
     )

@@ -74,10 +74,13 @@ at+qIxUCMG1mihDK1A3UT82NQz60imOlM27jbdoXt2QfyFMm+YhidDkLF1vLUagM
 # client no longer turns that into the paywall: a subscriber's 402 re-sends the
 # transaction, and a "free" answer is shown as "We couldn't confirm your
 # subscription" and counted as `entitlement_sync_failed{server_says_free}`.
-# Whether Billing Grace Period is enabled is an App Store Connect setting; if
-# it is, honouring it needs the renewal info's grace expiry (or an App Store
-# Server API lookup), not a longer constant here.
+# Billing Grace Period is honoured separately, from the grace expiry Apple
+# sends in a DID_FAIL_TO_RENEW (or `/sub`'s live lookup): see `record_grace`.
 EXPIRY_GRACE_SECONDS = 3600
+
+# The longest Billing Grace Period Apple offers is 28 days. A grace record
+# claiming more than this past the term it extends is not believed.
+BILLING_GRACE_MAX_SECONDS = 60 * 60 * 24 * 28
 
 # The per-subscription lock around a tombstone's read-merge-write (#398). The
 # section it guards is one read and one write, so the TTL only bounds how long
@@ -1001,6 +1004,60 @@ class EntitlementService:
             ttl = max(60, min(ttl, ent.expires_at - int(time.time())))
         return ttl
 
+    async def _grace_until(self, ent: Entitlement) -> int | None:
+        """When the Billing Grace Period on `ent`'s term ends, if Apple has
+        said it is in one and it has not ended. None otherwise, including when
+        the record cannot be read: the transaction alone says expired."""
+        otid = ent.original_transaction_id
+        if not otid or ent.expires_at is None:
+            return None
+        try:
+            raw = await self._cache.get(_grace_key(ent))
+            record = json.loads(raw) if raw else None
+        except Exception as exc:
+            log.warning("billing grace read failed: %s", type(exc).__name__)
+            return None
+        if not isinstance(record, dict):
+            return None
+        until, term = record.get("until"), record.get("expires_at")
+        if (isinstance(until, bool) or not isinstance(until, (int, float))
+                or isinstance(term, bool) or not isinstance(term, (int, float))):
+            return None
+        # The grace extends the term that failed to renew, so an older term
+        # presented now is not covered by it.
+        if ent.expires_at < term:
+            return None
+        until = int(min(until, ent.expires_at + BILLING_GRACE_MAX_SECONDS))
+        return until if until > int(time.time()) else None
+
+    async def _graced(self, jws_value: str) -> Entitlement | None:
+        """The entitlement an expired transaction proves while Apple's Billing
+        Grace Period runs: the same term, Pro until the grace ends. None when
+        the transaction is not one Apple is holding in grace.
+
+        StoreKit keeps listing the subscription during grace, so the app
+        presents the expired transaction and expects Pro; without this the
+        server answered free and the customer saw "We couldn't confirm your
+        subscription" while Apple was still trying to charge them.
+        """
+        try:
+            raw = verify_signed_transaction(
+                jws_value, self._bundle_id, self._allowed, allow_inactive=True)
+        except EntitlementError:
+            return None
+        if raw.tier != "pro" or raw.revoked_at is not None or is_bounded(raw):
+            return None
+        until = await self._grace_until(raw)
+        if until is None:
+            return None
+        # Checked on the term itself: the extended expiry would read as a later
+        # term than the one a refund denied.
+        if await self._is_revoked(raw) is not False:
+            return None
+        log.info("entitlement honoured in billing grace",
+                 extra={"product_id": raw.product_id})
+        return replace(raw, expires_at=until)
+
     async def record(self, subject: str, jws_value: str,
                      device_id: str | None = None, *,
                      authenticated: bool = False) -> Entitlement:
@@ -1021,6 +1078,8 @@ class EntitlementService:
                                         allow_bounded_sandbox=authenticated)
         if is_bounded(ent):
             return await self._record_bounded(subject, ent, device_id)
+        if ent.tier != "pro":
+            ent = await self._graced(jws_value) or ent
 
         if ent.tier == "pro" and await self._is_revoked(ent):
             # Apple has taken this term back since the transaction was signed,
@@ -1434,7 +1493,10 @@ class EntitlementService:
             log.warning("stored entitlement proof no longer verifies: %s", exc)
             return FREE
         if not ent.is_active:
-            return FREE
+            graced = await self._graced(jws_value)
+            if graced is None:
+                return FREE
+            ent = graced
 
         revoked = await self._is_revoked(ent)
         if revoked:
@@ -1513,3 +1575,44 @@ async def clear_revocation(cache, original_transaction_id: str) -> None:
     await cache.delete(
         EntitlementService._revoked_key(original_transaction_id), required=True)
     log.warning("refund tombstone cleared by the operator")
+
+
+# ── Billing Grace Period ─────────────────────────────────────────────────────
+#
+# Turned on in App Store Connect (16 days, all renewals, including a trial's
+# first charge). Apple says a subscription is in grace in the renewal info of
+# a DID_FAIL_TO_RENEW with subtype GRACE_PERIOD, and nowhere a client can
+# present: the transaction keeps its old, past expiry. So the grace is kept
+# here, per subscription, and the access path consults it only for an expired
+# transaction (`EntitlementService._graced`).
+
+def _grace_key(ent: Entitlement) -> str:
+    # Sandbox scoped apart, as the refund tombstone is: a tester must not be
+    # able to put a paying customer's id into grace.
+    otid = ent.original_transaction_id or ""
+    if ent.environment == SANDBOX_ENVIRONMENT:
+        return f"entgrace:sandbox:{otid}"
+    return f"entgrace:{otid}"
+
+
+async def record_grace(cache, ent: Entitlement, until: int) -> bool:
+    """Remember that Apple holds `ent`'s term in Billing Grace Period until
+    `until` (epoch seconds). Returns whether anything was written: nothing for
+    a grace that has already ended, a bounded Sandbox entitlement, or a
+    subscription without an id."""
+    if not ent.original_transaction_id or ent.expires_at is None or is_bounded(ent):
+        return False
+    until = int(min(until, ent.expires_at + BILLING_GRACE_MAX_SECONDS))
+    ttl = until - int(time.time())
+    if ttl <= 0:
+        return False
+    await cache.set(_grace_key(ent),
+                    json.dumps({"until": until, "expires_at": ent.expires_at}), ttl)
+    return True
+
+
+async def clear_grace(cache, ent: Entitlement) -> None:
+    """The grace is over: Apple charged (the new term proves itself), or the
+    subscription expired, was refunded or revoked."""
+    if ent.original_transaction_id:
+        await cache.delete(_grace_key(ent))

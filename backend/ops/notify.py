@@ -93,6 +93,7 @@ from ops import opsexperiment
 from ops import opsindex
 from ops import opslifetime
 from ops import opsrevenue
+from ops import opstrials
 from ops import planexperiment
 from ops import opsspend
 from ops import opsstats
@@ -227,6 +228,7 @@ COMMANDS: tuple[tuple[str, str], ...] = (
     ("paywall", "28 days: trial starts and direct purchases per paywall, trial → paid"),
     ("revenue", "MRR over time, and each month's payments, refunds and churn"),
     ("lifetime", "Totals since launch: scans, users, trials, paid, Gemini spend, revenue"),
+    ("trials", "Every trial of 30 days: paid, cancelled (after how long), card failed, scans used"),
     ("minbuild", "Tell app builds below a number to update, without a redeploy"),
     ("referrals", "Referrals on or off, and the oldest build shown them"),
     ("social", "TikTok: followers, likes and the latest videos"),
@@ -673,8 +675,12 @@ async def subscription_event(note, *, reinstated=None) -> None:
             from billing import referral    # not at the top: referral imports auth, which imports this
             await referral.note_paid_period(ent)
 
-        before = await opsindex.index_subscription(None, ent, note.auto_renew,
-                                           current=note.is_refund_reversal)
+        signed = getattr(note, "signed_date", None)
+        before = await opsindex.index_subscription(
+            None, ent, note.auto_renew, current=note.is_refund_reversal,
+            event_at=int(signed) if isinstance(signed, (int, float)) else None,
+            billing_failed=bool(note.is_billing_failure),
+            grace_until=getattr(note, "grace_until", None))
         await opsrevenue.record_notification(note)
         # None: the index could not be read, so there is no previous row to
         # judge a paid period against. It is then neither a conversion nor a
@@ -750,9 +756,16 @@ async def subscription_event(note, *, reinstated=None) -> None:
             # earliest warning of one that Apple gives.
             when = f" · runs until {opsformat.date(ent.expires_at)}" if ent.expires_at else ""
             lines = ["⚠️ <b>Auto-renew turned off</b>", f"{detail}{when}"]
+            trial = await opstrials.cancel_detail(otid)
+            if trial:
+                lines.append(trial)
         elif note.is_billing_failure:
             lines = ["💳 <b>Renewal payment failed</b>",
                      f"{detail} · Apple is retrying"]
+            grace = getattr(note, "grace_until", None)
+            if grace:
+                lines.append(f"🛟 Billing grace until {opsformat.date(int(grace))}: "
+                             "they keep Pro while Apple retries.")
 
         if lines is None or _notifier is None:
             return
@@ -1642,6 +1655,8 @@ async def handle_command_with_buttons(text: str) -> tuple[str, opsformat.Buttons
         return await _users_text(), await _buttons()
     if command == "/lifetime":
         return await opslifetime.lifetime_text(), await _buttons()
+    if command == "/trials":
+        return await opstrials.trials_text(), await _buttons()
     if command == "/costs":
         return await opsspend.costs_text(), await _buttons()
     if command == "/experiment":

@@ -161,6 +161,9 @@ class SubscriptionStatus:
     # an upgrade or downgrade takes effect at the period boundary, so this is
     # the only advance warning that the plan is about to change.
     auto_renew_product_id: str | None = None
+    # When Billing Grace Period ends (epoch seconds), while Apple holds the
+    # subscription in it; None otherwise.
+    grace_until: int | None = None
 
     @property
     def environment(self) -> str:
@@ -662,7 +665,11 @@ class AppStoreStatusClient:
         auto_renew: bool | None = None
         offer_identifier = transaction.offerIdentifier
         auto_renew_product_id = None
+        grace_until = None
         if renewal is not None:
+            grace_ms = getattr(renewal, "gracePeriodExpiresDate", None)
+            if isinstance(grace_ms, (int, float)) and not isinstance(grace_ms, bool) and grace_ms > 0:
+                grace_until = int(grace_ms / 1000)
             raw_auto = getattr(renewal, "rawAutoRenewStatus", None)
             # Explicitly against None, not truthiness: 0 is "off", and a
             # falsy test would report a cancelled subscription as unknown.
@@ -677,6 +684,7 @@ class AppStoreStatusClient:
             auto_renew=auto_renew,
             offer_identifier=offer_identifier,
             auto_renew_product_id=auto_renew_product_id,
+            grace_until=grace_until,
         )
 
 
