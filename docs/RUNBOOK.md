@@ -92,6 +92,7 @@ monitoring today, and this table is what is.
 | `/health/ready` | Readiness | 503 when the cache cannot take a write (unreachable, or full). It would also say 503 before startup completes and after shutdown begins, but uvicorn serves nothing then: it opens the listener after startup and closes it at SIGTERM, so a deploying instance refuses connections instead (§6) |
 | `/health` | Legacy | Retained for compatibility |
 | `/metrics` | Prometheus scrape | Requires `Authorization: Bearer $METRICS_TOKEN`; 404 without it |
+| `/ops/report` | The bot's read-only reports as plain text (`?names=trials,subs`; empty = all) | Requires `Authorization: Bearer $OPS_REPORT_TOKEN`, a different token from `METRICS_TOKEN`; 404 without it or for a name outside `opsreport.REPORTS` |
 
 **Liveness deliberately checks no dependency.** A liveness probe that fails
 during a Redis outage makes the orchestrator restart healthy containers, turning

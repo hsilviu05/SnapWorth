@@ -434,7 +434,7 @@ def status_class(code: int) -> str:
 # One path covers every method on it: `method` is its own label.
 KNOWN_ENDPOINTS = frozenset({
     "/scan", "/scan/text", "/listing", "/legit", "/rack", "/trends", "/health", "/health/live", "/health/ready",
-    "/metrics", "/privacy", "/terms",
+    "/metrics", "/ops/report", "/privacy", "/terms",
     "/auth/challenge", "/auth/attest", "/auth/refresh", "/auth/entitlement",
     "/apple/notifications", "/apple/notifications/sandbox", "/referral/status", "/referral/claim",
     "/social/tiktok/callback", "/outcomes", "/me/data",
