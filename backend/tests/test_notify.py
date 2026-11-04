@@ -5340,6 +5340,27 @@ class TestSubCommandOutput:
         assert "Index updated" in text
 
     @pytest.mark.asyncio
+    async def test_a_retried_charge_is_folded_back_too(
+            self, enabled_notify, cache, monkeypatch):
+        """A failure whose notification came before the server kept it: the
+        lookup is what tells /trials it was a card, not a cancellation."""
+        grace = _FakeStatus(sub("otid-6", expires_in_days=-1), state="grace period",
+                            auto_renew=True)
+        grace.grace_until = int(time.time()) + 10 * 86400
+        retry = _FakeStatus(sub("otid-7", expires_in_days=-1), state="billing retry",
+                            auto_renew=True)
+        retry.grace_until = None
+        _patch_lookup(monkeypatch, [grace, retry])
+
+        await notify.handle_command("/sub 2000000000000006")
+
+        doc = json.loads(await cache.get(opsindex.SUBS_INDEX_KEY))
+        assert doc["otid-6"]["billing_failed_at"]
+        assert doc["otid-6"]["grace_until"] == grace.grace_until
+        assert doc["otid-7"]["billing_failed_at"]
+        assert "grace_until" not in doc["otid-7"]
+
+    @pytest.mark.asyncio
     async def test_a_sandbox_result_is_reported_but_never_indexed(
             self, enabled_notify, cache, monkeypatch):
         """A Sandbox subscription is signed identically to a production one.

@@ -474,9 +474,15 @@ async def _sub_text(argument: str) -> tuple[str, opsformat.Buttons]:
             # None: the index could not be read, so nothing was written, and
             # the line below must not say otherwise. `current`: this is
             # Apple's word now, so a refund it no longer shows is cleared.
+            # A charge Apple is still retrying is recorded too, so /trials
+            # says "card failed" or "in grace" rather than "ended".
+            in_grace = status.state == "grace period"
             if await opsindex.index_subscription(
                     None, status.entitlement, status.auto_renew,
-                    current=True) is not None:
+                    current=True,
+                    billing_failed=status.state in ("billing retry", "grace period"),
+                    grace_until=getattr(status, "grace_until", None) if in_grace else None,
+                    ) is not None:
                 indexed += 1
         except Exception:
             # The answer above is the point of the command; failing to cache it
