@@ -20,6 +20,7 @@ import asyncio
 
 import os
 import sys
+import time
 
 import pytest
 
@@ -29,6 +30,8 @@ from billing import appstorestatus  # noqa: E402
 from billing import entitlements  # noqa: E402
 from appstoreserverlibrary.api_client import APIError, APIException  # noqa: E402
 from appstoreserverlibrary.models.Environment import Environment  # noqa: E402
+from tests.test_entitlements import build_chain, make_jws, valid_payload  # noqa: E402
+from cryptography.hazmat.primitives import serialization  # noqa: E402
 
 BUNDLE_ID = "eu.snapworth.app"
 # Credentials are assembled, never written out as literals.
@@ -747,7 +750,7 @@ class TestVerifierWiring:
         verifier = client._verifier_for("Production", Environment.PRODUCTION)
 
         assert verifier._chain_verifier.root_certificates == [
-            entitlements.APPLE_ROOT_CA_G3_PEM]
+            appstorestatus._der(entitlements.APPLE_ROOT_CA_G3_PEM)]
         assert verifier._bundle_id == BUNDLE_ID
         assert verifier._app_apple_id == APP_APPLE_ID
         # OCSP off: a pinned-root signature check should not need the network.
@@ -764,3 +767,19 @@ class TestVerifierWiring:
         assert production._environment == Environment.PRODUCTION
         assert sandbox._environment == Environment.SANDBOX
         assert production is not sandbox
+
+
+class TestGenuineVerifierAcceptsApplesChain:
+    """The pinned-root test above checked what the verifier was handed, not
+    that the library could use it: it loads roots as DER, and the PEM it was
+    given made every production lookup fail with INVALID_CERTIFICATE."""
+
+    def test_a_chain_to_the_pinned_root_verifies(self, monkeypatch):
+        leaf_key, chain = build_chain(key_ids=True)
+        monkeypatch.setattr(entitlements, "APPLE_ROOT_CA_G3_PEM",
+                            chain[-1].public_bytes(serialization.Encoding.PEM))
+        jws = make_jws(valid_payload(signedDate=int(time.time() * 1000)), leaf_key, chain)
+        client = appstorestatus.AppStoreStatusClient(fake_credentials())
+        verifier = client._verifier_for("Production", Environment.PRODUCTION)
+        decoded = verifier.verify_and_decode_signed_transaction(jws)  # pyright: ignore[reportAttributeAccessIssue]
+        assert decoded.originalTransactionId == "2000000000000001"
