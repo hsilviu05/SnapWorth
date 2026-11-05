@@ -23,6 +23,8 @@ struct HistoryView: View {
     @Namespace private var zoom
     @State private var isEditing = false
     @State private var recapLabel: String?
+    @State private var wrapped: ThriftWrapped?
+    @State private var isTestBuild = false
     @State private var trends: Trends?
     /// Pending single-item deletion, awaiting confirmation.
     ///
@@ -76,6 +78,15 @@ struct HistoryView: View {
                                 NotificationManager.shared.markRecapViewed()
                                 self.recapLabel = nil
                                 NotificationCenter.default.post(name: .snapOpenFlips, object: nil)
+                            }
+                            .padding(.horizontal, hPad)
+                        }
+
+                        // ── Year in Finds (December and January) ──────────────
+                        if let year = ThriftWrapped.offeredYear(isTestBuild: isTestBuild),
+                           let card = ThriftWrapped(results: results, year: year) {
+                            WrappedBanner(year: year) {
+                                wrapped = card
                             }
                             .padding(.horizontal, hPad)
                         }
@@ -284,6 +295,10 @@ struct HistoryView: View {
         .sheet(isPresented: $showPaywall) {
             PaywallView(purchaseService: purchaseService, trigger: paywallTrigger)
         }
+        .sheet(item: $wrapped) { card in
+            WrappedView(wrapped: card, purchaseService: purchaseService)
+        }
+        .task { isTestBuild = await ThriftWrapped.isTestBuild() }
         .sheet(item: $selectedResult) { result in
             Self.resultView(for: result, purchaseService: purchaseService) { selectedResult = nil }
                 .presentationDragIndicator(.visible)
@@ -294,6 +309,7 @@ struct HistoryView: View {
         .onReceive(NotificationCenter.default.publisher(for: .snapDismissForRoute)) { _ in
             showPaywall = false
             selectedResult = nil
+            wrapped = nil
         }
         .confirmationDialog(
             "Delete this find?",

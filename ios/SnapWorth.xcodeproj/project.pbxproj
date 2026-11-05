@@ -14,6 +14,7 @@
 		1DF043BD3003EE710072D4A8 /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 1DF043BC3003EE710072D4A8 /* SwiftUI.framework */; };
 		1DF043CE3003EE710072D4A8 /* SnapWorthWidgetsExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 1DF043B83003EE700072D4A8 /* SnapWorthWidgetsExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		1ED6E4000000000000000001 /* LedgerMath.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1ED6E4000000000000000002 /* LedgerMath.swift */; };
+		AA0000000000000000452B01 /* ThriftWrapped.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000452B02 /* ThriftWrapped.swift */; };
 		5A4ED0000000000000000003 /* WidgetModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A4ED0000000000000000002 /* WidgetModel.swift */; };
 		5A4ED0000000000000000004 /* WidgetModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A4ED0000000000000000002 /* WidgetModel.swift */; };
 		5C1C4E000000000000000002 /* SnapWorthStickers.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 5C1C4E000000000000000001 /* SnapWorthStickers.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
@@ -53,6 +54,7 @@
 		AA00000000000000000000E5 /* ScanView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000000E4 /* ScanView.swift */; };
 		AA00000000000000000000E7 /* ResultView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000000E6 /* ResultView.swift */; };
 		AA00000000000000000000E9 /* HistoryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000000E8 /* HistoryView.swift */; };
+		AA0000000000000000452B03 /* WrappedView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000452B04 /* WrappedView.swift */; };
 		AA00000000000000000000EB /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000000EA /* SettingsView.swift */; };
 		AA00000000000000000000ED /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000000EC /* Assets.xcassets */; };
 		AA00000000000000000000F2 /* Fraunces-Variable.ttf in Resources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000000F1 /* Fraunces-Variable.ttf */; };
@@ -170,6 +172,7 @@
 		1DF043BA3003EE700072D4A8 /* WidgetKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WidgetKit.framework; path = System/Library/Frameworks/WidgetKit.framework; sourceTree = SDKROOT; };
 		1DF043BC3003EE710072D4A8 /* SwiftUI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SwiftUI.framework; path = System/Library/Frameworks/SwiftUI.framework; sourceTree = SDKROOT; };
 		1ED6E4000000000000000002 /* LedgerMath.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LedgerMath.swift; sourceTree = "<group>"; };
+		AA0000000000000000452B02 /* ThriftWrapped.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThriftWrapped.swift; sourceTree = "<group>"; };
 		5A4ED0000000000000000002 /* WidgetModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetModel.swift; sourceTree = "<group>"; };
 		5C1C4E000000000000000001 /* SnapWorthStickers.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = SnapWorthStickers.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		89A0C0DE0000000000000002 /* RackScan.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RackScan.swift; sourceTree = "<group>"; };
@@ -209,6 +212,7 @@
 		AA00000000000000000000E4 /* ScanView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanView.swift; sourceTree = "<group>"; };
 		AA00000000000000000000E6 /* ResultView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ResultView.swift; sourceTree = "<group>"; };
 		AA00000000000000000000E8 /* HistoryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryView.swift; sourceTree = "<group>"; };
+		AA0000000000000000452B04 /* WrappedView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WrappedView.swift; sourceTree = "<group>"; };
 		AA00000000000000000000EA /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		AA00000000000000000000EC /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		AA00000000000000000000EE /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
@@ -402,6 +406,7 @@
 			isa = PBXGroup;
 			children = (
 				AA00000000000000000000E8 /* HistoryView.swift */,
+				AA0000000000000000452B04 /* WrappedView.swift */,
 				ADD1EC0000000000000000B9 /* FlipsView.swift */,
 			);
 			path = Flips;
@@ -556,6 +561,7 @@
 				AA0000000000000000000110 /* AppError.swift */,
 				FEED000000000000000000A3 /* MarketplaceFees.swift */,
 				1ED6E4000000000000000002 /* LedgerMath.swift */,
+				AA0000000000000000452B02 /* ThriftWrapped.swift */,
 				89A0C0DE0000000000000002 /* RackScan.swift */,
 				411D6E00000000000000000C /* DailyGuessRounds.swift */,
 				411D6E00000000000000000A /* DailyGuess.swift */,
@@ -924,6 +930,7 @@
 				FEED000000000000000093B2 /* HaulView.swift in Sources */,
 				FEED000000000000000000B3 /* MarketplaceFees.swift in Sources */,
 				1ED6E4000000000000000001 /* LedgerMath.swift in Sources */,
+				AA0000000000000000452B01 /* ThriftWrapped.swift in Sources */,
 				89A0C0DE0000000000000001 /* RackScan.swift in Sources */,
 				411D6E00000000000000000D /* DailyGuessRounds.swift in Sources */,
 				411D6E00000000000000000B /* DailyGuess.swift in Sources */,
@@ -966,6 +973,7 @@
 				AA0000000000000000229A03 /* ValuationDetailView.swift in Sources */,
 				AA0000000000000000229A01 /* FullDetailOffer.swift in Sources */,
 				AA00000000000000000000E9 /* HistoryView.swift in Sources */,
+				AA0000000000000000452B03 /* WrappedView.swift in Sources */,
 				AA00000000000000000000EB /* SettingsView.swift in Sources */,
 				ADD1EC0000000000000000F6 /* NotificationSettingsView.swift in Sources */,
 				A1C0F1C000000000000000B2 /* AppIconPickerView.swift in Sources */,
