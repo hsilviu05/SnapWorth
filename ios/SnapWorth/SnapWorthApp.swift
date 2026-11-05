@@ -405,7 +405,7 @@ struct RootView: View {
     let isPro: Bool
     @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding = false
     @AppStorage(ScanView.opensTypeItKey) private var opensTypeItAfterOnboarding = false
-    @AppStorage(AIConsent.key) private var aiConsentGiven = false
+    @AppStorage(AIConsent.defaultsName) private var aiConsentGiven = false
 
     var body: some View {
         Group {

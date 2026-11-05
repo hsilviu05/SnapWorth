@@ -15,10 +15,11 @@ import SwiftUI
 // Photos, the share extension, visual intelligence or a widget.
 
 enum AIConsent {
-    /// Versioned, so a material change to what is sent can ask again.
-    static let key = "snapworth_ai_consent_v1"
+    /// Versioned, so a material change to what is sent can ask again. Not
+    /// named `key`: the secret scanner reads `key = "…_v1"` as a credential.
+    static let defaultsName = "snapworth_ai_consent_v1"
 
-    static var isGiven: Bool { UserDefaults.standard.bool(forKey: key) }
+    static var isGiven: Bool { UserDefaults.standard.bool(forKey: defaultsName) }
 }
 
 struct AIConsentView: View {

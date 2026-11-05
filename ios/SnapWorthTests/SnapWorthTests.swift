@@ -3221,7 +3221,7 @@ final class AskTagTests: XCTestCase {
 
     func test_theConsentKeyIsTheOneCIWrites() {
         // .github/workflows/ios.yml sets it before the screenshots.
-        XCTAssertEqual(AIConsent.key, "snapworth_ai_consent_v1")
+        XCTAssertEqual(AIConsent.defaultsName, "snapworth_ai_consent_v1")
     }
 }
 

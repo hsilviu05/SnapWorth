@@ -23,3 +23,10 @@
 # before the private scalar. There is no key material in either.
 f686498bc7dc1c62b95eb2f7c9a7fb61f005ad73:backend/tests/test_production.py:private-key:497
 f686498bc7dc1c62b95eb2f7c9a7fb61f005ad73:backend/tests/test_production.py:generic-api-key:508
+
+# f6a9eee — the UserDefaults name of the AI consent, "snapworth_ai_consent_v1",
+# assigned to a constant called `key` and asserted in a test. generic-api-key
+# matched "key" next to a value; it is a preference name, not a credential.
+# The constant was renamed in the next commit so the line no longer matches.
+f6a9eee31332274501bd9368247c4d60e99d39b6:ios/SnapWorth/Views/AIConsentView.swift:generic-api-key:19
+f6a9eee31332274501bd9368247c4d60e99d39b6:ios/SnapWorthTests/SnapWorthTests.swift:generic-api-key:3224
