@@ -5276,3 +5276,51 @@ final class ThriftWrappedTests: XCTestCase {
         XCTAssertTrue(w.hasProfit)
     }
 }
+
+// MARK: - Daily guess widget
+
+final class WidgetGuessDataTests: XCTestCase {
+
+    private var calendar: Calendar = {
+        var c = Calendar(identifier: .gregorian)
+        c.timeZone = TimeZone(identifier: "UTC")!
+        return c
+    }()
+
+    private func date(_ y: Int, _ m: Int, _ d: Int, hour: Int = 12) -> Date {
+        calendar.date(from: DateComponents(year: y, month: m, day: d, hour: hour))!
+    }
+
+    func test_theWidgetCountsDaysAsTheGameDoes() {
+        for day in [date(2026, 10, 1), date(2026, 11, 5, hour: 23), date(2027, 3, 1, hour: 0)] {
+            XCTAssertEqual(WidgetGuessData.dayNumber(for: day, calendar: calendar),
+                           DailyGuess.dayNumber(for: day, calendar: calendar))
+        }
+        XCTAssertEqual(WidgetGuessData.dayNumber(for: date(2026, 10, 1), calendar: calendar), 1)
+    }
+
+    func test_playedTodayAndTheStreakFollowTheEntryDate() {
+        let today = WidgetGuessData.dayNumber(for: date(2026, 11, 5), calendar: calendar)
+        let guess = WidgetGuessData(lastDay: today, streak: 3)
+
+        XCTAssertTrue(guess.hasPlayed(on: date(2026, 11, 5, hour: 23), calendar: calendar))
+        XCTAssertEqual(guess.liveStreak(on: date(2026, 11, 5), calendar: calendar), 3)
+
+        // Next day: waiting again, streak still alive.
+        XCTAssertFalse(guess.hasPlayed(on: date(2026, 11, 6, hour: 0), calendar: calendar))
+        XCTAssertEqual(guess.liveStreak(on: date(2026, 11, 6), calendar: calendar), 3)
+
+        // A missed day ends it.
+        XCTAssertEqual(guess.liveStreak(on: date(2026, 11, 7), calendar: calendar), 0)
+    }
+
+    func test_neverPlayedIsNoStreak() {
+        XCTAssertFalse(WidgetGuessData.empty.hasPlayed(on: date(2026, 10, 1), calendar: calendar))
+        XCTAssertEqual(WidgetGuessData.empty.liveStreak(on: date(2026, 10, 2), calendar: calendar), 0)
+    }
+
+    func test_theGuessRouteOpensTheGame() {
+        XCTAssertEqual(SnapWorthApp.route(URL(string: "snapworth://guess?src=daily_guess")!,
+                                          onboarded: true), .snapOpenDailyGuess)
+    }
+}

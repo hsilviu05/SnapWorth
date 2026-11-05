@@ -288,6 +288,8 @@ struct SnapWorthApp: App {
             name = .snapWidgetOpenScan
         case "history":
             name = .snapWidgetOpenHistory
+        case "guess":
+            name = .snapOpenDailyGuess
         case "flips":
             // Reuses the name the notification deep links already post, rather
             // than adding a second route to the same screen.
@@ -315,6 +317,9 @@ struct SnapWorthApp: App {
         let ctx = sharedModelContainer.mainContext
         guard let results = try? ctx.fetch(FetchDescriptor<ScanResult>()) else { return }
         WidgetDataStore.writeHaul(results: results, isPro: isPro)
+        // The guess streak lives outside SwiftData; seeded here so a widget
+        // added before this build's first guess still shows it.
+        WidgetDataStore.writeGuess(DailyGuessRecord.load())
         // The run too, for the launch the Activity itself asked for: a stale
         // one says "open SnapWorth to refresh", and a cold launch from it
         // reaches here, not `ScanView`'s foreground handler. A no-op without
@@ -343,6 +348,7 @@ enum WidgetSource: String, CaseIterable {
     case recentFinds   = "recent_finds"
     case scansLeft     = "scans_left"
     case monthProfit   = "month_profit"
+    case dailyGuess    = "daily_guess"
     case liveActivity  = "live_activity"
     case dynamicIsland = "dynamic_island"
     case control
@@ -384,6 +390,8 @@ enum SharedImageOrigin {
 extension Notification.Name {
     static let snapWidgetOpenScan    = Notification.Name("snapWidgetOpenScan")
     static let snapWidgetOpenHistory = Notification.Name("snapWidgetOpenHistory")
+    /// The Daily guess widget: the Scan tab, with the game open over it.
+    static let snapOpenDailyGuess    = Notification.Name("snapOpenDailyGuess")
     /// A photo shared from another app or tapped in visual intelligence, as
     /// the notification's `object` (`UIImage`), with its `SharedImageOrigin`
     /// in `userInfo`, for `ScanView` to value. See `scanSharedImage`.

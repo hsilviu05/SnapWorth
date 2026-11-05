@@ -1015,6 +1015,78 @@
         }
       }
     },
+    "Daily guess" : {
+      "comment" : "Name of the Daily guess widget and its header.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tagesrätsel"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Daily guess"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Adivinanza diaria"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ghicitoarea zilei"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "每日猜价"
+          }
+        }
+      }
+    },
+    "Done for today. Back tomorrow." : {
+      "comment" : "Daily guess widget once today's round is played.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Für heute erledigt. Bis morgen."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Done for today. Back tomorrow."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Listo por hoy. Vuelve mañana."
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gata pe azi. Revino mâine."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "今天已完成，明天再来。"
+          }
+        }
+      }
+    },
     "Find out what it's worth" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1046,6 +1118,114 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "看看它值多少"
+          }
+        }
+      }
+    },
+    "Guess one item's resale price a day, and keep your streak." : {
+      "comment" : "Description in the widget gallery.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rate jeden Tag den Wiederverkaufspreis eines Artikels und halte deine Serie."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Guess one item's resale price a day, and keep your streak."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Adivina el precio de reventa de un artículo al día y mantén tu racha."
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ghicește prețul de revânzare al unui obiect pe zi și păstrează-ți seria."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "每天猜一件物品的转卖价，保持连续记录。"
+          }
+        }
+      }
+    },
+    "Guess today to keep it going" : {
+      "comment" : "Daily guess widget when there is a streak and today's round is not played yet.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rate heute, damit sie hält"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Guess today to keep it going"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Adivina hoy para no perderla"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ghicește azi ca să nu-l pierzi"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "今天猜一下，保持连续"
+          }
+        }
+      }
+    },
+    "Guess today's price" : {
+      "comment" : "Daily guess widget with no streak: today's round is waiting.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rate den heutigen Preis"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Guess today's price"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Adivina el precio de hoy"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ghicește prețul de azi"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "猜猜今天的价格"
           }
         }
       }
@@ -3116,6 +3296,42 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "不用解锁，就能看到全部转卖价值。"
+          }
+        }
+      }
+    },
+    "day streak" : {
+      "comment" : "Under the number of days in a row the daily guess was played, on the widget.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tage in Folge"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "day streak"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "días seguidos"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "zile la rând"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "连续天数"
           }
         }
       }
