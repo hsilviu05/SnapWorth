@@ -58,7 +58,9 @@ struct DailyGuessWidgetView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 4) {
-                Image(systemName: "flame.fill").snapWidgetIcon()
+                Image(systemName: "flame.fill")
+                    .wFont(11, weight: .semibold)
+                    .foregroundStyle(Color.wTerracotta)
                 Text("Daily guess")
                     .wFont(11, weight: .semibold, design: .serif)
                     .foregroundStyle(Color.wBackground.opacity(0.7))
@@ -75,7 +77,7 @@ struct DailyGuessWidgetView: View {
                     .foregroundStyle(Color.wBackground.opacity(0.85))
             } else {
                 Image(systemName: "tag.fill")
-                    .font(.system(size: 26, weight: .bold))
+                    .wFont(26, weight: .bold)
                     .foregroundStyle(Color.wTerracotta)
                     .widgetAccentable()
             }
