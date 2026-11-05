@@ -324,6 +324,13 @@ LISTING_RATE_MAX_REQUESTS = int(os.environ.get("LISTING_RATE_MAX_REQUESTS", "60"
 # reading it as "scan limit". It stops a leaked token running checks in a loop.
 LEGIT_RATE_MAX_REQUESTS = int(os.environ.get("LEGIT_RATE_MAX_REQUESTS", "20"))
 
+# /assist (Ask Tag, 1.8.0), which is Pro-only: questions a day per device,
+# not an hour. A text-only answer costs about $0.0012, so 20 a day is about
+# $0.72 a month for someone who uses all of them every day. The IP cap above
+# also applies, per hour.
+ASSIST_DAILY_MAX_REQUESTS = int(os.environ.get("ASSIST_DAILY_MAX_REQUESTS", "20"))
+ASSIST_WINDOW_SECS = 24 * 3600
+
 # /trends costs no model call: it reads tallies the server caches for 15
 # minutes, and the app caches the answer for 30. So the per-device cap here is
 # only a loop-breaker for a misbehaving build, far above the two or so fetches

@@ -119,9 +119,9 @@ async def spend_line(days: list[str], scans: int) -> str:
 
 
 #: Labels that are Pro by construction, whatever tier the caller passed:
-#: `/listing`, `/legit` and `/rack` answer 402 to anyone else, and a tag photo
-#: is only read for Pro.
-_PRO_LABELS = ("listing", "scan_with_tag", "legit", "rack")
+#: `/listing`, `/legit`, `/rack` and `/assist` answer 402 to anyone else, and
+#: a tag photo is only read for Pro.
+_PRO_LABELS = ("listing", "scan_with_tag", "legit", "rack", "assist")
 
 # A user's scan, the call a thinking budget is for (#217). Retries and
 # reformats are left out, so "thinking per scan call" means what it says.

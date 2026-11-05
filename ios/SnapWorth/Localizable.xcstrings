@@ -4873,6 +4873,42 @@
         }
       }
     },
+    "AI answer, may be wrong" : {
+      "comment" : "Caption under each AI answer in Ask Tag.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KI-Antwort, kann falsch sein"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AI answer, may be wrong"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Respuesta de IA, puede ser incorrecta"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Răspuns AI, poate fi greșit"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AI 回答，可能有误"
+          }
+        }
+      }
+    },
     "AI estimate" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -5366,6 +5402,42 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "免费一周结束后，订阅会自动续订，除非你取消。"
+          }
+        }
+      }
+    },
+    "Agree and continue" : {
+      "comment" : "Button on the AI consent screen.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zustimmen und weiter"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Agree and continue"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aceptar y continuar"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sunt de acord și continui"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "同意并继续"
           }
         }
       }
@@ -6011,6 +6083,186 @@
         }
       }
     },
+    "Ask Tag" : {
+      "comment" : "Title of the Ask Tag chat. Ask Tag is the feature's name, the same in every language, as on the paywall.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ask Tag"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ask Tag"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ask Tag"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ask Tag"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ask Tag"
+          }
+        }
+      }
+    },
+    "Ask Tag a question" : {
+      "comment" : "Placeholder of the Ask Tag text field, and the button that opens Ask Tag.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Stell Tag eine Frage"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ask Tag a question"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hazle una pregunta a Tag"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pune-i o întrebare lui Tag"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "向 Tag 提问"
+          }
+        }
+      }
+    },
+    "Ask Tag is part of SnapWorth Pro." : {
+      "comment" : "Ask Tag error when the subscription has lapsed.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ask Tag ist Teil von SnapWorth Pro."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ask Tag is part of SnapWorth Pro."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ask Tag forma parte de SnapWorth Pro."
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ask Tag face parte din SnapWorth Pro."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ask Tag 是 SnapWorth Pro 的功能。"
+          }
+        }
+      }
+    },
+    "Ask Tag — tips and answers on pricing and listing each find" : {
+      "comment" : "Paywall benefit row. Ask Tag is the feature's name.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ask Tag – Tipps und Antworten zu Preis und Inserat für jeden Fund"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ask Tag — tips and answers on pricing and listing each find"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ask Tag: consejos y respuestas sobre el precio y el anuncio de cada hallazgo"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ask Tag — sfaturi și răspunsuri despre prețul și anunțul fiecărei găsiri"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ask Tag：针对每件好物的定价与发布建议和解答"
+          }
+        }
+      }
+    },
+    "Ask me anything about reselling this find." : {
+      "comment" : "Tag, the mascot, speaking at the top of the Ask Tag chat.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Frag mich alles zum Weiterverkauf dieses Funds."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ask me anything about reselling this find."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pregúntame lo que quieras sobre revender este hallazgo."
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Întreabă-mă orice despre revânzarea acestei găsiri."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "关于转卖这件好物，尽管问我。"
+          }
+        }
+      }
+    },
     "Authenticating stitching…" : {
       "comment" : "Rare-find easter egg (RareFind.swift). The joke is hype and rarity only — keep it that way in translation.",
       "extractionState" : "manual",
@@ -6327,6 +6579,42 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "依据近期成交"
+          }
+        }
+      }
+    },
+    "Before your first scan" : {
+      "comment" : "AI consent screen title, shown once before the app.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vor deinem ersten Scan"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Before your first scan"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Antes de tu primer escaneo"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Înainte de prima scanare"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "首次扫描前"
           }
         }
       }
@@ -8747,6 +9035,42 @@
         }
       }
     },
+    "Continue with Tag" : {
+      "comment" : "Button that reopens an Ask Tag conversation already started.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Weiter mit Tag"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Continue with Tag"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Continuar con Tag"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Continuă cu Tag"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "继续和 Tag 聊"
+          }
+        }
+      }
+    },
     "Copied" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -10654,6 +10978,42 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "描述这件物品"
+          }
+        }
+      }
+    },
+    "Descriptions you type instead of a photo" : {
+      "comment" : "AI consent list item.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Beschreibungen, die du statt eines Fotos eintippst"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Descriptions you type instead of a photo"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Las descripciones que escribes en lugar de una foto"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Descrierile pe care le scrii în locul unei fotografii"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "你代替照片输入的描述"
           }
         }
       }
@@ -13248,38 +13608,38 @@
         }
       }
     },
-    "Get Tag's advice on pricing and listing for every find." : {
+    "Get Tag's advice on pricing and listing for every find, and ask Tag your own questions." : {
       "comment" : "Free user's Tag's tips card: what Pro unlocks.",
       "extractionState" : "manual",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Hol dir Tags Rat zu Preis und Inserat für jeden Fund."
+            "value" : "Hol dir Tags Rat zu Preis und Inserat für jeden Fund und stell Tag deine eigenen Fragen."
           }
         },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Get Tag's advice on pricing and listing for every find."
+            "value" : "Get Tag's advice on pricing and listing for every find, and ask Tag your own questions."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Recibe los consejos de Tag sobre precio y anuncio para cada hallazgo."
+            "value" : "Recibe los consejos de Tag sobre precio y anuncio para cada hallazgo y hazle tus propias preguntas."
           }
         },
         "ro" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Primește sfaturile lui Tag despre preț și anunț pentru fiecare găsire."
+            "value" : "Primește sfaturile lui Tag despre preț și anunț pentru fiecare găsire și pune-i propriile întrebări."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "每件好物都能收到 Tag 关于定价和发布的建议。"
+            "value" : "每件好物都能收到 Tag 关于定价和发布的建议，还能向 Tag 提出你自己的问题。"
           }
         }
       }
@@ -13637,6 +13997,42 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "运转良好"
+          }
+        }
+      }
+    },
+    "Google doesn't use them to train its models, and we don't keep them after you get your answer." : {
+      "comment" : "AI consent screen.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Google nutzt sie nicht zum Training seiner Modelle, und wir speichern sie nicht, nachdem du deine Antwort bekommen hast."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Google doesn't use them to train its models, and we don't keep them after you get your answer."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Google no los usa para entrenar sus modelos y nosotros no los guardamos después de darte la respuesta."
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Google nu le folosește ca să-și antreneze modelele, iar noi nu le păstrăm după ce primești răspunsul."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Google 不会用它们训练模型，你收到结果后我们也不会保留。"
           }
         }
       }
@@ -14407,6 +14803,42 @@
         }
       }
     },
+    "How should I photograph it?" : {
+      "comment" : "Suggested Ask Tag question.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wie sollte ich es fotografieren?"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "How should I photograph it?"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "¿Cómo debería fotografiarlo?"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cum ar trebui să-l fotografiez?"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "我该怎么拍它？"
+          }
+        }
+      }
+    },
     "Hype level" : {
       "comment" : "Rare-find easter egg (RareFind.swift). The joke is hype and rarity only — keep it that way in translation.",
       "extractionState" : "manual",
@@ -14439,6 +14871,42 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "热度"
+          }
+        }
+      }
+    },
+    "I couldn't give a good answer to that one. Try asking another way." : {
+      "comment" : "Tag, in Ask Tag, when no answer could be kept.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Darauf konnte ich keine gute Antwort geben. Frag am besten anders."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "I couldn't give a good answer to that one. Try asking another way."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No he podido darte una buena respuesta. Prueba a preguntarlo de otra forma."
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "N-am putut da un răspuns bun la asta. Încearcă să întrebi altfel."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这个问题我没法给出好的回答。换个问法试试吧。"
           }
         }
       }
@@ -20380,6 +20848,42 @@
         }
       }
     },
+    "Questions you ask Tag (Pro), with the details of that find but never its photo" : {
+      "comment" : "AI consent list item. Tag is the mascot's name; Pro is the subscription.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fragen, die du Tag stellst (Pro), mit den Angaben zu diesem Fund, aber nie mit seinem Foto"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Questions you ask Tag (Pro), with the details of that find but never its photo"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Las preguntas que le haces a Tag (Pro), con los datos de ese hallazgo pero nunca su foto"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Întrebările pe care i le pui lui Tag (Pro), cu detaliile acelei găsiri, dar niciodată cu fotografia ei"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "你向 Tag 提出的问题（Pro），附带该物品的信息，但绝不包含照片"
+          }
+        }
+      }
+    },
     "Quick sale" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -21127,6 +21631,42 @@
         }
       }
     },
+    "Read the privacy policy" : {
+      "comment" : "Link on the AI consent screen.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Datenschutzerklärung lesen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Read the privacy policy"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lee la política de privacidad"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Citește politica de confidențialitate"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "阅读隐私政策"
+          }
+        }
+      }
+    },
     "Reading the label…" : {
       "comment" : "Rotating copy while a scan is analysed.",
       "extractionState" : "manual",
@@ -21477,6 +22017,42 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "反馈问题"
+          }
+        }
+      }
+    },
+    "Report this answer" : {
+      "comment" : "Menu action on an AI answer in Ask Tag; opens an email to support.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Diese Antwort melden"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Report this answer"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Denunciar esta respuesta"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Raportează acest răspuns"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "举报此回答"
           }
         }
       }
@@ -22575,6 +23151,42 @@
         }
       }
     },
+    "Scanning needs this. You can read what's sent at any time in Settings → Privacy Policy." : {
+      "comment" : "Caption under the consent button. 'Settings → Privacy Policy' names the screens.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zum Scannen ist das nötig. Was gesendet wird, kannst du jederzeit unter Einstellungen → Datenschutzerklärung nachlesen."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Scanning needs this. You can read what's sent at any time in Settings → Privacy Policy."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "El escaneo lo necesita. Puedes ver qué se envía en cualquier momento en Ajustes → Política de privacidad."
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Scanarea are nevoie de asta. Poți vedea oricând ce se trimite în Setări → Politica de confidențialitate."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "扫描需要这项同意。你可以随时在“设置 → 隐私政策”中查看发送了什么。"
+          }
+        }
+      }
+    },
     "Scanning resumed" : {
       "comment" : "VoiceOver announcement when a Haul pause ends.",
       "extractionState" : "manual",
@@ -23179,6 +23791,42 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "有 Tag 帮你，卖得更聪明"
+          }
+        }
+      }
+    },
+    "Send" : {
+      "comment" : "Send button in Ask Tag (VoiceOver label).",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Senden"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Send"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Enviar"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Trimite"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "发送"
           }
         }
       }
@@ -24885,6 +25533,42 @@
         }
       }
     },
+    "SnapWorth uses Google's Gemini AI to identify items and estimate what they're worth. To do that, it sends Google:" : {
+      "comment" : "AI consent screen: what is sent, followed by a list. Google and Gemini are names.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SnapWorth nutzt die KI Gemini von Google, um Artikel zu erkennen und ihren Wert zu schätzen. Dafür sendet die App an Google:"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SnapWorth uses Google's Gemini AI to identify items and estimate what they're worth. To do that, it sends Google:"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SnapWorth usa la IA Gemini de Google para identificar artículos y estimar cuánto valen. Para ello, envía a Google:"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SnapWorth folosește inteligența artificială Gemini de la Google ca să identifice obiectele și să estimeze cât valorează. Pentru asta, trimite către Google:"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SnapWorth 使用 Google 的 Gemini AI 来识别物品并估算其价值。为此，它会向 Google 发送："
+          }
+        }
+      }
+    },
     "SnapWorth valuation" : {
       "comment" : "Visual intelligence and Shortcuts (iOS 26): the kind of result SnapWorth offers. SnapWorth is the brand (#412).",
       "extractionState" : "manual",
@@ -26409,6 +27093,78 @@
         }
       }
     },
+    "Tag couldn't answer right now. Check your connection and try again." : {
+      "comment" : "Ask Tag: network or server error.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tag konnte gerade nicht antworten. Prüf deine Verbindung und versuch es noch einmal."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tag couldn't answer right now. Check your connection and try again."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tag no ha podido responder ahora. Comprueba tu conexión y vuelve a intentarlo."
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tag nu a putut răspunde acum. Verifică-ți conexiunea și încearcă din nou."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tag 暂时无法回答。请检查网络后重试。"
+          }
+        }
+      }
+    },
+    "Tag is thinking…" : {
+      "comment" : "Shown while Ask Tag waits for an answer.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tag denkt nach…"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tag is thinking…"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tag está pensando…"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tag se gândește…"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tag 正在思考…"
+          }
+        }
+      }
+    },
     "Tag's tips" : {
       "comment" : "Title of the card on a result where Tag, the mascot, gives resale advice; also its Settings toggle. Tag is a name and stays Tag.",
       "extractionState" : "manual",
@@ -26441,6 +27197,42 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Tag 的小贴士"
+          }
+        }
+      }
+    },
+    "Tag: %@. AI answer, may be wrong." : {
+      "comment" : "VoiceOver: Tag's AI answer in Ask Tag.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tag: %@. KI-Antwort, kann falsch sein."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tag: %@. AI answer, may be wrong."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tag: %@. Respuesta de IA, puede ser incorrecta."
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tag: %@. Răspuns AI, poate fi greșit."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tag：%@。AI 回答，可能有误。"
           }
         }
       }
@@ -27297,6 +28089,42 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "照片显示的信息不足以判断。在光线充足处拍摄更近、更清晰的照片会有帮助。"
+          }
+        }
+      }
+    },
+    "The photos you scan, and any close-ups for a legit check" : {
+      "comment" : "AI consent list item.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die Fotos, die du scannst, und Nahaufnahmen für einen Echtheitscheck"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The photos you scan, and any close-ups for a legit check"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Las fotos que escaneas y los primeros planos de una comprobación de autenticidad"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fotografiile pe care le scanezi și eventualele prim-planuri pentru o verificare de autenticitate"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "你扫描的照片，以及验真检查的特写照片"
           }
         }
       }
@@ -31018,6 +31846,42 @@
         }
       }
     },
+    "What should I ask for it?" : {
+      "comment" : "Suggested Ask Tag question: what price to ask.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wie viel sollte ich dafür verlangen?"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "What should I ask for it?"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "¿Cuánto debería pedir?"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cât să cer pe el?"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "我该标价多少？"
+          }
+        }
+      }
+    },
     "What the photo suggests about authenticity" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -31261,6 +32125,42 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "当你把一件好物标记为已售出时，SnapWorth 可以发送它的售价、币种和你看到的估价，用来衡量估价有多准。绝不发送照片、物品名称、你的备注或你的买入价。除非你允许，否则保持关闭；已分享的内容可以在“设置”中删除。"
+          }
+        }
+      }
+    },
+    "Where would it sell best?" : {
+      "comment" : "Suggested Ask Tag question: which marketplace.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wo verkauft es sich am besten?"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Where would it sell best?"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "¿Dónde se vendería mejor?"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Unde s-ar vinde cel mai bine?"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在哪里卖最好？"
           }
         }
       }
@@ -32133,6 +33033,42 @@
         }
       }
     },
+    "You've reached Ask Tag's limit for now. Try again later." : {
+      "comment" : "Ask Tag: rate limit reached.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Du hast das Limit von Ask Tag erreicht. Versuch es später noch einmal."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You've reached Ask Tag's limit for now. Try again later."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Has llegado al límite de Ask Tag por ahora. Inténtalo más tarde."
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ai atins limita Ask Tag deocamdată. Încearcă mai târziu."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "你已达到 Ask Tag 的使用上限，请稍后再试。"
+          }
+        }
+      }
+    },
     "You've run a lot of legit checks this hour. Try again later." : {
       "comment" : "Legit check: its own hourly limit was reached.",
       "extractionState" : "manual",
@@ -32236,6 +33172,42 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "今天的免费扫描用完了。打开订阅选项。"
+          }
+        }
+      }
+    },
+    "You: %@" : {
+      "comment" : "VoiceOver: a message the user sent in Ask Tag.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Du: %@"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You: %@"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tú: %@"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tu: %@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "你：%@"
           }
         }
       }

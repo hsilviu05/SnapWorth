@@ -1762,6 +1762,7 @@ final class ScanPersistenceFailureTests: XCTestCase {
         original.saleCurrency = "RON"
         original.outcomeID = "outcome-1"
         original.legitCheckData = Data([7])
+        original.askTagData = Data([8])
 
         let copy = original.detachedCopy()
 
@@ -1795,6 +1796,7 @@ final class ScanPersistenceFailureTests: XCTestCase {
             "valueHistoryData": { $0.valueHistoryData == $1.valueHistoryData },
             "valuationDetailData": { $0.valuationDetailData == $1.valuationDetailData },
             "legitCheckData": { $0.legitCheckData == $1.legitCheckData },
+            "askTagData": { $0.askTagData == $1.askTagData },
         ]
         let entity = try XCTUnwrap(Schema([ScanResult.self]).entitiesByName["ScanResult"])
         XCTAssertEqual(Set(carried.keys), Set(entity.storedProperties.map(\.name)),

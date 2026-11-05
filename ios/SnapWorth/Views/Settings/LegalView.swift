@@ -24,7 +24,7 @@ struct PrivacyPolicyView: View {
 /// Change this and `backend/main.py`'s `/privacy` together.
 /// `PrivacyPolicyDisclosureTests` fails if a processor goes missing.
 enum PrivacyPolicy {
-    static let updated = "November 4, 2026"
+    static let updated = "November 5, 2026"
 
     /// Every third party that receives user data, by the name a reader would
     /// recognise. The test asserts each appears in `sections`.
@@ -70,7 +70,7 @@ enum PrivacyPolicy {
         (heading: "Service Providers", text: """
             Railway. Hosts our server at api.snapworth.eu, so it processes everything the app sends our server, as described above.
 
-            Google (Gemini API). Photos you submit are transmitted to Google's Gemini API, which identifies the item and estimates its resale value, or reads a legit check's close-ups. A description you type instead of a photo is transmitted the same way. Google processes them under its API terms of service and does not use them to train its models. Photos and descriptions are not retained by us after the response is returned.
+            Google (Gemini API). Photos you submit are transmitted to Google's Gemini API, which identifies the item and estimates its resale value, or reads a legit check's close-ups. A description you type instead of a photo is transmitted the same way, and so is a question you ask Ask Tag, with the details of the find it is about (never its photo). The app asks your consent before the first of these is sent. Google processes them under its API terms of service and does not use them to train its models. Photos, descriptions and questions are not retained by us after the response is returned.
 
             Apple (DeviceCheck). Receives the device token described above, and stores two bits against your hardware so a reinstall does not reset the free allowance.
 

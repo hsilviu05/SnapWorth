@@ -542,6 +542,8 @@ enum PaywallCopy {
         Benefit(icon: "chart.line.uptrend.xyaxis",
                 text: String(localized: "Why it's worth that — four price points and what drives them")),
         Benefit(icon: "cart.fill", text: String(localized: "Snap → Sell marketplace listings")),
+        Benefit(icon: "bubble.left.and.bubble.right.fill",
+                text: String(localized: "Ask Tag — tips and answers on pricing and listing each find")),
         Benefit(icon: "tag.fill", text: String(localized: "Read the care tag for a sharper estimate")),
         // "Signs of a replica", never "authenticate": it is a read of photos,
         // not a certificate (`LegitVerdict`).
@@ -608,9 +610,9 @@ enum PaywallCopy {
                          leadIcon: "chart.line.uptrend.xyaxis")
         case .snapSell:
             return Pitch(headline: String(localized: "Turn finds into listings"), leadIcon: "cart.fill")
-        // Tag's tips are listing advice, so they lead with the listing row.
         case .tagTips:
-            return Pitch(headline: String(localized: "Sell smarter with Tag"), leadIcon: "cart.fill")
+            return Pitch(headline: String(localized: "Sell smarter with Tag"),
+                         leadIcon: "bubble.left.and.bubble.right.fill")
         case .addTag:
             return Pitch(headline: String(localized: "Read the care tag"), leadIcon: "tag.fill")
         case .legitCheck:
