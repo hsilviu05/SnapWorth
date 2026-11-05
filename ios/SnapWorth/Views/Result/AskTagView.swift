@@ -5,11 +5,17 @@ import SwiftUI
 // MARK: - Ask Tag (1.8.0)
 // ═══════════════════════════════════════════════════════════════════
 
-/// A Pro user's conversation with Tag about one find. Opened from the Tag's
-/// tips card. The conversation is kept on the find (`ScanResult.askTagData`).
+/// A Pro user's conversation with Tag about one find, or a free user's one
+/// preview question. Opened from the Tag's tips card. The conversation is
+/// kept on the find (`ScanResult.askTagData`).
 struct AskTagView: View {
     let result: ScanResult
+    /// A free user's weekly question (`AskTagPreview`): one question, no
+    /// follow-ups, then the way into Pro.
+    var isPreview: Bool = false
     let onClose: () -> Void
+    /// The preview's "Keep asking with Pro". Unused for Pro.
+    var onUpgrade: () -> Void = {}
 
     @Environment(\.modelContext) private var modelContext
     @Environment(\.openURL) private var openURL
@@ -48,6 +54,9 @@ struct AskTagView: View {
                         if turns.isEmpty && !isAsking {
                             suggestionChips
                         }
+                        if previewUsed {
+                            upgradePrompt
+                        }
                     }
                     .padding(20)
                 }
@@ -56,7 +65,9 @@ struct AskTagView: View {
                 .onChange(of: isAsking) { _, _ in scrollToEnd(proxy) }
             }
             .background(Color.snapBackground)
-            .safeAreaInset(edge: .bottom) { composer }
+            .safeAreaInset(edge: .bottom) {
+                if !previewUsed { composer }
+            }
             .navigationTitle("Ask Tag")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -183,6 +194,27 @@ struct AskTagView: View {
         .background(Color.snapBackground)
     }
 
+    /// The preview's question has been asked: on this find (an answer is
+    /// here), or this week on this phone. Either way, no more without Pro.
+    private var previewUsed: Bool {
+        isPreview && !isAsking
+            && (turns.contains { $0.role == .tag } || previewRefused)
+    }
+    @State private var previewRefused = false
+
+    private var upgradePrompt: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Keep the conversation going with Pro: follow-up questions and Tag's advice on every find.")
+                .font(.snapBody)
+                .foregroundStyle(Color.snapEspresso)
+                .fixedSize(horizontal: false, vertical: true)
+            PrimaryButton(title: "Keep asking with Pro", action: onUpgrade)
+        }
+        .padding(16)
+        .background(Color.snapCard, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .padding(.top, 8)
+    }
+
     private var canSend: Bool {
         !isAsking && !AskTagThread.cleanedQuestion(draft).isEmpty
     }
@@ -209,8 +241,16 @@ struct AskTagView: View {
                 }
                 Haptics.light()
                 append(AskTagTurn(role: .tag, text: answer))
+                if isPreview { AskTagPreview.markUsed() }
             } catch {
-                problem = Self.message(for: error)
+                if isPreview, (error as? ScanAPIError)?.statusCode == 402 {
+                    // This week's free question went on another find.
+                    AskTagPreview.markUsed()
+                    previewRefused = true
+                    problem = String(localized: "You've used this week's free question.")
+                } else {
+                    problem = Self.message(for: error)
+                }
             }
         }
     }
@@ -260,5 +300,22 @@ struct AskTagView: View {
         } else {
             withAnimation { proxy.scrollTo(target, anchor: .bottom) }
         }
+    }
+}
+
+/// A free user's one Ask Tag question a week. The server holds the real
+/// count (`ASSIST_FREE_WEEKLY_MAX`); this only hides the offer once it has
+/// been used, so the card does not promise a question the server will refuse.
+enum AskTagPreview {
+    static let lastUsedKey = "snapworth_ask_tag_preview_used"
+    static let window: TimeInterval = 7 * 24 * 3600
+
+    static func isAvailable(now: Date = Date(), defaults: UserDefaults = .standard) -> Bool {
+        guard let last = defaults.object(forKey: lastUsedKey) as? Date else { return true }
+        return now.timeIntervalSince(last) >= window || last > now
+    }
+
+    static func markUsed(now: Date = Date(), defaults: UserDefaults = .standard) {
+        defaults.set(now, forKey: lastUsedKey)
     }
 }

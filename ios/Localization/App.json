@@ -8087,6 +8087,46 @@
       "es": "Solo curiosidad",
       "de": "Nur neugierig",
       "zh-Hans": "只是好奇"
+    },
+    "Ask Tag one question free": {
+      "comment": "Free user's button on the Tag's tips card: one Ask Tag question a week before Pro.",
+      "en": "Ask Tag one question free",
+      "ro": "Pune-i lui Tag o întrebare gratis",
+      "es": "Hazle a Tag una pregunta gratis",
+      "de": "Stell Tag eine Frage gratis",
+      "zh-Hans": "免费问 Tag 一个问题"
+    },
+    "See Tag's answer": {
+      "comment": "Free user's button on the Tag's tips card when this find already has Tag's preview answer.",
+      "en": "See Tag's answer",
+      "ro": "Vezi răspunsul lui Tag",
+      "es": "Ver la respuesta de Tag",
+      "de": "Tags Antwort ansehen",
+      "zh-Hans": "查看 Tag 的回答"
+    },
+    "Keep the conversation going with Pro: follow-up questions and Tag's advice on every find.": {
+      "comment": "Under Tag's free preview answer, above the upgrade button.",
+      "en": "Keep the conversation going with Pro: follow-up questions and Tag's advice on every find.",
+      "ro": "Continuă conversația cu Pro: întrebări suplimentare și sfaturile lui Tag pentru fiecare găselniță.",
+      "es": "Sigue la conversación con Pro: preguntas de seguimiento y los consejos de Tag para cada hallazgo.",
+      "de": "Mach mit Pro weiter: Folgefragen und Tags Tipps zu jedem Fund.",
+      "zh-Hans": "升级 Pro 继续对话：可以追问，每件好物都有 Tag 的建议。"
+    },
+    "Keep asking with Pro": {
+      "comment": "Button under Tag's free preview answer; opens the paywall.",
+      "en": "Keep asking with Pro",
+      "ro": "Întreabă în continuare cu Pro",
+      "es": "Sigue preguntando con Pro",
+      "de": "Mit Pro weiterfragen",
+      "zh-Hans": "用 Pro 继续提问"
+    },
+    "You've used this week's free question.": {
+      "comment": "Ask Tag, free user: the weekly free question was already used on another find.",
+      "en": "You've used this week's free question.",
+      "ro": "Ai folosit deja întrebarea gratuită din săptămâna asta.",
+      "es": "Ya usaste la pregunta gratis de esta semana.",
+      "de": "Du hast die Gratisfrage dieser Woche schon genutzt.",
+      "zh-Hans": "本周的免费提问已用完。"
     }
   }
 }

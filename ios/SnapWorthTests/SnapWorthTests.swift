@@ -5352,3 +5352,30 @@ final class UserGoalPaywallTests: XCTestCase {
         }
     }
 }
+
+// MARK: - Ask Tag free preview
+
+final class AskTagPreviewTests: XCTestCase {
+
+    private func defaults() -> UserDefaults {
+        let d = UserDefaults(suiteName: "AskTagPreviewTests")!
+        d.removePersistentDomain(forName: "AskTagPreviewTests")
+        return d
+    }
+
+    func test_oneQuestionAWeek() {
+        let d = defaults()
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        XCTAssertTrue(AskTagPreview.isAvailable(now: now, defaults: d))
+        AskTagPreview.markUsed(now: now, defaults: d)
+        XCTAssertFalse(AskTagPreview.isAvailable(now: now.addingTimeInterval(6 * 86400), defaults: d))
+        XCTAssertTrue(AskTagPreview.isAvailable(now: now.addingTimeInterval(7 * 86400), defaults: d))
+    }
+
+    func test_aClockSetBackDoesNotLockItForever() {
+        let d = defaults()
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        AskTagPreview.markUsed(now: now, defaults: d)
+        XCTAssertTrue(AskTagPreview.isAvailable(now: now.addingTimeInterval(-86400), defaults: d))
+    }
+}

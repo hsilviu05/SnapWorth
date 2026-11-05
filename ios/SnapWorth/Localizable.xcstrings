@@ -6263,6 +6263,42 @@
         }
       }
     },
+    "Ask Tag one question free" : {
+      "comment" : "Free user's button on the Tag's tips card: one Ask Tag question a week before Pro.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Stell Tag eine Frage gratis"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ask Tag one question free"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hazle a Tag una pregunta gratis"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pune-i lui Tag o întrebare gratis"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "免费问 Tag 一个问题"
+          }
+        }
+      }
+    },
     "Ask Tag — tips and answers on pricing and listing each find" : {
       "comment" : "Paywall benefit row. Ask Tag is the feature's name.",
       "extractionState" : "manual",
@@ -15730,6 +15766,42 @@
         }
       }
     },
+    "Keep asking with Pro" : {
+      "comment" : "Button under Tag's free preview answer; opens the paywall.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mit Pro weiterfragen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Keep asking with Pro"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sigue preguntando con Pro"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Întreabă în continuare cu Pro"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "用 Pro 继续提问"
+          }
+        }
+      }
+    },
     "Keep it out of the sun. It has been through enough." : {
       "comment" : "Rare-find easter egg (RareFind.swift). The joke is hype and rarity only — keep it that way in translation.",
       "extractionState" : "manual",
@@ -15833,6 +15905,42 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "今天继续扫描"
+          }
+        }
+      }
+    },
+    "Keep the conversation going with Pro: follow-up questions and Tag's advice on every find." : {
+      "comment" : "Under Tag's free preview answer, above the upgrade button.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mach mit Pro weiter: Folgefragen und Tags Tipps zu jedem Fund."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Keep the conversation going with Pro: follow-up questions and Tag's advice on every find."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sigue la conversación con Pro: preguntas de seguimiento y los consejos de Tag para cada hallazgo."
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Continuă conversația cu Pro: întrebări suplimentare și sfaturile lui Tag pentru fiecare găselniță."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "升级 Pro 继续对话：可以追问，每件好物都有 Tag 的建议。"
           }
         }
       }
@@ -23793,6 +23901,42 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "搜索好物…"
+          }
+        }
+      }
+    },
+    "See Tag's answer" : {
+      "comment" : "Free user's button on the Tag's tips card when this find already has Tag's preview answer.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tags Antwort ansehen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "See Tag's answer"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ver la respuesta de Tag"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vezi răspunsul lui Tag"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "查看 Tag 的回答"
           }
         }
       }
@@ -33713,6 +33857,42 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "你在这一小时内已进行了很多次检查。请稍后再试。"
+          }
+        }
+      }
+    },
+    "You've used this week's free question." : {
+      "comment" : "Ask Tag, free user: the weekly free question was already used on another find.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Du hast die Gratisfrage dieser Woche schon genutzt."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You've used this week's free question."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ya usaste la pregunta gratis de esta semana."
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ai folosit deja întrebarea gratuită din săptămâna asta."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "本周的免费提问已用完。"
           }
         }
       }
