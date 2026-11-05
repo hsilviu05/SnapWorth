@@ -7919,6 +7919,134 @@
       "es": "Ask Tag: consejos y respuestas sobre el precio y el anuncio de cada hallazgo",
       "de": "Ask Tag – Tipps und Antworten zu Preis und Inserat für jeden Fund",
       "zh-Hans": "Ask Tag：针对每件好物的定价与发布建议和解答"
+    },
+    "MY %@ IN FINDS": {
+      "comment": "Header of the Year in Finds share card. %@ is a year, such as 2026. Upper case, like MY HAUL.",
+      "en": "MY %@ IN FINDS",
+      "ro": "ANUL MEU %@ ÎN GĂSELNIȚE",
+      "es": "MI %@ EN HALLAZGOS",
+      "de": "MEIN %@ IN FUNDEN",
+      "zh-Hans": "我的 %@ 淘货年"
+    },
+    "finds scanned": {
+      "comment": "Under the big number of finds scanned that year, on the Year in Finds card.",
+      "en": "finds scanned",
+      "ro": "găselnițe scanate",
+      "es": "hallazgos escaneados",
+      "de": "Funde gescannt",
+      "zh-Hans": "件好物已扫描"
+    },
+    "in AI resale estimates": {
+      "comment": "Under the summed estimate of the year's finds, on the Year in Finds card.",
+      "en": "in AI resale estimates",
+      "ro": "în estimări AI de revânzare",
+      "es": "en estimaciones de reventa con IA",
+      "de": "in KI-Wiederverkaufsschätzungen",
+      "zh-Hans": "AI 转卖估价合计"
+    },
+    "Top find": {
+      "comment": "Row label on the Year in Finds card: the most valuable find of the year.",
+      "en": "Top find",
+      "ro": "Cea mai bună găselniță",
+      "es": "Mejor hallazgo",
+      "de": "Bester Fund",
+      "zh-Hans": "最值钱的一件"
+    },
+    "Most-found brand": {
+      "comment": "Row label on the Year in Finds card: the brand scanned most often.",
+      "en": "Most-found brand",
+      "ro": "Marca găsită cel mai des",
+      "es": "Marca más encontrada",
+      "de": "Häufigste Marke",
+      "zh-Hans": "最常淘到的品牌"
+    },
+    "Busiest month": {
+      "comment": "Row label on the Year in Finds card: the month with the most scans.",
+      "en": "Busiest month",
+      "ro": "Luna cea mai activă",
+      "es": "Mes más activo",
+      "de": "Aktivster Monat",
+      "zh-Hans": "最活跃的月份"
+    },
+    "Profit from flips": {
+      "comment": "Row label on the Year in Finds card: the year's realised profit from sold flips (Pro).",
+      "en": "Profit from flips",
+      "ro": "Profit din flipuri",
+      "es": "Ganancia de reventas",
+      "de": "Gewinn aus Flips",
+      "zh-Hans": "转卖利润"
+    },
+    "Net from flips": {
+      "comment": "Row label on the Year in Finds card when the year's flips lost money overall (Pro).",
+      "en": "Net from flips",
+      "ro": "Net din flipuri",
+      "es": "Neto de reventas",
+      "de": "Netto aus Flips",
+      "zh-Hans": "转卖净额"
+    },
+    "Show my profit on the card": {
+      "comment": "Toggle on the Year in Finds sheet, for Pro users with sold flips.",
+      "en": "Show my profit on the card",
+      "ro": "Arată profitul meu pe card",
+      "es": "Mostrar mi ganancia en la tarjeta",
+      "de": "Meinen Gewinn auf der Karte zeigen",
+      "zh-Hans": "在卡片上显示我的利润"
+    },
+    "Add your %@ profit with Pro": {
+      "comment": "Locked row on the Year in Finds sheet for free users; opens the paywall. %@ is a year, such as 2026.",
+      "en": "Add your %@ profit with Pro",
+      "ro": "Adaugă profitul din %@ cu Pro",
+      "es": "Añade tu ganancia de %@ con Pro",
+      "de": "Füge deinen Gewinn %@ mit Pro hinzu",
+      "zh-Hans": "用 Pro 加上你 %@ 年的利润"
+    },
+    "Share my year": {
+      "comment": "Button on the Year in Finds sheet that opens the share sheet with the card.",
+      "en": "Share my year",
+      "ro": "Distribuie anul meu",
+      "es": "Compartir mi año",
+      "de": "Mein Jahr teilen",
+      "zh-Hans": "分享我的一年"
+    },
+    "Year in Finds": {
+      "comment": "Title of the year-in-review sheet. A feature name.",
+      "en": "Year in Finds",
+      "ro": "Anul în găselnițe",
+      "es": "Tu año en hallazgos",
+      "de": "Jahr in Funden",
+      "zh-Hans": "淘货年度回顾"
+    },
+    "Couldn't make the card": {
+      "comment": "Alert title when the Year in Finds card could not be rendered.",
+      "en": "Couldn't make the card",
+      "ro": "Cardul nu a putut fi creat",
+      "es": "No se pudo crear la tarjeta",
+      "de": "Karte konnte nicht erstellt werden",
+      "zh-Hans": "无法生成卡片"
+    },
+    "Your %@ Year in Finds is ready": {
+      "comment": "My Finds banner in December and January. %@ is a year, such as 2026.",
+      "en": "Your %@ Year in Finds is ready",
+      "ro": "Anul tău %@ în găselnițe e gata",
+      "es": "Tu %@ en hallazgos está listo",
+      "de": "Dein Jahr %@ in Funden ist da",
+      "zh-Hans": "你的 %@ 淘货年度回顾做好了"
+    },
+    "Your year in finds, ready to share": {
+      "comment": "Second line of the Year in Finds banner on My Finds.",
+      "en": "Your year in finds, ready to share",
+      "ro": "Anul tău în găselnițe, gata de distribuit",
+      "es": "Tu año en hallazgos, listo para compartir",
+      "de": "Dein Jahr in Funden, bereit zum Teilen",
+      "zh-Hans": "你的淘货一年，随时可以分享"
+    },
+    "Add your profit to your year": {
+      "comment": "Paywall headline when opened from the Year in Finds sheet's locked profit row.",
+      "en": "Add your profit to your year",
+      "ro": "Adaugă profitul în anul tău",
+      "es": "Añade tu ganancia a tu año",
+      "de": "Füg deinem Jahr den Gewinn hinzu",
+      "zh-Hans": "把利润加进你的一年"
     }
   }
 }

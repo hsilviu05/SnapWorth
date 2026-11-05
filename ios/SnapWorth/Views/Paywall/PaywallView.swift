@@ -625,6 +625,10 @@ enum PaywallCopy {
             return Pitch(headline: String(localized: "See what's trending"), leadIcon: "chart.pie.fill")
         case .ledgerHistory:
             return Pitch(headline: String(localized: "See every flip"), leadIcon: "square.and.arrow.up")
+        // A year of profit is the all-time ledger, so it leads with that row.
+        case .wrapped:
+            return Pitch(headline: String(localized: "Add your profit to your year"),
+                         leadIcon: "square.and.arrow.up")
         case .ledgerExport:
             return Pitch(headline: String(localized: "Export your flips"), leadIcon: "square.and.arrow.up")
         }
