@@ -102,6 +102,11 @@ final class ScanResult {
 
     var legitRead: LegitRead? { LegitRead.decode(legitCheckData) }
 
+    /// The find's Ask Tag conversation (`AskTagThread`), JSON. Nil until the
+    /// first question. Optional, so stores from before 1.8.0 migrate with no
+    /// stage: a lightweight migration adds the column empty.
+    var askTagData: Data?
+
     /// The two things the price path needs from the detail blob — the grade
     /// the model returned and its likely price — memoised by the bytes they
     /// came from.
@@ -289,10 +294,11 @@ final class ScanResult {
             valuationDetailData: valuationDetailData
         )
         // Not init parameters: both are set once a find is sold or shared,
-        // and the legit read once one is checked.
+        // the legit read once one is checked, and Ask Tag once asked.
         copy.saleCurrency = saleCurrency
         copy.outcomeID = outcomeID
         copy.legitCheckData = legitCheckData
+        copy.askTagData = askTagData
         return copy
     }
 

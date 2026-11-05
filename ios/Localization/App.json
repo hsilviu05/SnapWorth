@@ -7616,14 +7616,6 @@
       "de": "Tippe auf Tag für einen weiteren Tipp",
       "zh-Hans": "点一下 Tag，看另一条小贴士"
     },
-    "Get Tag's advice on pricing and listing for every find.": {
-      "comment": "Free user's Tag's tips card: what Pro unlocks.",
-      "en": "Get Tag's advice on pricing and listing for every find.",
-      "ro": "Primește sfaturile lui Tag despre preț și anunț pentru fiecare găsire.",
-      "es": "Recibe los consejos de Tag sobre precio y anuncio para cada hallazgo.",
-      "de": "Hol dir Tags Rat zu Preis und Inserat für jeden Fund.",
-      "zh-Hans": "每件好物都能收到 Tag 关于定价和发布的建议。"
-    },
     "Shows Tag's pricing and listing advice on each result": {
       "comment": "VoiceOver hint for the Tag's tips toggle in Settings.",
       "en": "Shows Tag's pricing and listing advice on each result",
@@ -7703,6 +7695,230 @@
       "es": "Los anuncios con cuatro o más fotos con luz natural suelen venderse antes.",
       "de": "Inserate mit vier oder mehr Fotos bei Tageslicht verkaufen sich meist schneller.",
       "zh-Hans": "有四张以上自然光照片的商品，通常卖得更快。"
+    },
+    "Before your first scan": {
+      "comment": "AI consent screen title, shown once before the app.",
+      "en": "Before your first scan",
+      "ro": "Înainte de prima scanare",
+      "es": "Antes de tu primer escaneo",
+      "de": "Vor deinem ersten Scan",
+      "zh-Hans": "首次扫描前"
+    },
+    "SnapWorth uses Google's Gemini AI to identify items and estimate what they're worth. To do that, it sends Google:": {
+      "comment": "AI consent screen: what is sent, followed by a list. Google and Gemini are names.",
+      "en": "SnapWorth uses Google's Gemini AI to identify items and estimate what they're worth. To do that, it sends Google:",
+      "ro": "SnapWorth folosește inteligența artificială Gemini de la Google ca să identifice obiectele și să estimeze cât valorează. Pentru asta, trimite către Google:",
+      "es": "SnapWorth usa la IA Gemini de Google para identificar artículos y estimar cuánto valen. Para ello, envía a Google:",
+      "de": "SnapWorth nutzt die KI Gemini von Google, um Artikel zu erkennen und ihren Wert zu schätzen. Dafür sendet die App an Google:",
+      "zh-Hans": "SnapWorth 使用 Google 的 Gemini AI 来识别物品并估算其价值。为此，它会向 Google 发送："
+    },
+    "The photos you scan, and any close-ups for a legit check": {
+      "comment": "AI consent list item.",
+      "en": "The photos you scan, and any close-ups for a legit check",
+      "ro": "Fotografiile pe care le scanezi și eventualele prim-planuri pentru o verificare de autenticitate",
+      "es": "Las fotos que escaneas y los primeros planos de una comprobación de autenticidad",
+      "de": "Die Fotos, die du scannst, und Nahaufnahmen für einen Echtheitscheck",
+      "zh-Hans": "你扫描的照片，以及验真检查的特写照片"
+    },
+    "Descriptions you type instead of a photo": {
+      "comment": "AI consent list item.",
+      "en": "Descriptions you type instead of a photo",
+      "ro": "Descrierile pe care le scrii în locul unei fotografii",
+      "es": "Las descripciones que escribes en lugar de una foto",
+      "de": "Beschreibungen, die du statt eines Fotos eintippst",
+      "zh-Hans": "你代替照片输入的描述"
+    },
+    "Questions you ask Tag (Pro), with the details of that find but never its photo": {
+      "comment": "AI consent list item. Tag is the mascot's name; Pro is the subscription.",
+      "en": "Questions you ask Tag (Pro), with the details of that find but never its photo",
+      "ro": "Întrebările pe care i le pui lui Tag (Pro), cu detaliile acelei găsiri, dar niciodată cu fotografia ei",
+      "es": "Las preguntas que le haces a Tag (Pro), con los datos de ese hallazgo pero nunca su foto",
+      "de": "Fragen, die du Tag stellst (Pro), mit den Angaben zu diesem Fund, aber nie mit seinem Foto",
+      "zh-Hans": "你向 Tag 提出的问题（Pro），附带该物品的信息，但绝不包含照片"
+    },
+    "Google doesn't use them to train its models, and we don't keep them after you get your answer.": {
+      "comment": "AI consent screen.",
+      "en": "Google doesn't use them to train its models, and we don't keep them after you get your answer.",
+      "ro": "Google nu le folosește ca să-și antreneze modelele, iar noi nu le păstrăm după ce primești răspunsul.",
+      "es": "Google no los usa para entrenar sus modelos y nosotros no los guardamos después de darte la respuesta.",
+      "de": "Google nutzt sie nicht zum Training seiner Modelle, und wir speichern sie nicht, nachdem du deine Antwort bekommen hast.",
+      "zh-Hans": "Google 不会用它们训练模型，你收到结果后我们也不会保留。"
+    },
+    "Read the privacy policy": {
+      "comment": "Link on the AI consent screen.",
+      "en": "Read the privacy policy",
+      "ro": "Citește politica de confidențialitate",
+      "es": "Lee la política de privacidad",
+      "de": "Datenschutzerklärung lesen",
+      "zh-Hans": "阅读隐私政策"
+    },
+    "Agree and continue": {
+      "comment": "Button on the AI consent screen.",
+      "en": "Agree and continue",
+      "ro": "Sunt de acord și continui",
+      "es": "Aceptar y continuar",
+      "de": "Zustimmen und weiter",
+      "zh-Hans": "同意并继续"
+    },
+    "Scanning needs this. You can read what's sent at any time in Settings → Privacy Policy.": {
+      "comment": "Caption under the consent button. 'Settings → Privacy Policy' names the screens.",
+      "en": "Scanning needs this. You can read what's sent at any time in Settings → Privacy Policy.",
+      "ro": "Scanarea are nevoie de asta. Poți vedea oricând ce se trimite în Setări → Politica de confidențialitate.",
+      "es": "El escaneo lo necesita. Puedes ver qué se envía en cualquier momento en Ajustes → Política de privacidad.",
+      "de": "Zum Scannen ist das nötig. Was gesendet wird, kannst du jederzeit unter Einstellungen → Datenschutzerklärung nachlesen.",
+      "zh-Hans": "扫描需要这项同意。你可以随时在“设置 → 隐私政策”中查看发送了什么。"
+    },
+    "What should I ask for it?": {
+      "comment": "Suggested Ask Tag question: what price to ask.",
+      "en": "What should I ask for it?",
+      "ro": "Cât să cer pe el?",
+      "es": "¿Cuánto debería pedir?",
+      "de": "Wie viel sollte ich dafür verlangen?",
+      "zh-Hans": "我该标价多少？"
+    },
+    "How should I photograph it?": {
+      "comment": "Suggested Ask Tag question.",
+      "en": "How should I photograph it?",
+      "ro": "Cum ar trebui să-l fotografiez?",
+      "es": "¿Cómo debería fotografiarlo?",
+      "de": "Wie sollte ich es fotografieren?",
+      "zh-Hans": "我该怎么拍它？"
+    },
+    "Where would it sell best?": {
+      "comment": "Suggested Ask Tag question: which marketplace.",
+      "en": "Where would it sell best?",
+      "ro": "Unde s-ar vinde cel mai bine?",
+      "es": "¿Dónde se vendería mejor?",
+      "de": "Wo verkauft es sich am besten?",
+      "zh-Hans": "在哪里卖最好？"
+    },
+    "Ask Tag": {
+      "comment": "Title of the Ask Tag chat. Ask Tag is the feature's name, the same in every language, as on the paywall.",
+      "en": "Ask Tag",
+      "ro": "Ask Tag",
+      "es": "Ask Tag",
+      "de": "Ask Tag",
+      "zh-Hans": "Ask Tag"
+    },
+    "Ask me anything about reselling this find.": {
+      "comment": "Tag, the mascot, speaking at the top of the Ask Tag chat.",
+      "en": "Ask me anything about reselling this find.",
+      "ro": "Întreabă-mă orice despre revânzarea acestei găsiri.",
+      "es": "Pregúntame lo que quieras sobre revender este hallazgo.",
+      "de": "Frag mich alles zum Weiterverkauf dieses Funds.",
+      "zh-Hans": "关于转卖这件好物，尽管问我。"
+    },
+    "Report this answer": {
+      "comment": "Menu action on an AI answer in Ask Tag; opens an email to support.",
+      "en": "Report this answer",
+      "ro": "Raportează acest răspuns",
+      "es": "Denunciar esta respuesta",
+      "de": "Diese Antwort melden",
+      "zh-Hans": "举报此回答"
+    },
+    "AI answer, may be wrong": {
+      "comment": "Caption under each AI answer in Ask Tag.",
+      "en": "AI answer, may be wrong",
+      "ro": "Răspuns AI, poate fi greșit",
+      "es": "Respuesta de IA, puede ser incorrecta",
+      "de": "KI-Antwort, kann falsch sein",
+      "zh-Hans": "AI 回答，可能有误"
+    },
+    "Tag is thinking…": {
+      "comment": "Shown while Ask Tag waits for an answer.",
+      "en": "Tag is thinking…",
+      "ro": "Tag se gândește…",
+      "es": "Tag está pensando…",
+      "de": "Tag denkt nach…",
+      "zh-Hans": "Tag 正在思考…"
+    },
+    "Ask Tag a question": {
+      "comment": "Placeholder of the Ask Tag text field, and the button that opens Ask Tag.",
+      "en": "Ask Tag a question",
+      "ro": "Pune-i o întrebare lui Tag",
+      "es": "Hazle una pregunta a Tag",
+      "de": "Stell Tag eine Frage",
+      "zh-Hans": "向 Tag 提问"
+    },
+    "Continue with Tag": {
+      "comment": "Button that reopens an Ask Tag conversation already started.",
+      "en": "Continue with Tag",
+      "ro": "Continuă cu Tag",
+      "es": "Continuar con Tag",
+      "de": "Weiter mit Tag",
+      "zh-Hans": "继续和 Tag 聊"
+    },
+    "Send": {
+      "comment": "Send button in Ask Tag (VoiceOver label).",
+      "en": "Send",
+      "ro": "Trimite",
+      "es": "Enviar",
+      "de": "Senden",
+      "zh-Hans": "发送"
+    },
+    "You: %@": {
+      "comment": "VoiceOver: a message the user sent in Ask Tag.",
+      "en": "You: %@",
+      "ro": "Tu: %@",
+      "es": "Tú: %@",
+      "de": "Du: %@",
+      "zh-Hans": "你：%@"
+    },
+    "Tag: %@. AI answer, may be wrong.": {
+      "comment": "VoiceOver: Tag's AI answer in Ask Tag.",
+      "en": "Tag: %@. AI answer, may be wrong.",
+      "ro": "Tag: %@. Răspuns AI, poate fi greșit.",
+      "es": "Tag: %@. Respuesta de IA, puede ser incorrecta.",
+      "de": "Tag: %@. KI-Antwort, kann falsch sein.",
+      "zh-Hans": "Tag：%@。AI 回答，可能有误。"
+    },
+    "I couldn't give a good answer to that one. Try asking another way.": {
+      "comment": "Tag, in Ask Tag, when no answer could be kept.",
+      "en": "I couldn't give a good answer to that one. Try asking another way.",
+      "ro": "N-am putut da un răspuns bun la asta. Încearcă să întrebi altfel.",
+      "es": "No he podido darte una buena respuesta. Prueba a preguntarlo de otra forma.",
+      "de": "Darauf konnte ich keine gute Antwort geben. Frag am besten anders.",
+      "zh-Hans": "这个问题我没法给出好的回答。换个问法试试吧。"
+    },
+    "You've reached Ask Tag's limit for now. Try again later.": {
+      "comment": "Ask Tag: rate limit reached.",
+      "en": "You've reached Ask Tag's limit for now. Try again later.",
+      "ro": "Ai atins limita Ask Tag deocamdată. Încearcă mai târziu.",
+      "es": "Has llegado al límite de Ask Tag por ahora. Inténtalo más tarde.",
+      "de": "Du hast das Limit von Ask Tag erreicht. Versuch es später noch einmal.",
+      "zh-Hans": "你已达到 Ask Tag 的使用上限，请稍后再试。"
+    },
+    "Ask Tag is part of SnapWorth Pro.": {
+      "comment": "Ask Tag error when the subscription has lapsed.",
+      "en": "Ask Tag is part of SnapWorth Pro.",
+      "ro": "Ask Tag face parte din SnapWorth Pro.",
+      "es": "Ask Tag forma parte de SnapWorth Pro.",
+      "de": "Ask Tag ist Teil von SnapWorth Pro.",
+      "zh-Hans": "Ask Tag 是 SnapWorth Pro 的功能。"
+    },
+    "Tag couldn't answer right now. Check your connection and try again.": {
+      "comment": "Ask Tag: network or server error.",
+      "en": "Tag couldn't answer right now. Check your connection and try again.",
+      "ro": "Tag nu a putut răspunde acum. Verifică-ți conexiunea și încearcă din nou.",
+      "es": "Tag no ha podido responder ahora. Comprueba tu conexión y vuelve a intentarlo.",
+      "de": "Tag konnte gerade nicht antworten. Prüf deine Verbindung und versuch es noch einmal.",
+      "zh-Hans": "Tag 暂时无法回答。请检查网络后重试。"
+    },
+    "Get Tag's advice on pricing and listing for every find, and ask Tag your own questions.": {
+      "comment": "Free user's Tag's tips card: what Pro unlocks.",
+      "en": "Get Tag's advice on pricing and listing for every find, and ask Tag your own questions.",
+      "ro": "Primește sfaturile lui Tag despre preț și anunț pentru fiecare găsire și pune-i propriile întrebări.",
+      "es": "Recibe los consejos de Tag sobre precio y anuncio para cada hallazgo y hazle tus propias preguntas.",
+      "de": "Hol dir Tags Rat zu Preis und Inserat für jeden Fund und stell Tag deine eigenen Fragen.",
+      "zh-Hans": "每件好物都能收到 Tag 关于定价和发布的建议，还能向 Tag 提出你自己的问题。"
+    },
+    "Ask Tag — tips and answers on pricing and listing each find": {
+      "comment": "Paywall benefit row. Ask Tag is the feature's name.",
+      "en": "Ask Tag — tips and answers on pricing and listing each find",
+      "ro": "Ask Tag — sfaturi și răspunsuri despre prețul și anunțul fiecărei găsiri",
+      "es": "Ask Tag: consejos y respuestas sobre el precio y el anuncio de cada hallazgo",
+      "de": "Ask Tag – Tipps und Antworten zu Preis und Inserat für jeden Fund",
+      "zh-Hans": "Ask Tag：针对每件好物的定价与发布建议和解答"
     }
   }
 }

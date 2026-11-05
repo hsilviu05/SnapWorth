@@ -19,7 +19,7 @@ import time
 import unicodedata
 
 from collections.abc import Mapping
-from typing import Any
+from typing import Any, Literal
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -34,6 +34,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from scan import aiconfig
+from scan import assist as assist_module
 from core import apierrors
 from core import background
 from security import auditlog
@@ -77,17 +78,17 @@ from ops import observability
 from ops.observability import RequestContextMiddleware, configure_production_logging
 from billing.quota import FREE_SCANS_PER_DAY, ScanQuota
 from security.ratelimit import (
+    ASSIST_DAILY_MAX_REQUESTS,
+    ASSIST_WINDOW_SECS,
     IP_RATE_MAX_REQUESTS,
     LEGIT_RATE_MAX_REQUESTS,
     LISTING_RATE_MAX_REQUESTS,
     PRO_SCAN_RATE_MAX_REQUESTS,
     RATE_MAX_REQUESTS,
     TRENDS_RATE_MAX_REQUESTS,
-    # Unused in this module — re-exported so `from main import RATE_WINDOW_SECS`
-    # keeps working for the rate-limit tests, which build stale entries relative
-    # to the window. A linter reports it as an unused import; removing it breaks
-    # test_security.py at import time.
-    RATE_WINDOW_SECS,  # noqa: F401
+    # The default window of the per-device buckets. Also imported from here by
+    # the rate-limit tests, which build stale entries relative to it.
+    RATE_WINDOW_SECS,
     InMemoryRateLimiter,
     RateLimitExceeded,
 )
@@ -938,6 +939,7 @@ def _client_ip(request: Request) -> str:
 #: Sizes and the reason each route has its own are in `ratelimit`.
 LISTING_BUCKET = "listing"
 LEGIT_BUCKET = "legit"
+ASSIST_BUCKET = "assist"
 TRENDS_BUCKET = "trends"
 DATA_DELETION_BUCKET = "forget"
 
@@ -949,7 +951,8 @@ def _scan_rate_limit(principal: Principal) -> int:
 
 
 def _check_rate_limit(device_id: str, ip: str | None = None, *,
-                      bucket: str | None = None, limit: int = RATE_MAX_REQUESTS) -> None:
+                      bucket: str | None = None, limit: int = RATE_MAX_REQUESTS,
+                      window: int = RATE_WINDOW_SECS) -> None:
     """Synchronous, in-process limit check.
 
     Retained as the direct-call entry point (and the Redis-less path). Endpoints
@@ -963,7 +966,7 @@ def _check_rate_limit(device_id: str, ip: str | None = None, *,
         # request, so it can only ever be a secondary signal. Callers may omit it.
         if ip is not None:
             _ip_memory.check_sync(ip, IP_RATE_MAX_REQUESTS)
-        _device_memory.check_sync(key, limit)
+        _device_memory.check_sync(key, limit, window)
     except RateLimitExceeded as exc:
         raise APIError(429, apierrors.RATE_LIMITED, exc.message,
                        headers={"Retry-After": str(exc.retry_after)}) from None
@@ -1097,21 +1100,22 @@ async def _enforce_referral_limit(route: str, subject: str, ip: str | None) -> N
 
 
 async def _enforce_limits(device_id: str, ip: str | None, *,
-                          bucket: str | None = None, limit: int = RATE_MAX_REQUESTS) -> None:
+                          bucket: str | None = None, limit: int = RATE_MAX_REQUESTS,
+                          window: int = RATE_WINDOW_SECS) -> None:
     """Distributed limit check used by the request path.
 
-    The IP bucket is one for every route; the device bucket is the route's
-    own (`bucket`, None for scans) at `limit`.
+    The IP bucket is one for every route, per hour; the device bucket is the
+    route's own (`bucket`, None for scans) at `limit` per `window` seconds.
     """
     device_id = device_id[:64]
     if _device_limiter is None or _ip_limiter is None:
         # Startup hook hasn't run.
-        _check_rate_limit(device_id, ip, bucket=bucket, limit=limit)
+        _check_rate_limit(device_id, ip, bucket=bucket, limit=limit, window=window)
         return
     try:
         if ip is not None:
             await _ip_limiter.check(f"ip:{ip}", IP_RATE_MAX_REQUESTS)
-        await _device_limiter.check(f"{bucket or 'dev'}:{device_id}", limit)
+        await _device_limiter.check(f"{bucket or 'dev'}:{device_id}", limit, window)
     except RateLimitExceeded as exc:
         raise APIError(429, apierrors.RATE_LIMITED, exc.message,
                        headers={"Retry-After": str(exc.retry_after)}) from None
@@ -1734,7 +1738,7 @@ def privacy():
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Privacy Policy — SnapWorth</title><style>{_STYLE}</style></head><body>
 <h1>Privacy Policy</h1>
-<p>Last updated: November 4, 2026</p>
+<p>Last updated: November 5, 2026</p>
 <p>SnapWorth ("we", "our", or "us") operates the SnapWorth mobile application.
 This page informs you of our policies regarding the collection, use, and
 disclosure of personal data when you use our Service.</p>
@@ -1840,10 +1844,12 @@ processes everything the app sends our server, as described above.</p>
 <p><strong>Google (Gemini API).</strong> Photos you submit are transmitted to
 Google's Gemini API, which identifies the item and estimates its resale value,
 or reads a legit check's close-ups. A description you type instead of a photo
-is transmitted the same way.
+is transmitted the same way, and so is a question you ask Ask Tag, with the
+details of the find it is about (never its photo). The app asks your consent
+before the first of these is sent.
 Google processes them under its API terms of service and does not use them to
-train its models. Photos and descriptions are not retained by us after the
-response is returned.</p>
+train its models. Photos, descriptions and questions are not retained by us
+after the response is returned.</p>
 <p><strong>Apple (DeviceCheck).</strong> Receives the device token described
 above, and stores two bits against your hardware so a reinstall does not reset
 the free allowance.</p>
@@ -3660,6 +3666,96 @@ async def listing(
         "device": auditlog.pseudonymise(principal.subject), "marketplace": marketplace})
     return result
 
+
+
+class AssistTurn(BaseModel):
+    role: Literal["user", "tag"]
+    text: str = Field(min_length=1, max_length=assist_module.MAX_ANSWER)
+
+
+class AssistRequest(BaseModel):
+    """Ask Tag: one question about one find, with what the find knows."""
+    item_name: str = Field(min_length=1, max_length=200)
+    brand: str = Field(default="Unknown", max_length=100)
+    category: str = Field(default="other", max_length=50)
+    condition: str = Field(default="good", max_length=50)
+    price_low_usd: float = Field(ge=0)
+    price_likely_usd: float = Field(ge=0)
+    price_high_usd: float = Field(ge=0)
+    confidence: str = Field(default="medium", max_length=20)
+    sold_listings: int = Field(default=0, ge=0, le=100_000)
+    paid_usd: float | None = Field(default=None, ge=0)
+    status: str = Field(default="scanned", max_length=20)
+    question: str = Field(min_length=1, max_length=assist_module.MAX_QUESTION)
+    history: list[AssistTurn] = Field(default_factory=list,
+                                      max_length=assist_module.MAX_HISTORY)
+    language: str = Field(default="en", max_length=16)
+
+
+class AssistResponse(BaseModel):
+    """`answer` is None when the model's answer could not be kept (a price
+    outside the find's range, nothing usable, or a safety block): the app
+    then says so in the user's language."""
+    answer: str | None
+    prompt_version: str
+
+
+@app.post("/assist", response_model=AssistResponse,
+          dependencies=[Depends(_refuse_outdated_build)])
+async def assist(
+    request: Request,
+    req: AssistRequest,
+    principal: Principal = Depends(require_auth),
+) -> AssistResponse:
+    """Ask Tag (1.8.0): a short answer about reselling one find. Text only,
+    Pro only, 20 questions a device a day. Nothing is stored server-side."""
+    if not principal.is_pro:
+        auditlog.record(AuditEvent.ASSIST_DENIED, principal.subject,
+                        outcome="denied", reason="not_pro")
+        raise APIError(402, apierrors.PRO_REQUIRED,
+                       "Ask Tag is a SnapWorth Pro feature.")
+
+    await _enforce_limits(principal.subject, _client_ip(request),
+                          bucket=ASSIST_BUCKET, limit=ASSIST_DAILY_MAX_REQUESTS,
+                          window=ASSIST_WINDOW_SECS)
+    auditlog.record(AuditEvent.ASSIST_AUTHORISED, principal.subject, tier=principal.tier)
+
+    low, high = req.price_low_usd, req.price_high_usd
+    prompt = assist_module.prompt(
+        item_name=req.item_name, brand=req.brand, category=req.category,
+        condition=req.condition, low=low, likely=req.price_likely_usd, high=high,
+        confidence=req.confidence, sold_listings=req.sold_listings, paid=req.paid_usd,
+        status=req.status, question=req.question,
+        history=[(turn.role, turn.text) for turn in req.history],
+        language=req.language)
+    none = AssistResponse(answer=None, prompt_version=assist_module.PROMPT_VERSION)
+    try:
+        raw, _usage = await _generate_with_retry(
+            prompt, label="assist", max_tokens=assist_module.MAX_OUTPUT_TOKENS,
+            deadline=_client_deadline(request),
+            thinking_budget=aiconfig.TEXT_THINKING_BUDGET,
+            thinking_level=aiconfig.TEXT_THINKING_LEVEL, tier=principal.tier)
+    except aiconfig.ModelBlocked:
+        log.info("assist blocked by safety filter")
+        return none
+    except aiconfig.ModelUnavailable as exc:
+        log.error("assist gemini failed after retries: %s", exc)
+        raise APIError(502, apierrors.AI_UNAVAILABLE,
+                       "The AI service is temporarily unavailable. "
+                       "Please try again.") from None
+
+    try:
+        data = _extract_json(raw)
+    except (json.JSONDecodeError, ValueError):
+        # Length only: the reply is about someone's item.
+        log.warning("assist reply unparseable (raw_len=%d)", len(raw))
+        return none
+
+    answer = assist_module.validate(data, low=low, high=high)
+    # Whether it was kept, never the question or the answer.
+    log.info("assist ok", extra={
+        "device": auditlog.pseudonymise(principal.subject), "kept": answer is not None})
+    return AssistResponse(answer=answer, prompt_version=assist_module.PROMPT_VERSION)
 
 
 class LegitResponse(BaseModel):

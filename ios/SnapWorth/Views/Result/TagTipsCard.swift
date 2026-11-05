@@ -112,6 +112,7 @@ struct TagTipsCard: View {
     @State private var index = 0
     @State private var appeared = false
     @State private var hops = 0
+    @State private var showAskTag = false
 
     private var tips: [TagTip] { TagTip.tips(for: TagTip.Facts(result)) }
 
@@ -124,7 +125,7 @@ struct TagTipsCard: View {
 
     private var message: String {
         isPro ? tip.message
-              : String(localized: "Get Tag's advice on pricing and listing for every find.")
+              : String(localized: "Get Tag's advice on pricing and listing for every find, and ask Tag your own questions.")
     }
 
     var body: some View {
@@ -172,6 +173,9 @@ struct TagTipsCard: View {
                         .foregroundStyle(Color.snapWarmGray)
                         .accessibilityHidden(true)
                 }
+                PrimaryButton(title: result.askTagData == nil ? "Ask Tag a question" : "Continue with Tag") {
+                    showAskTag = true
+                }
             } else {
                 PrimaryButton(title: "Unlock Tag's tips") { onPaywall(.tagTips) }
             }
@@ -181,6 +185,9 @@ struct TagTipsCard: View {
         .background(Color.snapCard)
         .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
         .shadow(color: Color.snapCardShadow.opacity(0.08), radius: 24, x: 0, y: 8)
+        .sheet(isPresented: $showAskTag) {
+            AskTagView(result: result, onClose: { showAskTag = false })
+        }
         .onAppear {
             guard !appeared else { return }
             if reduceMotion {

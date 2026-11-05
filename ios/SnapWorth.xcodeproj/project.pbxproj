@@ -25,6 +25,7 @@
 		89A0C0DE0000000000000005 /* RackScanTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 89A0C0DE0000000000000006 /* RackScanTests.swift */; };
 		A1C0F1C000000000000000B4 /* AppIconTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1C0F1C000000000000000B3 /* AppIconTests.swift */; };
 		90A0C0DE0000000000000001 /* LegitCheck.swift in Sources */ = {isa = PBXBuildFile; fileRef = 90A0C0DE0000000000000002 /* LegitCheck.swift */; };
+		AA0000000000000000448A01 /* AskTag.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000448A02 /* AskTag.swift */; };
 		90A0C0DE0000000000000003 /* LegitCheckView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 90A0C0DE0000000000000004 /* LegitCheckView.swift */; };
 		90A0C0DE0000000000000005 /* LegitCheckTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 90A0C0DE0000000000000006 /* LegitCheckTests.swift */; };
 		AA00000000000000000000C1 /* SnapWorthApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000000C0 /* SnapWorthApp.swift */; };
@@ -35,6 +36,7 @@
 		AA00000000000000000000CB /* MockPurchaseService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000000CA /* MockPurchaseService.swift */; };
 		AA00000000000000000000CD /* StoreKitPurchaseService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000000CC /* StoreKitPurchaseService.swift */; };
 		AA00000000000000000000CF /* ScanAPIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000000CE /* ScanAPIClient.swift */; };
+		AA0000000000000000448A03 /* AskTagAPIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000448A04 /* AskTagAPIClient.swift */; };
 		DA7A0DE1000000000000B001 /* ServerDataClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA7A0DE1000000000000A001 /* ServerDataClient.swift */; };
 		9A7E0F1E000000000000B001 /* PaywallViewClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9A7E0F1E000000000000A001 /* PaywallViewClient.swift */; };
 		AA00000000000000000000D1 /* CameraManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000000D0 /* CameraManager.swift */; };
@@ -47,6 +49,7 @@
 		AA00000000000000000000DF /* OnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000000DE /* OnboardingView.swift */; };
 		AA00000000000000000000E1 /* PaywallView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000000E0 /* PaywallView.swift */; };
 		AA00000000000000000000E3 /* MainTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000000E2 /* MainTabView.swift */; };
+		AA0000000000000000448A05 /* AIConsentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000448A06 /* AIConsentView.swift */; };
 		AA00000000000000000000E5 /* ScanView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000000E4 /* ScanView.swift */; };
 		AA00000000000000000000E7 /* ResultView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000000E6 /* ResultView.swift */; };
 		AA00000000000000000000E9 /* HistoryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000000E8 /* HistoryView.swift */; };
@@ -71,6 +74,7 @@
 		AA0000000000000000229A0B /* ResultValueSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000229A0C /* ResultValueSection.swift */; };
 		AA0000000000000000229A0D /* RereadCards.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000229A0E /* RereadCards.swift */; };
 		AA0000000000000000447A01 /* TagTipsCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000447A02 /* TagTipsCard.swift */; };
+		AA0000000000000000448A07 /* AskTagView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000448A08 /* AskTagView.swift */; };
 		ADD1EC0000000000000000A3 /* TelemetryDeck in Frameworks */ = {isa = PBXBuildFile; productRef = ADD1EC0000000000000000A2 /* TelemetryDeck */; };
 		ADD1EC0000000000000000B2 /* Analytics.swift in Sources */ = {isa = PBXBuildFile; fileRef = ADD1EC0000000000000000B1 /* Analytics.swift */; };
 		ADD1EC0000000000000000B4 /* TelemetryDeckAnalytics.swift in Sources */ = {isa = PBXBuildFile; fileRef = ADD1EC0000000000000000B3 /* TelemetryDeckAnalytics.swift */; };
@@ -176,6 +180,7 @@
 		89A0C0DE0000000000000006 /* RackScanTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RackScanTests.swift; sourceTree = "<group>"; };
 		A1C0F1C000000000000000B3 /* AppIconTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppIconTests.swift; sourceTree = "<group>"; };
 		90A0C0DE0000000000000002 /* LegitCheck.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LegitCheck.swift; sourceTree = "<group>"; };
+		AA0000000000000000448A02 /* AskTag.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AskTag.swift; sourceTree = "<group>"; };
 		90A0C0DE0000000000000004 /* LegitCheckView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LegitCheckView.swift; sourceTree = "<group>"; };
 		90A0C0DE0000000000000006 /* LegitCheckTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LegitCheckTests.swift; sourceTree = "<group>"; };
 		AA00000000000000000000AE /* SnapWorth.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = SnapWorth.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -187,6 +192,7 @@
 		AA00000000000000000000CA /* MockPurchaseService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockPurchaseService.swift; sourceTree = "<group>"; };
 		AA00000000000000000000CC /* StoreKitPurchaseService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoreKitPurchaseService.swift; sourceTree = "<group>"; };
 		AA00000000000000000000CE /* ScanAPIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanAPIClient.swift; sourceTree = "<group>"; };
+		AA0000000000000000448A04 /* AskTagAPIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AskTagAPIClient.swift; sourceTree = "<group>"; };
 		DA7A0DE1000000000000A001 /* ServerDataClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServerDataClient.swift; sourceTree = "<group>"; };
 		9A7E0F1E000000000000A001 /* PaywallViewClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaywallViewClient.swift; sourceTree = "<group>"; };
 		AA00000000000000000000D0 /* CameraManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraManager.swift; sourceTree = "<group>"; };
@@ -199,6 +205,7 @@
 		AA00000000000000000000DE /* OnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingView.swift; sourceTree = "<group>"; };
 		AA00000000000000000000E0 /* PaywallView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaywallView.swift; sourceTree = "<group>"; };
 		AA00000000000000000000E2 /* MainTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainTabView.swift; sourceTree = "<group>"; };
+		AA0000000000000000448A06 /* AIConsentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIConsentView.swift; sourceTree = "<group>"; };
 		AA00000000000000000000E4 /* ScanView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanView.swift; sourceTree = "<group>"; };
 		AA00000000000000000000E6 /* ResultView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ResultView.swift; sourceTree = "<group>"; };
 		AA00000000000000000000E8 /* HistoryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryView.swift; sourceTree = "<group>"; };
@@ -225,6 +232,7 @@
 		AA0000000000000000229A0C /* ResultValueSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ResultValueSection.swift; sourceTree = "<group>"; };
 		AA0000000000000000229A0E /* RereadCards.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RereadCards.swift; sourceTree = "<group>"; };
 		AA0000000000000000447A02 /* TagTipsCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TagTipsCard.swift; sourceTree = "<group>"; };
+		AA0000000000000000448A08 /* AskTagView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AskTagView.swift; sourceTree = "<group>"; };
 		ADD1EC0000000000000000B1 /* Analytics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Analytics.swift; sourceTree = "<group>"; };
 		ADD1EC0000000000000000B3 /* TelemetryDeckAnalytics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TelemetryDeckAnalytics.swift; sourceTree = "<group>"; };
 		ADD1EC0000000000000000B5 /* ActivityShareSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivityShareSheet.swift; sourceTree = "<group>"; };
@@ -374,6 +382,7 @@
 				AA0000000000000000229A02 /* FullDetailOffer.swift */,
 				AA0000000000000000229A0E /* RereadCards.swift */,
 				AA0000000000000000447A02 /* TagTipsCard.swift */,
+				AA0000000000000000448A08 /* AskTagView.swift */,
 				AA0000000000000000229A08 /* SnapSellSection.swift */,
 				AA0000000000000000229A0A /* FlipLedgerSection.swift */,
 			);
@@ -423,6 +432,7 @@
 			isa = PBXGroup;
 			children = (
 				AA00000000000000000000CE /* ScanAPIClient.swift */,
+				AA0000000000000000448A04 /* AskTagAPIClient.swift */,
 				DA7A0DE1000000000000A001 /* ServerDataClient.swift */,
 				9A7E0F1E000000000000A001 /* PaywallViewClient.swift */,
 				FEED0000000000000000C10 /* AttestationService.swift */,
@@ -550,6 +560,7 @@
 				411D6E00000000000000000C /* DailyGuessRounds.swift */,
 				411D6E00000000000000000A /* DailyGuess.swift */,
 				90A0C0DE0000000000000002 /* LegitCheck.swift */,
+				AA0000000000000000448A02 /* AskTag.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -603,6 +614,7 @@
 				5EC7000000000000000003ED /* Settings */,
 				AA00000000000000000000DE /* OnboardingView.swift */,
 				AA00000000000000000000E2 /* MainTabView.swift */,
+				AA0000000000000000448A06 /* AIConsentView.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -902,6 +914,7 @@
 				ADD1EC0000000000000000B8 /* FlipsViewModel.swift in Sources */,
 				ADD1EC0000000000000000BA /* FlipsView.swift in Sources */,
 				AA00000000000000000000CF /* ScanAPIClient.swift in Sources */,
+				AA0000000000000000448A03 /* AskTagAPIClient.swift in Sources */,
 				DA7A0DE1000000000000B001 /* ServerDataClient.swift in Sources */,
 				9A7E0F1E000000000000B001 /* PaywallViewClient.swift in Sources */,
 				FEED000000000000000000B5 /* ThriftFlipView.swift in Sources */,
@@ -915,6 +928,7 @@
 				411D6E00000000000000000D /* DailyGuessRounds.swift in Sources */,
 				411D6E00000000000000000B /* DailyGuess.swift in Sources */,
 				90A0C0DE0000000000000001 /* LegitCheck.swift in Sources */,
+				AA0000000000000000448A01 /* AskTag.swift in Sources */,
 				FEED000000000000000000B2 /* PriceTagOCR.swift in Sources */,
 				EA57E0000000000000000B01 /* RareFind.swift in Sources */,
 				FEED000000000000000097B1 /* ReferralService.swift in Sources */,
@@ -936,10 +950,12 @@
 				AA00000000000000000000DF /* OnboardingView.swift in Sources */,
 				AA00000000000000000000E1 /* PaywallView.swift in Sources */,
 				AA00000000000000000000E3 /* MainTabView.swift in Sources */,
+				AA0000000000000000448A05 /* AIConsentView.swift in Sources */,
 				AA00000000000000000000E5 /* ScanView.swift in Sources */,
 				AA00000000000000000000E7 /* ResultView.swift in Sources */,
 				AA0000000000000000229A0D /* RereadCards.swift in Sources */,
 				AA0000000000000000447A01 /* TagTipsCard.swift in Sources */,
+				AA0000000000000000448A07 /* AskTagView.swift in Sources */,
 				AA0000000000000000229A0B /* ResultValueSection.swift in Sources */,
 				AA0000000000000000229A09 /* FlipLedgerSection.swift in Sources */,
 				AA0000000000000000229A07 /* SnapSellSection.swift in Sources */,

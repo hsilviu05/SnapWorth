@@ -405,6 +405,7 @@ struct RootView: View {
     let isPro: Bool
     @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding = false
     @AppStorage(ScanView.opensTypeItKey) private var opensTypeItAfterOnboarding = false
+    @AppStorage(AIConsent.defaultsName) private var aiConsentGiven = false
 
     var body: some View {
         Group {
@@ -420,12 +421,18 @@ struct RootView: View {
                     }
                 )
                 .transition(.opacity)
+            } else if !aiConsentGiven {
+                // Before the app, so no way in reaches the AI first
+                // (`AIConsent`).
+                AIConsentView(onAgree: { aiConsentGiven = true })
+                    .transition(.opacity)
             } else {
                 MainTabView(purchaseService: purchaseService, isPro: isPro)
                     .transition(.opacity)
             }
         }
         .animation(.easeInOut(duration: 0.35), value: hasCompletedOnboarding)
+        .animation(.easeInOut(duration: 0.35), value: aiConsentGiven)
         // Here rather than on `MainTabView`: this runs under onboarding too, so
         // a new user's token is ready by their first scan.
         .task { await AttestationService.prewarm() }

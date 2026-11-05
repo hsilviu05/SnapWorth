@@ -447,6 +447,8 @@ jobs:
             shoot "$UDID" 1-onboarding
             xcrun simctl terminate "$UDID" "$BUNDLE"
             xcrun simctl spawn "$UDID" defaults write "$BUNDLE" hasCompletedOnboarding -bool YES
+            # The AI consent screen (AIConsent) sits between onboarding and the app.
+            xcrun simctl spawn "$UDID" defaults write "$BUNDLE" snapworth_ai_consent_v1 -bool YES
             xcrun simctl launch "$UDID" "$BUNDLE" -mock-scans
             shoot "$UDID" 2-scan
             # Relaunched on each tab rather than sent a snapworth:// link: a

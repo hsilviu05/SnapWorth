@@ -3152,7 +3152,76 @@ final class TagTipTests: XCTestCase {
 
     func test_itsPaywallTriggerIsReportedAsTagTips() {
         XCTAssertEqual(PaywallTrigger.tagTips.rawValue, "tag_tips")
-        XCTAssertEqual(PaywallCopy.pitch(for: .tagTips)?.leadIcon, "cart.fill")
+        XCTAssertEqual(PaywallCopy.pitch(for: .tagTips)?.leadIcon, "bubble.left.and.bubble.right.fill")
+    }
+}
+
+// MARK: - Ask Tag
+
+final class AskTagTests: XCTestCase {
+
+    private let input = AskTagInput(
+        itemName: "Levi's 501", brand: "Levi's", category: "clothing", condition: "good",
+        low: 30, likely: 45, high: 60, confidence: "High", soldListings: 24,
+        paid: 8, status: "owned")
+
+    func test_aThreadRoundTripsAndKeepsOnlyTheNewest() {
+        let turns = (0..<50).map { AskTagTurn(role: $0.isMultiple(of: 2) ? .user : .tag, text: "\($0)") }
+        let decoded = AskTagThread.decode(AskTagThread.encode(turns))
+        XCTAssertEqual(decoded.count, AskTagThread.maxStored)
+        XCTAssertEqual(decoded.last?.text, "49")
+        XCTAssertNil(AskTagThread.encode([]))
+        XCTAssertEqual(AskTagThread.decode(nil), [])
+        XCTAssertEqual(AskTagThread.decode(Data("junk".utf8)), [])
+    }
+
+    func test_theRequestStaysInsideTheServersLimits() throws {
+        let long = String(repeating: "a", count: 1000)
+        let history = (0..<10).map { AskTagTurn(role: .tag, text: long + "\($0)") }
+        let body = AskTagAPIRequest(input: input, question: "  " + long + "  ",
+                                    history: history, language: "ro")
+        XCTAssertEqual(body.question.count, AskTagThread.maxQuestionLength)
+        XCTAssertEqual(body.history.count, AskTagThread.maxHistory)
+        XCTAssertTrue(body.history.allSatisfy { $0.text.count <= AskTagThread.maxTurnLength })
+        XCTAssertEqual(body.history.first?.role, "tag")
+        let json = try XCTUnwrap(JSONSerialization.jsonObject(
+            with: JSONEncoder().encode(body)) as? [String: Any])
+        XCTAssertEqual(json["paid_usd"] as? Double, 8)
+        XCTAssertEqual(json["language"] as? String, "ro")
+        XCTAssertEqual(json["price_high_usd"] as? Double, 60)
+    }
+
+    func test_negativeOrNonFinitePricesAreSentAsZero() {
+        let bad = AskTagInput(itemName: "", brand: "", category: "", condition: "good",
+                              low: -5, likely: .nan, high: .infinity, confidence: "Low",
+                              soldListings: -3, paid: nil, status: "scanned")
+        let body = AskTagAPIRequest(input: bad, question: "Price?", history: [], language: "en")
+        XCTAssertEqual(body.item_name, "Item")
+        XCTAssertEqual(body.price_low_usd, 0)
+        XCTAssertEqual(body.price_likely_usd, 0)
+        XCTAssertEqual(body.price_high_usd, 0)
+        XCTAssertEqual(body.sold_listings, 0)
+    }
+
+    func test_theLanguageIsOneTheServerKnows() {
+        XCTAssertEqual(AskTagThread.languageCode(["ro"]), "ro")
+        XCTAssertEqual(AskTagThread.languageCode(["zh-Hans"]), "zh-Hans")
+        XCTAssertEqual(AskTagThread.languageCode(["zh-Hant"]), "zh-Hans")
+        XCTAssertEqual(AskTagThread.languageCode(["de-AT"]), "de")
+        XCTAssertEqual(AskTagThread.languageCode(["fr"]), "en")
+        XCTAssertEqual(AskTagThread.languageCode([]), "en")
+    }
+
+    func test_errorsAreWordedByStatus() {
+        XCTAssertNotEqual(AskTagView.message(for: ScanAPIError.rateLimited(detail: "", retryAfter: nil)),
+                          AskTagView.message(for: ScanAPIError.serverError(502, "")))
+        XCTAssertNotEqual(AskTagView.message(for: ScanAPIError.serverError(402, "")),
+                          AskTagView.message(for: ScanAPIError.serverError(502, "")))
+    }
+
+    func test_theConsentKeyIsTheOneCIWrites() {
+        // .github/workflows/ios.yml sets it before the screenshots.
+        XCTAssertEqual(AIConsent.defaultsName, "snapworth_ai_consent_v1")
     }
 }
 
