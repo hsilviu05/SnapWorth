@@ -131,6 +131,7 @@ struct ResultValueCard: View {
     let focus: FocusState<ResultView.Field?>.Binding
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var rates: ExchangeRateTable?
 
     var body: some View {
         if covered {
@@ -212,7 +213,19 @@ struct ResultValueCard: View {
 
                 ValueRangeView(low: result.displayValueLow, high: result.displayValueHigh,
                                countsUp: true)
+
+                // The same estimate in the phone's currency, said to be a
+                // conversion of US prices (`ConvertedPrice`).
+                if let converted = ConvertedPrice.range(low: result.displayValueLow,
+                                                        high: result.displayValueHigh,
+                                                        table: rates) {
+                    Text(String(localized: "\(converted) · converted from US prices"))
+                        .font(.snapCaption)
+                        .foregroundStyle(Color.snapWarmGray)
+                        .multilineTextAlignment(.center)
+                }
             }
+            .task { rates = await ExchangeRatesClient.shared.table() }
 
             if let quickVerdict {
                 Text(quickVerdict)

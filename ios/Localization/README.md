@@ -151,6 +151,11 @@ the worked examples.
 * **Money.** `NumberFormatter.snapCurrency` is pinned to `en_US` and USD
   because the valuation is in dollars, whatever the phone's region. A Romanian
   user sees "$45–$90" because that is what the estimate is.
+  Since 1.8.0 a line under the range restates it in the phone's currency
+  ("≈ 185–370 lei · converted from US prices"), from the ECB's daily rates
+  via `GET /rates` (`ConvertedPrice`). It is labelled as a conversion on
+  purpose: it is not a local market price, and the dollar range stays the
+  estimate.
 * **Brand, feature and stored names** — "SnapWorth", "Thrift Flip",
   "Snap → Sell", marketplace names, and every enum `rawValue`. Raw values are
   persisted, sent to the backend, and used in SwiftData predicates and mail

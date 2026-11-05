@@ -922,6 +922,42 @@
         }
       }
     },
+    "%@ · converted from US prices" : {
+      "comment" : "Under the dollar estimate on a result: %@ is the same range in the phone's currency, such as '≈ 185–370 lei'. It is a conversion, not a local price.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ · umgerechnet aus US-Preisen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ · converted from US prices"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ · convertido de precios de EE. UU."
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ · convertit din prețuri din SUA"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ · 由美国价格换算"
+          }
+        }
+      }
+    },
     "%@ — %@, ready to ship" : {
       "comment" : "Locked listing teaser: item name, then the condition phrase.",
       "extractionState" : "manual",
