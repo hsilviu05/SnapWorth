@@ -708,6 +708,54 @@
       "es": "inicio",
       "de": "gestartet",
       "zh-Hans": "开始于"
+    },
+    "Daily guess": {
+      "comment": "Name of the Daily guess widget and its header.",
+      "en": "Daily guess",
+      "ro": "Ghicitoarea zilei",
+      "es": "Adivinanza diaria",
+      "de": "Tagesrätsel",
+      "zh-Hans": "每日猜价"
+    },
+    "day streak": {
+      "comment": "Under the number of days in a row the daily guess was played, on the widget.",
+      "en": "day streak",
+      "ro": "zile la rând",
+      "es": "días seguidos",
+      "de": "Tage in Folge",
+      "zh-Hans": "连续天数"
+    },
+    "Done for today. Back tomorrow.": {
+      "comment": "Daily guess widget once today's round is played.",
+      "en": "Done for today. Back tomorrow.",
+      "ro": "Gata pe azi. Revino mâine.",
+      "es": "Listo por hoy. Vuelve mañana.",
+      "de": "Für heute erledigt. Bis morgen.",
+      "zh-Hans": "今天已完成，明天再来。"
+    },
+    "Guess today to keep it going": {
+      "comment": "Daily guess widget when there is a streak and today's round is not played yet.",
+      "en": "Guess today to keep it going",
+      "ro": "Ghicește azi ca să nu-l pierzi",
+      "es": "Adivina hoy para no perderla",
+      "de": "Rate heute, damit sie hält",
+      "zh-Hans": "今天猜一下，保持连续"
+    },
+    "Guess today's price": {
+      "comment": "Daily guess widget with no streak: today's round is waiting.",
+      "en": "Guess today's price",
+      "ro": "Ghicește prețul de azi",
+      "es": "Adivina el precio de hoy",
+      "de": "Rate den heutigen Preis",
+      "zh-Hans": "猜猜今天的价格"
+    },
+    "Guess one item's resale price a day, and keep your streak.": {
+      "comment": "Description in the widget gallery.",
+      "en": "Guess one item's resale price a day, and keep your streak.",
+      "ro": "Ghicește prețul de revânzare al unui obiect pe zi și păstrează-ți seria.",
+      "es": "Adivina el precio de reventa de un artículo al día y mantén tu racha.",
+      "de": "Rate jeden Tag den Wiederverkaufspreis eines Artikels und halte deine Serie.",
+      "zh-Hans": "每天猜一件物品的转卖价，保持连续记录。"
     }
   }
 }

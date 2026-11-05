@@ -241,6 +241,51 @@ enum WidgetBridge {
     /// bottom half, because this number was chosen when the list only ever
     /// rendered at `.systemMedium`.
     static let maxRecentFinds = 6
+    /// `WidgetGuessData`, for the Daily guess widget.
+    static let guessKey = "snapworth.widget.guess"
+}
+
+// ── Daily guess ───────────────────────────────────────────────────────────────
+
+/// The daily guess game's streak, as the Daily guess widget needs it: the last
+/// day played and the streak on that day. Written by the app when a guess is
+/// made and on every launch (`WidgetDataStore.writeGuess`).
+///
+/// The day numbering lives here, not in the app's `DailyGuess`, because the
+/// widget has to know when "today" moves on without the app running, and both
+/// sides must count days the same way. `DailyGuess.dayNumber` calls this.
+struct WidgetGuessData: Codable, Equatable {
+    /// `dayNumber` of the last day played; 0 before the first.
+    var lastDay: Int
+    /// Days played in a row, as of `lastDay`.
+    var streak: Int
+
+    static let empty = WidgetGuessData(lastDay: 0, streak: 0)
+
+    /// Where the rotation is counted from (#411). Only sets which round falls
+    /// on which date, so it is in the past.
+    static let epoch = DateComponents(year: 2026, month: 10, day: 1)
+
+    /// Which day of the rotation `date` falls on, counting from 1, in the
+    /// calendar's time zone.
+    static func dayNumber(for date: Date, calendar: Calendar = .current) -> Int {
+        guard let start = calendar.date(from: epoch) else { return 1 }
+        let days = calendar.dateComponents([.day], from: calendar.startOfDay(for: start),
+                                           to: calendar.startOfDay(for: date)).day ?? 0
+        return max(1, days + 1)
+    }
+
+    func hasPlayed(on date: Date, calendar: Calendar = .current) -> Bool {
+        lastDay > 0 && lastDay == Self.dayNumber(for: date, calendar: calendar)
+    }
+
+    /// The streak as of `date`: kept while the last play was today or
+    /// yesterday, else 0. The same rule as `DailyGuessRecord.streak(on:)`.
+    func liveStreak(on date: Date, calendar: Calendar = .current) -> Int {
+        guard lastDay > 0 else { return 0 }
+        let today = Self.dayNumber(for: date, calendar: calendar)
+        return (today == lastDay || today == lastDay + 1) ? streak : 0
+    }
 }
 
 // ── Compact money, for the accessory families ────────────────────────────────

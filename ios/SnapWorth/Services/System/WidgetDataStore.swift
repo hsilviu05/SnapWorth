@@ -181,6 +181,19 @@ enum WidgetDataStore {
         WidgetCenter.shared.reloadAllTimelines()
     }
 
+    /// The daily guess streak, for the Daily guess widget. Reloads only that
+    /// widget: a guess changes nothing the others draw.
+    static func writeGuess(_ record: DailyGuessRecord) {
+        let data = WidgetGuessData(lastDay: record.lastDay, streak: record.streak)
+        guard
+            let suite   = UserDefaults(suiteName: appGroupID),
+            let encoded = try? JSONEncoder().encode(data)
+        else { return }
+        guard suite.data(forKey: WidgetBridge.guessKey) != encoded else { return }
+        suite.set(encoded, forKey: WidgetBridge.guessKey)
+        WidgetCenter.shared.reloadTimelines(ofKind: "DailyGuessWidget")
+    }
+
     /// Also called from main app (e.g. to pre-populate on launch).
     static func readHaul() -> WidgetHaulData {
         guard
