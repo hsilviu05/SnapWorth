@@ -15055,6 +15055,42 @@
         }
       }
     },
+    "I resell" : {
+      "comment" : "Onboarding answer: the user resells items for profit. Short, it sits in a capsule button.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ich verkaufe weiter"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "I resell"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Revendo"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Revând"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "我做转卖"
+          }
+        }
+      }
+    },
     "I want to…" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -15086,6 +15122,42 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "我想…"
+          }
+        }
+      }
+    },
+    "I'm clearing out" : {
+      "comment" : "Onboarding answer: the user is decluttering their own things. Short, in a capsule button.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ich miste aus"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "I'm clearing out"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Estoy despejando"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fac curățenie"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "我在清理闲置"
           }
         }
       }
@@ -15582,6 +15654,42 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "物品"
+          }
+        }
+      }
+    },
+    "Just curious" : {
+      "comment" : "Onboarding answer: no particular goal. Short, in a capsule button.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nur neugierig"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Just curious"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Solo curiosidad"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Doar curios"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "只是好奇"
           }
         }
       }
@@ -32097,6 +32205,42 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "你赚到的周数"
+          }
+        }
+      }
+    },
+    "What brings you to SnapWorth?" : {
+      "comment" : "Optional question on the last onboarding page; the answers below only reorder the paywall's list.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Was führt dich zu SnapWorth?"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "What brings you to SnapWorth?"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "¿Qué te trae a SnapWorth?"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ce te aduce la SnapWorth?"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "你为什么使用 SnapWorth？"
           }
         }
       }

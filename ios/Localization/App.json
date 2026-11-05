@@ -8055,6 +8055,38 @@
       "es": "Canjear un código",
       "de": "Code einlösen",
       "zh-Hans": "兑换代码"
+    },
+    "What brings you to SnapWorth?": {
+      "comment": "Optional question on the last onboarding page; the answers below only reorder the paywall's list.",
+      "en": "What brings you to SnapWorth?",
+      "ro": "Ce te aduce la SnapWorth?",
+      "es": "¿Qué te trae a SnapWorth?",
+      "de": "Was führt dich zu SnapWorth?",
+      "zh-Hans": "你为什么使用 SnapWorth？"
+    },
+    "I resell": {
+      "comment": "Onboarding answer: the user resells items for profit. Short, it sits in a capsule button.",
+      "en": "I resell",
+      "ro": "Revând",
+      "es": "Revendo",
+      "de": "Ich verkaufe weiter",
+      "zh-Hans": "我做转卖"
+    },
+    "I'm clearing out": {
+      "comment": "Onboarding answer: the user is decluttering their own things. Short, in a capsule button.",
+      "en": "I'm clearing out",
+      "ro": "Fac curățenie",
+      "es": "Estoy despejando",
+      "de": "Ich miste aus",
+      "zh-Hans": "我在清理闲置"
+    },
+    "Just curious": {
+      "comment": "Onboarding answer: no particular goal. Short, in a capsule button.",
+      "en": "Just curious",
+      "ro": "Doar curios",
+      "es": "Solo curiosidad",
+      "de": "Nur neugierig",
+      "zh-Hans": "只是好奇"
     }
   }
 }
