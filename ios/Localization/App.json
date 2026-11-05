@@ -8047,6 +8047,14 @@
       "es": "Añade tu ganancia a tu año",
       "de": "Füg deinem Jahr den Gewinn hinzu",
       "zh-Hans": "把利润加进你的一年"
+    },
+    "Redeem a code": {
+      "comment": "Settings row that opens Apple's offer-code sheet (promo, creator and win-back codes).",
+      "en": "Redeem a code",
+      "ro": "Folosește un cod",
+      "es": "Canjear un código",
+      "de": "Code einlösen",
+      "zh-Hans": "兑换代码"
     }
   }
 }

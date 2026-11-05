@@ -147,6 +147,7 @@ The leading half of each loop. The install half is in the
 | Haul shared | `haul_shared`, completed shares; `format` = `card` or `slideshow` (#409, from the first build after 1.6.2 (26); earlier builds send no `format`, and every one of those is a card) | 1.5.1 (21) (`431c07c`, #187) | TelemetryDeck |
 | Month shared | `ledger_month_shared`, completed shares | ≤ 1.1.0 (1) | TelemetryDeck |
 | Year in Finds | `wrapped_opened` by `is_pro` (the sheet, from the My Finds banner, December and January only) → `wrapped_shared` by `with_profit`, completed shares. Installs from the card's QR are campaign `share_wrapped` | 1.8.0 (32) | TelemetryDeck; ASC view *Campaign* |
+| Redeem a code | `offer_code_sheet_opened`: Settings → Redeem a code opened Apple's sheet. Redemptions themselves are offer starts in `/week` | 1.8.0 (32) | TelemetryDeck |
 | Invite shared | **`referral_shared` is not in the code.** Read `referral_share_opened`: the Share invite tap, when the sheet opens, not a completed share. 1.5.0 sends the same tap under the old name `referral_shared` (RUNBOOK §18: count both while 1.5.0 is installed). Both are silent until referrals are switched on (`REFERRALS_ENABLED` is unset in production) | `referral_share_opened` from 1.5.1 (21) (`0074d2a`, #236) | TelemetryDeck |
 
 ## Feature pull
@@ -256,7 +257,7 @@ for e in onboarding_started onboarding_completed scan_started scan_result_shown 
          ledger_item_marked_listed ledger_item_marked_sold \
          review_prompt_requested entitlement_sync_failed legit_check_completed \
          rack_scan_completed rack_candidate_chosen daily_guess_played app_icon_changed \
-         wrapped_opened wrapped_shared; do
+         wrapped_opened wrapped_shared offer_code_sheet_opened; do
   grep -q "return \"$e\"" ios/SnapWorth/Services/Telemetry/Analytics.swift || echo "missing: $e"
 done
 ```
