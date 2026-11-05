@@ -41,7 +41,7 @@ needs a new build number (`chore: 1.8.0, build 32`).
 
 The `/get/wrapped` redirect deploys with the website from `main`; the
 paywall trigger `wrapped` is counted once the backend from `main` is live
-(an older one ignores it). 24 new strings, all in five languages.
+(an older one ignores it). 23 new strings (17 app, 6 widget), all in five languages.
 
 **Device checks for 32:**
 - [ ] My Finds with 3+ finds this year (TestFlight): the Year in Finds banner shows; the card preview matches what is shared; the QR opens the App Store.
