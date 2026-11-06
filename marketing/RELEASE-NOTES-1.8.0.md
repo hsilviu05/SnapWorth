@@ -287,7 +287,7 @@ Nothing is submitted until the last step, and that one is yours.
 
 ### 5. Release
 - [ ] Phased Release for Automatic Updates: on.
-- [ ] Submit for review (owner only).
+- [x] Submit for review (owner only).
 
 ### Build 31 — archived, superseded by 32
 
@@ -298,5 +298,7 @@ Nothing is submitted until the last step, and that one is yours.
 
 ### Build 32 — the archive
 
-- **Archive commit:** _not yet_ (archive from `main` after this PR merges)
-- **Organizer creation date:** _not yet_
+- **Archive commit:** `ad6ccc6` (#452), the `main` HEAD when it was archived
+- **Organizer creation date:** 2026-11-06 14:59:33 EET (`SnapWorth-1.8.0-32.xcarchive`)
+- Submitted for review on 2026-11-06 with the retention message: manual
+  release, phased release on.
