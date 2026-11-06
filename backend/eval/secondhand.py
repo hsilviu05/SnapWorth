@@ -4,7 +4,7 @@
     python -m eval.secondhand build                    # write the manifests
 
 `EVAL_DATA_DIR` is the Zenodo v3 download (`clothing_v3.zip`, DOI
-10.5281/zenodo.12518734, CC-BY 4.0): either the zip itself or the folder it
+10.5281/zenodo.13788681, CC-BY 4.0): either the zip itself or the folder it
 extracts to. Both are read in place. No image is ever copied: a manifest
 names each photo by its path inside the download, and `python -m eval.run`
 reads it from there.
@@ -58,7 +58,7 @@ from datetime import date
 from pathlib import Path, PurePosixPath
 
 DATASET = "Clothing Dataset for Second-Hand Fashion, v3"
-DOI = "10.5281/zenodo.12518734"
+DOI = "10.5281/zenodo.13788681"
 LICENSE = "CC-BY-4.0"
 MANIFEST_DIR = Path(__file__).resolve().parent / "data" / "secondhand"
 SEED = 20261023
