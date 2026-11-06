@@ -181,6 +181,10 @@ enum AnalyticsEvent {
     /// code was redeemed is the App Store's to report (offer starts, `/week`).
     case offerCodeSheetOpened
 
+    /// The optional "What brings you to SnapWorth?" answer on the last
+    /// onboarding page. `goal` is a `UserGoal` raw value, a closed set.
+    case onboardingGoalChosen(goal: String)
+
     // ── App icon (1.7.0) ─────────────────────────────────────────────
     /// The user switched app icon. `icon` is `AppIconChoice.rawValue`;
     /// `source` is `settings` or `prompt` (the one-time announcement). Which
@@ -290,6 +294,7 @@ enum AnalyticsEvent {
         case .wrappedOpened:        return "wrapped_opened"
         case .wrappedShared:        return "wrapped_shared"
         case .offerCodeSheetOpened: return "offer_code_sheet_opened"
+        case .onboardingGoalChosen: return "onboarding_goal_chosen"
         case .appIconChanged:       return "app_icon_changed"
         case .notificationScheduled:return "notification_scheduled"
         case .notificationOpened:   return "notification_opened"
@@ -326,6 +331,8 @@ enum AnalyticsEvent {
             return ["is_pro": String(isPro)]
         case let .wrappedShared(withProfit):
             return ["with_profit": String(withProfit)]
+        case let .onboardingGoalChosen(goal):
+            return ["goal": goal]
         case let .reviewPromptRequested(moment):
             return ["moment": moment.rawValue]
         case let .dailyGuessPlayed(verdict, streak):

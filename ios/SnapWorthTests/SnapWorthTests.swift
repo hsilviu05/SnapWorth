@@ -5324,3 +5324,31 @@ final class WidgetGuessDataTests: XCTestCase {
                                           onboarded: true), .snapOpenDailyGuess)
     }
 }
+
+// MARK: - Onboarding goal
+
+final class UserGoalPaywallTests: XCTestCase {
+
+    func test_aGoalLeadsTheIntroPaywall() {
+        let rows = PaywallCopy.benefits(pitch: nil, goal: .resell).map(\.icon)
+        XCTAssertEqual(Array(rows.prefix(3)), UserGoal.resell.leadIcons)
+        XCTAssertEqual(Set(rows), Set(PaywallCopy.benefits.map(\.icon)), "reordered, never dropped")
+    }
+
+    func test_aPitchStillWins() {
+        let pitch = PaywallCopy.pitch(for: .legitCheck)
+        XCTAssertEqual(PaywallCopy.benefits(pitch: pitch, goal: .resell).first?.icon, pitch?.leadIcon)
+    }
+
+    func test_curiousAndNoAnswerKeepTheUsualOrder() {
+        XCTAssertEqual(PaywallCopy.benefits(pitch: nil, goal: .curious), PaywallCopy.benefits)
+        XCTAssertEqual(PaywallCopy.benefits(pitch: nil, goal: nil), PaywallCopy.benefits)
+    }
+
+    func test_everyLeadIconIsARealRow() {
+        let icons = Set(PaywallCopy.benefits.map(\.icon))
+        for goal in UserGoal.allCases {
+            XCTAssertTrue(Set(goal.leadIcons).isSubset(of: icons), goal.rawValue)
+        }
+    }
+}

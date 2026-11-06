@@ -63,3 +63,46 @@ struct OnboardingSlide: Identifiable {
     let body: LocalizedStringKey
     let accent: Color
 }
+
+/// What the user said brings them to the app, asked once on the last
+/// onboarding page and optional. It only reorders what a paywall that nobody
+/// reached for leads with (`PaywallCopy.benefits(pitch:goal:)`); nothing is
+/// gated or hidden on it, and it never leaves the phone except as the
+/// `onboarding_goal_chosen` event.
+enum UserGoal: String, CaseIterable, Identifiable {
+    case resell
+    case declutter
+    case curious
+
+    var id: String { rawValue }
+
+    static let key = "snapworth_user_goal"
+
+    static func current(defaults: UserDefaults = .standard) -> UserGoal? {
+        defaults.string(forKey: key).flatMap(UserGoal.init(rawValue:))
+    }
+
+    func save(defaults: UserDefaults = .standard) {
+        defaults.set(rawValue, forKey: Self.key)
+    }
+
+    var label: LocalizedStringKey {
+        switch self {
+        case .resell:    return "I resell"
+        case .declutter: return "I'm clearing out"
+        case .curious:   return "Just curious"
+        }
+    }
+
+    /// The paywall rows this goal leads with, by icon (`PaywallCopy.Benefit`).
+    var leadIcons: [String] {
+        switch self {
+        case .resell:
+            return ["square.stack.3d.up.fill", "rectangle.split.3x1.fill", "cart.fill"]
+        case .declutter:
+            return ["chart.line.uptrend.xyaxis", "bubble.left.and.bubble.right.fill", "cart.fill"]
+        case .curious:
+            return []
+        }
+    }
+}
