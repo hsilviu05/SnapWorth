@@ -20,7 +20,7 @@ price on `price_silver`. It goes over HTTP, so it measures `/scan` as served
 
 ### Setup
 
-1. Download `clothing_v3.zip` (26.8 GB) from [Zenodo](https://zenodo.org/records/12518734).
+1. Download `clothing_v3.zip` (26.8 GB) from [Zenodo](https://zenodo.org/records/13788681).
    There is no need to unzip it; both the zip and the extracted folder work.
 2. In `backend/.env` or the shell:
    ```sh
@@ -152,7 +152,7 @@ timeout, or the backend's error code.
 The second-hand clothing eval uses the **Clothing Dataset for Second-Hand
 Fashion**, version 3, by Farrukh Nauman (RISE Research Institutes of Sweden),
 with data collected by Wargön Innovation AB and Myrorna AB. Published on
-Zenodo, 2024, [doi:10.5281/zenodo.12518734](https://doi.org/10.5281/zenodo.12518734),
+Zenodo, 2024, [doi:10.5281/zenodo.13788681](https://doi.org/10.5281/zenodo.13788681),
 under the [Creative Commons Attribution 4.0 International](https://creativecommons.org/licenses/by/4.0/)
 licence.
 
