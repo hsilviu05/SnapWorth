@@ -500,6 +500,42 @@
         }
       }
     },
+    "%@ from flips · Pro so far %@" : {
+      "comment" : "My Flips card line. First %@: signed flip profit since subscribing, e.g. \"+$214\". Second: what Pro has cost so far, e.g. \"$39.99\".",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ aus Flips · Pro bisher %@"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ from flips · Pro so far %@"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ en reventas · Pro hasta ahora %@"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ din flipuri · Pro până acum %@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "转卖收益 %@ · Pro 累计花费 %@"
+          }
+        }
+      }
+    },
     "%@ in" : {
       "comment" : "Caption under 'Not sold yet': how much money is tied up.",
       "extractionState" : "manual",
@@ -918,6 +954,42 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%@ · 升级 Pro 可无限扫描"
+          }
+        }
+      }
+    },
+    "%@ · converted from US prices" : {
+      "comment" : "Under the dollar estimate on a result: %@ is the same range in the phone's currency, such as '≈ 185–370 lei'. It is a conversion, not a local price.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ · umgerechnet aus US-Preisen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ · converted from US prices"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ · convertido de precios de EE. UU."
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ · convertit din prețuri din SUA"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ · 由美国价格换算"
           }
         }
       }
@@ -5298,6 +5370,78 @@
         }
       }
     },
+    "Add your %@ profit with Pro" : {
+      "comment" : "Locked row on the Year in Finds sheet for free users; opens the paywall. %@ is a year, such as 2026.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Füge deinen Gewinn %@ mit Pro hinzu"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add your %@ profit with Pro"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Añade tu ganancia de %@ con Pro"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Adaugă profitul din %@ cu Pro"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "用 Pro 加上你 %@ 年的利润"
+          }
+        }
+      }
+    },
+    "Add your profit to your year" : {
+      "comment" : "Paywall headline when opened from the Year in Finds sheet's locked profit row.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Füg deinem Jahr den Gewinn hinzu"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add your profit to your year"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Añade tu ganancia a tu año"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Adaugă profitul în anul tău"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "把利润加进你的一年"
+          }
+        }
+      }
+    },
     "Adds what you paid to the share card" : {
       "comment" : "Caption under 'What did you pay?' when the flip's currency is not US dollars: the share card prints the paid price, but a find multiple only in dollars.",
       "extractionState" : "manual",
@@ -6191,6 +6335,42 @@
         }
       }
     },
+    "Ask Tag one question free" : {
+      "comment" : "Free user's button on the Tag's tips card: one Ask Tag question a week before Pro.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Stell Tag eine Frage gratis"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ask Tag one question free"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hazle a Tag una pregunta gratis"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pune-i lui Tag o întrebare gratis"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "免费问 Tag 一个问题"
+          }
+        }
+      }
+    },
     "Ask Tag — tips and answers on pricing and listing each find" : {
       "comment" : "Paywall benefit row. Ask Tag is the feature's name.",
       "extractionState" : "manual",
@@ -6899,6 +7079,42 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "问题反馈"
+          }
+        }
+      }
+    },
+    "Busiest month" : {
+      "comment" : "Row label on the Year in Finds card: the month with the most scans.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aktivster Monat"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Busiest month"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mes más activo"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Luna cea mai activă"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "最活跃的月份"
           }
         }
       }
@@ -9843,6 +10059,42 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "选中的照片打不开。换一张试试。"
+          }
+        }
+      }
+    },
+    "Couldn't make the card" : {
+      "comment" : "Alert title when the Year in Finds card could not be rendered.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Karte konnte nicht erstellt werden"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Couldn't make the card"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No se pudo crear la tarjeta"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cardul nu a putut fi creat"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无法生成卡片"
           }
         }
       }
@@ -14911,6 +15163,42 @@
         }
       }
     },
+    "I resell" : {
+      "comment" : "Onboarding answer: the user resells items for profit. Short, it sits in a capsule button.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ich verkaufe weiter"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "I resell"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Revendo"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Revând"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "我做转卖"
+          }
+        }
+      }
+    },
     "I want to…" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -14942,6 +15230,42 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "我想…"
+          }
+        }
+      }
+    },
+    "I'm clearing out" : {
+      "comment" : "Onboarding answer: the user is decluttering their own things. Short, in a capsule button.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ich miste aus"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "I'm clearing out"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Estoy despejando"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fac curățenie"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "我在清理闲置"
           }
         }
       }
@@ -15442,6 +15766,42 @@
         }
       }
     },
+    "Just curious" : {
+      "comment" : "Onboarding answer: no particular goal. Short, in a capsule button.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nur neugierig"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Just curious"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Solo curiosidad"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Doar curios"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "只是好奇"
+          }
+        }
+      }
+    },
     "Just for fun — not a real valuation" : {
       "comment" : "Rare-find easter egg (RareFind.swift). The joke is hype and rarity only — keep it that way in translation. Under the easter-egg label on the card.",
       "extractionState" : "manual",
@@ -15474,6 +15834,42 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "仅供娱乐——并非真实估价"
+          }
+        }
+      }
+    },
+    "Keep asking with Pro" : {
+      "comment" : "Button under Tag's free preview answer; opens the paywall.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mit Pro weiterfragen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Keep asking with Pro"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sigue preguntando con Pro"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Întreabă în continuare cu Pro"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "用 Pro 继续提问"
           }
         }
       }
@@ -15581,6 +15977,42 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "今天继续扫描"
+          }
+        }
+      }
+    },
+    "Keep the conversation going with Pro: follow-up questions and Tag's advice on every find." : {
+      "comment" : "Under Tag's free preview answer, above the upgrade button.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mach mit Pro weiter: Folgefragen und Tags Tipps zu jedem Fund."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Keep the conversation going with Pro: follow-up questions and Tag's advice on every find."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sigue la conversación con Pro: preguntas de seguimiento y los consejos de Tag para cada hallazgo."
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Continuă conversația cu Pro: întrebări suplimentare și sfaturile lui Tag pentru fiecare găselniță."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "升级 Pro 继续对话：可以追问，每件好物都有 Tag 的建议。"
           }
         }
       }
@@ -16510,6 +16942,42 @@
         }
       }
     },
+    "MY %@ IN FINDS" : {
+      "comment" : "Header of the Year in Finds share card. %@ is a year, such as 2026. Upper case, like MY HAUL.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "MEIN %@ IN FUNDEN"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "MY %@ IN FINDS"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "MI %@ EN HALLAZGOS"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ANUL MEU %@ ÎN GĂSELNIȚE"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "我的 %@ 淘货年"
+          }
+        }
+      }
+    },
     "MY FLIPS · %@" : {
       "comment" : "%@ is a month, already uppercased.",
       "extractionState" : "manual",
@@ -17079,6 +17547,42 @@
         }
       }
     },
+    "Most-found brand" : {
+      "comment" : "Row label on the Year in Finds card: the brand scanned most often.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Häufigste Marke"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Most-found brand"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Marca más encontrada"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Marca găsită cel mai des"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "最常淘到的品牌"
+          }
+        }
+      }
+    },
     "Most-scanned brands" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -17434,6 +17938,42 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "仅限知情人。"
+          }
+        }
+      }
+    },
+    "Net from flips" : {
+      "comment" : "Row label on the Year in Finds card when the year's flips lost money overall (Pro).",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Netto aus Flips"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Net from flips"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Neto de reventas"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Net din flipuri"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "转卖净额"
           }
         }
       }
@@ -20602,6 +21142,42 @@
         }
       }
     },
+    "Pro has paid for itself" : {
+      "comment" : "My Flips card title (Pro) when flip profit since subscribing is at least what Pro has cost.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pro hat sich schon bezahlt gemacht"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pro has paid for itself"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pro ya se ha pagado solo"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pro s-a plătit singur"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pro 已经回本了"
+          }
+        }
+      }
+    },
     "Profit" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -20633,6 +21209,42 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "利润"
+          }
+        }
+      }
+    },
+    "Profit from flips" : {
+      "comment" : "Row label on the Year in Finds card: the year's realised profit from sold flips (Pro).",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gewinn aus Flips"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Profit from flips"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ganancia de reventas"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Profit din flipuri"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "转卖利润"
           }
         }
       }
@@ -20848,38 +21460,38 @@
         }
       }
     },
-    "Questions you ask Tag (Pro), with the details of that find but never its photo" : {
-      "comment" : "AI consent list item. Tag is the mascot's name; Pro is the subscription.",
+    "Questions you ask Tag, with the details of that find but never its photo" : {
+      "comment" : "AI consent list item. Tag is the mascot's name. Free users get a weekly question too, so no (Pro).",
       "extractionState" : "manual",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Fragen, die du Tag stellst (Pro), mit den Angaben zu diesem Fund, aber nie mit seinem Foto"
+            "value" : "Fragen, die du Tag stellst, mit den Angaben zu diesem Fund, aber nie mit seinem Foto"
           }
         },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Questions you ask Tag (Pro), with the details of that find but never its photo"
+            "value" : "Questions you ask Tag, with the details of that find but never its photo"
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Las preguntas que le haces a Tag (Pro), con los datos de ese hallazgo pero nunca su foto"
+            "value" : "Las preguntas que le haces a Tag, con los datos de ese hallazgo pero nunca su foto"
           }
         },
         "ro" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Întrebările pe care i le pui lui Tag (Pro), cu detaliile acelei găsiri, dar niciodată cu fotografia ei"
+            "value" : "Întrebările pe care i le pui lui Tag, cu detaliile acelei găsiri, dar niciodată cu fotografia ei"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "你向 Tag 提出的问题（Pro），附带该物品的信息，但绝不包含照片"
+            "value" : "你向 Tag 提出的问题，附带该物品的信息，但绝不包含照片"
           }
         }
       }
@@ -21734,6 +22346,42 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "兑换"
+          }
+        }
+      }
+    },
+    "Redeem a code" : {
+      "comment" : "Settings row that opens Apple's offer-code sheet (promo, creator and win-back codes).",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Code einlösen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Redeem a code"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Canjear un código"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Folosește un cod"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "兑换代码"
           }
         }
       }
@@ -23365,6 +24013,42 @@
         }
       }
     },
+    "See Tag's answer" : {
+      "comment" : "Free user's button on the Tag's tips card when this find already has Tag's preview answer.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tags Antwort ansehen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "See Tag's answer"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ver la respuesta de Tag"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vezi răspunsul lui Tag"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "查看 Tag 的回答"
+          }
+        }
+      }
+    },
     "See average prices and the week's best finds" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -24183,6 +24867,42 @@
         }
       }
     },
+    "Share my year" : {
+      "comment" : "Button on the Year in Finds sheet that opens the share sheet with the card.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mein Jahr teilen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Share my year"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Compartir mi año"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Distribuie anul meu"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "分享我的一年"
+          }
+        }
+      }
+    },
     "Share sale prices to improve estimates" : {
       "comment" : "Settings toggle for sharing sale outcomes (#224). Off by default.",
       "extractionState" : "manual",
@@ -24573,6 +25293,42 @@
         }
       }
     },
+    "Show my profit on the card" : {
+      "comment" : "Toggle on the Year in Finds sheet, for Pro users with sold flips.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Meinen Gewinn auf der Karte zeigen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Show my profit on the card"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mostrar mi ganancia en la tarjeta"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Arată profitul meu pe card"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在卡片上显示我的利润"
+          }
+        }
+      }
+    },
     "Show the full breakdown" : {
       "comment" : "Button under \"Why this price\": re-reads the find's photo to get the full panel.",
       "extractionState" : "manual",
@@ -24819,6 +25575,42 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "野外目击次数"
+          }
+        }
+      }
+    },
+    "Since you went Pro" : {
+      "comment" : "My Flips card title (Pro): flip profit since the first Pro payment, beside what Pro has cost.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Seit du Pro hast"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Since you went Pro"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Desde que tienes Pro"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "De când ai Pro"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "自开通 Pro 以来"
           }
         }
       }
@@ -29072,6 +29864,42 @@
         }
       }
     },
+    "Top find" : {
+      "comment" : "Row label on the Year in Finds card: the most valuable find of the year.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bester Fund"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Top find"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mejor hallazgo"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cea mai bună găselniță"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "最值钱的一件"
+          }
+        }
+      }
+    },
     "Toys" : {
       "comment" : "An item category (ScanCategory), as a label on its own: a row of 'Trending at the thrift', and the start of that row's VoiceOver sentence.",
       "extractionState" : "manual",
@@ -31669,6 +32497,42 @@
         }
       }
     },
+    "What brings you to SnapWorth?" : {
+      "comment" : "Optional question on the last onboarding page; the answers below only reorder the paywall's list.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Was führt dich zu SnapWorth?"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "What brings you to SnapWorth?"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "¿Qué te trae a SnapWorth?"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ce te aduce la SnapWorth?"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "你为什么使用 SnapWorth？"
+          }
+        }
+      }
+    },
     "What did you pay?" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -32696,6 +33560,42 @@
         }
       }
     },
+    "Year in Finds" : {
+      "comment" : "Title of the year-in-review sheet. A feature name.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Jahr in Funden"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Year in Finds"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tu año en hallazgos"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Anul în găselnițe"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "淘货年度回顾"
+          }
+        }
+      }
+    },
     "Yearly" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -33105,6 +34005,42 @@
         }
       }
     },
+    "You've used this week's free question." : {
+      "comment" : "Ask Tag, free user: the weekly free question was already used on another find.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Du hast die Gratisfrage dieser Woche schon genutzt."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You've used this week's free question."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ya usaste la pregunta gratis de esta semana."
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ai folosit deja întrebarea gratuită din săptămâna asta."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "本周的免费提问已用完。"
+          }
+        }
+      }
+    },
     "You've used today's free scans." : {
       "comment" : "An error the server sent with a code this build words itself (backend/core/apierrors.py). In English the server's own sentence is shown instead. Count-neutral on purpose: the allowance is one scan a day by default, and more on the first day when the first-day allowance is switched on.",
       "extractionState" : "manual",
@@ -33244,6 +34180,42 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%@的回顾做好了 👀"
+          }
+        }
+      }
+    },
+    "Your %@ Year in Finds is ready" : {
+      "comment" : "My Finds banner in December and January. %@ is a year, such as 2026.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dein Jahr %@ in Funden ist da"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Your %@ Year in Finds is ready"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tu %@ en hallazgos está listo"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Anul tău %@ în găselnițe e gata"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "你的 %@ 淘货年度回顾做好了"
           }
         }
       }
@@ -34011,6 +34983,42 @@
         }
       }
     },
+    "Your year in finds, ready to share" : {
+      "comment" : "Second line of the Year in Finds banner on My Finds.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dein Jahr in Funden, bereit zum Teilen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Your year in finds, ready to share"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tu año en hallazgos, listo para compartir"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Anul tău în găselnițe, gata de distribuit"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "你的淘货一年，随时可以分享"
+          }
+        }
+      }
+    },
     "Zipper or hardware" : {
       "comment" : "Legit check step title.",
       "extractionState" : "manual",
@@ -34545,6 +35553,42 @@
         }
       }
     },
+    "finds scanned" : {
+      "comment" : "Under the big number of finds scanned that year, on the Year in Finds card.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Funde gescannt"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "finds scanned"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "hallazgos escaneados"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "găselnițe scanate"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "件好物已扫描"
+          }
+        }
+      }
+    },
     "free scan left today" : {
       "comment" : "The number is the widget's headline; this is the noun under it.",
       "extractionState" : "manual",
@@ -34755,6 +35799,42 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "更换图标时，iOS 会显示一条简短提示。"
+          }
+        }
+      }
+    },
+    "in AI resale estimates" : {
+      "comment" : "Under the summed estimate of the year's finds, on the Year in Finds card.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "in KI-Wiederverkaufsschätzungen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "in AI resale estimates"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "en estimaciones de reventa con IA"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "în estimări AI de revânzare"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AI 转卖估价合计"
           }
         }
       }

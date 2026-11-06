@@ -147,6 +147,11 @@ protocol PurchaseService: AnyObject {
     /// purchase, which must not wait on it, and wrong for the one moment the
     /// answer matters: a subscriber whose request has just been refused 402.
     func resyncEntitlement() async -> EntitlementResync
+
+    /// Every verified, unrefunded Pro payment this Apple Account made, oldest
+    /// first, for "Since you went Pro" (`ProPayback`). Family-shared access is
+    /// left out: someone else paid for it.
+    func proPayments() async -> [ProPayment]
 }
 
 /// What re-sending the subscription to the server established.
@@ -176,6 +181,7 @@ extension PurchaseService {
     var pricingFailed: Bool { false }
     func reloadProducts() async {}
     func refreshEntitlements() async {}
+    func proPayments() async -> [ProPayment] { [] }
 
     /// Stubs have no server to tell, so a subscribed one cannot confirm.
     func resyncEntitlement() async -> EntitlementResync {

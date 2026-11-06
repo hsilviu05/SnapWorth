@@ -159,7 +159,7 @@ struct PaywallView: View {
                     // "Full scan history" used to head the list and is not
                     // gated at all: HistoryView's grid has no `isPro` check.
                     VStack(alignment: .leading, spacing: 14) {
-                        ForEach(PaywallCopy.benefits(pitch: pitch), id: \.text) { benefit in
+                        ForEach(PaywallCopy.benefits(pitch: pitch, goal: UserGoal.current()), id: \.text) { benefit in
                             BenefitRow(icon: benefit.icon, text: benefit.text)
                         }
                         Text(PaywallCopy.fairUse)
@@ -625,6 +625,10 @@ enum PaywallCopy {
             return Pitch(headline: String(localized: "See what's trending"), leadIcon: "chart.pie.fill")
         case .ledgerHistory:
             return Pitch(headline: String(localized: "See every flip"), leadIcon: "square.and.arrow.up")
+        // A year of profit is the all-time ledger, so it leads with that row.
+        case .wrapped:
+            return Pitch(headline: String(localized: "Add your profit to your year"),
+                         leadIcon: "square.and.arrow.up")
         case .ledgerExport:
             return Pitch(headline: String(localized: "Export your flips"), leadIcon: "square.and.arrow.up")
         }
@@ -648,10 +652,18 @@ enum PaywallCopy {
     }
 
     /// The pitch's row first, the rest in their usual order.
-    static func benefits(pitch: Pitch?) -> [Benefit] {
-        guard let icon = pitch?.leadIcon,
-              let lead = benefits.first(where: { $0.icon == icon }) else { return benefits }
-        return [lead] + benefits.filter { $0 != lead }
+    ///
+    /// With no pitch (the intro paywall, Settings' Upgrade), the rows the
+    /// user's onboarding answer points at lead instead (`UserGoal`). A pitch
+    /// always wins: it is what they just reached for.
+    static func benefits(pitch: Pitch?, goal: UserGoal? = nil) -> [Benefit] {
+        if let icon = pitch?.leadIcon,
+           let lead = benefits.first(where: { $0.icon == icon }) {
+            return [lead] + benefits.filter { $0 != lead }
+        }
+        guard pitch == nil, let goal else { return benefits }
+        let leads = goal.leadIcons.compactMap { icon in benefits.first { $0.icon == icon } }
+        return leads + benefits.filter { !leads.contains($0) }
     }
 
     /// Whether the paywall says when the free scan is back.

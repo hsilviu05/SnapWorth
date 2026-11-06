@@ -2,6 +2,7 @@ import SwiftUI
 
 struct OnboardingView: View {
     @State private var vm = OnboardingViewModel()
+    @State private var goal: UserGoal? = UserGoal.current()
     var onFinish: () -> Void
     /// "Type it instead" on the last page (#408). The page ends on the camera,
     /// and someone with nothing in front of them to scan used to leave there
@@ -59,7 +60,17 @@ struct OnboardingView: View {
                     "Page \(vm.currentPage + 1) of \(vm.slides.count)"))
                 .padding(.top, 24)
 
-                // ── CTA ───────────────────────────────────────────────────
+                // ── What brings you here (last page, optional) ───────────
+                // Laid out on every page and shown only on the last, like
+                // "Type it instead", so nothing jumps when the user arrives.
+                goalPicker
+                    .opacity(vm.isLastPage ? 1 : 0)
+                    .disabled(!vm.isLastPage)
+                    .accessibilityHidden(!vm.isLastPage)
+                    .snapAnimation(.easeInOut(duration: 0.2), value: vm.isLastPage)
+                    .padding(.horizontal, 20)
+                    .padding(.top, 20)
+
                 VStack(spacing: 12) {
                     PrimaryButton(
                         title: vm.isLastPage ? "Start scanning" : "Next"
@@ -92,7 +103,7 @@ struct OnboardingView: View {
                     .snapAnimation(.easeInOut(duration: 0.2), value: vm.isLastPage)
                 }
                 .padding(.horizontal, 20)
-                .padding(.top, 32)
+                .padding(.top, 20)
                 .padding(.bottom, 48)
             }
         }
@@ -100,6 +111,40 @@ struct OnboardingView: View {
         // false, so this appears once per install — which is what makes it the
         // denominator every later first-run number is read against.
         .onAppear { Analytics.shared.track(.onboardingStarted) }
+    }
+
+    private var goalPicker: some View {
+        VStack(spacing: 10) {
+            Text("What brings you to SnapWorth?")
+                .font(.snapLabel)
+                .foregroundStyle(Color.snapWarmGray)
+            HStack(spacing: 8) {
+                ForEach(UserGoal.allCases) { option in
+                    let selected = goal == option
+                    Button {
+                        Haptics.selection()
+                        goal = option
+                        option.save()
+                        Analytics.shared.track(.onboardingGoalChosen(goal: option.rawValue))
+                    } label: {
+                        Text(option.label)
+                            .font(.dmSans(14, weight: .medium))
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.8)
+                            .foregroundStyle(selected ? Color.snapOnAccent : Color.snapEspresso)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 9)
+                            .frame(maxWidth: .infinity)
+                            .background(selected ? Color.snapTerracottaFill : Color.snapCard,
+                                        in: Capsule())
+                            .overlay(Capsule().strokeBorder(Color.snapBorder,
+                                                            lineWidth: selected ? 0 : 1))
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityAddTraits(selected ? .isSelected : [])
+                }
+            }
+        }
     }
 }
 

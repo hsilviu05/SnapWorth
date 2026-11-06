@@ -1,5 +1,6 @@
 import SwiftUI
 import SwiftData
+import StoreKit
 
 struct SettingsView: View {
     let purchaseService: any PurchaseService
@@ -20,6 +21,10 @@ struct SettingsView: View {
     /// row simply does not exist while the feature is off.
     @State private var referral = ReferralStatus.disabled
     @State private var showInvite = false
+    /// Apple's own offer-code sheet: creator, promo and win-back codes made
+    /// in App Store Connect. Redeeming outside the app works too, but only
+    /// from the App Store's account page, which nobody finds.
+    @State private var showRedeemCode = false
     @AppStorage(Analytics.enabledKey) private var analyticsEnabled = true
     @AppStorage(SaleSharing.enabledKey) private var shareSalePrices = false
     @AppStorage(SaleSharing.askedKey) private var askedAboutSales = false
@@ -82,6 +87,10 @@ struct SettingsView: View {
                     SettingsRow(icon: "arrow.clockwise", label: "Restore purchases",
                                 isBusy: vm.isRestoring) {
                         Task { await vm.restorePurchases(service: purchaseService) }
+                    }
+                    SettingsRow(icon: "ticket", label: "Redeem a code") {
+                        Analytics.shared.track(.offerCodeSheetOpened)
+                        showRedeemCode = true
                     }
                     if referral.enabled {
                         SettingsRow(icon: "gift", label: "Invite a friend") { showInvite = true }
@@ -311,6 +320,13 @@ struct SettingsView: View {
         }
         .sheet(isPresented: $showPaywall) {
             PaywallView(purchaseService: purchaseService, trigger: .settings)
+        }
+        // The entitlement arrives through `Transaction.updates` like any purchase;
+        // this only saves waiting for it when the sheet closes.
+        .offerCodeRedemption(isPresented: $showRedeemCode) { result in
+            if case .success = result {
+                Task { await purchaseService.refreshEntitlements() }
+            }
         }
         .sheet(isPresented: $showInvite) {
             InviteFriendView(status: referral)

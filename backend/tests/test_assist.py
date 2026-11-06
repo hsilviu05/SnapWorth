@@ -60,12 +60,32 @@ def post_assist(device: str = "assist-test", *, pro: bool = True,
 
 
 class TestTheGate:
-    def test_a_free_caller_gets_the_pro_402_and_no_model_call(self):
+    def test_a_free_caller_gets_one_question_a_week_then_the_pro_402(self):
+        r, model = post_assist("assist-free", pro=False)
+        assert r.status_code == 200
+        assert model.called
         r, model = post_assist("assist-free", pro=False)
         assert r.status_code == 402
         assert r.json()["code"] == apierrors.PRO_REQUIRED
         assert "pro feature" in r.json()["detail"].lower()
         assert not model.called
+
+    def test_a_free_follow_up_is_the_pro_402(self):
+        body = BODY | {"history": [{"role": "user", "text": "Hi"},
+                                   {"role": "tag", "text": "Hello"}]}
+        r, model = post_assist("assist-free-follow", pro=False, body=body)
+        assert r.status_code == 402
+        assert not model.called
+
+    def test_the_preview_can_be_switched_off(self, monkeypatch):
+        monkeypatch.setattr(main, "ASSIST_FREE_WEEKLY_MAX", 0)
+        r, model = post_assist("assist-free-off", pro=False)
+        assert r.status_code == 402
+        assert not model.called
+
+    def test_the_free_preview_is_one_a_week(self):
+        assert main.ASSIST_FREE_WEEKLY_MAX == 1
+        assert main.ASSIST_FREE_WINDOW_SECS == 7 * 86400
 
     def test_twenty_a_day_then_429(self, monkeypatch):
         monkeypatch.setattr(main, "ASSIST_DAILY_MAX_REQUESTS", 3)
@@ -126,8 +146,9 @@ class TestTheAnswer:
         prompt = model.call_args.args[0]
         assert "User: <untrusted_data>Is it worth listing?" in prompt
 
-    def test_its_spend_is_charged_to_pro(self):
-        assert opsspend._usage_tier("assist", None) == "pro"
+    def test_its_spend_is_charged_to_the_callers_tier(self):
+        assert opsspend._usage_tier("assist", "pro") == "pro"
+        assert opsspend._usage_tier("assist", "free") == "free"
 
 
 class TestPrices:

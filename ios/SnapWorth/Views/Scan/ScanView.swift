@@ -678,6 +678,11 @@ struct ScanView: View {
         .modifier(RackPresentation(isPresented: $showRack,
                                    onScanThis: { rackTarget = $0 }))
         .sheet(isPresented: $showDailyGuess) { DailyGuessView() }
+        // The Daily guess widget. `SnapWorthApp.open` has already posted
+        // `.snapDismissForRoute`, which cleared whatever was over this tab.
+        .onReceive(NotificationCenter.default.publisher(for: .snapOpenDailyGuess)) { _ in
+            showDailyGuess = true
+        }
         .modifier(HaulPresentation(isPresented: $showHaul, session: $haul,
                                    purchaseService: purchaseService,
                                    makeRepository: { ScanRepository(context: modelContext) }))

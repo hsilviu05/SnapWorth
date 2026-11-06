@@ -35,6 +35,7 @@ from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from scan import aiconfig
 from scan import assist as assist_module
+from core import fxlive
 from core import apierrors
 from core import background
 from security import auditlog
@@ -79,6 +80,8 @@ from ops.observability import RequestContextMiddleware, configure_production_log
 from billing.quota import FREE_SCANS_PER_DAY, ScanQuota
 from security.ratelimit import (
     ASSIST_DAILY_MAX_REQUESTS,
+    ASSIST_FREE_WEEKLY_MAX,
+    ASSIST_FREE_WINDOW_SECS,
     ASSIST_WINDOW_SECS,
     IP_RATE_MAX_REQUESTS,
     LEGIT_RATE_MAX_REQUESTS,
@@ -940,7 +943,9 @@ def _client_ip(request: Request) -> str:
 LISTING_BUCKET = "listing"
 LEGIT_BUCKET = "legit"
 ASSIST_BUCKET = "assist"
+ASSIST_FREE_BUCKET = "assist_free"
 TRENDS_BUCKET = "trends"
+RATES_BUCKET = "rates"
 DATA_DELETION_BUCKET = "forget"
 
 
@@ -3438,6 +3443,30 @@ class TrendsResponse(BaseModel):
     notable_finds: list[NotableFind] = Field(default_factory=list)   # Pro only
 
 
+class RatesResponse(BaseModel):
+    """Units of each currency per US dollar, from the ECB's reference rates
+    of `date`. For the app's converted line under an estimate only."""
+    date: str
+    rates: dict[str, float]
+
+
+@app.get("/rates", response_model=RatesResponse,
+         dependencies=[Depends(_refuse_outdated_build)])
+async def rates(
+    request: Request,
+    principal: Principal = Depends(require_auth),
+) -> RatesResponse:
+    """Today's exchange rates, the same for everyone (`fxlive`). 503 when
+    there is no recent table: the app then shows dollars only, as before."""
+    await _enforce_limits(principal.subject, _client_ip(request),
+                          bucket=RATES_BUCKET, limit=TRENDS_RATE_MAX_REQUESTS)
+    table = await fxlive.rates()
+    if table is None:
+        raise APIError(503, apierrors.AI_UNAVAILABLE,
+                       "Exchange rates are unavailable right now.")
+    return RatesResponse(**table)
+
+
 @app.get("/trends", response_model=TrendsResponse,
          dependencies=[Depends(_refuse_outdated_build)])
 async def trends(
@@ -3708,16 +3737,33 @@ async def assist(
     principal: Principal = Depends(require_auth),
 ) -> AssistResponse:
     """Ask Tag (1.8.0): a short answer about reselling one find. Text only,
-    Pro only, 20 questions a device a day. Nothing is stored server-side."""
-    if not principal.is_pro:
-        auditlog.record(AuditEvent.ASSIST_DENIED, principal.subject,
-                        outcome="denied", reason="not_pro")
-        raise APIError(402, apierrors.PRO_REQUIRED,
-                       "Ask Tag is a SnapWorth Pro feature.")
+    20 questions a device a day for Pro. Nothing is stored server-side.
 
-    await _enforce_limits(principal.subject, _client_ip(request),
-                          bucket=ASSIST_BUCKET, limit=ASSIST_DAILY_MAX_REQUESTS,
-                          window=ASSIST_WINDOW_SECS)
+    A free caller gets one question a week (`ASSIST_FREE_WEEKLY_MAX`), with
+    no follow-ups, as a preview; past it, or with the preview set to 0, the
+    Pro 402 as before."""
+    if principal.is_pro:
+        await _enforce_limits(principal.subject, _client_ip(request),
+                              bucket=ASSIST_BUCKET, limit=ASSIST_DAILY_MAX_REQUESTS,
+                              window=ASSIST_WINDOW_SECS)
+    else:
+        def _pro_required(reason: str) -> APIError:
+            auditlog.record(AuditEvent.ASSIST_DENIED, principal.subject,
+                            outcome="denied", reason=reason)
+            return APIError(402, apierrors.PRO_REQUIRED,
+                            "Ask Tag is a SnapWorth Pro feature.")
+        if ASSIST_FREE_WEEKLY_MAX <= 0:
+            raise _pro_required("not_pro")
+        if req.history:
+            raise _pro_required("free_follow_up")
+        try:
+            await _enforce_limits(principal.subject, _client_ip(request),
+                                  bucket=ASSIST_FREE_BUCKET, limit=ASSIST_FREE_WEEKLY_MAX,
+                                  window=ASSIST_FREE_WINDOW_SECS)
+        except APIError as exc:
+            if exc.status_code != 429:
+                raise
+            raise _pro_required("free_preview_used") from None
     auditlog.record(AuditEvent.ASSIST_AUTHORISED, principal.subject, tier=principal.tier)
 
     low, high = req.price_low_usd, req.price_high_usd

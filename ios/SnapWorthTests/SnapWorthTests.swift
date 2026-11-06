@@ -5192,3 +5192,271 @@ final class CameraDeliveryTests: XCTestCase {
         XCTAssertEqual(camera.error, .captureFailed)
     }
 }
+
+// MARK: - Year in Finds
+
+final class ThriftWrappedTests: XCTestCase {
+
+    private var calendar: Calendar = {
+        var c = Calendar(identifier: .gregorian)
+        c.timeZone = TimeZone(identifier: "UTC")!
+        return c
+    }()
+
+    private func date(_ y: Int, _ m: Int, _ d: Int) -> Date {
+        calendar.date(from: DateComponents(year: y, month: m, day: d, hour: 12))!
+    }
+
+    private func find(_ name: String, brand: String = "Levi's", value: Double = 20,
+                      on day: Date, soldFor: Double? = nil, paid: Double? = nil,
+                      soldOn: Date? = nil) -> ScanResult {
+        ScanResult(timestamp: day, itemName: name, brand: brand, category: "clothing",
+                   conditionNotes: "Good", valueLow: value, valueHigh: value,
+                   confidence: "High", soldListingsCount: 0, listingTitle: "",
+                   listingDescription: "", paidPrice: paid,
+                   statusRaw: soldFor == nil ? nil : FlipStatus.sold.rawValue,
+                   soldPrice: soldFor, soldDate: soldOn)
+    }
+
+    func test_seasonIsDecemberAndJanuaryOnly() {
+        XCTAssertEqual(ThriftWrapped.seasonYear(now: date(2026, 12, 1), calendar: calendar), 2026)
+        XCTAssertEqual(ThriftWrapped.seasonYear(now: date(2027, 1, 31), calendar: calendar), 2026)
+        XCTAssertNil(ThriftWrapped.seasonYear(now: date(2026, 11, 30), calendar: calendar))
+        XCTAssertNil(ThriftWrapped.seasonYear(now: date(2027, 2, 1), calendar: calendar))
+    }
+
+    func test_aTestBuildIsOfferedTheCurrentYearOutOfSeason() {
+        XCTAssertEqual(ThriftWrapped.offeredYear(now: date(2026, 11, 5), calendar: calendar,
+                                                 isTestBuild: true), 2026)
+        XCTAssertNil(ThriftWrapped.offeredYear(now: date(2026, 11, 5), calendar: calendar,
+                                               isTestBuild: false))
+    }
+
+    func test_needsThreeFindsInTheYear() {
+        let two = [find("a", on: date(2026, 3, 1)), find("b", on: date(2026, 4, 1)),
+                   find("old", on: date(2025, 12, 31))]
+        XCTAssertNil(ThriftWrapped(results: two, year: 2026, calendar: calendar))
+    }
+
+    func test_summarisesTheYear() throws {
+        let results = [
+            find("Jacket", brand: "Patagonia", value: 120, on: date(2026, 3, 2)),
+            find("Jeans", value: 30, on: date(2026, 3, 9)),
+            find("Shirt", value: 10, on: date(2026, 5, 1)),
+            find("Belt", brand: " levi's", value: 15, on: date(2026, 3, 20)),
+            find("Last year", value: 999, on: date(2025, 6, 1)),
+        ]
+        let w = try XCTUnwrap(ThriftWrapped(results: results, year: 2026, calendar: calendar))
+        XCTAssertEqual(w.scanCount, 4)
+        XCTAssertEqual(w.topFindName, "Jacket")
+        XCTAssertEqual(w.topBrand, "Levi's", "case and spacing do not split a brand")
+        XCTAssertEqual(w.busiestMonth, calendar.date(from: DateComponents(year: 2026, month: 3, day: 1)))
+        XCTAssertFalse(w.hasProfit)
+    }
+
+    func test_aBrandSeenOnceOrUnknownIsNoFavourite() throws {
+        let results = [find("a", brand: "Unknown", on: date(2026, 1, 2)),
+                       find("b", brand: "Unknown", on: date(2026, 1, 3)),
+                       find("c", brand: "Nike", on: date(2026, 1, 4))]
+        let w = try XCTUnwrap(ThriftWrapped(results: results, year: 2026, calendar: calendar))
+        XCTAssertNil(w.topBrand)
+    }
+
+    func test_salesCountByTheYearTheySoldIn() throws {
+        let results = [
+            find("a", on: date(2025, 11, 1), soldFor: 50, paid: 10, soldOn: date(2026, 2, 1)),
+            find("b", on: date(2026, 1, 1), soldFor: 40, paid: 5, soldOn: date(2027, 1, 2)),
+            find("c", on: date(2026, 1, 2)),
+            find("d", on: date(2026, 1, 3)),
+        ]
+        let w = try XCTUnwrap(ThriftWrapped(results: results, year: 2026, calendar: calendar,
+                                            locale: Locale(identifier: "en_US")))
+        XCTAssertEqual(w.sales.priced, 1)
+        XCTAssertEqual(w.sales.profit.amount(in: "USD"), 40)
+        XCTAssertTrue(w.hasProfit)
+    }
+}
+
+// MARK: - Daily guess widget
+
+final class WidgetGuessDataTests: XCTestCase {
+
+    private var calendar: Calendar = {
+        var c = Calendar(identifier: .gregorian)
+        c.timeZone = TimeZone(identifier: "UTC")!
+        return c
+    }()
+
+    private func date(_ y: Int, _ m: Int, _ d: Int, hour: Int = 12) -> Date {
+        calendar.date(from: DateComponents(year: y, month: m, day: d, hour: hour))!
+    }
+
+    func test_theWidgetCountsDaysAsTheGameDoes() {
+        for day in [date(2026, 10, 1), date(2026, 11, 5, hour: 23), date(2027, 3, 1, hour: 0)] {
+            XCTAssertEqual(WidgetGuessData.dayNumber(for: day, calendar: calendar),
+                           DailyGuess.dayNumber(for: day, calendar: calendar))
+        }
+        XCTAssertEqual(WidgetGuessData.dayNumber(for: date(2026, 10, 1), calendar: calendar), 1)
+    }
+
+    func test_playedTodayAndTheStreakFollowTheEntryDate() {
+        let today = WidgetGuessData.dayNumber(for: date(2026, 11, 5), calendar: calendar)
+        let guess = WidgetGuessData(lastDay: today, streak: 3)
+
+        XCTAssertTrue(guess.hasPlayed(on: date(2026, 11, 5, hour: 23), calendar: calendar))
+        XCTAssertEqual(guess.liveStreak(on: date(2026, 11, 5), calendar: calendar), 3)
+
+        // Next day: waiting again, streak still alive.
+        XCTAssertFalse(guess.hasPlayed(on: date(2026, 11, 6, hour: 0), calendar: calendar))
+        XCTAssertEqual(guess.liveStreak(on: date(2026, 11, 6), calendar: calendar), 3)
+
+        // A missed day ends it.
+        XCTAssertEqual(guess.liveStreak(on: date(2026, 11, 7), calendar: calendar), 0)
+    }
+
+    func test_neverPlayedIsNoStreak() {
+        XCTAssertFalse(WidgetGuessData.empty.hasPlayed(on: date(2026, 10, 1), calendar: calendar))
+        XCTAssertEqual(WidgetGuessData.empty.liveStreak(on: date(2026, 10, 2), calendar: calendar), 0)
+    }
+
+    func test_theGuessRouteOpensTheGame() {
+        XCTAssertEqual(SnapWorthApp.route(URL(string: "snapworth://guess?src=daily_guess")!,
+                                          onboarded: true), .snapOpenDailyGuess)
+    }
+}
+
+// MARK: - Onboarding goal
+
+final class UserGoalPaywallTests: XCTestCase {
+
+    func test_aGoalLeadsTheIntroPaywall() {
+        let rows = PaywallCopy.benefits(pitch: nil, goal: .resell).map(\.icon)
+        XCTAssertEqual(Array(rows.prefix(3)), UserGoal.resell.leadIcons)
+        XCTAssertEqual(Set(rows), Set(PaywallCopy.benefits.map(\.icon)), "reordered, never dropped")
+    }
+
+    func test_aPitchStillWins() {
+        let pitch = PaywallCopy.pitch(for: .legitCheck)
+        XCTAssertEqual(PaywallCopy.benefits(pitch: pitch, goal: .resell).first?.icon, pitch?.leadIcon)
+    }
+
+    func test_curiousAndNoAnswerKeepTheUsualOrder() {
+        XCTAssertEqual(PaywallCopy.benefits(pitch: nil, goal: .curious), PaywallCopy.benefits)
+        XCTAssertEqual(PaywallCopy.benefits(pitch: nil, goal: nil), PaywallCopy.benefits)
+    }
+
+    func test_everyLeadIconIsARealRow() {
+        let icons = Set(PaywallCopy.benefits.map(\.icon))
+        for goal in UserGoal.allCases {
+            XCTAssertTrue(Set(goal.leadIcons).isSubset(of: icons), goal.rawValue)
+        }
+    }
+}
+
+// MARK: - Ask Tag free preview
+
+final class AskTagPreviewTests: XCTestCase {
+
+    private func defaults() -> UserDefaults {
+        let d = UserDefaults(suiteName: "AskTagPreviewTests")!
+        d.removePersistentDomain(forName: "AskTagPreviewTests")
+        return d
+    }
+
+    func test_oneQuestionAWeek() {
+        let d = defaults()
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        XCTAssertTrue(AskTagPreview.isAvailable(now: now, defaults: d))
+        AskTagPreview.markUsed(now: now, defaults: d)
+        XCTAssertFalse(AskTagPreview.isAvailable(now: now.addingTimeInterval(6 * 86400), defaults: d))
+        XCTAssertTrue(AskTagPreview.isAvailable(now: now.addingTimeInterval(7 * 86400), defaults: d))
+    }
+
+    func test_aClockSetBackDoesNotLockItForever() {
+        let d = defaults()
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        AskTagPreview.markUsed(now: now, defaults: d)
+        XCTAssertTrue(AskTagPreview.isAvailable(now: now.addingTimeInterval(-86400), defaults: d))
+    }
+}
+
+// MARK: - Converted price line
+
+final class ConvertedPriceTests: XCTestCase {
+    private let table = ExchangeRateTable(date: "2026-11-05", rates: ["RON": 4.6, "EUR": 0.925])
+
+    func test_aRomanianPhoneSeesLei() throws {
+        let line = try XCTUnwrap(ConvertedPrice.range(low: 40, high: 80, table: table,
+                                                      locale: Locale(identifier: "ro_RO")))
+        XCTAssertTrue(line.hasPrefix("≈ "), line)
+        XCTAssertTrue(line.contains("184"), line)
+        XCTAssertTrue(line.contains("368"), line)
+    }
+
+    func test_dollarsNoRateOrNoTableShowNothing() {
+        XCTAssertNil(ConvertedPrice.range(low: 40, high: 80, table: table, locale: Locale(identifier: "en_US")))
+        XCTAssertNil(ConvertedPrice.range(low: 40, high: 80, table: table, locale: Locale(identifier: "pl_PL")))
+        XCTAssertNil(ConvertedPrice.range(low: 40, high: 80, table: nil, locale: Locale(identifier: "ro_RO")))
+    }
+
+    func test_notARangeShowsNothing() {
+        XCTAssertNil(ConvertedPrice.range(low: 80, high: 40, table: table, locale: Locale(identifier: "ro_RO")))
+        XCTAssertNil(ConvertedPrice.range(low: .nan, high: 40, table: table, locale: Locale(identifier: "ro_RO")))
+    }
+}
+
+// MARK: - Since you went Pro
+
+final class ProPaybackTests: XCTestCase {
+
+    private let locale = Locale(identifier: "en_US")
+    private func day(_ n: Int) -> Date { Date(timeIntervalSince1970: 1_780_000_000 + Double(n) * 86_400) }
+
+    private func flip(soldOn: Date, paid: Double = 10, sold: Double = 60) -> ScanResult {
+        ScanResult(timestamp: soldOn, itemName: "Jacket", brand: "Levi's", category: "clothing",
+                   conditionNotes: "Good", valueLow: 40, valueHigh: 60,
+                   confidence: "High", soldListingsCount: 0, listingTitle: "",
+                   listingDescription: "", paidPrice: paid,
+                   statusRaw: FlipStatus.sold.rawValue, soldPrice: sold, soldDate: soldOn)
+    }
+
+    func test_countsOnlySalesSinceTheFirstPayment() throws {
+        let payments = [ProPayment(date: day(10), amount: 0, currency: "USD"),       // trial
+                        ProPayment(date: day(13), amount: Decimal(string: "39.99")!, currency: "USD")]
+        let results = [flip(soldOn: day(5)), flip(soldOn: day(20)), flip(soldOn: day(25))]
+        let payback = try XCTUnwrap(ProPayback(payments: payments, results: results,
+                                               now: day(30), locale: locale))
+        XCTAssertEqual(payback.since, day(10))
+        XCTAssertEqual(payback.profit, 100)
+        XCTAssertEqual(payback.spent, Decimal(string: "39.99"))
+        XCTAssertTrue(payback.hasPaidForItself)
+    }
+
+    func test_notPaidForItselfBelowTheCost() throws {
+        let payments = [ProPayment(date: day(1), amount: Decimal(string: "39.99")!, currency: "USD")]
+        let payback = try XCTUnwrap(ProPayback(payments: payments,
+                                               results: [flip(soldOn: day(2), paid: 10, sold: 30)],
+                                               now: day(3), locale: locale))
+        XCTAssertFalse(payback.hasPaidForItself)
+    }
+
+    func test_aTrialAloneHasNothingToCompare() {
+        let payments = [ProPayment(date: day(1), amount: 0, currency: "USD")]
+        XCTAssertNil(ProPayback(payments: payments, results: [flip(soldOn: day(2))],
+                                now: day(3), locale: locale))
+    }
+
+    func test_paymentsInTwoCurrenciesShowNothing() {
+        let payments = [ProPayment(date: day(1), amount: Decimal(string: "4.99")!, currency: "USD"),
+                        ProPayment(date: day(31), amount: Decimal(string: "24.99")!, currency: "RON")]
+        XCTAssertNil(ProPayback(payments: payments, results: [flip(soldOn: day(40))],
+                                now: day(45), locale: locale))
+    }
+
+    func test_noProfitInThatCurrencyShowsNothing() {
+        let payments = [ProPayment(date: day(1), amount: Decimal(string: "39.99")!, currency: "EUR")]
+        XCTAssertNil(ProPayback(payments: payments, results: [flip(soldOn: day(2))],
+                                now: day(3), locale: locale))
+        XCTAssertNil(ProPayback(payments: [], results: [flip(soldOn: day(2))], now: day(3)))
+    }
+}

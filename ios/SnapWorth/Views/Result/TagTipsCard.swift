@@ -113,6 +113,10 @@ struct TagTipsCard: View {
     @State private var appeared = false
     @State private var hops = 0
     @State private var showAskTag = false
+    /// Set by the preview sheet's "Keep asking with Pro"; the paywall opens
+    /// once the sheet has gone, since one sheet cannot present over another
+    /// from here.
+    @State private var paywallAfterAskTag = false
 
     private var tips: [TagTip] { TagTip.tips(for: TagTip.Facts(result)) }
 
@@ -177,6 +181,23 @@ struct TagTipsCard: View {
                     showAskTag = true
                 }
             } else {
+                // The weekly free question (`AskTagPreview`): a real answer
+                // about this find before the lock. A find that already has
+                // one reopens it, with the way to keep going.
+                if result.askTagData != nil || AskTagPreview.isAvailable() {
+                    Button {
+                        showAskTag = true
+                    } label: {
+                        Label(result.askTagData == nil ? "Ask Tag one question free"
+                                                       : "See Tag's answer",
+                              systemImage: "bubble.left.and.bubble.right")
+                            .font(.dmSans(15, weight: .semibold))
+                            .foregroundStyle(Color.snapTerracottaText)
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.plain)
+                    .snapHitTarget()
+                }
                 PrimaryButton(title: "Unlock Tag's tips") { onPaywall(.tagTips) }
             }
         }
@@ -185,8 +206,17 @@ struct TagTipsCard: View {
         .background(Color.snapCard)
         .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
         .shadow(color: Color.snapCardShadow.opacity(0.08), radius: 24, x: 0, y: 8)
-        .sheet(isPresented: $showAskTag) {
-            AskTagView(result: result, onClose: { showAskTag = false })
+        .sheet(isPresented: $showAskTag, onDismiss: {
+            if paywallAfterAskTag {
+                paywallAfterAskTag = false
+                onPaywall(.tagTips)
+            }
+        }) {
+            AskTagView(result: result, isPreview: !isPro, onClose: { showAskTag = false },
+                       onUpgrade: {
+                           paywallAfterAskTag = true
+                           showAskTag = false
+                       })
         }
         .onAppear {
             guard !appeared else { return }

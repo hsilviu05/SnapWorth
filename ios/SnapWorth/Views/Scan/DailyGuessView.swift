@@ -232,6 +232,7 @@ struct DailyGuessView: View {
         focused = false
         let next = record.playing(day: day, guess: guess)
         next.save()
+        WidgetDataStore.writeGuess(next)
         Haptics.selection()
         let verdict = DailyGuess.verdict(guess: guess, low: round.low, high: round.high)
         Analytics.shared.track(.dailyGuessPlayed(

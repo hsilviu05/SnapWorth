@@ -44,15 +44,13 @@ enum DailyGuess {
     /// Where the rotation is counted from. It only sets which round falls on
     /// which date, not when the game starts, so it is in the past: a date
     /// before it would play the first round every day.
-    static let epoch = DateComponents(year: 2026, month: 10, day: 1)
+    static let epoch = WidgetGuessData.epoch
 
     /// Which day of the rotation `date` falls on, counting from 1, in the
-    /// calendar's time zone. Pure, for the tests.
+    /// calendar's time zone. Pure, for the tests. Shared with the Daily guess
+    /// widget, so both count days the same way.
     static func dayNumber(for date: Date, calendar: Calendar = .current) -> Int {
-        guard let start = calendar.date(from: epoch) else { return 1 }
-        let days = calendar.dateComponents([.day], from: calendar.startOfDay(for: start),
-                                           to: calendar.startOfDay(for: date)).day ?? 0
-        return max(1, days + 1)
+        WidgetGuessData.dayNumber(for: date, calendar: calendar)
     }
 
     /// The round a day plays.

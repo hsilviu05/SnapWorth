@@ -7728,13 +7728,13 @@
       "de": "Beschreibungen, die du statt eines Fotos eintippst",
       "zh-Hans": "你代替照片输入的描述"
     },
-    "Questions you ask Tag (Pro), with the details of that find but never its photo": {
-      "comment": "AI consent list item. Tag is the mascot's name; Pro is the subscription.",
-      "en": "Questions you ask Tag (Pro), with the details of that find but never its photo",
-      "ro": "Întrebările pe care i le pui lui Tag (Pro), cu detaliile acelei găsiri, dar niciodată cu fotografia ei",
-      "es": "Las preguntas que le haces a Tag (Pro), con los datos de ese hallazgo pero nunca su foto",
-      "de": "Fragen, die du Tag stellst (Pro), mit den Angaben zu diesem Fund, aber nie mit seinem Foto",
-      "zh-Hans": "你向 Tag 提出的问题（Pro），附带该物品的信息，但绝不包含照片"
+    "Questions you ask Tag, with the details of that find but never its photo": {
+      "comment": "AI consent list item. Tag is the mascot's name. Free users get a weekly question too, so no (Pro).",
+      "en": "Questions you ask Tag, with the details of that find but never its photo",
+      "ro": "Întrebările pe care i le pui lui Tag, cu detaliile acelei găsiri, dar niciodată cu fotografia ei",
+      "es": "Las preguntas que le haces a Tag, con los datos de ese hallazgo pero nunca su foto",
+      "de": "Fragen, die du Tag stellst, mit den Angaben zu diesem Fund, aber nie mit seinem Foto",
+      "zh-Hans": "你向 Tag 提出的问题，附带该物品的信息，但绝不包含照片"
     },
     "Google doesn't use them to train its models, and we don't keep them after you get your answer.": {
       "comment": "AI consent screen.",
@@ -7919,6 +7919,246 @@
       "es": "Ask Tag: consejos y respuestas sobre el precio y el anuncio de cada hallazgo",
       "de": "Ask Tag – Tipps und Antworten zu Preis und Inserat für jeden Fund",
       "zh-Hans": "Ask Tag：针对每件好物的定价与发布建议和解答"
+    },
+    "MY %@ IN FINDS": {
+      "comment": "Header of the Year in Finds share card. %@ is a year, such as 2026. Upper case, like MY HAUL.",
+      "en": "MY %@ IN FINDS",
+      "ro": "ANUL MEU %@ ÎN GĂSELNIȚE",
+      "es": "MI %@ EN HALLAZGOS",
+      "de": "MEIN %@ IN FUNDEN",
+      "zh-Hans": "我的 %@ 淘货年"
+    },
+    "finds scanned": {
+      "comment": "Under the big number of finds scanned that year, on the Year in Finds card.",
+      "en": "finds scanned",
+      "ro": "găselnițe scanate",
+      "es": "hallazgos escaneados",
+      "de": "Funde gescannt",
+      "zh-Hans": "件好物已扫描"
+    },
+    "in AI resale estimates": {
+      "comment": "Under the summed estimate of the year's finds, on the Year in Finds card.",
+      "en": "in AI resale estimates",
+      "ro": "în estimări AI de revânzare",
+      "es": "en estimaciones de reventa con IA",
+      "de": "in KI-Wiederverkaufsschätzungen",
+      "zh-Hans": "AI 转卖估价合计"
+    },
+    "Top find": {
+      "comment": "Row label on the Year in Finds card: the most valuable find of the year.",
+      "en": "Top find",
+      "ro": "Cea mai bună găselniță",
+      "es": "Mejor hallazgo",
+      "de": "Bester Fund",
+      "zh-Hans": "最值钱的一件"
+    },
+    "Most-found brand": {
+      "comment": "Row label on the Year in Finds card: the brand scanned most often.",
+      "en": "Most-found brand",
+      "ro": "Marca găsită cel mai des",
+      "es": "Marca más encontrada",
+      "de": "Häufigste Marke",
+      "zh-Hans": "最常淘到的品牌"
+    },
+    "Busiest month": {
+      "comment": "Row label on the Year in Finds card: the month with the most scans.",
+      "en": "Busiest month",
+      "ro": "Luna cea mai activă",
+      "es": "Mes más activo",
+      "de": "Aktivster Monat",
+      "zh-Hans": "最活跃的月份"
+    },
+    "Profit from flips": {
+      "comment": "Row label on the Year in Finds card: the year's realised profit from sold flips (Pro).",
+      "en": "Profit from flips",
+      "ro": "Profit din flipuri",
+      "es": "Ganancia de reventas",
+      "de": "Gewinn aus Flips",
+      "zh-Hans": "转卖利润"
+    },
+    "Net from flips": {
+      "comment": "Row label on the Year in Finds card when the year's flips lost money overall (Pro).",
+      "en": "Net from flips",
+      "ro": "Net din flipuri",
+      "es": "Neto de reventas",
+      "de": "Netto aus Flips",
+      "zh-Hans": "转卖净额"
+    },
+    "Show my profit on the card": {
+      "comment": "Toggle on the Year in Finds sheet, for Pro users with sold flips.",
+      "en": "Show my profit on the card",
+      "ro": "Arată profitul meu pe card",
+      "es": "Mostrar mi ganancia en la tarjeta",
+      "de": "Meinen Gewinn auf der Karte zeigen",
+      "zh-Hans": "在卡片上显示我的利润"
+    },
+    "Add your %@ profit with Pro": {
+      "comment": "Locked row on the Year in Finds sheet for free users; opens the paywall. %@ is a year, such as 2026.",
+      "en": "Add your %@ profit with Pro",
+      "ro": "Adaugă profitul din %@ cu Pro",
+      "es": "Añade tu ganancia de %@ con Pro",
+      "de": "Füge deinen Gewinn %@ mit Pro hinzu",
+      "zh-Hans": "用 Pro 加上你 %@ 年的利润"
+    },
+    "Share my year": {
+      "comment": "Button on the Year in Finds sheet that opens the share sheet with the card.",
+      "en": "Share my year",
+      "ro": "Distribuie anul meu",
+      "es": "Compartir mi año",
+      "de": "Mein Jahr teilen",
+      "zh-Hans": "分享我的一年"
+    },
+    "Year in Finds": {
+      "comment": "Title of the year-in-review sheet. A feature name.",
+      "en": "Year in Finds",
+      "ro": "Anul în găselnițe",
+      "es": "Tu año en hallazgos",
+      "de": "Jahr in Funden",
+      "zh-Hans": "淘货年度回顾"
+    },
+    "Couldn't make the card": {
+      "comment": "Alert title when the Year in Finds card could not be rendered.",
+      "en": "Couldn't make the card",
+      "ro": "Cardul nu a putut fi creat",
+      "es": "No se pudo crear la tarjeta",
+      "de": "Karte konnte nicht erstellt werden",
+      "zh-Hans": "无法生成卡片"
+    },
+    "Your %@ Year in Finds is ready": {
+      "comment": "My Finds banner in December and January. %@ is a year, such as 2026.",
+      "en": "Your %@ Year in Finds is ready",
+      "ro": "Anul tău %@ în găselnițe e gata",
+      "es": "Tu %@ en hallazgos está listo",
+      "de": "Dein Jahr %@ in Funden ist da",
+      "zh-Hans": "你的 %@ 淘货年度回顾做好了"
+    },
+    "Your year in finds, ready to share": {
+      "comment": "Second line of the Year in Finds banner on My Finds.",
+      "en": "Your year in finds, ready to share",
+      "ro": "Anul tău în găselnițe, gata de distribuit",
+      "es": "Tu año en hallazgos, listo para compartir",
+      "de": "Dein Jahr in Funden, bereit zum Teilen",
+      "zh-Hans": "你的淘货一年，随时可以分享"
+    },
+    "Add your profit to your year": {
+      "comment": "Paywall headline when opened from the Year in Finds sheet's locked profit row.",
+      "en": "Add your profit to your year",
+      "ro": "Adaugă profitul în anul tău",
+      "es": "Añade tu ganancia a tu año",
+      "de": "Füg deinem Jahr den Gewinn hinzu",
+      "zh-Hans": "把利润加进你的一年"
+    },
+    "Redeem a code": {
+      "comment": "Settings row that opens Apple's offer-code sheet (promo, creator and win-back codes).",
+      "en": "Redeem a code",
+      "ro": "Folosește un cod",
+      "es": "Canjear un código",
+      "de": "Code einlösen",
+      "zh-Hans": "兑换代码"
+    },
+    "What brings you to SnapWorth?": {
+      "comment": "Optional question on the last onboarding page; the answers below only reorder the paywall's list.",
+      "en": "What brings you to SnapWorth?",
+      "ro": "Ce te aduce la SnapWorth?",
+      "es": "¿Qué te trae a SnapWorth?",
+      "de": "Was führt dich zu SnapWorth?",
+      "zh-Hans": "你为什么使用 SnapWorth？"
+    },
+    "I resell": {
+      "comment": "Onboarding answer: the user resells items for profit. Short, it sits in a capsule button.",
+      "en": "I resell",
+      "ro": "Revând",
+      "es": "Revendo",
+      "de": "Ich verkaufe weiter",
+      "zh-Hans": "我做转卖"
+    },
+    "I'm clearing out": {
+      "comment": "Onboarding answer: the user is decluttering their own things. Short, in a capsule button.",
+      "en": "I'm clearing out",
+      "ro": "Fac curățenie",
+      "es": "Estoy despejando",
+      "de": "Ich miste aus",
+      "zh-Hans": "我在清理闲置"
+    },
+    "Just curious": {
+      "comment": "Onboarding answer: no particular goal. Short, in a capsule button.",
+      "en": "Just curious",
+      "ro": "Doar curios",
+      "es": "Solo curiosidad",
+      "de": "Nur neugierig",
+      "zh-Hans": "只是好奇"
+    },
+    "Ask Tag one question free": {
+      "comment": "Free user's button on the Tag's tips card: one Ask Tag question a week before Pro.",
+      "en": "Ask Tag one question free",
+      "ro": "Pune-i lui Tag o întrebare gratis",
+      "es": "Hazle a Tag una pregunta gratis",
+      "de": "Stell Tag eine Frage gratis",
+      "zh-Hans": "免费问 Tag 一个问题"
+    },
+    "See Tag's answer": {
+      "comment": "Free user's button on the Tag's tips card when this find already has Tag's preview answer.",
+      "en": "See Tag's answer",
+      "ro": "Vezi răspunsul lui Tag",
+      "es": "Ver la respuesta de Tag",
+      "de": "Tags Antwort ansehen",
+      "zh-Hans": "查看 Tag 的回答"
+    },
+    "Keep the conversation going with Pro: follow-up questions and Tag's advice on every find.": {
+      "comment": "Under Tag's free preview answer, above the upgrade button.",
+      "en": "Keep the conversation going with Pro: follow-up questions and Tag's advice on every find.",
+      "ro": "Continuă conversația cu Pro: întrebări suplimentare și sfaturile lui Tag pentru fiecare găselniță.",
+      "es": "Sigue la conversación con Pro: preguntas de seguimiento y los consejos de Tag para cada hallazgo.",
+      "de": "Mach mit Pro weiter: Folgefragen und Tags Tipps zu jedem Fund.",
+      "zh-Hans": "升级 Pro 继续对话：可以追问，每件好物都有 Tag 的建议。"
+    },
+    "Keep asking with Pro": {
+      "comment": "Button under Tag's free preview answer; opens the paywall.",
+      "en": "Keep asking with Pro",
+      "ro": "Întreabă în continuare cu Pro",
+      "es": "Sigue preguntando con Pro",
+      "de": "Mit Pro weiterfragen",
+      "zh-Hans": "用 Pro 继续提问"
+    },
+    "You've used this week's free question.": {
+      "comment": "Ask Tag, free user: the weekly free question was already used on another find.",
+      "en": "You've used this week's free question.",
+      "ro": "Ai folosit deja întrebarea gratuită din săptămâna asta.",
+      "es": "Ya usaste la pregunta gratis de esta semana.",
+      "de": "Du hast die Gratisfrage dieser Woche schon genutzt.",
+      "zh-Hans": "本周的免费提问已用完。"
+    },
+    "%@ · converted from US prices": {
+      "comment": "Under the dollar estimate on a result: %@ is the same range in the phone's currency, such as '≈ 185–370 lei'. It is a conversion, not a local price.",
+      "en": "%@ · converted from US prices",
+      "ro": "%@ · convertit din prețuri din SUA",
+      "es": "%@ · convertido de precios de EE. UU.",
+      "de": "%@ · umgerechnet aus US-Preisen",
+      "zh-Hans": "%@ · 由美国价格换算"
+    },
+    "Since you went Pro": {
+      "comment": "My Flips card title (Pro): flip profit since the first Pro payment, beside what Pro has cost.",
+      "en": "Since you went Pro",
+      "ro": "De când ai Pro",
+      "es": "Desde que tienes Pro",
+      "de": "Seit du Pro hast",
+      "zh-Hans": "自开通 Pro 以来"
+    },
+    "Pro has paid for itself": {
+      "comment": "My Flips card title (Pro) when flip profit since subscribing is at least what Pro has cost.",
+      "en": "Pro has paid for itself",
+      "ro": "Pro s-a plătit singur",
+      "es": "Pro ya se ha pagado solo",
+      "de": "Pro hat sich schon bezahlt gemacht",
+      "zh-Hans": "Pro 已经回本了"
+    },
+    "%@ from flips · Pro so far %@": {
+      "comment": "My Flips card line. First %@: signed flip profit since subscribing, e.g. \"+$214\". Second: what Pro has cost so far, e.g. \"$39.99\".",
+      "en": "%@ from flips · Pro so far %@",
+      "ro": "%@ din flipuri · Pro până acum %@",
+      "es": "%@ en reventas · Pro hasta ahora %@",
+      "de": "%@ aus Flips · Pro bisher %@",
+      "zh-Hans": "转卖收益 %@ · Pro 累计花费 %@"
     }
   }
 }

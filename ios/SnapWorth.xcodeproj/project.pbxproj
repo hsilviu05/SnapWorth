@@ -14,6 +14,8 @@
 		1DF043BD3003EE710072D4A8 /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 1DF043BC3003EE710072D4A8 /* SwiftUI.framework */; };
 		1DF043CE3003EE710072D4A8 /* SnapWorthWidgetsExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 1DF043B83003EE700072D4A8 /* SnapWorthWidgetsExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		1ED6E4000000000000000001 /* LedgerMath.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1ED6E4000000000000000002 /* LedgerMath.swift */; };
+		AA0000000000000000452B01 /* ThriftWrapped.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000452B02 /* ThriftWrapped.swift */; };
+		AA0000000000000000452B07 /* ProPayback.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000452B08 /* ProPayback.swift */; };
 		5A4ED0000000000000000003 /* WidgetModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A4ED0000000000000000002 /* WidgetModel.swift */; };
 		5A4ED0000000000000000004 /* WidgetModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A4ED0000000000000000002 /* WidgetModel.swift */; };
 		5C1C4E000000000000000002 /* SnapWorthStickers.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 5C1C4E000000000000000001 /* SnapWorthStickers.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
@@ -37,6 +39,7 @@
 		AA00000000000000000000CD /* StoreKitPurchaseService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000000CC /* StoreKitPurchaseService.swift */; };
 		AA00000000000000000000CF /* ScanAPIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000000CE /* ScanAPIClient.swift */; };
 		AA0000000000000000448A03 /* AskTagAPIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000448A04 /* AskTagAPIClient.swift */; };
+		AA0000000000000000452B05 /* ExchangeRates.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000452B06 /* ExchangeRates.swift */; };
 		DA7A0DE1000000000000B001 /* ServerDataClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA7A0DE1000000000000A001 /* ServerDataClient.swift */; };
 		9A7E0F1E000000000000B001 /* PaywallViewClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9A7E0F1E000000000000A001 /* PaywallViewClient.swift */; };
 		AA00000000000000000000D1 /* CameraManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000000D0 /* CameraManager.swift */; };
@@ -53,6 +56,7 @@
 		AA00000000000000000000E5 /* ScanView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000000E4 /* ScanView.swift */; };
 		AA00000000000000000000E7 /* ResultView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000000E6 /* ResultView.swift */; };
 		AA00000000000000000000E9 /* HistoryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000000E8 /* HistoryView.swift */; };
+		AA0000000000000000452B03 /* WrappedView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000452B04 /* WrappedView.swift */; };
 		AA00000000000000000000EB /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000000EA /* SettingsView.swift */; };
 		AA00000000000000000000ED /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000000EC /* Assets.xcassets */; };
 		AA00000000000000000000F2 /* Fraunces-Variable.ttf in Resources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000000F1 /* Fraunces-Variable.ttf */; };
@@ -170,6 +174,8 @@
 		1DF043BA3003EE700072D4A8 /* WidgetKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WidgetKit.framework; path = System/Library/Frameworks/WidgetKit.framework; sourceTree = SDKROOT; };
 		1DF043BC3003EE710072D4A8 /* SwiftUI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SwiftUI.framework; path = System/Library/Frameworks/SwiftUI.framework; sourceTree = SDKROOT; };
 		1ED6E4000000000000000002 /* LedgerMath.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LedgerMath.swift; sourceTree = "<group>"; };
+		AA0000000000000000452B02 /* ThriftWrapped.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThriftWrapped.swift; sourceTree = "<group>"; };
+		AA0000000000000000452B08 /* ProPayback.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProPayback.swift; sourceTree = "<group>"; };
 		5A4ED0000000000000000002 /* WidgetModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetModel.swift; sourceTree = "<group>"; };
 		5C1C4E000000000000000001 /* SnapWorthStickers.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = SnapWorthStickers.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		89A0C0DE0000000000000002 /* RackScan.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RackScan.swift; sourceTree = "<group>"; };
@@ -193,6 +199,7 @@
 		AA00000000000000000000CC /* StoreKitPurchaseService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoreKitPurchaseService.swift; sourceTree = "<group>"; };
 		AA00000000000000000000CE /* ScanAPIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanAPIClient.swift; sourceTree = "<group>"; };
 		AA0000000000000000448A04 /* AskTagAPIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AskTagAPIClient.swift; sourceTree = "<group>"; };
+		AA0000000000000000452B06 /* ExchangeRates.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExchangeRates.swift; sourceTree = "<group>"; };
 		DA7A0DE1000000000000A001 /* ServerDataClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServerDataClient.swift; sourceTree = "<group>"; };
 		9A7E0F1E000000000000A001 /* PaywallViewClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaywallViewClient.swift; sourceTree = "<group>"; };
 		AA00000000000000000000D0 /* CameraManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraManager.swift; sourceTree = "<group>"; };
@@ -209,6 +216,7 @@
 		AA00000000000000000000E4 /* ScanView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanView.swift; sourceTree = "<group>"; };
 		AA00000000000000000000E6 /* ResultView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ResultView.swift; sourceTree = "<group>"; };
 		AA00000000000000000000E8 /* HistoryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryView.swift; sourceTree = "<group>"; };
+		AA0000000000000000452B04 /* WrappedView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WrappedView.swift; sourceTree = "<group>"; };
 		AA00000000000000000000EA /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		AA00000000000000000000EC /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		AA00000000000000000000EE /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
@@ -402,6 +410,7 @@
 			isa = PBXGroup;
 			children = (
 				AA00000000000000000000E8 /* HistoryView.swift */,
+				AA0000000000000000452B04 /* WrappedView.swift */,
 				ADD1EC0000000000000000B9 /* FlipsView.swift */,
 			);
 			path = Flips;
@@ -433,6 +442,7 @@
 			children = (
 				AA00000000000000000000CE /* ScanAPIClient.swift */,
 				AA0000000000000000448A04 /* AskTagAPIClient.swift */,
+				AA0000000000000000452B06 /* ExchangeRates.swift */,
 				DA7A0DE1000000000000A001 /* ServerDataClient.swift */,
 				9A7E0F1E000000000000A001 /* PaywallViewClient.swift */,
 				FEED0000000000000000C10 /* AttestationService.swift */,
@@ -556,6 +566,8 @@
 				AA0000000000000000000110 /* AppError.swift */,
 				FEED000000000000000000A3 /* MarketplaceFees.swift */,
 				1ED6E4000000000000000002 /* LedgerMath.swift */,
+				AA0000000000000000452B02 /* ThriftWrapped.swift */,
+				AA0000000000000000452B08 /* ProPayback.swift */,
 				89A0C0DE0000000000000002 /* RackScan.swift */,
 				411D6E00000000000000000C /* DailyGuessRounds.swift */,
 				411D6E00000000000000000A /* DailyGuess.swift */,
@@ -915,6 +927,7 @@
 				ADD1EC0000000000000000BA /* FlipsView.swift in Sources */,
 				AA00000000000000000000CF /* ScanAPIClient.swift in Sources */,
 				AA0000000000000000448A03 /* AskTagAPIClient.swift in Sources */,
+				AA0000000000000000452B05 /* ExchangeRates.swift in Sources */,
 				DA7A0DE1000000000000B001 /* ServerDataClient.swift in Sources */,
 				9A7E0F1E000000000000B001 /* PaywallViewClient.swift in Sources */,
 				FEED000000000000000000B5 /* ThriftFlipView.swift in Sources */,
@@ -924,6 +937,8 @@
 				FEED000000000000000093B2 /* HaulView.swift in Sources */,
 				FEED000000000000000000B3 /* MarketplaceFees.swift in Sources */,
 				1ED6E4000000000000000001 /* LedgerMath.swift in Sources */,
+				AA0000000000000000452B01 /* ThriftWrapped.swift in Sources */,
+				AA0000000000000000452B07 /* ProPayback.swift in Sources */,
 				89A0C0DE0000000000000001 /* RackScan.swift in Sources */,
 				411D6E00000000000000000D /* DailyGuessRounds.swift in Sources */,
 				411D6E00000000000000000B /* DailyGuess.swift in Sources */,
@@ -966,6 +981,7 @@
 				AA0000000000000000229A03 /* ValuationDetailView.swift in Sources */,
 				AA0000000000000000229A01 /* FullDetailOffer.swift in Sources */,
 				AA00000000000000000000E9 /* HistoryView.swift in Sources */,
+				AA0000000000000000452B03 /* WrappedView.swift in Sources */,
 				AA00000000000000000000EB /* SettingsView.swift in Sources */,
 				ADD1EC0000000000000000F6 /* NotificationSettingsView.swift in Sources */,
 				A1C0F1C000000000000000B2 /* AppIconPickerView.swift in Sources */,
@@ -1023,7 +1039,7 @@
 			buildSettings = {
 				CODE_SIGN_ENTITLEMENTS = SnapWorthShare/SnapWorthShare.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 31;
+				CURRENT_PROJECT_VERSION = 32;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = SnapWorthShare/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = SnapWorth;
@@ -1053,7 +1069,7 @@
 			buildSettings = {
 				CODE_SIGN_ENTITLEMENTS = SnapWorthShare/SnapWorthShare.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 31;
+				CURRENT_PROJECT_VERSION = 32;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = SnapWorthShare/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = SnapWorth;
@@ -1085,7 +1101,7 @@
 				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
 				CODE_SIGN_ENTITLEMENTS = SnapWorthWidgets/SnapWorthWidgets.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 31;
+				CURRENT_PROJECT_VERSION = 32;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = SnapWorthWidgets/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = SnapWorthWidgets;
@@ -1117,7 +1133,7 @@
 				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
 				CODE_SIGN_ENTITLEMENTS = SnapWorthWidgets/SnapWorthWidgets.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 31;
+				CURRENT_PROJECT_VERSION = 32;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = SnapWorthWidgets/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = SnapWorthWidgets;
@@ -1147,7 +1163,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = "iMessage App Icon";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 31;
+				CURRENT_PROJECT_VERSION = 32;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = SnapWorthStickers/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = SnapWorth;
@@ -1167,7 +1183,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = "iMessage App Icon";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 31;
+				CURRENT_PROJECT_VERSION = 32;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = SnapWorthStickers/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = SnapWorth;
@@ -1316,7 +1332,7 @@
 				CODE_SIGN_ENTITLEMENTS = SnapWorth/SnapWorth.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 31;
+				CURRENT_PROJECT_VERSION = 32;
 				DEVELOPMENT_ASSET_PATHS = "";
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = NO;
@@ -1354,7 +1370,7 @@
 				CODE_SIGN_ENTITLEMENTS = SnapWorth/SnapWorth.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 31;
+				CURRENT_PROJECT_VERSION = 32;
 				DEVELOPMENT_ASSET_PATHS = "";
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = NO;

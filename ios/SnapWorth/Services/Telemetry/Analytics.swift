@@ -171,6 +171,20 @@ enum AnalyticsEvent {
     case ledgerPaywallHit(trigger: PaywallTrigger)
     case ledgerMonthShared
 
+    // ── Year in Finds (1.8.0) ───────────────────────────────────────
+    /// The year card's sheet opened from the My Finds banner.
+    case wrappedOpened(isPro: Bool)
+    /// The card was shared; `with_profit` says whether it carried the profit.
+    case wrappedShared(withProfit: Bool)
+
+    /// Settings → Redeem a code opened Apple's offer-code sheet. Whether a
+    /// code was redeemed is the App Store's to report (offer starts, `/week`).
+    case offerCodeSheetOpened
+
+    /// The optional "What brings you to SnapWorth?" answer on the last
+    /// onboarding page. `goal` is a `UserGoal` raw value, a closed set.
+    case onboardingGoalChosen(goal: String)
+
     // ── App icon (1.7.0) ─────────────────────────────────────────────
     /// The user switched app icon. `icon` is `AppIconChoice.rawValue`;
     /// `source` is `settings` or `prompt` (the one-time announcement). Which
@@ -277,6 +291,10 @@ enum AnalyticsEvent {
         case .ledgerExportTapped:   return "ledger_export_tapped"
         case .ledgerPaywallHit:     return "ledger_paywall_hit"
         case .ledgerMonthShared:    return "ledger_month_shared"
+        case .wrappedOpened:        return "wrapped_opened"
+        case .wrappedShared:        return "wrapped_shared"
+        case .offerCodeSheetOpened: return "offer_code_sheet_opened"
+        case .onboardingGoalChosen: return "onboarding_goal_chosen"
         case .appIconChanged:       return "app_icon_changed"
         case .notificationScheduled:return "notification_scheduled"
         case .notificationOpened:   return "notification_opened"
@@ -309,6 +327,12 @@ enum AnalyticsEvent {
             return ["via": via.rawValue]
         case let .haulShared(format):
             return ["format": format.rawValue]
+        case let .wrappedOpened(isPro):
+            return ["is_pro": String(isPro)]
+        case let .wrappedShared(withProfit):
+            return ["with_profit": String(withProfit)]
+        case let .onboardingGoalChosen(goal):
+            return ["goal": goal]
         case let .reviewPromptRequested(moment):
             return ["moment": moment.rawValue]
         case let .dailyGuessPlayed(verdict, streak):
@@ -481,6 +505,8 @@ enum PaywallTrigger: String, CaseIterable {
     case visualIntelligence = "visual_intelligence"
     /// "Unlock Tag's tips" on a free user's result.
     case tagTips = "tag_tips"
+    /// "Add your year's profit with Pro" on the Year in Finds sheet.
+    case wrapped = "wrapped"
 }
 
 // ═══════════════════════════════════════════════════════════════════

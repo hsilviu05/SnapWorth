@@ -21,6 +21,8 @@ struct FlipsView: View {
     @State private var showShare = false
     @State private var exportingArchive = false
     @State private var archiveFailed = false
+    /// Read from StoreKit when Pro is on (`PurchaseService.proPayments`).
+    @State private var proPayments: [ProPayment] = []
 
     private var isPro: Bool { purchaseService.isSubscribed }
     private var scope: FlipsViewModel.Scope { isPro ? .allTime : .month }
@@ -41,6 +43,9 @@ struct FlipsView: View {
             .toolbar { toolbarContent }
         }
         .onAppear { Analytics.shared.track(.ledgerDashboardViewed) }
+        .task(id: isPro) {
+            proPayments = isPro ? await purchaseService.proPayments() : []
+        }
         .sheet(item: $selectedItem) { item in
             Self.resultView(for: item, purchaseService: purchaseService) { selectedItem = nil }
                 .snapZoomDestination(id: item.id, in: zoom)
@@ -85,6 +90,9 @@ struct FlipsView: View {
         return ScrollView {
             VStack(spacing: 16) {
                 summaryHeader(summary)
+                if isPro, let payback = ProPayback(payments: proPayments, results: allResults) {
+                    ProPaybackCard(payback: payback)
+                }
                 statsGrid(summary)
                 monthlyCard
                 filterChips
@@ -645,5 +653,37 @@ struct FlipThumbnail: View {
             guard let imageData else { return }
             image = await ScanAPIClient.decodedThumbnail(from: imageData, side: 46)
         }
+    }
+}
+
+/// "Since you went Pro": the flip profit made since the first Pro payment,
+/// beside what Pro has cost. Two figures, no claim that one caused the other.
+struct ProPaybackCard: View {
+    let payback: ProPayback
+
+    var body: some View {
+        HStack(alignment: .center, spacing: 14) {
+            Image(systemName: payback.hasPaidForItself ? "checkmark.seal.fill" : "crown.fill")
+                .snapSymbol(20, weight: .medium)
+                .foregroundStyle(payback.hasPaidForItself ? Color.snapSageText : Color.snapTerracottaText)
+                .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: 3) {
+                Text(payback.hasPaidForItself
+                     ? String(localized: "Pro has paid for itself")
+                     : String(localized: "Since you went Pro"))
+                    .font(.dmSans(15, weight: .semibold))
+                    .foregroundStyle(Color.snapEspresso)
+                Text(String(localized: "\(SaleCurrency.signed(payback.profit, code: payback.currency)) from flips · Pro so far \(SaleCurrency.format(payback.spent, code: payback.currency))"))
+                    .font(.snapCaption)
+                    .foregroundStyle(Color.snapWarmGray)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.snapSage.opacity(0.10))
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .accessibilityElement(children: .combine)
     }
 }

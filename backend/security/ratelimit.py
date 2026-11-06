@@ -331,6 +331,12 @@ LEGIT_RATE_MAX_REQUESTS = int(os.environ.get("LEGIT_RATE_MAX_REQUESTS", "20"))
 ASSIST_DAILY_MAX_REQUESTS = int(os.environ.get("ASSIST_DAILY_MAX_REQUESTS", "20"))
 ASSIST_WINDOW_SECS = 24 * 3600
 
+# Ask Tag's free preview (1.8.0): one question a week per device for a free
+# user, so they can see what Pro answers before the lock. About $0.0012 a
+# question. 0 turns the preview off, and free callers get the Pro 402 again.
+ASSIST_FREE_WEEKLY_MAX = int(os.environ.get("ASSIST_FREE_WEEKLY_MAX", "1"))
+ASSIST_FREE_WINDOW_SECS = 7 * 24 * 3600
+
 # /trends costs no model call: it reads tallies the server caches for 15
 # minutes, and the app caches the answer for 30. So the per-device cap here is
 # only a loop-breaker for a misbehaving build, far above the two or so fetches

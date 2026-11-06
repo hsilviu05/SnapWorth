@@ -21,7 +21,7 @@ struct ShareableImage: Transferable {
 
 private enum ShareCardError: Error { case renderFailed }
 
-/// The four branded cards with a QR code, each counted as its own App Store
+/// The branded cards with a QR code, each counted as its own App Store
 /// campaign (#221). The raw value is the path segment under `/get/`, so it
 /// must match the redirects in `website/vercel.json`.
 enum ShareCardKind: String, CaseIterable {
@@ -29,6 +29,7 @@ enum ShareCardKind: String, CaseIterable {
     case month
     case haul
     case guess
+    case wrapped
 }
 
 /// QR code for a card's link, shared by every branded card so the footer is
@@ -954,4 +955,137 @@ struct GuessShareCardView: View {
                       topFindName: "Le Creuset Dutch Oven 5.5qt", topFindValue: 165)
         .scaleEffect(0.5, anchor: .top)
         .frame(width: 270, height: 480)
+}
+
+// MARK: - Year in Finds (1.8.0)
+
+/// The year in finds, as a story. Same 540×960 canvas, palette and QR footer
+/// as the cards above. Takes a finished `ThriftWrapped`, so it never reaches
+/// into SwiftData while `ImageRenderer` is drawing it.
+///
+/// The profit block is drawn only when the caller passes `showsProfit`: Pro,
+/// and a year with a priced sale. A free card leaves it out rather than
+/// showing a lock, because the card leaves the app.
+struct WrappedShareCardView: View {
+    let wrapped: ThriftWrapped
+    let showsProfit: Bool
+
+    static let cardWidth:  CGFloat = 540
+    static let cardHeight: CGFloat = 960
+    private let innerPad: CGFloat = 36
+
+    private var yearText: String { String(wrapped.year) }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            Spacer().frame(height: 88)
+
+            Text(String(localized: "MY \(yearText) IN FINDS"))
+                .font(Font.dmSans(16, weight: .bold))
+                .tracking(2)
+                .foregroundStyle(Color(hex: "8B7D71"))
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, innerPad)
+
+            Text(verbatim: "\(wrapped.scanCount)")
+                .font(Font.fraunces(120, weight: .bold))
+                .foregroundStyle(Color(hex: "C4562F"))
+                .minimumScaleFactor(0.4)
+                .lineLimit(1)
+                .padding(.top, 12)
+
+            Text("finds scanned")
+                .font(Font.dmSans(18))
+                .foregroundStyle(Color(hex: "8B7D71"))
+
+            Text(verbatim: HistoryViewModel.money(wrapped.estimatedTotal))
+                .font(Font.fraunces(40, weight: .bold))
+                .foregroundStyle(Color(hex: "6F8F6B"))
+                .minimumScaleFactor(0.5)
+                .lineLimit(1)
+                .padding(.top, 28)
+                .padding(.horizontal, innerPad)
+
+            Text("in AI resale estimates")
+                .font(Font.dmSans(16))
+                .foregroundStyle(Color(hex: "8B7D71"))
+
+            Spacer().frame(height: 44)
+
+            VStack(spacing: 18) {
+                row(label: String(localized: "Top find"),
+                    value: wrapped.topFindName,
+                    trailing: HistoryViewModel.money(wrapped.topFindValue))
+                if let brand = wrapped.topBrand {
+                    row(label: String(localized: "Most-found brand"), value: brand)
+                }
+                if let month = wrapped.busiestMonth {
+                    row(label: String(localized: "Busiest month"),
+                        value: month.formatted(.dateTime.month(.wide)))
+                }
+                if showsProfit {
+                    row(label: wrapped.sales.profit.isLoss
+                            ? String(localized: "Net from flips")
+                            : String(localized: "Profit from flips"),
+                        value: SaleCurrency.signed(wrapped.sales.profit))
+                }
+            }
+            .padding(.horizontal, innerPad)
+
+            Spacer()
+
+            Rectangle()
+                .fill(Color(hex: "EFE6DC"))
+                .frame(height: 1)
+                .padding(.horizontal, innerPad)
+
+            HStack(spacing: 14) {
+                if let qr = snapShareCardQR(for: .wrapped) {
+                    Image(uiImage: qr)
+                        .interpolation(.none)
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 48, height: 48)
+                        .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                }
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("SnapWorth")
+                        .font(Font.fraunces(20, weight: .bold))
+                        .foregroundStyle(Color(hex: "2B211C"))
+                    Text("Get SnapWorth")
+                        .font(Font.dmSans(14))
+                        .foregroundStyle(Color(hex: "8B7D71"))
+                }
+                Spacer()
+            }
+            .padding(.horizontal, innerPad)
+            .padding(.top, 16)
+            .padding(.bottom, 44)
+        }
+        .frame(width: Self.cardWidth, height: Self.cardHeight)
+        .background(Color(hex: "FBF7F2"))
+    }
+
+    private func row(label: String, value: String, trailing: String? = nil) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 12) {
+            Text(label)
+                .font(Font.dmSans(15))
+                .foregroundStyle(Color(hex: "8B7D71"))
+                .lineLimit(1)
+            Spacer(minLength: 8)
+            Text(verbatim: value)
+                .font(Font.fraunces(22, weight: .bold))
+                .foregroundStyle(Color(hex: "2B211C"))
+                .lineLimit(1)
+                .truncationMode(.tail)
+                .minimumScaleFactor(0.7)
+            if let trailing {
+                Text(verbatim: trailing)
+                    .font(Font.fraunces(22, weight: .bold))
+                    .foregroundStyle(Color(hex: "6F8F6B"))
+                    .lineLimit(1)
+                    .fixedSize()
+            }
+        }
+    }
 }
