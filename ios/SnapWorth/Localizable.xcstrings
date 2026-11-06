@@ -21388,38 +21388,38 @@
         }
       }
     },
-    "Questions you ask Tag (Pro), with the details of that find but never its photo" : {
-      "comment" : "AI consent list item. Tag is the mascot's name; Pro is the subscription.",
+    "Questions you ask Tag, with the details of that find but never its photo" : {
+      "comment" : "AI consent list item. Tag is the mascot's name. Free users get a weekly question too, so no (Pro).",
       "extractionState" : "manual",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Fragen, die du Tag stellst (Pro), mit den Angaben zu diesem Fund, aber nie mit seinem Foto"
+            "value" : "Fragen, die du Tag stellst, mit den Angaben zu diesem Fund, aber nie mit seinem Foto"
           }
         },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Questions you ask Tag (Pro), with the details of that find but never its photo"
+            "value" : "Questions you ask Tag, with the details of that find but never its photo"
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Las preguntas que le haces a Tag (Pro), con los datos de ese hallazgo pero nunca su foto"
+            "value" : "Las preguntas que le haces a Tag, con los datos de ese hallazgo pero nunca su foto"
           }
         },
         "ro" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Întrebările pe care i le pui lui Tag (Pro), cu detaliile acelei găsiri, dar niciodată cu fotografia ei"
+            "value" : "Întrebările pe care i le pui lui Tag, cu detaliile acelei găsiri, dar niciodată cu fotografia ei"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "你向 Tag 提出的问题（Pro），附带该物品的信息，但绝不包含照片"
+            "value" : "你向 Tag 提出的问题，附带该物品的信息，但绝不包含照片"
           }
         }
       }

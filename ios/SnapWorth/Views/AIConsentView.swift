@@ -50,7 +50,7 @@ struct AIConsentView: View {
                     VStack(alignment: .leading, spacing: 12) {
                         row("camera", "The photos you scan, and any close-ups for a legit check")
                         row("text.cursor", "Descriptions you type instead of a photo")
-                        row("bubble.left.and.bubble.right", "Questions you ask Tag (Pro), with the details of that find but never its photo")
+                        row("bubble.left.and.bubble.right", "Questions you ask Tag, with the details of that find but never its photo")
                     }
 
                     Text("Google doesn't use them to train its models, and we don't keep them after you get your answer.")
