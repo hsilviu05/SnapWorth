@@ -8127,6 +8127,14 @@
       "es": "Ya usaste la pregunta gratis de esta semana.",
       "de": "Du hast die Gratisfrage dieser Woche schon genutzt.",
       "zh-Hans": "本周的免费提问已用完。"
+    },
+    "%@ · converted from US prices": {
+      "comment": "Under the dollar estimate on a result: %@ is the same range in the phone's currency, such as '≈ 185–370 lei'. It is a conversion, not a local price.",
+      "en": "%@ · converted from US prices",
+      "ro": "%@ · convertit din prețuri din SUA",
+      "es": "%@ · convertido de precios de EE. UU.",
+      "de": "%@ · umgerechnet aus US-Preisen",
+      "zh-Hans": "%@ · 由美国价格换算"
     }
   }
 }

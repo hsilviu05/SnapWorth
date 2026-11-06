@@ -35,6 +35,7 @@ from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from scan import aiconfig
 from scan import assist as assist_module
+from core import fxlive
 from core import apierrors
 from core import background
 from security import auditlog
@@ -944,6 +945,7 @@ LEGIT_BUCKET = "legit"
 ASSIST_BUCKET = "assist"
 ASSIST_FREE_BUCKET = "assist_free"
 TRENDS_BUCKET = "trends"
+RATES_BUCKET = "rates"
 DATA_DELETION_BUCKET = "forget"
 
 
@@ -3439,6 +3441,30 @@ class TrendsResponse(BaseModel):
     categories: list[TrendRow] = Field(default_factory=list)
     brands: list[TrendRow] = Field(default_factory=list)
     notable_finds: list[NotableFind] = Field(default_factory=list)   # Pro only
+
+
+class RatesResponse(BaseModel):
+    """Units of each currency per US dollar, from the ECB's reference rates
+    of `date`. For the app's converted line under an estimate only."""
+    date: str
+    rates: dict[str, float]
+
+
+@app.get("/rates", response_model=RatesResponse,
+         dependencies=[Depends(_refuse_outdated_build)])
+async def rates(
+    request: Request,
+    principal: Principal = Depends(require_auth),
+) -> RatesResponse:
+    """Today's exchange rates, the same for everyone (`fxlive`). 503 when
+    there is no recent table: the app then shows dollars only, as before."""
+    await _enforce_limits(principal.subject, _client_ip(request),
+                          bucket=RATES_BUCKET, limit=TRENDS_RATE_MAX_REQUESTS)
+    table = await fxlive.rates()
+    if table is None:
+        raise APIError(503, apierrors.AI_UNAVAILABLE,
+                       "Exchange rates are unavailable right now.")
+    return RatesResponse(**table)
 
 
 @app.get("/trends", response_model=TrendsResponse,

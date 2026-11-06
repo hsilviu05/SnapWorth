@@ -5379,3 +5379,28 @@ final class AskTagPreviewTests: XCTestCase {
         XCTAssertTrue(AskTagPreview.isAvailable(now: now.addingTimeInterval(-86400), defaults: d))
     }
 }
+
+// MARK: - Converted price line
+
+final class ConvertedPriceTests: XCTestCase {
+    private let table = ExchangeRateTable(date: "2026-11-05", rates: ["RON": 4.6, "EUR": 0.925])
+
+    func test_aRomanianPhoneSeesLei() throws {
+        let line = try XCTUnwrap(ConvertedPrice.range(low: 40, high: 80, table: table,
+                                                      locale: Locale(identifier: "ro_RO")))
+        XCTAssertTrue(line.hasPrefix("≈ "), line)
+        XCTAssertTrue(line.contains("184"), line)
+        XCTAssertTrue(line.contains("368"), line)
+    }
+
+    func test_dollarsNoRateOrNoTableShowNothing() {
+        XCTAssertNil(ConvertedPrice.range(low: 40, high: 80, table: table, locale: Locale(identifier: "en_US")))
+        XCTAssertNil(ConvertedPrice.range(low: 40, high: 80, table: table, locale: Locale(identifier: "pl_PL")))
+        XCTAssertNil(ConvertedPrice.range(low: 40, high: 80, table: nil, locale: Locale(identifier: "ro_RO")))
+    }
+
+    func test_notARangeShowsNothing() {
+        XCTAssertNil(ConvertedPrice.range(low: 80, high: 40, table: table, locale: Locale(identifier: "ro_RO")))
+        XCTAssertNil(ConvertedPrice.range(low: .nan, high: 40, table: table, locale: Locale(identifier: "ro_RO")))
+    }
+}
