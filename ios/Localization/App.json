@@ -7728,13 +7728,13 @@
       "de": "Beschreibungen, die du statt eines Fotos eintippst",
       "zh-Hans": "你代替照片输入的描述"
     },
-    "Questions you ask Tag (Pro), with the details of that find but never its photo": {
-      "comment": "AI consent list item. Tag is the mascot's name; Pro is the subscription.",
-      "en": "Questions you ask Tag (Pro), with the details of that find but never its photo",
-      "ro": "Întrebările pe care i le pui lui Tag (Pro), cu detaliile acelei găsiri, dar niciodată cu fotografia ei",
-      "es": "Las preguntas que le haces a Tag (Pro), con los datos de ese hallazgo pero nunca su foto",
-      "de": "Fragen, die du Tag stellst (Pro), mit den Angaben zu diesem Fund, aber nie mit seinem Foto",
-      "zh-Hans": "你向 Tag 提出的问题（Pro），附带该物品的信息，但绝不包含照片"
+    "Questions you ask Tag, with the details of that find but never its photo": {
+      "comment": "AI consent list item. Tag is the mascot's name. Free users get a weekly question too, so no (Pro).",
+      "en": "Questions you ask Tag, with the details of that find but never its photo",
+      "ro": "Întrebările pe care i le pui lui Tag, cu detaliile acelei găsiri, dar niciodată cu fotografia ei",
+      "es": "Las preguntas que le haces a Tag, con los datos de ese hallazgo pero nunca su foto",
+      "de": "Fragen, die du Tag stellst, mit den Angaben zu diesem Fund, aber nie mit seinem Foto",
+      "zh-Hans": "你向 Tag 提出的问题，附带该物品的信息，但绝不包含照片"
     },
     "Google doesn't use them to train its models, and we don't keep them after you get your answer.": {
       "comment": "AI consent screen.",
