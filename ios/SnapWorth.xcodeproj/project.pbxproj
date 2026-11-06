@@ -15,6 +15,7 @@
 		1DF043CE3003EE710072D4A8 /* SnapWorthWidgetsExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 1DF043B83003EE700072D4A8 /* SnapWorthWidgetsExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		1ED6E4000000000000000001 /* LedgerMath.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1ED6E4000000000000000002 /* LedgerMath.swift */; };
 		AA0000000000000000452B01 /* ThriftWrapped.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000452B02 /* ThriftWrapped.swift */; };
+		AA0000000000000000452B07 /* ProPayback.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000452B08 /* ProPayback.swift */; };
 		5A4ED0000000000000000003 /* WidgetModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A4ED0000000000000000002 /* WidgetModel.swift */; };
 		5A4ED0000000000000000004 /* WidgetModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A4ED0000000000000000002 /* WidgetModel.swift */; };
 		5C1C4E000000000000000002 /* SnapWorthStickers.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 5C1C4E000000000000000001 /* SnapWorthStickers.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
@@ -174,6 +175,7 @@
 		1DF043BC3003EE710072D4A8 /* SwiftUI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SwiftUI.framework; path = System/Library/Frameworks/SwiftUI.framework; sourceTree = SDKROOT; };
 		1ED6E4000000000000000002 /* LedgerMath.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LedgerMath.swift; sourceTree = "<group>"; };
 		AA0000000000000000452B02 /* ThriftWrapped.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThriftWrapped.swift; sourceTree = "<group>"; };
+		AA0000000000000000452B08 /* ProPayback.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProPayback.swift; sourceTree = "<group>"; };
 		5A4ED0000000000000000002 /* WidgetModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetModel.swift; sourceTree = "<group>"; };
 		5C1C4E000000000000000001 /* SnapWorthStickers.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = SnapWorthStickers.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		89A0C0DE0000000000000002 /* RackScan.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RackScan.swift; sourceTree = "<group>"; };
@@ -565,6 +567,7 @@
 				FEED000000000000000000A3 /* MarketplaceFees.swift */,
 				1ED6E4000000000000000002 /* LedgerMath.swift */,
 				AA0000000000000000452B02 /* ThriftWrapped.swift */,
+				AA0000000000000000452B08 /* ProPayback.swift */,
 				89A0C0DE0000000000000002 /* RackScan.swift */,
 				411D6E00000000000000000C /* DailyGuessRounds.swift */,
 				411D6E00000000000000000A /* DailyGuess.swift */,
@@ -935,6 +938,7 @@
 				FEED000000000000000000B3 /* MarketplaceFees.swift in Sources */,
 				1ED6E4000000000000000001 /* LedgerMath.swift in Sources */,
 				AA0000000000000000452B01 /* ThriftWrapped.swift in Sources */,
+				AA0000000000000000452B07 /* ProPayback.swift in Sources */,
 				89A0C0DE0000000000000001 /* RackScan.swift in Sources */,
 				411D6E00000000000000000D /* DailyGuessRounds.swift in Sources */,
 				411D6E00000000000000000B /* DailyGuess.swift in Sources */,

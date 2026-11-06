@@ -421,6 +421,21 @@ final class StoreKitPurchaseService: PurchaseService, ObservableObject {
         }
     }
 
+    func proPayments() async -> [ProPayment] {
+        var payments: [ProPayment] = []
+        for await result in Transaction.all {
+            guard let transaction = try? checkVerified(result),
+                  productIDs.contains(transaction.productID),
+                  transaction.revocationDate == nil,
+                  transaction.ownershipType == .purchased,
+                  let price = transaction.price,
+                  let currency = transaction.currency?.identifier else { continue }
+            payments.append(ProPayment(date: transaction.purchaseDate, amount: price,
+                                       currency: currency))
+        }
+        return payments.sorted { $0.date < $1.date }
+    }
+
     /// Re-reads `Transaction.currentEntitlements` and publishes the result.
     ///
     /// - Parameter serverSync: whether to also push the active transaction to

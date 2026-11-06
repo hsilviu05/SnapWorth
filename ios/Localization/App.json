@@ -8135,6 +8135,30 @@
       "es": "%@ · convertido de precios de EE. UU.",
       "de": "%@ · umgerechnet aus US-Preisen",
       "zh-Hans": "%@ · 由美国价格换算"
+    },
+    "Since you went Pro": {
+      "comment": "My Flips card title (Pro): flip profit since the first Pro payment, beside what Pro has cost.",
+      "en": "Since you went Pro",
+      "ro": "De când ai Pro",
+      "es": "Desde que tienes Pro",
+      "de": "Seit du Pro hast",
+      "zh-Hans": "自开通 Pro 以来"
+    },
+    "Pro has paid for itself": {
+      "comment": "My Flips card title (Pro) when flip profit since subscribing is at least what Pro has cost.",
+      "en": "Pro has paid for itself",
+      "ro": "Pro s-a plătit singur",
+      "es": "Pro ya se ha pagado solo",
+      "de": "Pro hat sich schon bezahlt gemacht",
+      "zh-Hans": "Pro 已经回本了"
+    },
+    "%@ from flips · Pro so far %@": {
+      "comment": "My Flips card line. First %@: signed flip profit since subscribing, e.g. \"+$214\". Second: what Pro has cost so far, e.g. \"$39.99\".",
+      "en": "%@ from flips · Pro so far %@",
+      "ro": "%@ din flipuri · Pro până acum %@",
+      "es": "%@ en reventas · Pro hasta ahora %@",
+      "de": "%@ aus Flips · Pro bisher %@",
+      "zh-Hans": "转卖收益 %@ · Pro 累计花费 %@"
     }
   }
 }

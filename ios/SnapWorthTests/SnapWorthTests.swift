@@ -5404,3 +5404,59 @@ final class ConvertedPriceTests: XCTestCase {
         XCTAssertNil(ConvertedPrice.range(low: .nan, high: 40, table: table, locale: Locale(identifier: "ro_RO")))
     }
 }
+
+// MARK: - Since you went Pro
+
+final class ProPaybackTests: XCTestCase {
+
+    private let locale = Locale(identifier: "en_US")
+    private func day(_ n: Int) -> Date { Date(timeIntervalSince1970: 1_780_000_000 + Double(n) * 86_400) }
+
+    private func flip(soldOn: Date, paid: Double = 10, sold: Double = 60) -> ScanResult {
+        ScanResult(timestamp: soldOn, itemName: "Jacket", brand: "Levi's", category: "clothing",
+                   conditionNotes: "Good", valueLow: 40, valueHigh: 60,
+                   confidence: "High", soldListingsCount: 0, listingTitle: "",
+                   listingDescription: "", paidPrice: paid,
+                   statusRaw: FlipStatus.sold.rawValue, soldPrice: sold, soldDate: soldOn)
+    }
+
+    func test_countsOnlySalesSinceTheFirstPayment() throws {
+        let payments = [ProPayment(date: day(10), amount: 0, currency: "USD"),       // trial
+                        ProPayment(date: day(13), amount: Decimal(string: "39.99")!, currency: "USD")]
+        let results = [flip(soldOn: day(5)), flip(soldOn: day(20)), flip(soldOn: day(25))]
+        let payback = try XCTUnwrap(ProPayback(payments: payments, results: results,
+                                               now: day(30), locale: locale))
+        XCTAssertEqual(payback.since, day(10))
+        XCTAssertEqual(payback.profit, 100)
+        XCTAssertEqual(payback.spent, Decimal(string: "39.99"))
+        XCTAssertTrue(payback.hasPaidForItself)
+    }
+
+    func test_notPaidForItselfBelowTheCost() throws {
+        let payments = [ProPayment(date: day(1), amount: Decimal(string: "39.99")!, currency: "USD")]
+        let payback = try XCTUnwrap(ProPayback(payments: payments,
+                                               results: [flip(soldOn: day(2), paid: 10, sold: 30)],
+                                               now: day(3), locale: locale))
+        XCTAssertFalse(payback.hasPaidForItself)
+    }
+
+    func test_aTrialAloneHasNothingToCompare() {
+        let payments = [ProPayment(date: day(1), amount: 0, currency: "USD")]
+        XCTAssertNil(ProPayback(payments: payments, results: [flip(soldOn: day(2))],
+                                now: day(3), locale: locale))
+    }
+
+    func test_paymentsInTwoCurrenciesShowNothing() {
+        let payments = [ProPayment(date: day(1), amount: Decimal(string: "4.99")!, currency: "USD"),
+                        ProPayment(date: day(31), amount: Decimal(string: "24.99")!, currency: "RON")]
+        XCTAssertNil(ProPayback(payments: payments, results: [flip(soldOn: day(40))],
+                                now: day(45), locale: locale))
+    }
+
+    func test_noProfitInThatCurrencyShowsNothing() {
+        let payments = [ProPayment(date: day(1), amount: Decimal(string: "39.99")!, currency: "EUR")]
+        XCTAssertNil(ProPayback(payments: payments, results: [flip(soldOn: day(2))],
+                                now: day(3), locale: locale))
+        XCTAssertNil(ProPayback(payments: [], results: [flip(soldOn: day(2))], now: day(3)))
+    }
+}

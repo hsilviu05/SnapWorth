@@ -500,6 +500,42 @@
         }
       }
     },
+    "%@ from flips · Pro so far %@" : {
+      "comment" : "My Flips card line. First %@: signed flip profit since subscribing, e.g. \"+$214\". Second: what Pro has cost so far, e.g. \"$39.99\".",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ aus Flips · Pro bisher %@"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ from flips · Pro so far %@"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ en reventas · Pro hasta ahora %@"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ din flipuri · Pro până acum %@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "转卖收益 %@ · Pro 累计花费 %@"
+          }
+        }
+      }
+    },
     "%@ in" : {
       "comment" : "Caption under 'Not sold yet': how much money is tied up.",
       "extractionState" : "manual",
@@ -21106,6 +21142,42 @@
         }
       }
     },
+    "Pro has paid for itself" : {
+      "comment" : "My Flips card title (Pro) when flip profit since subscribing is at least what Pro has cost.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pro hat sich schon bezahlt gemacht"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pro has paid for itself"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pro ya se ha pagado solo"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pro s-a plătit singur"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pro 已经回本了"
+          }
+        }
+      }
+    },
     "Profit" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -25503,6 +25575,42 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "野外目击次数"
+          }
+        }
+      }
+    },
+    "Since you went Pro" : {
+      "comment" : "My Flips card title (Pro): flip profit since the first Pro payment, beside what Pro has cost.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Seit du Pro hast"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Since you went Pro"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Desde que tienes Pro"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "De când ai Pro"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "自开通 Pro 以来"
           }
         }
       }
