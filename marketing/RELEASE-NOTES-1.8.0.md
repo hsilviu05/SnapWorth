@@ -38,16 +38,31 @@ needs a new build number (`chore: 1.8.0, build 32`).
 | **Year in Finds**: a My Finds banner in December and January (all year in TestFlight) opens a share card of the year: finds scanned, their summed estimate, top find, most-found brand, busiest month. Pro adds the year's flip profit; free users get a locked row that opens the paywall (trigger `wrapped`). QR campaign `share_wrapped` via `/get/wrapped` | **Yes**, from Dec 1 |
 | **Redeem a code** in Settings → Account: Apple's offer-code sheet | Yes |
 | **Daily guess widget** (small): today's round waiting or played, and the streak; opens the game | Yes |
+| **"What brings you to SnapWorth?"** on the last onboarding page (optional: resell, clearing out, just curious). Reorders which benefits the intro paywall leads with; nothing is gated on it. Event `onboarding_goal_chosen` | Yes, new installs |
+| **Ask Tag preview**: free users get one question a week (`ASSIST_FREE_WEEKLY_MAX`, default 1; 0 turns it off), then "Keep asking with Pro" | Yes |
+| **Local currency line** under the estimate: "≈ a–b · converted from US prices" in the region currency, from the new `GET /rates` (ECB daily). Hidden for USD regions or when no rate is cached | Yes, non-US regions |
 
 The `/get/wrapped` redirect deploys with the website from `main`; the
 paywall trigger `wrapped` is counted once the backend from `main` is live
-(an older one ignores it). 23 new strings (17 app, 6 widget), all in five languages.
+(an older one ignores it). The Ask Tag preview and the currency line need
+the backend from `main` deployed **before** build 32 reaches testers: an older
+backend answers a free user's question with "Pro required" and has no
+`/rates`, so the line just stays hidden. 33 new strings (27 app, 6 widget), all
+in five languages.
+
+Experiment #220 (1-week trial arm) runs to about Dec 7. The onboarding
+question and the Ask Tag preview both change what reaches the paywall, so
+ship 32 to the App Store after it ends, or read #220 knowing they landed
+mid-test.
 
 **Device checks for 32:**
 - [ ] My Finds with 3+ finds this year (TestFlight): the Year in Finds banner shows; the card preview matches what is shared; the QR opens the App Store.
 - [ ] Free with a priced sale this year: the locked row opens the paywall headed "Add your profit to your year"; after a Sandbox purchase the toggle replaces it.
 - [ ] Settings → Redeem a code opens Apple's sheet (a Sandbox offer code redeems and Pro turns on).
 - [ ] Add the Daily guess widget: "Guess today's price"; play; the widget shows the streak and "Done for today"; tap opens the game over the Scan tab.
+- [ ] Fresh install: the last onboarding page asks "What brings you to SnapWorth?"; pick "I resell" and the intro paywall leads with Haul / Rack rows; skipping it changes nothing.
+- [ ] Free: a result's Tag card offers "Ask Tag one question free"; ask one; the composer is replaced by "Keep asking with Pro". Reopen the same week: a new result offers no free question.
+- [ ] Region Romania (Settings → General → Language & Region): a result shows "≈ … lei · converted from US prices" under the range; region US shows no line; airplane mode on first launch shows no line and no error.
 - [ ] App Review notes: Year in Finds only appears in December and January.
 
 ### Not yet written
@@ -67,6 +82,8 @@ Please test on this build:
 • (32) My Finds: the "Year in Finds" banner opens your year's card. Share it.
 • (32) Settings → Redeem a code opens Apple's code sheet.
 • (32) Add the Daily guess widget and play today's round.
+• (32) Free: ask Tag one question free from a result.
+• (32) Outside the US: the estimate also shows in your currency.
 ```
 
 ---
