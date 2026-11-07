@@ -1,4 +1,14 @@
 {
+  "appPolicies" : {
+    "eula" : "",
+    "policies" : [
+      {
+        "locale" : "en_US",
+        "policyText" : "",
+        "policyURL" : ""
+      }
+    ]
+  },
   "identifier" : "A1B2C3D4",
   "nonRenewingSubscriptions" : [
 
@@ -7,13 +17,22 @@
 
   ],
   "settings" : {
+    "_askToBuyEnabled" : false,
+    "_billingGracePeriodEnabled" : true,
+    "_billingIssuesEnabled" : false,
+    "_disableDialogs" : false,
     "_failTransactionsEnabled" : false,
     "_locale" : "en_US",
+    "_renewalBillingIssuesEnabled" : true,
     "_storefront" : "USA",
     "_storeKitErrors" : [
 
-    ]
+    ],
+    "_timeRate" : 0
   },
+  "subscriptionBundleGroups" : [
+
+  ],
   "subscriptionGroups" : [
     {
       "id" : "20099901",
@@ -26,6 +45,15 @@
           "adHocOffers" : [
 
           ],
+          "billingPlans" : [
+            {
+              "billingPlanType" : "BILLED_UPFRONT",
+              "commitmentDisplayPrice" : "4.99",
+              "displayPrice" : "4.99",
+              "internalID" : "7642CACD",
+              "isEnabled" : true
+            }
+          ],
           "codeOffers" : [
 
           ],
@@ -33,7 +61,9 @@
           "familyShareable" : false,
           "groupNumber" : 1,
           "internalID" : "20099910",
-          "introductoryOffer" : null,
+          "introductoryOffers" : [
+
+          ],
           "localizations" : [
             {
               "description" : "Unlimited scans, resale estimates, and AI listing writer.",
@@ -54,6 +84,15 @@
           "adHocOffers" : [
 
           ],
+          "billingPlans" : [
+            {
+              "billingPlanType" : "BILLED_UPFRONT",
+              "commitmentDisplayPrice" : "39.99",
+              "displayPrice" : "39.99",
+              "internalID" : "94178CB6",
+              "isEnabled" : true
+            }
+          ],
           "codeOffers" : [
 
           ],
@@ -62,11 +101,21 @@
           "groupNumber" : 1,
           "internalID" : "20099920",
           "introductoryOffer" : {
+            "billingPlanType" : "BILLED_UPFRONT",
             "internalID" : "20099921",
             "numberOfPeriods" : 1,
             "paymentMode" : "free",
             "subscriptionPeriod" : "P3D"
           },
+          "introductoryOffers" : [
+            {
+              "billingPlanType" : "BILLED_UPFRONT",
+              "internalID" : "20099921",
+              "numberOfPeriods" : 1,
+              "paymentMode" : "free",
+              "subscriptionPeriod" : "P3D"
+            }
+          ],
           "localizations" : [
             {
               "description" : "Unlimited scans, resale estimates, and AI listing writer. 3-day free trial.",
@@ -86,8 +135,11 @@
       ]
     }
   ],
+  "subscriptionSuiteGroups" : [
+
+  ],
   "version" : {
-    "major" : 3,
-    "minor" : 0
+    "major" : 6,
+    "minor" : 3
   }
 }
