@@ -48,7 +48,7 @@ PLURAL_CATEGORIES = {"zero", "one", "two", "few", "many", "other"}
 
 # Every language the app ships in. `en` is the development language and comes
 # first; the rest are written in `ios/Localization/*.json` beside it.
-LANGUAGES = ("en", "ro", "es", "de", "zh-Hans", "fr")
+LANGUAGES = ("en", "ro", "es", "de", "zh-Hans", "fr", "it")
 
 # The plural categories each language must define, from CLDR. English, Spanish
 # and German all inflect once, at 1. Romanian inflects twice: at 1, and again
@@ -58,6 +58,7 @@ LANGUAGES = ("en", "ro", "es", "de", "zh-Hans", "fr")
 # in `one` ("0 jour", "1 jour", "2 jours"), and CLDR gives it a `many` for exact
 # millions ("1 000 000 de jours"); the app never counts that high, so `many`
 # carries the same words as `other`, but it has to be there for iOS to find.
+# Italian has the same `many` and, unlike French, puts 0 in `other`.
 # A language listed here with too few forms prints the wrong one for most
 # numbers, silently, which is why this is checked rather than assumed.
 REQUIRED = {
@@ -67,6 +68,7 @@ REQUIRED = {
     "de": {"one", "other"},
     "zh-Hans": {"other"},
     "fr": {"one", "many", "other"},
+    "it": {"one", "many", "other"},
 }
 
 

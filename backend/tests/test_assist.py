@@ -182,3 +182,4 @@ class TestPrices:
         assert assist.language_name("ja") == "English"
         assert assist.language_name("zh-Hans") == "Simplified Chinese"
         assert assist.language_name("fr") == "French"
+        assert assist.language_name("it") == "Italian"

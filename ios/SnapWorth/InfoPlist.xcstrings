@@ -29,6 +29,12 @@
             "value" : "SnapWorth"
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SnapWorth"
+          }
+        },
         "ro" : {
           "stringUnit" : {
             "state" : "translated",
@@ -66,6 +72,12 @@
           }
         },
         "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SnapWorth"
+          }
+        },
+        "it" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "SnapWorth"
@@ -113,6 +125,12 @@
             "value" : "SnapWorth utilise ton appareil photo pour photographier des articles afin de les identifier et d'estimer leur valeur de revente."
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SnapWorth usa la fotocamera per fotografare gli articoli, così possiamo identificarli e stimarne il valore di rivendita."
+          }
+        },
         "ro" : {
           "stringUnit" : {
             "state" : "translated",
@@ -155,6 +173,12 @@
             "value" : "Autorise SnapWorth à enregistrer les cartes de partage et les photos d'annonce détourées dans Photos."
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Consenti a SnapWorth di salvare in Foto le card da condividere e le foto degli annunci scontornate."
+          }
+        },
         "ro" : {
           "stringUnit" : {
             "state" : "translated",
@@ -195,6 +219,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "SnapWorth te permet de choisir des photos dans ta photothèque pour estimer leur valeur de revente."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SnapWorth ti permette di scegliere foto dalla libreria da scansionare per conoscerne il valore di rivendita."
           }
         },
         "ro" : {

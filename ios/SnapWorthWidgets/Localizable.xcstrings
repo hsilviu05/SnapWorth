@@ -29,6 +29,12 @@
             "value" : " à "
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : " a "
+          }
+        },
         "ro" : {
           "stringUnit" : {
             "state" : "translated",
@@ -68,6 +74,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%@ dans ton butin"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ nel tuo bottino"
           }
         },
         "ro" : {
@@ -112,6 +124,12 @@
             "value" : "%@ de bénéfice ce mois-ci %@"
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ di guadagno questo mese %@"
+          }
+        },
         "ro" : {
           "stringUnit" : {
             "state" : "translated",
@@ -151,6 +169,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%@ scannés"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ scansionati"
           }
         },
         "ro" : {
@@ -194,6 +218,12 @@
             "value" : "%@ cette tournée"
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ in questo giro"
+          }
+        },
         "ro" : {
           "stringUnit" : {
             "state" : "translated",
@@ -233,6 +263,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%@ à %@"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ a %@"
           }
         },
         "ro" : {
@@ -330,6 +366,30 @@
             }
           }
         },
+        "it" : {
+          "variations" : {
+            "plural" : {
+              "many" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%@ · serie di %lld giorni"
+                }
+              },
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%@ · serie di %lld giorno"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%@ · serie di %lld giorni"
+                }
+              }
+            }
+          }
+        },
         "ro" : {
           "variations" : {
             "plural" : {
@@ -390,6 +450,12 @@
             "value" : "%@, %@"
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@, %@"
+          }
+        },
         "ro" : {
           "stringUnit" : {
             "state" : "translated",
@@ -429,6 +495,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%@, bénéfice inconnu tant que tu n'as pas ajouté les prix"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@, guadagno sconosciuto finché non aggiungi i prezzi"
           }
         },
         "ro" : {
@@ -472,6 +544,12 @@
             "value" : "%@. Dernière valeur connue : ouvre SnapWorth pour actualiser."
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@. Ultimo dato noto: apri SnapWorth per aggiornare."
+          }
+        },
         "ro" : {
           "stringUnit" : {
             "state" : "translated",
@@ -509,6 +587,12 @@
           }
         },
         "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld"
+          }
+        },
+        "it" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "%lld"
@@ -604,6 +688,30 @@
                 "stringUnit" : {
                   "state" : "translated",
                   "value" : "Série de %lld jours"
+                }
+              }
+            }
+          }
+        },
+        "it" : {
+          "variations" : {
+            "plural" : {
+              "many" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Serie di %lld giorni"
+                }
+              },
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Serie di %lld giorno"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Serie di %lld giorni"
                 }
               }
             }
@@ -723,6 +831,30 @@
             }
           }
         },
+        "it" : {
+          "variations" : {
+            "plural" : {
+              "many" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld scoperte"
+                }
+              },
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld scoperta"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld scoperte"
+                }
+              }
+            }
+          }
+        },
         "ro" : {
           "variations" : {
             "plural" : {
@@ -831,6 +963,30 @@
                 "stringUnit" : {
                   "state" : "translated",
                   "value" : "%lld reventes vendues ce mois-ci"
+                }
+              }
+            }
+          }
+        },
+        "it" : {
+          "variations" : {
+            "plural" : {
+              "many" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld rivendite vendute questo mese"
+                }
+              },
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld rivendita venduta questo mese"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld rivendite vendute questo mese"
                 }
               }
             }
@@ -950,6 +1106,30 @@
             }
           }
         },
+        "it" : {
+          "variations" : {
+            "plural" : {
+              "many" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld scansioni gratis rimaste oggi"
+                }
+              },
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld scansione gratis rimasta oggi"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld scansioni gratis rimaste oggi"
+                }
+              }
+            }
+          }
+        },
         "ro" : {
           "variations" : {
             "plural" : {
@@ -1058,6 +1238,30 @@
                 "stringUnit" : {
                   "state" : "translated",
                   "value" : "%lld articles"
+                }
+              }
+            }
+          }
+        },
+        "it" : {
+          "variations" : {
+            "plural" : {
+              "many" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld articoli"
+                }
+              },
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld articolo"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld articoli"
                 }
               }
             }
@@ -1176,6 +1380,30 @@
             }
           }
         },
+        "it" : {
+          "variations" : {
+            "plural" : {
+              "many" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld venduti · aggiungi i prezzi"
+                }
+              },
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld venduto · aggiungi i prezzi"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld venduti · aggiungi i prezzi"
+                }
+              }
+            }
+          }
+        },
         "ro" : {
           "variations" : {
             "plural" : {
@@ -1235,6 +1463,12 @@
             "value" : "Reviens demain, ou passe à Pro"
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Torna domani, o passa a Pro"
+          }
+        },
         "ro" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1275,6 +1509,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Devinette du jour"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Indovinello del giorno"
           }
         },
         "ro" : {
@@ -1319,6 +1559,12 @@
             "value" : "Fini pour aujourd'hui. Reviens demain."
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fatto per oggi. Torna domani."
+          }
+        },
         "ro" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1358,6 +1604,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Découvre combien ça vaut"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Scopri quanto vale"
           }
         },
         "ro" : {
@@ -1402,6 +1654,12 @@
             "value" : "Devine le prix de revente d'un article par jour, et garde ta série."
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Indovina ogni giorno il prezzo di rivendita di un articolo, e mantieni la tua serie."
+          }
+        },
         "ro" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1442,6 +1700,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Devine aujourd'hui pour continuer"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Indovina oggi per non perderla"
           }
         },
         "ro" : {
@@ -1486,6 +1750,12 @@
             "value" : "Devine le prix du jour"
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Indovina il prezzo di oggi"
+          }
+        },
         "ro" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1525,6 +1795,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Butin"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bottino"
           }
         },
         "ro" : {
@@ -1569,6 +1845,12 @@
             "value" : "Valeur du butin"
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Valore del bottino"
+          }
+        },
         "ro" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1608,6 +1890,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Ton butin sur l'écran verrouillé"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Il bottino sulla schermata di blocco"
           }
         },
         "ro" : {
@@ -1651,6 +1939,12 @@
             "value" : "Butin d'une valeur de %@, %@"
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bottino del valore di %@, %@"
+          }
+        },
         "ro" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1690,6 +1984,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Butin d'une valeur de %@"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bottino del valore di %@"
           }
         },
         "ro" : {
@@ -1733,6 +2033,12 @@
             "value" : "Combien de scans gratuits il te reste aujourd'hui."
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Quante scansioni gratis ti restano oggi."
+          }
+        },
         "ro" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1772,6 +2078,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Dernière valeur connue : ouvre SnapWorth pour actualiser"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ultimo dato noto: apri SnapWorth per aggiornare"
           }
         },
         "ro" : {
@@ -1815,6 +2127,12 @@
             "value" : "Dernier scan"
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ultima scansione"
+          }
+        },
         "ro" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1854,6 +2172,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Dernier scan, %@, %@"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ultima scansione, %@, %@"
           }
         },
         "ro" : {
@@ -1897,6 +2221,12 @@
             "value" : "Dernier : %@"
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ultima: %@"
+          }
+        },
         "ro" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1936,6 +2266,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Aucune trouvaille scannée pour l'instant"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ancora nessuna scoperta scansionata"
           }
         },
         "ro" : {
@@ -1979,6 +2315,12 @@
             "value" : "Aucune trouvaille pour l'instant"
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ancora nessuna scoperta"
+          }
+        },
         "ro" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2018,6 +2360,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Aucune revente vendue ce mois-ci"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nessuna rivendita venduta questo mese"
           }
         },
         "ro" : {
@@ -2061,6 +2409,12 @@
             "value" : "Plus de scans gratuits aujourd'hui"
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nessuna scansione gratis rimasta oggi"
+          }
+        },
         "ro" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2100,6 +2454,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Aucun scan pour l'instant"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ancora nessuna scansione"
           }
         },
         "ro" : {
@@ -2143,6 +2503,12 @@
             "value" : "Rien de scanné pour l'instant"
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ancora niente di scansionato"
+          }
+        },
         "ro" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2182,6 +2548,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Rien de scanné pour l'instant. Touche pour scanner ta première trouvaille."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ancora niente di scansionato. Tocca per scansionare la tua prima scoperta."
           }
         },
         "ro" : {
@@ -2225,6 +2597,12 @@
             "value" : "Rien pour l'instant"
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ancora niente"
+          }
+        },
         "ro" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2264,6 +2642,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Un toucher pour scanner n'importe quel article de seconde main."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Un tocco per scansionare qualsiasi articolo usato."
           }
         },
         "ro" : {
@@ -2307,6 +2691,12 @@
             "value" : "Ouvre SnapWorth"
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apri SnapWorth"
+          }
+        },
         "ro" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2346,6 +2736,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Ouvre SnapWorth avec l'appareil photo prêt."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apri SnapWorth con la fotocamera pronta."
           }
         },
         "ro" : {
@@ -2389,6 +2785,12 @@
             "value" : "Ouvre SnapWorth avec l'appareil photo prêt."
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apre SnapWorth con la fotocamera pronta."
+          }
+        },
         "ro" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2428,6 +2830,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Bénéfice ce mois-ci"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Guadagno questo mese"
           }
         },
         "ro" : {
@@ -2471,6 +2879,12 @@
             "value" : "Scan rapide"
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Scansione rapida"
+          }
+        },
         "ro" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2510,6 +2924,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Trouvailles récentes"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Scoperte recenti"
           }
         },
         "ro" : {
@@ -2553,6 +2973,12 @@
             "value" : "Scanner"
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Scansiona"
+          }
+        },
         "ro" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2592,6 +3018,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Scanner un article"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Scansiona un articolo"
           }
         },
         "ro" : {
@@ -2635,6 +3067,12 @@
             "value" : "Nombre de scans pas encore disponible. Ouvre SnapWorth."
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Numero di scansioni non ancora disponibile. Apri SnapWorth."
+          }
+        },
         "ro" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2674,6 +3112,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Scanner"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Scansiona ora"
           }
         },
         "ro" : {
@@ -2717,6 +3161,12 @@
             "value" : "Scanne quelque chose pour commencer"
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Scansiona qualcosa per iniziare"
+          }
+        },
         "ro" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2756,6 +3206,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Scanne quelque chose pour lancer la tournée"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Scansiona qualcosa per iniziare il giro"
           }
         },
         "ro" : {
@@ -2799,6 +3255,12 @@
             "value" : "Scanne ta première trouvaille"
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Scansiona la tua prima scoperta"
+          }
+        },
         "ro" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2838,6 +3300,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Scans restants"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Scansioni rimaste"
           }
         },
         "ro" : {
@@ -2881,6 +3349,12 @@
             "value" : "Vois ta valeur de revente totale en un coup d'œil."
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vedi a colpo d'occhio il valore di rivendita totale."
+          }
+        },
         "ro" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2918,6 +3392,12 @@
           }
         },
         "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SnapWorth"
+          }
+        },
+        "it" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "SnapWorth"
@@ -2964,6 +3444,12 @@
             "value" : "Butin SnapWorth, %@"
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bottino SnapWorth, %@"
+          }
+        },
         "ro" : {
           "stringUnit" : {
             "state" : "translated",
@@ -3003,6 +3489,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Butin SnapWorth, %@ scannés, d'une valeur de %@."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bottino SnapWorth, %@ scansionati, del valore di %@."
           }
         },
         "ro" : {
@@ -3046,6 +3538,12 @@
             "value" : "Butin SnapWorth, %@, %@"
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bottino SnapWorth, %@, %@"
+          }
+        },
         "ro" : {
           "stringUnit" : {
             "state" : "translated",
@@ -3085,6 +3583,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "SnapWorth, aucune trouvaille scannée pour l'instant"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SnapWorth, ancora nessuna scoperta scansionata"
           }
         },
         "ro" : {
@@ -3128,6 +3632,12 @@
             "value" : "SnapWorth, aucune trouvaille pour l'instant. Scanne quelque chose pour commencer."
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SnapWorth, ancora nessuna scoperta. Scansiona qualcosa per iniziare."
+          }
+        },
         "ro" : {
           "stringUnit" : {
             "state" : "translated",
@@ -3167,6 +3677,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "SnapWorth. Rien de scanné pour l'instant."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SnapWorth. Ancora niente di scansionato."
           }
         },
         "ro" : {
@@ -3210,6 +3726,12 @@
             "value" : "Touche pour scanner\nta première trouvaille"
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tocca per scansionare\nla tua prima scoperta"
+          }
+        },
         "ro" : {
           "stringUnit" : {
             "state" : "translated",
@@ -3249,6 +3771,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Les derniers articles scannés, et ce qu'ils valent."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Le ultime cose che hai scansionato, e quanto valgono."
           }
         },
         "ro" : {
@@ -3292,6 +3820,12 @@
             "value" : "Ce mois-ci"
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Questo mese"
+          }
+        },
         "ro" : {
           "stringUnit" : {
             "state" : "translated",
@@ -3331,6 +3865,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Tournée friperie"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Giro dell'usato"
           }
         },
         "ro" : {
@@ -3374,6 +3914,12 @@
             "value" : "Tournée friperie en cours, %@"
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Giro dell'usato in corso, %@"
+          }
+        },
         "ro" : {
           "stringUnit" : {
             "state" : "translated",
@@ -3413,6 +3959,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Tournée friperie lancée, rien de scanné pour l'instant"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Giro dell'usato iniziato, ancora niente di scansionato"
           }
         },
         "ro" : {
@@ -3456,6 +4008,12 @@
             "value" : "Tournée friperie, %@"
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Giro dell'usato, %@"
+          }
+        },
         "ro" : {
           "stringUnit" : {
             "state" : "translated",
@@ -3495,6 +4053,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Tournée friperie, %@, d'une valeur de %@, commencée à %@"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Giro dell'usato, %@, del valore di %@, iniziato alle %@"
           }
         },
         "ro" : {
@@ -3538,6 +4102,12 @@
             "value" : "Tournée friperie, dernière valeur connue, rien de scanné pour l'instant"
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Giro dell'usato, ultimo dato noto, ancora niente di scansionato"
+          }
+        },
         "ro" : {
           "stringUnit" : {
             "state" : "translated",
@@ -3577,6 +4147,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Scans illimités"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Scansioni illimitate"
           }
         },
         "ro" : {
@@ -3669,6 +4245,30 @@
                 "stringUnit" : {
                   "state" : "translated",
                   "value" : "Scans illimités, série de %lld jours de scan"
+                }
+              }
+            }
+          }
+        },
+        "it" : {
+          "variations" : {
+            "plural" : {
+              "many" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Scansioni illimitate, serie di %lld giorni di scansioni"
+                }
+              },
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Scansioni illimitate, serie di %lld giorno di scansioni"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Scansioni illimitate, serie di %lld giorni di scansioni"
                 }
               }
             }
@@ -3787,6 +4387,30 @@
             }
           }
         },
+        "it" : {
+          "variations" : {
+            "plural" : {
+              "many" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Illimitate · serie di %lld giorni"
+                }
+              },
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Illimitate · serie di %lld giorno"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Illimitate · serie di %lld giorni"
+                }
+              }
+            }
+          }
+        },
         "ro" : {
           "variations" : {
             "plural" : {
@@ -3846,6 +4470,12 @@
             "value" : "Ce que tes reventes vendues t'ont vraiment rapporté."
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Quanto hanno fruttato davvero le tue rivendite vendute."
+          }
+        },
         "ro" : {
           "stringUnit" : {
             "state" : "translated",
@@ -3887,6 +4517,12 @@
             "value" : "Ton butin"
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Il tuo bottino"
+          }
+        },
         "ro" : {
           "stringUnit" : {
             "state" : "translated",
@@ -3926,6 +4562,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Ta valeur de revente totale, sans déverrouiller."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Il tuo valore di rivendita totale, senza sbloccare."
           }
         },
         "ro" : {
@@ -3970,6 +4612,12 @@
             "value" : "jours d'affilée"
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "giorni di fila"
+          }
+        },
         "ro" : {
           "stringUnit" : {
             "state" : "translated",
@@ -4010,6 +4658,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "écoulé"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "trascorso"
           }
         },
         "ro" : {
@@ -4054,6 +4708,12 @@
             "value" : "scan gratuit restant aujourd'hui"
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "scansione gratis rimasta oggi"
+          }
+        },
         "ro" : {
           "stringUnit" : {
             "state" : "translated",
@@ -4093,6 +4753,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "scans gratuits restants aujourd'hui"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "scansioni gratis rimaste oggi"
           }
         },
         "ro" : {
@@ -4190,6 +4856,30 @@
             }
           }
         },
+        "it" : {
+          "variations" : {
+            "plural" : {
+              "many" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "da %lld rivendite"
+                }
+              },
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "da %lld rivendita"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "da %lld rivendite"
+                }
+              }
+            }
+          }
+        },
         "ro" : {
           "variations" : {
             "plural" : {
@@ -4249,6 +4939,12 @@
             "value" : "rien de scanné pour l'instant"
           }
         },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ancora niente di scansionato"
+          }
+        },
         "ro" : {
           "stringUnit" : {
             "state" : "translated",
@@ -4289,6 +4985,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "début"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "inizio"
           }
         },
         "ro" : {
