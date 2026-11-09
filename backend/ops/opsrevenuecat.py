@@ -27,8 +27,10 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
+import html
 import logging
 import os
+from collections import Counter
 
 import httpx
 
@@ -62,8 +64,9 @@ def production_transaction_ids(doc: dict) -> list[str]:
 
 
 async def post_receipt(client: httpx.AsyncClient, secret: str, *,
-                       app_user: str, jws: str, product_id: str | None) -> int:
-    """POST one signed transaction. Returns the HTTP status."""
+                       app_user: str, jws: str, product_id: str | None) -> tuple[int, str]:
+    """POST one signed transaction. Returns the HTTP status, and RevenueCat's
+    own error text when it refused (empty on success)."""
     body: dict = {"app_user_id": app_user, "fetch_token": jws}
     if product_id:
         body["product_id"] = product_id
@@ -71,7 +74,25 @@ async def post_receipt(client: httpx.AsyncClient, secret: str, *,
         RECEIPTS_URL, json=body,
         headers={"Authorization": f"Bearer {secret}", "X-Platform": "ios",
                  "Content-Type": "application/json"})
-    return response.status_code
+    if 200 <= response.status_code < 300:
+        return response.status_code, ""
+    return response.status_code, refusal_detail(response)
+
+
+def refusal_detail(response: httpx.Response) -> str:
+    """RevenueCat's reason, short enough for a chat line. Its error body is
+    `{"code": ..., "message": ...}`; anything else falls back to the raw text."""
+    try:
+        body = response.json()
+    except ValueError:
+        body = None
+    if isinstance(body, dict) and (body.get("message") or body.get("code")):
+        code = body.get("code")
+        message = str(body.get("message") or "").strip()
+        detail = f"{code}: {message}" if code is not None else message
+    else:
+        detail = (response.text or "").strip()
+    return " ".join(detail.split())[:200]
 
 
 async def import_subscriptions(*, limit: int | None = None,
@@ -98,6 +119,7 @@ async def import_subscriptions(*, limit: int | None = None,
         otids = otids[:limit]
 
     sent = not_found = lookup_failed = rejected = 0
+    reasons: Counter[str] = Counter()
     rate_limited = False
     owned = client is None
     client = client or httpx.AsyncClient(timeout=TIMEOUT_SECONDS)
@@ -126,11 +148,12 @@ async def import_subscriptions(*, limit: int | None = None,
                 continue
             status = mine[0]
             try:
-                code = await post_receipt(
+                code, detail = await post_receipt(
                     client, secret, app_user=app_user_id(otid),
                     jws=status.signed_transaction or "", product_id=status.product_id)
             except httpx.HTTPError as exc:
                 rejected += 1
+                reasons[f"unreachable ({type(exc).__name__})"] += 1
                 log.warning("rcimport: RevenueCat unreachable (%s)", type(exc).__name__)
                 continue
             if code == 429:
@@ -140,7 +163,8 @@ async def import_subscriptions(*, limit: int | None = None,
                 sent += 1
             else:
                 rejected += 1
-                log.warning("rcimport: RevenueCat answered HTTP %s", code)
+                reasons[f"HTTP {code}" + (f" — {detail}" if detail else "")] += 1
+                log.warning("rcimport: RevenueCat answered HTTP %s: %s", code, detail)
     finally:
         if owned:
             await client.aclose()
@@ -153,9 +177,8 @@ async def import_subscriptions(*, limit: int | None = None,
     if rate_limited:
         lines.append("⚠️ Stopped early: rate limited. Run it again in a minute; "
                      "anything already sent is deduplicated.")
-    if rejected:
-        lines.append("Refusals are usually a missing In-App Purchase key in RevenueCat, "
-                     "or a v2 key in REVENUECAT_SECRET_KEY.")
+    for reason, count in reasons.most_common(3):
+        lines.append(f"RevenueCat said ({count}×): {html.escape(reason)}")
     return "\n".join(lines)
 
 
