@@ -2451,8 +2451,20 @@ final class PrivacyManifestTests: XCTestCase {
         let entry = collected.first { $0["NSPrivacyCollectedDataType"] as? String
                                       == "NSPrivacyCollectedDataTypePurchaseHistory" }
         XCTAssertNotNil(entry, "the signed transaction is collected and undeclared")
+        // Analytics since RevenueCat: the same transaction feeds its charts.
         XCTAssertEqual(entry?["NSPrivacyCollectedDataTypePurposes"] as? [String],
-                       ["NSPrivacyCollectedDataTypePurposeAppFunctionality"])
+                       ["NSPrivacyCollectedDataTypePurposeAppFunctionality",
+                        "NSPrivacyCollectedDataTypePurposeAnalytics"])
+    }
+
+    func test_theDeviceIDRevenueCatSendsIsDeclaredForAnalytics() throws {
+        // The RevenueCat SDK puts the raw identifierForVendor on every request
+        // and no flag turns that off; its own manifest does not declare it.
+        let collected = try manifest()["NSPrivacyCollectedDataTypes"] as? [[String: Any]] ?? []
+        let entry = collected.first { $0["NSPrivacyCollectedDataType"] as? String
+                                      == "NSPrivacyCollectedDataTypeDeviceID" }
+        let purposes = entry?["NSPrivacyCollectedDataTypePurposes"] as? [String] ?? []
+        XCTAssertTrue(purposes.contains("NSPrivacyCollectedDataTypePurposeAnalytics"))
     }
 
     func test_sharedSalePricesAreDeclaredAsOtherFinancialInfo() throws {

@@ -49,6 +49,10 @@ struct SnapWorthApp: App {
         // and fires app_opened — the top of the launch funnel.
         AnalyticsBootstrap.start()
 
+        // Subscription analytics only: StoreKit still makes every purchase.
+        // Same opt-out as above; no-op until a RevenueCat key is set.
+        RevenueCatObserver.start()
+
         // Reported here, not from inside the container closure.
         //
         // Stored-property initialisers run before this body, and

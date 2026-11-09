@@ -195,4 +195,10 @@ enum Config {
     /// discontinuity in the retention figures is the price of the policy text
     /// being true.
     static let telemetryDeckSalt = "jq9!cuSbW8j=F%l4T-sfKbVB7NdHwBy5dioOYXg!T41!OKTEQ8x#FXBaCi@DJxyc"
+
+    /// RevenueCat public Apple SDK key (`appl_…`, Project settings → API keys).
+    /// Public by design: it ships in the binary and can only send purchases
+    /// and read their own customer, so it is not a secret. Never put an
+    /// `sk_` secret key here. Empty keeps `RevenueCatObserver` a no-op.
+    static let revenueCatAPIKey = "appl_VmTUodlaqELRoxdSRzuGJfcRbnO"
 }

@@ -80,6 +80,8 @@
 		AA0000000000000000447A01 /* TagTipsCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000447A02 /* TagTipsCard.swift */; };
 		AA0000000000000000448A07 /* AskTagView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000448A08 /* AskTagView.swift */; };
 		ADD1EC0000000000000000A3 /* TelemetryDeck in Frameworks */ = {isa = PBXBuildFile; productRef = ADD1EC0000000000000000A2 /* TelemetryDeck */; };
+		ECA7000000000000000000A3 /* RevenueCat in Frameworks */ = {isa = PBXBuildFile; productRef = ECA7000000000000000000A2 /* RevenueCat */; };
+		ECA7000000000000000000B2 /* RevenueCatObserver.swift in Sources */ = {isa = PBXBuildFile; fileRef = ECA7000000000000000000B1 /* RevenueCatObserver.swift */; };
 		ADD1EC0000000000000000B2 /* Analytics.swift in Sources */ = {isa = PBXBuildFile; fileRef = ADD1EC0000000000000000B1 /* Analytics.swift */; };
 		ADD1EC0000000000000000B4 /* TelemetryDeckAnalytics.swift in Sources */ = {isa = PBXBuildFile; fileRef = ADD1EC0000000000000000B3 /* TelemetryDeckAnalytics.swift */; };
 		ADD1EC0000000000000000B6 /* ActivityShareSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = ADD1EC0000000000000000B5 /* ActivityShareSheet.swift */; };
@@ -243,6 +245,7 @@
 		AA0000000000000000448A08 /* AskTagView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AskTagView.swift; sourceTree = "<group>"; };
 		ADD1EC0000000000000000B1 /* Analytics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Analytics.swift; sourceTree = "<group>"; };
 		ADD1EC0000000000000000B3 /* TelemetryDeckAnalytics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TelemetryDeckAnalytics.swift; sourceTree = "<group>"; };
+		ECA7000000000000000000B1 /* RevenueCatObserver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RevenueCatObserver.swift; sourceTree = "<group>"; };
 		ADD1EC0000000000000000B5 /* ActivityShareSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivityShareSheet.swift; sourceTree = "<group>"; };
 		ADD1EC0000000000000000B7 /* FlipsViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FlipsViewModel.swift; sourceTree = "<group>"; };
 		ADD1EC0000000000000000B9 /* FlipsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FlipsView.swift; sourceTree = "<group>"; };
@@ -335,6 +338,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				ADD1EC0000000000000000A3 /* TelemetryDeck in Frameworks */,
+				ECA7000000000000000000A3 /* RevenueCat in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -478,6 +482,7 @@
 			children = (
 				ADD1EC0000000000000000B1 /* Analytics.swift */,
 				ADD1EC0000000000000000B3 /* TelemetryDeckAnalytics.swift */,
+				ECA7000000000000000000B1 /* RevenueCatObserver.swift */,
 				BB0000000000000000000D02 /* CrashReporter.swift */,
 			);
 			path = Telemetry;
@@ -756,6 +761,7 @@
 			name = SnapWorth;
 			packageProductDependencies = (
 				ADD1EC0000000000000000A2 /* TelemetryDeck */,
+				ECA7000000000000000000A2 /* RevenueCat */,
 			);
 			productName = SnapWorth;
 			productReference = AA00000000000000000000AE /* SnapWorth.app */;
@@ -822,6 +828,7 @@
 			mainGroup = AA00000000000000000000F0;
 			packageReferences = (
 				ADD1EC0000000000000000A1 /* XCRemoteSwiftPackageReference "SwiftSDK" */,
+				ECA7000000000000000000A1 /* XCRemoteSwiftPackageReference "purchases-ios-spm" */,
 			);
 			productRefGroup = AA00000000000000000000AC /* Products */;
 			projectDirPath = "";
@@ -918,6 +925,7 @@
 				BB0000000000000000000D01 /* CrashReporter.swift in Sources */,
 				BB0000000000000000000E01 /* StoreProtection.swift in Sources */,
 				ADD1EC0000000000000000B4 /* TelemetryDeckAnalytics.swift in Sources */,
+				ECA7000000000000000000B2 /* RevenueCatObserver.swift in Sources */,
 				ADD1EC0000000000000000F2 /* ReviewPrompt.swift in Sources */,
 				ADD1EC0000000000000412F2 /* AppShortcuts.swift in Sources */,
 				ADD1EC0000000000000412F4 /* VisualIntelligence.swift in Sources */,
@@ -1507,6 +1515,14 @@
 				minimumVersion = 2.0.0;
 			};
 		};
+		ECA7000000000000000000A1 /* XCRemoteSwiftPackageReference "purchases-ios-spm" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/RevenueCat/purchases-ios-spm.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 5.102.3;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -1514,6 +1530,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = ADD1EC0000000000000000A1 /* XCRemoteSwiftPackageReference "SwiftSDK" */;
 			productName = TelemetryDeck;
+		};
+		ECA7000000000000000000A2 /* RevenueCat */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = ECA7000000000000000000A1 /* XCRemoteSwiftPackageReference "purchases-ios-spm" */;
+			productName = RevenueCat;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};
