@@ -70,7 +70,9 @@ def revenuecat(status: int = 200):
     def handler(request: httpx.Request) -> httpx.Response:
         seen.append({"url": str(request.url), "headers": dict(request.headers),
                      "body": json.loads(request.content)})
-        return httpx.Response(status, json={})
+        if 200 <= status < 300:
+            return httpx.Response(status, json={})
+        return httpx.Response(status, json={"code": 7225, "message": "Invalid <JWS>"})
 
     return httpx.AsyncClient(transport=httpx.MockTransport(handler)), seen
 
@@ -135,6 +137,8 @@ class TestImport:
         assert "0 sent" in text
         assert "1 unknown to Apple" in text
         assert "1 refused by RevenueCat" in text
+        # RevenueCat's own reason, escaped for the bot's HTML.
+        assert "RevenueCat said (1×): HTTP 401 — 7225: Invalid &lt;JWS&gt;" in text
 
     @pytest.mark.asyncio
     async def test_rate_limit_stops_the_run(self, configured, apple):
