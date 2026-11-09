@@ -182,7 +182,8 @@ class TestTheRealOrder:
 
     @pytest.mark.asyncio
     async def test_a_converted_row_still_reads_started_as_trial(self, with_bot):
-        await notify.entitlement_recorded(SUBJECT, trial())
+        started = trial()
+        await notify.entitlement_recorded(SUBJECT, started)
         assert (await row("otid-trial"))["started_as"] == "trial"
         await notify.subscription_event(
             FakeNotification(first_paid_period(), paid_period=True))
@@ -192,7 +193,7 @@ class TestTheRealOrder:
         assert converted["started_as"] == "trial"
         # And when the free period ran out, which only the trial's own
         # transaction carried.
-        assert converted["trial_ends"] == trial().expires_at
+        assert converted["trial_ends"] == started.expires_at
 
     @pytest.mark.asyncio
     async def test_a_row_from_before_the_field_takes_its_last_acq(self, with_bot):

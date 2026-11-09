@@ -1881,7 +1881,10 @@ payment details, and it is not used to track you across other apps or websites.
 Turning analytics off in Settings turns it off too, from the next time the app
 starts. When we started using RevenueCat, our server also sent it, once,
 Apple's current signed record of each subscription it had on file, so that its
-figures include subscriptions bought before then.</p>
+figures include subscriptions bought before then. It also sent, once, a one-way
+hash of the pseudonymous identifier our server keeps for each other install it had
+seen, so that those installs are counted too; RevenueCat cannot trace that hash back to
+your device.</p>
 <p><strong>Telegram.</strong> To monitor the service, operational information may
 be relayed to the operator through Telegram: the name of an item the AI
 identified and its estimated price range; and, so that a support request can be

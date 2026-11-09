@@ -28,7 +28,7 @@ from billing.entitlements import Entitlement  # noqa: E402
 async def configured(monkeypatch):
     monkeypatch.delenv("TELEGRAM_BOT_TOKEN", raising=False)
     monkeypatch.delenv("TELEGRAM_CHAT_ID", raising=False)
-    monkeypatch.setenv(opsrevenuecat.SECRET_ENV, "sk_test")
+    monkeypatch.setenv(opsrevenuecat.KEY_ENV, "appl_test")
     monkeypatch.setattr(opsrevenuecat, "PAUSE_SECONDS", 0)
     cache = ResilientCache(None, InMemoryCache())
     notify.configure(cache)
@@ -93,7 +93,7 @@ class TestImport:
 
         assert [s["body"]["fetch_token"] for s in seen] == ["jws-a", "jws-b"]
         assert seen[0]["url"] == opsrevenuecat.RECEIPTS_URL
-        assert seen[0]["headers"]["authorization"] == "Bearer sk_test"
+        assert seen[0]["headers"]["authorization"] == "Bearer appl_test"
         assert seen[0]["headers"]["x-platform"] == "ios"
         assert seen[0]["body"]["product_id"] == "com.snapworth.yearly"
         assert "2 sent" in text
@@ -152,13 +152,25 @@ class TestImport:
         assert "Stopped early" in text
 
     @pytest.mark.asyncio
-    async def test_needs_a_v1_secret_key(self, configured, apple, monkeypatch):
+    async def test_refuses_a_secret_key_and_defaults_to_the_apps(
+            self, configured, apple, monkeypatch):
+        await put_index(configured, {"1000": {"env": "Production"}})
+        apple["subs"] = {"1000": ("Production", "jws-a")}
         client, seen = revenuecat()
-        monkeypatch.delenv(opsrevenuecat.SECRET_ENV)
+        monkeypatch.setenv(opsrevenuecat.KEY_ENV, "sk_secret")
         assert "did not run" in await opsrevenuecat.import_subscriptions(client=client)
-        monkeypatch.setenv(opsrevenuecat.SECRET_ENV, "appl_public")
-        assert "not a secret key" in await opsrevenuecat.import_subscriptions(client=client)
         assert seen == []
+        monkeypatch.delenv(opsrevenuecat.KEY_ENV)
+        await opsrevenuecat.import_subscriptions(client=client)
+        assert seen[0]["headers"]["authorization"] == f"Bearer {opsrevenuecat.PUBLIC_KEY}"
+
+    def test_default_key_is_the_apps(self):
+        config = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                              "..", "..", "ios", "SnapWorth", "Config.swift")
+        if not os.path.exists(config):
+            pytest.skip("iOS sources not checked out")
+        with open(config, encoding="utf-8") as f:
+            assert f'"{opsrevenuecat.PUBLIC_KEY}"' in f.read()
 
 
 class TestCommand:
@@ -173,3 +185,83 @@ class TestCommand:
         callbacks = [cb for row in buttons for _, cb in row]
         assert "revenue rcimport test" in callbacks
         assert "revenue rcimport yes" in callbacks
+
+
+def revenuecat_customers(status: int = 200):
+    """A RevenueCat whose GET /v1/subscribers records each customer fetched."""
+    seen: list[dict] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append({"method": request.method, "url": str(request.url),
+                     "headers": dict(request.headers)})
+        if 200 <= status < 300:
+            return httpx.Response(status, json={"subscriber": {}})
+        return httpx.Response(status, json={"code": 7243, "message": "Forbidden"})
+
+    return httpx.AsyncClient(transport=httpx.MockTransport(handler)), seen
+
+
+class TestUsersImport:
+    @pytest.mark.asyncio
+    async def test_creates_each_device_not_on_a_subscription(self, configured):
+        await put_index(configured, {"1000": {"env": "Production",
+                                              "devices": ["aaaa111122223333"]}})
+        await configured.set(opsindex.USERS_INDEX_KEY, json.dumps({
+            "aaaa111122223333": {"first": 1, "tier": "pro"},
+            "cccc111122223333": {"first": 9, "tier": "free"},
+            "bbbb111122223333": {"first": 2, "tier": "free"},
+        }))
+        client, seen = revenuecat_customers()
+
+        text = await opsrevenuecat.import_users(client=client)
+
+        expected = [opsrevenuecat.device_app_user_id("bbbb111122223333"),
+                    opsrevenuecat.device_app_user_id("cccc111122223333")]
+        assert [s["method"] for s in seen] == ["GET", "GET"]
+        assert [s["url"] for s in seen] == [
+            opsrevenuecat.SUBSCRIBERS_URL + "%24RCAnonymousID%3A" + e.split(":", 1)[1]
+            for e in expected]
+        assert seen[0]["headers"]["authorization"] == "Bearer appl_test"
+        assert all("bbbb" not in s["url"] and "cccc" not in s["url"] for s in seen)
+        assert "2 devices without a subscription" in text
+        assert "2 sent" in text
+
+    @pytest.mark.asyncio
+    async def test_legacy_short_device_id_on_a_subscription_is_skipped(self, configured):
+        await put_index(configured, {"1000": {"env": "Production", "who": "aaaa11"}})
+        await configured.set(opsindex.USERS_INDEX_KEY,
+                             json.dumps({"aaaa111122223333": {"first": 1}}))
+        client, seen = revenuecat_customers()
+
+        await opsrevenuecat.import_users(client=client)
+
+        assert seen == []
+
+    @pytest.mark.asyncio
+    async def test_refusal_reason_and_limit(self, configured):
+        await configured.set(opsindex.USERS_INDEX_KEY, json.dumps(
+            {"a": {"first": 1}, "b": {"first": 2}}))
+        client, seen = revenuecat_customers(status=403)
+
+        text = await opsrevenuecat.import_users(limit=1, client=client)
+
+        assert len(seen) == 1
+        assert "1 refused by RevenueCat" in text
+        assert "HTTP 403 — 7243: Forbidden" in text
+
+    @pytest.mark.asyncio
+    async def test_refuses_a_secret_key(self, configured, monkeypatch):
+        monkeypatch.setenv(opsrevenuecat.KEY_ENV, "sk_secret")
+        client, seen = revenuecat_customers()
+        assert "did not run" in await opsrevenuecat.import_users(client=client)
+        assert seen == []
+
+    @pytest.mark.asyncio
+    async def test_command_asks_before_sending(self, configured):
+        text, buttons = await opsrevenue.revenue_command("rcimport", "rcimport users")
+
+        assert "devices without a subscription" in text
+        callbacks = [cb for row in buttons for _, cb in row]
+        assert "revenue rcimport users test" in callbacks
+        assert "revenue rcimport users yes" in callbacks
+        assert all(len(cb.encode()) <= 64 for cb in callbacks)
