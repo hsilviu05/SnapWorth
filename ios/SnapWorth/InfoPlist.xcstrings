@@ -23,6 +23,42 @@
             "value" : "SnapWorth"
           }
         },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SnapWorth"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SnapWorth"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SnapWorth"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SnapWorth"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SnapWorth"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SnapWorth"
+          }
+        },
         "ro" : {
           "stringUnit" : {
             "state" : "translated",
@@ -54,6 +90,42 @@
           }
         },
         "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SnapWorth"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SnapWorth"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SnapWorth"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SnapWorth"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SnapWorth"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SnapWorth"
+          }
+        },
+        "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "SnapWorth"
@@ -95,6 +167,42 @@
             "value" : "SnapWorth usa la cámara para que fotografíes artículos, reconocerlos y estimar cuánto valen en reventa."
           }
         },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SnapWorth utilise ton appareil photo pour photographier des articles afin de les identifier et d'estimer leur valeur de revente."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SnapWorth usa la fotocamera per fotografare gli articoli, così possiamo identificarli e stimarne il valore di rivendita."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SnapWorthはアイテムを撮影して識別し、リセール価格を査定するためにカメラを使用します。"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SnapWorth gebruikt je camera om items te fotograferen, zodat we ze kunnen herkennen en hun doorverkoopwaarde kunnen schatten."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SnapWorth używa aparatu do fotografowania przedmiotów, byśmy mogli je rozpoznać i oszacować ich wartość odsprzedaży."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "O SnapWorth usa sua câmera para fotografar itens, para podermos identificá-los e estimar o valor de revenda."
+          }
+        },
         "ro" : {
           "stringUnit" : {
             "state" : "translated",
@@ -131,6 +239,42 @@
             "value" : "Permite que SnapWorth guarde en Fotos las tarjetas para compartir y las fotos de anuncios sin fondo."
           }
         },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Autorise SnapWorth à enregistrer les cartes de partage et les photos d'annonce détourées dans Photos."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Consenti a SnapWorth di salvare in Foto le card da condividere e le foto degli annunci scontornate."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SnapWorthがシェアカードと背景を消した出品写真を写真に保存することを許可してください。"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sta SnapWorth toe om deelkaarten en opgeschoonde advertentiefoto's in Foto's te bewaren."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zezwól SnapWorth na zapisywanie w Zdjęciach kart do udostępnienia i oczyszczonych zdjęć do ogłoszeń."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Permita que o SnapWorth salve em Fotos os cards de compartilhamento e as fotos de anúncio sem fundo."
+          }
+        },
         "ro" : {
           "stringUnit" : {
             "state" : "translated",
@@ -165,6 +309,42 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "SnapWorth te deja elegir fotos de tu galería para saber cuánto vale en reventa lo que sale en ellas."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SnapWorth te permet de choisir des photos dans ta photothèque pour estimer leur valeur de revente."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SnapWorth ti permette di scegliere foto dalla libreria da scansionare per conoscerne il valore di rivendita."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SnapWorthはライブラリから写真を選んでリセール価格を査定できます。"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Met SnapWorth kies je foto's uit je bibliotheek om de doorverkoopwaarde te laten scannen."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SnapWorth pozwala wybierać zdjęcia z biblioteki, by sprawdzić wartość odsprzedaży."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "O SnapWorth permite escolher fotos da sua biblioteca para escanear o valor de revenda."
           }
         },
         "ro" : {
