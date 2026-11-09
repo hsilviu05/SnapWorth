@@ -47,6 +47,7 @@ LANGUAGES = {
     "es": "Spanish",
     "de": "German",
     "zh-Hans": "Simplified Chinese",
+    "fr": "French",
 }
 
 _STATUSES = {"scanned", "owned", "listed", "sold"}

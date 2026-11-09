@@ -23,6 +23,12 @@
             "value" : "SnapWorth"
           }
         },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SnapWorth"
+          }
+        },
         "ro" : {
           "stringUnit" : {
             "state" : "translated",
@@ -54,6 +60,12 @@
           }
         },
         "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SnapWorth"
+          }
+        },
+        "fr" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "SnapWorth"
@@ -95,6 +107,12 @@
             "value" : "SnapWorth usa la cámara para que fotografíes artículos, reconocerlos y estimar cuánto valen en reventa."
           }
         },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SnapWorth utilise ton appareil photo pour photographier des articles afin de les identifier et d'estimer leur valeur de revente."
+          }
+        },
         "ro" : {
           "stringUnit" : {
             "state" : "translated",
@@ -131,6 +149,12 @@
             "value" : "Permite que SnapWorth guarde en Fotos las tarjetas para compartir y las fotos de anuncios sin fondo."
           }
         },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Autorise SnapWorth à enregistrer les cartes de partage et les photos d'annonce détourées dans Photos."
+          }
+        },
         "ro" : {
           "stringUnit" : {
             "state" : "translated",
@@ -165,6 +189,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "SnapWorth te deja elegir fotos de tu galería para saber cuánto vale en reventa lo que sale en ellas."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SnapWorth te permet de choisir des photos dans ta photothèque pour estimer leur valeur de revente."
           }
         },
         "ro" : {

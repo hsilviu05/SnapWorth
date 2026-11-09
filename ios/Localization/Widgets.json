@@ -7,14 +7,16 @@
       "ro": " la ",
       "es": " a ",
       "de": " bis ",
-      "zh-Hans": " 到 "
+      "zh-Hans": " 到 ",
+      "fr": " à "
     },
     "%@ in your haul": {
       "en": "%@ in your haul",
       "ro": "%@ în colecție",
       "es": "%@ en tu colección",
       "de": "%@ in deiner Sammlung",
-      "zh-Hans": "收获里有 %@"
+      "zh-Hans": "收获里有 %@",
+      "fr": "%@ dans ton butin"
     },
     "%@ profit this month %@": {
       "comment": "Amount, then the already-inflected flip count.",
@@ -22,28 +24,32 @@
       "ro": "%@ profit luna asta %@",
       "es": "%@ de ganancia este mes %@",
       "de": "%@ Gewinn diesen Monat %@",
-      "zh-Hans": "本月利润 %@，%@"
+      "zh-Hans": "本月利润 %@，%@",
+      "fr": "%@ de bénéfice ce mois-ci %@"
     },
     "%@ scanned": {
       "en": "%@ scanned",
       "ro": "%@ scanate",
       "es": "%@ escaneados",
       "de": "%@ gescannt",
-      "zh-Hans": "已扫描 %@"
+      "zh-Hans": "已扫描 %@",
+      "fr": "%@ scannés"
     },
     "%@ this trip": {
       "en": "%@ this trip",
       "ro": "%@ în tura asta",
       "es": "%@ en esta ruta",
       "de": "%@ auf dieser Tour",
-      "zh-Hans": "这趟 %@"
+      "zh-Hans": "这趟 %@",
+      "fr": "%@ cette tournée"
     },
     "%@ to %@": {
       "en": "%@ to %@",
       "ro": "%@ la %@",
       "es": "%@ a %@",
       "de": "%@ bis %@",
-      "zh-Hans": "%@ 到 %@"
+      "zh-Hans": "%@ 到 %@",
+      "fr": "%@ à %@"
     },
     "%@ · %lld-day streak": {
       "en": {
@@ -63,7 +69,12 @@
         "one": "%@ · %lld Tag Serie",
         "other": "%@ · %lld Tage Serie"
       },
-      "zh-Hans": "%@ · 连续 %lld 天"
+      "zh-Hans": "%@ · 连续 %lld 天",
+      "fr": {
+        "one": "%@ · série de %lld jour",
+        "many": "%@ · série de %lld jours",
+        "other": "%@ · série de %lld jours"
+      }
     },
     "%@, %@": {
       "comment": "Punctuation or a format with no words: identical in every language. In the catalog only so Xcode stops re-extracting it.",
@@ -71,21 +82,24 @@
       "ro": "%@, %@",
       "es": "%@, %@",
       "de": "%@, %@",
-      "zh-Hans": "%@, %@"
+      "zh-Hans": "%@, %@",
+      "fr": "%@, %@"
     },
     "%@, profit unknown until you add the prices": {
       "en": "%@, profit unknown until you add the prices",
       "ro": "%@, profitul rămâne necunoscut până adaugi prețurile",
       "es": "%@, la ganancia no se sabe hasta que añadas los precios",
       "de": "%@, der Gewinn bleibt unbekannt, bis du die Preise einträgst",
-      "zh-Hans": "%@，填上价格才能算出利润"
+      "zh-Hans": "%@，填上价格才能算出利润",
+      "fr": "%@, bénéfice inconnu tant que tu n'as pas ajouté les prix"
     },
     "%@. Last known — open SnapWorth to refresh.": {
       "en": "%@. Last known — open SnapWorth to refresh.",
       "ro": "%@. Ultima valoare știută — deschide SnapWorth ca să se actualizeze.",
       "es": "%@. Último dato conocido: abre SnapWorth para actualizarlo.",
       "de": "%@. Letzter bekannter Stand – öffne SnapWorth zum Aktualisieren.",
-      "zh-Hans": "%@。这是最后一次的数据，打开 SnapWorth 可刷新。"
+      "zh-Hans": "%@。这是最后一次的数据，打开 SnapWorth 可刷新。",
+      "fr": "%@. Dernière valeur connue : ouvre SnapWorth pour actualiser."
     },
     "%lld": {
       "comment": "Punctuation or a format with no words: identical in every language. In the catalog only so Xcode stops re-extracting it.",
@@ -93,7 +107,8 @@
       "ro": "%lld",
       "es": "%lld",
       "de": "%lld",
-      "zh-Hans": "%lld"
+      "zh-Hans": "%lld",
+      "fr": "%lld"
     },
     "%lld day streak": {
       "en": {
@@ -113,7 +128,12 @@
         "one": "%lld Tag Serie",
         "other": "%lld Tage Serie"
       },
-      "zh-Hans": "连续 %lld 天"
+      "zh-Hans": "连续 %lld 天",
+      "fr": {
+        "one": "Série de %lld jour",
+        "many": "Série de %lld jours",
+        "other": "Série de %lld jours"
+      }
     },
     "%lld finds": {
       "comment": "Spelled out beside a number on the accessory families.",
@@ -134,7 +154,12 @@
         "one": "%lld Fund",
         "other": "%lld Funde"
       },
-      "zh-Hans": "%lld 件好物"
+      "zh-Hans": "%lld 件好物",
+      "fr": {
+        "one": "%lld trouvaille",
+        "many": "%lld trouvailles",
+        "other": "%lld trouvailles"
+      }
     },
     "%lld flips sold this month": {
       "en": {
@@ -154,7 +179,12 @@
         "one": "%lld Flip diesen Monat verkauft",
         "other": "%lld Flips diesen Monat verkauft"
       },
-      "zh-Hans": "本月售出 %lld 笔"
+      "zh-Hans": "本月售出 %lld 笔",
+      "fr": {
+        "one": "%lld revente vendue ce mois-ci",
+        "many": "%lld reventes vendues ce mois-ci",
+        "other": "%lld reventes vendues ce mois-ci"
+      }
     },
     "%lld free scans left today": {
       "comment": "Scanner header. Romanian needs the 20+ form: 'de scanări'.",
@@ -175,7 +205,12 @@
         "one": "Noch %lld kostenloser Scan heute",
         "other": "Noch %lld kostenlose Scans heute"
       },
-      "zh-Hans": "今天还剩 %lld 次免费扫描"
+      "zh-Hans": "今天还剩 %lld 次免费扫描",
+      "fr": {
+        "one": "%lld scan gratuit restant aujourd'hui",
+        "many": "%lld scans gratuits restants aujourd'hui",
+        "other": "%lld scans gratuits restants aujourd'hui"
+      }
     },
     "%lld items": {
       "en": {
@@ -195,7 +230,12 @@
         "one": "%lld Artikel",
         "other": "%lld Artikel"
       },
-      "zh-Hans": "%lld 件"
+      "zh-Hans": "%lld 件",
+      "fr": {
+        "one": "%lld article",
+        "many": "%lld articles",
+        "other": "%lld articles"
+      }
     },
     "%lld sold · add the prices": {
       "en": {
@@ -215,28 +255,36 @@
         "one": "%lld verkauft · trag die Preise ein",
         "other": "%lld verkauft · trag die Preise ein"
       },
-      "zh-Hans": "已售 %lld 件 · 填上价格"
+      "zh-Hans": "已售 %lld 件 · 填上价格",
+      "fr": {
+        "one": "%lld vendu · ajoute les prix",
+        "many": "%lld vendus · ajoute les prix",
+        "other": "%lld vendus · ajoute les prix"
+      }
     },
     "Back tomorrow, or go Pro": {
       "en": "Back tomorrow, or go Pro",
       "ro": "Revii mâine sau treci pe Pro",
       "es": "Vuelve mañana o hazte Pro",
       "de": "Morgen wieder – oder hol dir Pro",
-      "zh-Hans": "明天再来，或升级 Pro"
+      "zh-Hans": "明天再来，或升级 Pro",
+      "fr": "Reviens demain, ou passe à Pro"
     },
     "Find out what it's worth": {
       "en": "Find out what it's worth",
       "ro": "Află cât valorează",
       "es": "Descubre cuánto vale",
       "de": "Finde heraus, was es wert ist",
-      "zh-Hans": "看看它值多少"
+      "zh-Hans": "看看它值多少",
+      "fr": "Découvre combien ça vaut"
     },
     "Haul": {
       "en": "Haul",
       "ro": "Colecție",
       "es": "Colección",
       "de": "Sammlung",
-      "zh-Hans": "收获"
+      "zh-Hans": "收获",
+      "fr": "Butin"
     },
     "Haul Value": {
       "comment": "Widget name in the gallery.",
@@ -244,231 +292,264 @@
       "ro": "Valoarea colecției",
       "es": "Valor de la colección",
       "de": "Wert der Sammlung",
-      "zh-Hans": "收获总值"
+      "zh-Hans": "收获总值",
+      "fr": "Valeur du butin"
     },
     "Haul on the Lock Screen": {
       "en": "Haul on the Lock Screen",
       "ro": "Colecția pe ecranul blocat",
       "es": "La colección en la pantalla bloqueada",
       "de": "Die Sammlung auf dem Sperrbildschirm",
-      "zh-Hans": "锁定屏幕上的收获"
+      "zh-Hans": "锁定屏幕上的收获",
+      "fr": "Ton butin sur l'écran verrouillé"
     },
     "Haul value %@, %@": {
       "en": "Haul value %@, %@",
       "ro": "Colecție de %@, %@",
       "es": "Colección por valor de %@, %@",
       "de": "Sammlung im Wert von %@, %@",
-      "zh-Hans": "收获总值 %@，%@"
+      "zh-Hans": "收获总值 %@，%@",
+      "fr": "Butin d'une valeur de %@, %@"
     },
     "Haul worth %@": {
       "en": "Haul worth %@",
       "ro": "Colecție de %@",
       "es": "Colección por valor de %@",
       "de": "Sammlung im Wert von %@",
-      "zh-Hans": "收获价值 %@"
+      "zh-Hans": "收获价值 %@",
+      "fr": "Butin d'une valeur de %@"
     },
     "How many free scans you have today.": {
       "en": "How many free scans you have today.",
       "ro": "Câte scanări gratuite mai ai azi.",
       "es": "Cuántos escaneos gratis te quedan hoy.",
       "de": "Wie viele Gratis-Scans du heute noch hast.",
-      "zh-Hans": "今天还剩几次免费扫描。"
+      "zh-Hans": "今天还剩几次免费扫描。",
+      "fr": "Combien de scans gratuits il te reste aujourd'hui."
     },
     "Last known — open SnapWorth to refresh": {
       "en": "Last known — open SnapWorth to refresh",
       "ro": "Ultima valoare știută — deschide SnapWorth ca să se actualizeze",
       "es": "Último dato conocido: abre SnapWorth para actualizarlo",
       "de": "Letzter bekannter Stand – öffne SnapWorth zum Aktualisieren",
-      "zh-Hans": "这是最后一次的数据，打开 SnapWorth 可刷新"
+      "zh-Hans": "这是最后一次的数据，打开 SnapWorth 可刷新",
+      "fr": "Dernière valeur connue : ouvre SnapWorth pour actualiser"
     },
     "Last scanned": {
       "en": "Last scanned",
       "ro": "Ultima scanare",
       "es": "Último escaneado",
       "de": "Zuletzt gescannt",
-      "zh-Hans": "最近扫描"
+      "zh-Hans": "最近扫描",
+      "fr": "Dernier scan"
     },
     "Last scanned, %@, %@": {
       "en": "Last scanned, %@, %@",
       "ro": "Ultima scanare, %@, %@",
       "es": "Último escaneado, %@, %@",
       "de": "Zuletzt gescannt, %@, %@",
-      "zh-Hans": "最近扫描，%@，%@"
+      "zh-Hans": "最近扫描，%@，%@",
+      "fr": "Dernier scan, %@, %@"
     },
     "Last: %@": {
       "en": "Last: %@",
       "ro": "Ultimul: %@",
       "es": "Último: %@",
       "de": "Zuletzt: %@",
-      "zh-Hans": "最近：%@"
+      "zh-Hans": "最近：%@",
+      "fr": "Dernier : %@"
     },
     "No finds scanned yet": {
       "en": "No finds scanned yet",
       "ro": "Nicio găselniță scanată",
       "es": "Ningún hallazgo escaneado aún",
       "de": "Noch keine Funde gescannt",
-      "zh-Hans": "还没扫描过好物"
+      "zh-Hans": "还没扫描过好物",
+      "fr": "Aucune trouvaille scannée pour l'instant"
     },
     "No finds yet": {
       "en": "No finds yet",
       "ro": "Nicio găselniță",
       "es": "Ningún hallazgo aún",
       "de": "Noch keine Funde",
-      "zh-Hans": "还没有好物"
+      "zh-Hans": "还没有好物",
+      "fr": "Aucune trouvaille pour l'instant"
     },
     "No flips sold yet this month": {
       "en": "No flips sold yet this month",
       "ro": "Niciun flip vândut luna asta",
       "es": "Ninguna reventa vendida este mes",
       "de": "Diesen Monat noch kein Flip verkauft",
-      "zh-Hans": "本月还没卖出过"
+      "zh-Hans": "本月还没卖出过",
+      "fr": "Aucune revente vendue ce mois-ci"
     },
     "No free scans left today": {
       "en": "No free scans left today",
       "ro": "Nicio scanare gratuită rămasă azi",
       "es": "No quedan escaneos gratis hoy",
       "de": "Heute keine Gratis-Scans mehr",
-      "zh-Hans": "今天的免费扫描用完了"
+      "zh-Hans": "今天的免费扫描用完了",
+      "fr": "Plus de scans gratuits aujourd'hui"
     },
     "No scans yet": {
       "en": "No scans yet",
       "ro": "Nicio scanare încă",
       "es": "Ningún escaneo aún",
       "de": "Noch keine Scans",
-      "zh-Hans": "还没有扫描"
+      "zh-Hans": "还没有扫描",
+      "fr": "Aucun scan pour l'instant"
     },
     "Nothing scanned yet": {
       "en": "Nothing scanned yet",
       "ro": "Încă nu ai scanat nimic",
       "es": "Aún no has escaneado nada",
       "de": "Noch nichts gescannt",
-      "zh-Hans": "还什么都没扫描"
+      "zh-Hans": "还什么都没扫描",
+      "fr": "Rien de scanné pour l'instant"
     },
     "Nothing scanned yet. Tap to scan your first find.": {
       "en": "Nothing scanned yet. Tap to scan your first find.",
       "ro": "Încă nu ai scanat nimic. Apasă ca să scanezi prima găselniță.",
       "es": "Aún no has escaneado nada. Toca para escanear tu primer hallazgo.",
       "de": "Noch nichts gescannt. Tippe, um deinen ersten Fund zu scannen.",
-      "zh-Hans": "还什么都没扫描。点一下，扫描你的第一件好物。"
+      "zh-Hans": "还什么都没扫描。点一下，扫描你的第一件好物。",
+      "fr": "Rien de scanné pour l'instant. Touche pour scanner ta première trouvaille."
     },
     "Nothing yet": {
       "en": "Nothing yet",
       "ro": "Nimic încă",
       "es": "Nada aún",
       "de": "Noch nichts",
-      "zh-Hans": "还没有"
+      "zh-Hans": "还没有",
+      "fr": "Rien pour l'instant"
     },
     "One tap to scan any secondhand item.": {
       "en": "One tap to scan any secondhand item.",
       "ro": "O apăsare și scanezi orice lucru second hand.",
       "es": "Un toque para escanear cualquier artículo de segunda mano.",
       "de": "Ein Tipp, und du scannst jeden Second-Hand-Artikel.",
-      "zh-Hans": "点一下，就能扫描任何二手物品。"
+      "zh-Hans": "点一下，就能扫描任何二手物品。",
+      "fr": "Un toucher pour scanner n'importe quel article de seconde main."
     },
     "Open SnapWorth": {
       "en": "Open SnapWorth",
       "ro": "Deschide SnapWorth",
       "es": "Abre SnapWorth",
       "de": "SnapWorth öffnen",
-      "zh-Hans": "打开 SnapWorth"
+      "zh-Hans": "打开 SnapWorth",
+      "fr": "Ouvre SnapWorth"
     },
     "Open SnapWorth with the camera ready.": {
       "en": "Open SnapWorth with the camera ready.",
       "ro": "Deschide SnapWorth cu camera pregătită.",
       "es": "Abre SnapWorth con la cámara lista.",
       "de": "Öffnet SnapWorth mit startbereiter Kamera.",
-      "zh-Hans": "打开 SnapWorth，相机已就绪。"
+      "zh-Hans": "打开 SnapWorth，相机已就绪。",
+      "fr": "Ouvre SnapWorth avec l'appareil photo prêt."
     },
     "Opens SnapWorth with the camera ready.": {
       "en": "Opens SnapWorth with the camera ready.",
       "ro": "Deschide SnapWorth cu camera pregătită.",
       "es": "Abre SnapWorth con la cámara lista.",
       "de": "Öffnet SnapWorth mit startbereiter Kamera.",
-      "zh-Hans": "打开 SnapWorth，相机已就绪。"
+      "zh-Hans": "打开 SnapWorth，相机已就绪。",
+      "fr": "Ouvre SnapWorth avec l'appareil photo prêt."
     },
     "Profit this month": {
       "en": "Profit this month",
       "ro": "Profitul lunii",
       "es": "Ganancia de este mes",
       "de": "Gewinn diesen Monat",
-      "zh-Hans": "本月利润"
+      "zh-Hans": "本月利润",
+      "fr": "Bénéfice ce mois-ci"
     },
     "Quick Scan": {
       "en": "Quick Scan",
       "ro": "Scanare rapidă",
       "es": "Escaneo rápido",
       "de": "Schnellscan",
-      "zh-Hans": "快速扫描"
+      "zh-Hans": "快速扫描",
+      "fr": "Scan rapide"
     },
     "Recent finds": {
       "en": "Recent finds",
       "ro": "Găselnițe recente",
       "es": "Hallazgos recientes",
       "de": "Neueste Funde",
-      "zh-Hans": "最近的好物"
+      "zh-Hans": "最近的好物",
+      "fr": "Trouvailles récentes"
     },
     "Scan": {
       "en": "Scan",
       "ro": "Scanează",
       "es": "Escanear",
       "de": "Scannen",
-      "zh-Hans": "扫描"
+      "zh-Hans": "扫描",
+      "fr": "Scanner"
     },
     "Scan an item": {
       "en": "Scan an item",
       "ro": "Scanează un obiect",
       "es": "Escanear un artículo",
       "de": "Artikel scannen",
-      "zh-Hans": "扫描一件物品"
+      "zh-Hans": "扫描一件物品",
+      "fr": "Scanner un article"
     },
     "Scan count not available yet. Open SnapWorth.": {
       "en": "Scan count not available yet. Open SnapWorth.",
       "ro": "Numărul de scanări nu e disponibil încă. Deschide SnapWorth.",
       "es": "El número de escaneos aún no está disponible. Abre SnapWorth.",
       "de": "Die Anzahl der Scans ist noch nicht verfügbar. Öffne SnapWorth.",
-      "zh-Hans": "还拿不到扫描次数。打开 SnapWorth 看看。"
+      "zh-Hans": "还拿不到扫描次数。打开 SnapWorth 看看。",
+      "fr": "Nombre de scans pas encore disponible. Ouvre SnapWorth."
     },
     "Scan now": {
       "en": "Scan now",
       "ro": "Scanează acum",
       "es": "Escanea ahora",
       "de": "Jetzt scannen",
-      "zh-Hans": "现在扫描"
+      "zh-Hans": "现在扫描",
+      "fr": "Scanner"
     },
     "Scan something to start": {
       "en": "Scan something to start",
       "ro": "Scanează ceva ca să începi",
       "es": "Escanea algo para empezar",
       "de": "Scann etwas, um anzufangen",
-      "zh-Hans": "扫点什么开始吧"
+      "zh-Hans": "扫点什么开始吧",
+      "fr": "Scanne quelque chose pour commencer"
     },
     "Scan something to start the run": {
       "en": "Scan something to start the run",
       "ro": "Scanează ceva ca să pornească tura",
       "es": "Escanea algo para empezar la ruta",
       "de": "Scann etwas, um die Tour zu starten",
-      "zh-Hans": "扫点什么，这趟就开始了"
+      "zh-Hans": "扫点什么，这趟就开始了",
+      "fr": "Scanne quelque chose pour lancer la tournée"
     },
     "Scan your first find": {
       "en": "Scan your first find",
       "ro": "Scanează prima găselniță",
       "es": "Escanea tu primer hallazgo",
       "de": "Scann deinen ersten Fund",
-      "zh-Hans": "扫描你的第一件好物"
+      "zh-Hans": "扫描你的第一件好物",
+      "fr": "Scanne ta première trouvaille"
     },
     "Scans left": {
       "en": "Scans left",
       "ro": "Scanări rămase",
       "es": "Escaneos restantes",
       "de": "Scans übrig",
-      "zh-Hans": "剩余扫描"
+      "zh-Hans": "剩余扫描",
+      "fr": "Scans restants"
     },
     "See your total resale value at a glance.": {
       "en": "See your total resale value at a glance.",
       "ro": "Vezi dintr-o privire cât valorează tot.",
       "es": "Mira de un vistazo cuánto vale todo en reventa.",
       "de": "Sieh auf einen Blick, was alles im Wiederverkauf wert ist.",
-      "zh-Hans": "一眼看清全部转卖价值。"
+      "zh-Hans": "一眼看清全部转卖价值。",
+      "fr": "Vois ta valeur de revente totale en un coup d'œil."
     },
     "SnapWorth": {
       "comment": "Brand or feature name: the same in every language, deliberately (see DELIBERATELY_ENGLISH). In the catalog only so Xcode stops re-extracting it.",
@@ -476,119 +557,136 @@
       "ro": "SnapWorth",
       "es": "SnapWorth",
       "de": "SnapWorth",
-      "zh-Hans": "SnapWorth"
+      "zh-Hans": "SnapWorth",
+      "fr": "SnapWorth"
     },
     "SnapWorth haul, %@": {
       "en": "SnapWorth haul, %@",
       "ro": "Colecția SnapWorth, %@",
       "es": "Colección de SnapWorth, %@",
       "de": "SnapWorth-Sammlung, %@",
-      "zh-Hans": "SnapWorth 收获，%@"
+      "zh-Hans": "SnapWorth 收获，%@",
+      "fr": "Butin SnapWorth, %@"
     },
     "SnapWorth haul, %@ scanned, worth %@.": {
       "en": "SnapWorth haul, %@ scanned, worth %@.",
       "ro": "Colecția SnapWorth, %@ scanate, în valoare de %@.",
       "es": "Colección de SnapWorth, %@ escaneados, por valor de %@.",
       "de": "SnapWorth-Sammlung, %@ gescannt, im Wert von %@.",
-      "zh-Hans": "SnapWorth 收获，已扫描 %@，价值 %@。"
+      "zh-Hans": "SnapWorth 收获，已扫描 %@，价值 %@。",
+      "fr": "Butin SnapWorth, %@ scannés, d'une valeur de %@."
     },
     "SnapWorth haul, %@, %@": {
       "en": "SnapWorth haul, %@, %@",
       "ro": "Colecția SnapWorth, %@, %@",
       "es": "Colección de SnapWorth, %@, %@",
       "de": "SnapWorth-Sammlung, %@, %@",
-      "zh-Hans": "SnapWorth 收获，%@，%@"
+      "zh-Hans": "SnapWorth 收获，%@，%@",
+      "fr": "Butin SnapWorth, %@, %@"
     },
     "SnapWorth, no finds scanned yet": {
       "en": "SnapWorth, no finds scanned yet",
       "ro": "SnapWorth, nicio găselniță scanată",
       "es": "SnapWorth, ningún hallazgo escaneado aún",
       "de": "SnapWorth, noch keine Funde gescannt",
-      "zh-Hans": "SnapWorth，还没扫描过好物"
+      "zh-Hans": "SnapWorth，还没扫描过好物",
+      "fr": "SnapWorth, aucune trouvaille scannée pour l'instant"
     },
     "SnapWorth, no finds yet. Scan something to start.": {
       "en": "SnapWorth, no finds yet. Scan something to start.",
       "ro": "SnapWorth, nicio găselniță încă. Scanează ceva ca să începi.",
       "es": "SnapWorth, ningún hallazgo aún. Escanea algo para empezar.",
       "de": "SnapWorth, noch keine Funde. Scann etwas, um anzufangen.",
-      "zh-Hans": "SnapWorth，还没有好物。扫点什么开始吧。"
+      "zh-Hans": "SnapWorth，还没有好物。扫点什么开始吧。",
+      "fr": "SnapWorth, aucune trouvaille pour l'instant. Scanne quelque chose pour commencer."
     },
     "SnapWorth. Nothing scanned yet.": {
       "en": "SnapWorth. Nothing scanned yet.",
       "ro": "SnapWorth. Încă nu ai scanat nimic.",
       "es": "SnapWorth. Aún no has escaneado nada.",
       "de": "SnapWorth. Noch nichts gescannt.",
-      "zh-Hans": "SnapWorth。还什么都没扫描。"
+      "zh-Hans": "SnapWorth。还什么都没扫描。",
+      "fr": "SnapWorth. Rien de scanné pour l'instant."
     },
     "Tap to scan\nyour first find": {
       "en": "Tap to scan\nyour first find",
       "ro": "Apasă ca să scanezi\nprima găselniță",
       "es": "Toca para escanear\ntu primer hallazgo",
       "de": "Tippe, um deinen\nersten Fund zu scannen",
-      "zh-Hans": "点一下，扫描\n你的第一件好物"
+      "zh-Hans": "点一下，扫描\n你的第一件好物",
+      "fr": "Touche pour scanner\nta première trouvaille"
     },
     "The last few things you scanned, and what they're worth.": {
       "en": "The last few things you scanned, and what they're worth.",
       "ro": "Ultimele lucruri scanate și cât valorează.",
       "es": "Las últimas cosas que escaneaste y cuánto valen.",
       "de": "Die letzten Dinge, die du gescannt hast, und was sie wert sind.",
-      "zh-Hans": "最近扫描的几件东西，以及它们值多少。"
+      "zh-Hans": "最近扫描的几件东西，以及它们值多少。",
+      "fr": "Les derniers articles scannés, et ce qu'ils valent."
     },
     "This month": {
       "en": "This month",
       "ro": "Luna asta",
       "es": "Este mes",
       "de": "Diesen Monat",
-      "zh-Hans": "本月"
+      "zh-Hans": "本月",
+      "fr": "Ce mois-ci"
     },
     "Thrift run": {
       "en": "Thrift run",
       "ro": "Tură de second hand",
       "es": "Ruta de segunda mano",
       "de": "Second-Hand-Tour",
-      "zh-Hans": "淘货行程"
+      "zh-Hans": "淘货行程",
+      "fr": "Tournée friperie"
     },
     "Thrift run in progress, %@": {
       "en": "Thrift run in progress, %@",
       "ro": "Tură de second hand în curs, %@",
       "es": "Ruta de segunda mano en curso, %@",
       "de": "Second-Hand-Tour läuft, %@",
-      "zh-Hans": "淘货行程进行中，%@"
+      "zh-Hans": "淘货行程进行中，%@",
+      "fr": "Tournée friperie en cours, %@"
     },
     "Thrift run started, nothing scanned yet": {
       "en": "Thrift run started, nothing scanned yet",
       "ro": "Tură de second hand pornită, nimic scanat încă",
       "es": "Ruta de segunda mano empezada, nada escaneado aún",
       "de": "Second-Hand-Tour gestartet, noch nichts gescannt",
-      "zh-Hans": "淘货行程已开始，还什么都没扫描"
+      "zh-Hans": "淘货行程已开始，还什么都没扫描",
+      "fr": "Tournée friperie lancée, rien de scanné pour l'instant"
     },
     "Thrift run, %@": {
       "en": "Thrift run, %@",
       "ro": "Tură de second hand, %@",
       "es": "Ruta de segunda mano, %@",
       "de": "Second-Hand-Tour, %@",
-      "zh-Hans": "淘货行程，%@"
+      "zh-Hans": "淘货行程，%@",
+      "fr": "Tournée friperie, %@"
     },
     "Thrift run, %@, worth %@, started %@": {
       "en": "Thrift run, %@, worth %@, started %@",
       "ro": "Tură de second hand, %@, în valoare de %@, pornită la %@",
       "es": "Ruta de segunda mano, %@, por valor de %@, empezada a las %@",
       "de": "Second-Hand-Tour, %@, im Wert von %@, gestartet um %@",
-      "zh-Hans": "淘货行程，%@，价值 %@，开始于 %@"
+      "zh-Hans": "淘货行程，%@，价值 %@，开始于 %@",
+      "fr": "Tournée friperie, %@, d'une valeur de %@, commencée à %@"
     },
     "Thrift run, last known, nothing scanned yet": {
       "en": "Thrift run, last known, nothing scanned yet",
       "ro": "Tură de second hand, ultima valoare știută, nimic scanat încă",
       "es": "Ruta de segunda mano, último dato conocido, nada escaneado aún",
       "de": "Second-Hand-Tour, letzter bekannter Stand, noch nichts gescannt",
-      "zh-Hans": "淘货行程，这是最后一次的数据，还什么都没扫描"
+      "zh-Hans": "淘货行程，这是最后一次的数据，还什么都没扫描",
+      "fr": "Tournée friperie, dernière valeur connue, rien de scanné pour l'instant"
     },
     "Unlimited scans": {
       "en": "Unlimited scans",
       "ro": "Scanări nelimitate",
       "es": "Escaneos ilimitados",
       "de": "Unbegrenzte Scans",
-      "zh-Hans": "无限扫描"
+      "zh-Hans": "无限扫描",
+      "fr": "Scans illimités"
     },
     "Unlimited scans, %lld day scanning streak": {
       "en": {
@@ -608,7 +706,12 @@
         "one": "Unbegrenzte Scans, %lld Tag Scan-Serie",
         "other": "Unbegrenzte Scans, %lld Tage Scan-Serie"
       },
-      "zh-Hans": "无限扫描，已连续扫描 %lld 天"
+      "zh-Hans": "无限扫描，已连续扫描 %lld 天",
+      "fr": {
+        "one": "Scans illimités, série de %lld jour de scan",
+        "many": "Scans illimités, série de %lld jours de scan",
+        "other": "Scans illimités, série de %lld jours de scan"
+      }
     },
     "Unlimited · %lld-day streak": {
       "en": {
@@ -628,28 +731,36 @@
         "one": "Unbegrenzt · %lld Tag Serie",
         "other": "Unbegrenzt · %lld Tage Serie"
       },
-      "zh-Hans": "无限 · 连续 %lld 天"
+      "zh-Hans": "无限 · 连续 %lld 天",
+      "fr": {
+        "one": "Illimité · série de %lld jour",
+        "many": "Illimité · série de %lld jours",
+        "other": "Illimité · série de %lld jours"
+      }
     },
     "What your sold flips actually made.": {
       "en": "What your sold flips actually made.",
       "ro": "Cât ai făcut de fapt din flipurile vândute.",
       "es": "Lo que has ganado de verdad con tus reventas.",
       "de": "Was deine verkauften Flips wirklich gebracht haben.",
-      "zh-Hans": "卖出去的那些，到底赚了多少。"
+      "zh-Hans": "卖出去的那些，到底赚了多少。",
+      "fr": "Ce que tes reventes vendues t'ont vraiment rapporté."
     },
     "Your haul": {
       "en": "Your haul",
       "ro": "Colecția ta",
       "es": "Tu colección",
       "de": "Deine Sammlung",
-      "zh-Hans": "你的收获"
+      "zh-Hans": "你的收获",
+      "fr": "Ton butin"
     },
     "Your total resale value, without unlocking.": {
       "en": "Your total resale value, without unlocking.",
       "ro": "Cât valorează tot, fără să deblochezi telefonul.",
       "es": "Cuánto vale todo en reventa, sin desbloquear el móvil.",
       "de": "Was alles im Wiederverkauf wert ist, ohne zu entsperren.",
-      "zh-Hans": "不用解锁，就能看到全部转卖价值。"
+      "zh-Hans": "不用解锁，就能看到全部转卖价值。",
+      "fr": "Ta valeur de revente totale, sans déverrouiller."
     },
     "elapsed": {
       "comment": "Thrift-run Live Activity: under a running timer (\"12:04 elapsed\"). Was shown in English in every language: a ternary of literals, which check_localization cannot see.",
@@ -657,7 +768,8 @@
       "ro": "scurs",
       "es": "transcurrido",
       "de": "vergangen",
-      "zh-Hans": "已用时"
+      "zh-Hans": "已用时",
+      "fr": "écoulé"
     },
     "free scan left today": {
       "comment": "The number is the widget's headline; this is the noun under it.",
@@ -665,14 +777,16 @@
       "ro": "scanare gratuită rămasă azi",
       "es": "escaneo gratis hoy",
       "de": "Gratis-Scan heute übrig",
-      "zh-Hans": "次免费扫描（今天）"
+      "zh-Hans": "次免费扫描（今天）",
+      "fr": "scan gratuit restant aujourd'hui"
     },
     "free scans left today": {
       "en": "free scans left today",
       "ro": "scanări gratuite rămase azi",
       "es": "escaneos gratis hoy",
       "de": "Gratis-Scans heute übrig",
-      "zh-Hans": "次免费扫描（今天）"
+      "zh-Hans": "次免费扫描（今天）",
+      "fr": "scans gratuits restants aujourd'hui"
     },
     "from %lld flips": {
       "en": {
@@ -692,14 +806,20 @@
         "one": "aus %lld Flip",
         "other": "aus %lld Flips"
       },
-      "zh-Hans": "来自 %lld 笔转卖"
+      "zh-Hans": "来自 %lld 笔转卖",
+      "fr": {
+        "one": "sur %lld revente",
+        "many": "sur %lld reventes",
+        "other": "sur %lld reventes"
+      }
     },
     "nothing scanned yet": {
       "en": "nothing scanned yet",
       "ro": "nimic scanat încă",
       "es": "nada escaneado aún",
       "de": "noch nichts gescannt",
-      "zh-Hans": "还什么都没扫描"
+      "zh-Hans": "还什么都没扫描",
+      "fr": "rien de scanné pour l'instant"
     },
     "started": {
       "comment": "Thrift-run Live Activity: under a clock time once the run is stale (\"14:32 started\").",
@@ -707,7 +827,8 @@
       "ro": "început",
       "es": "inicio",
       "de": "gestartet",
-      "zh-Hans": "开始于"
+      "zh-Hans": "开始于",
+      "fr": "début"
     },
     "Daily guess": {
       "comment": "Name of the Daily guess widget and its header.",
@@ -715,7 +836,8 @@
       "ro": "Ghicitoarea zilei",
       "es": "Adivinanza diaria",
       "de": "Tagesrätsel",
-      "zh-Hans": "每日猜价"
+      "zh-Hans": "每日猜价",
+      "fr": "Devinette du jour"
     },
     "day streak": {
       "comment": "Under the number of days in a row the daily guess was played, on the widget.",
@@ -723,7 +845,8 @@
       "ro": "zile la rând",
       "es": "días seguidos",
       "de": "Tage in Folge",
-      "zh-Hans": "连续天数"
+      "zh-Hans": "连续天数",
+      "fr": "jours d'affilée"
     },
     "Done for today. Back tomorrow.": {
       "comment": "Daily guess widget once today's round is played.",
@@ -731,7 +854,8 @@
       "ro": "Gata pe azi. Revino mâine.",
       "es": "Listo por hoy. Vuelve mañana.",
       "de": "Für heute erledigt. Bis morgen.",
-      "zh-Hans": "今天已完成，明天再来。"
+      "zh-Hans": "今天已完成，明天再来。",
+      "fr": "Fini pour aujourd'hui. Reviens demain."
     },
     "Guess today to keep it going": {
       "comment": "Daily guess widget when there is a streak and today's round is not played yet.",
@@ -739,7 +863,8 @@
       "ro": "Ghicește azi ca să nu-l pierzi",
       "es": "Adivina hoy para no perderla",
       "de": "Rate heute, damit sie hält",
-      "zh-Hans": "今天猜一下，保持连续"
+      "zh-Hans": "今天猜一下，保持连续",
+      "fr": "Devine aujourd'hui pour continuer"
     },
     "Guess today's price": {
       "comment": "Daily guess widget with no streak: today's round is waiting.",
@@ -747,7 +872,8 @@
       "ro": "Ghicește prețul de azi",
       "es": "Adivina el precio de hoy",
       "de": "Rate den heutigen Preis",
-      "zh-Hans": "猜猜今天的价格"
+      "zh-Hans": "猜猜今天的价格",
+      "fr": "Devine le prix du jour"
     },
     "Guess one item's resale price a day, and keep your streak.": {
       "comment": "Description in the widget gallery.",
@@ -755,7 +881,8 @@
       "ro": "Ghicește prețul de revânzare al unui obiect pe zi și păstrează-ți seria.",
       "es": "Adivina el precio de reventa de un artículo al día y mantén tu racha.",
       "de": "Rate jeden Tag den Wiederverkaufspreis eines Artikels und halte deine Serie.",
-      "zh-Hans": "每天猜一件物品的转卖价，保持连续记录。"
+      "zh-Hans": "每天猜一件物品的转卖价，保持连续记录。",
+      "fr": "Devine le prix de revente d'un article par jour, et garde ta série."
     }
   }
 }

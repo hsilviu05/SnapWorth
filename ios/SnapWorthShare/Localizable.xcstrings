@@ -23,6 +23,12 @@
             "value" : "No se pudo leer esta imagen"
           }
         },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Impossible de lire cette image"
+          }
+        },
         "ro" : {
           "stringUnit" : {
             "state" : "translated",
@@ -57,6 +63,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Listo"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "OK"
           }
         },
         "ro" : {
@@ -95,6 +107,12 @@
             "value" : "Abre SnapWorth para ver cuánto vale."
           }
         },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ouvre SnapWorth pour voir combien ça vaut."
+          }
+        },
         "ro" : {
           "stringUnit" : {
             "state" : "translated",
@@ -129,6 +147,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Listo para valorar"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Prêt à estimer"
           }
         },
         "ro" : {
@@ -167,6 +191,12 @@
             "value" : "Guardado en SnapWorth"
           }
         },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Enregistré dans SnapWorth"
+          }
+        },
         "ro" : {
           "stringUnit" : {
             "state" : "translated",
@@ -201,6 +231,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Guardando…"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Enregistrement…"
           }
         },
         "ro" : {
@@ -239,6 +275,12 @@
             "value" : "Toca la notificación para ver cuánto vale."
           }
         },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Touche la notification pour voir combien ça vaut."
+          }
+        },
         "ro" : {
           "stringUnit" : {
             "state" : "translated",
@@ -275,6 +317,12 @@
             "value" : "Toca para ver cuánto vale."
           }
         },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Touche pour voir combien ça vaut."
+          }
+        },
         "ro" : {
           "stringUnit" : {
             "state" : "translated",
@@ -309,6 +357,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Prueba a compartir una foto o una captura de pantalla."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Essaie de partager une photo ou une capture d'écran."
           }
         },
         "ro" : {
