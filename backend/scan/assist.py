@@ -50,6 +50,7 @@ LANGUAGES = {
     "fr": "French",
     "it": "Italian",
     "pt-BR": "Brazilian Portuguese",
+    "pl": "Polish",
 }
 
 _STATUSES = {"scanned", "owned", "listed", "sold"}

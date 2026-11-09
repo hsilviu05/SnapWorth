@@ -35,6 +35,12 @@
             "value" : "SnapWorth"
           }
         },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SnapWorth"
+          }
+        },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
@@ -84,6 +90,12 @@
           }
         },
         "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SnapWorth"
+          }
+        },
+        "pl" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "SnapWorth"
@@ -143,6 +155,12 @@
             "value" : "SnapWorth usa la fotocamera per fotografare gli articoli, così possiamo identificarli e stimarne il valore di rivendita."
           }
         },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SnapWorth używa aparatu do fotografowania przedmiotów, byśmy mogli je rozpoznać i oszacować ich wartość odsprzedaży."
+          }
+        },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
@@ -197,6 +215,12 @@
             "value" : "Consenti a SnapWorth di salvare in Foto le card da condividere e le foto degli annunci scontornate."
           }
         },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zezwól SnapWorth na zapisywanie w Zdjęciach kart do udostępnienia i oczyszczonych zdjęć do ogłoszeń."
+          }
+        },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
@@ -249,6 +273,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "SnapWorth ti permette di scegliere foto dalla libreria da scansionare per conoscerne il valore di rivendita."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SnapWorth pozwala wybierać zdjęcia z biblioteki, by sprawdzić wartość odsprzedaży."
           }
         },
         "pt-BR" : {

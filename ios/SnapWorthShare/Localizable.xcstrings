@@ -35,6 +35,12 @@
             "value" : "Impossibile leggere questa immagine"
           }
         },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nie udało się odczytać obrazu"
+          }
+        },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
@@ -87,6 +93,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Fine"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gotowe"
           }
         },
         "pt-BR" : {
@@ -143,6 +155,12 @@
             "value" : "Apri SnapWorth per vedere quanto vale."
           }
         },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Otwórz SnapWorth, by zobaczyć, ile to jest warte."
+          }
+        },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
@@ -195,6 +213,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Pronto da valutare"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gotowe do wyceny"
           }
         },
         "pt-BR" : {
@@ -251,6 +275,12 @@
             "value" : "Salvato in SnapWorth"
           }
         },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zapisano w SnapWorth"
+          }
+        },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
@@ -303,6 +333,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Salvataggio…"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zapisywanie…"
           }
         },
         "pt-BR" : {
@@ -359,6 +395,12 @@
             "value" : "Tocca la notifica per vedere quanto vale."
           }
         },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Stuknij powiadomienie, by zobaczyć, ile to jest warte."
+          }
+        },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
@@ -413,6 +455,12 @@
             "value" : "Tocca per vedere quanto vale."
           }
         },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Stuknij, by zobaczyć, ile to jest warte."
+          }
+        },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
@@ -465,6 +513,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Prova a condividere una foto o uno screenshot."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Spróbuj udostępnić zdjęcie lub zrzut ekranu."
           }
         },
         "pt-BR" : {

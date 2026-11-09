@@ -35,6 +35,12 @@
             "value" : " a "
           }
         },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : " do "
+          }
+        },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
@@ -86,6 +92,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%@ nel tuo bottino"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ w Twoim łupie"
           }
         },
         "pt-BR" : {
@@ -142,6 +154,12 @@
             "value" : "%@ di guadagno questo mese %@"
           }
         },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ zysku w tym miesiącu %@"
+          }
+        },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
@@ -193,6 +211,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%@ scansionati"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zeskanowano: %@"
           }
         },
         "pt-BR" : {
@@ -248,6 +272,12 @@
             "value" : "%@ in questo giro"
           }
         },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ w tej rundzie"
+          }
+        },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
@@ -299,6 +329,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%@ a %@"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ do %@"
           }
         },
         "pt-BR" : {
@@ -426,6 +462,36 @@
             }
           }
         },
+        "pl" : {
+          "variations" : {
+            "plural" : {
+              "few" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%@ · seria %lld dni"
+                }
+              },
+              "many" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%@ · seria %lld dni"
+                }
+              },
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%@ · seria %lld dzień"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%@ · seria %lld dni"
+                }
+              }
+            }
+          }
+        },
         "pt-BR" : {
           "variations" : {
             "plural" : {
@@ -516,6 +582,12 @@
             "value" : "%@, %@"
           }
         },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@, %@"
+          }
+        },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
@@ -567,6 +639,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%@, guadagno sconosciuto finché non aggiungi i prezzi"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@, zysk nieznany, dopóki nie dodasz cen"
           }
         },
         "pt-BR" : {
@@ -622,6 +700,12 @@
             "value" : "%@. Ultimo dato noto: apri SnapWorth per aggiornare."
           }
         },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@. Ostatnie znane dane: otwórz SnapWorth, by odświeżyć."
+          }
+        },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
@@ -671,6 +755,12 @@
           }
         },
         "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld"
+          }
+        },
+        "pl" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "%lld"
@@ -796,6 +886,36 @@
                 "stringUnit" : {
                   "state" : "translated",
                   "value" : "Serie di %lld giorni"
+                }
+              }
+            }
+          }
+        },
+        "pl" : {
+          "variations" : {
+            "plural" : {
+              "few" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Seria: %lld dni"
+                }
+              },
+              "many" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Seria: %lld dni"
+                }
+              },
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Seria: %lld dzień"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Seria: %lld dni"
                 }
               }
             }
@@ -963,6 +1083,36 @@
             }
           }
         },
+        "pl" : {
+          "variations" : {
+            "plural" : {
+              "few" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld znaleziska"
+                }
+              },
+              "many" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld znalezisk"
+                }
+              },
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld znalezisko"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld znalezisk"
+                }
+              }
+            }
+          }
+        },
         "pt-BR" : {
           "variations" : {
             "plural" : {
@@ -1119,6 +1269,36 @@
                 "stringUnit" : {
                   "state" : "translated",
                   "value" : "%lld rivendite vendute questo mese"
+                }
+              }
+            }
+          }
+        },
+        "pl" : {
+          "variations" : {
+            "plural" : {
+              "few" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld flipy sprzedane w tym miesiącu"
+                }
+              },
+              "many" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld flipów sprzedanych w tym miesiącu"
+                }
+              },
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld flip sprzedany w tym miesiącu"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld flipów sprzedanych w tym miesiącu"
                 }
               }
             }
@@ -1286,6 +1466,36 @@
             }
           }
         },
+        "pl" : {
+          "variations" : {
+            "plural" : {
+              "few" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Dziś zostały %lld darmowe skany"
+                }
+              },
+              "many" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Dziś zostało %lld darmowych skanów"
+                }
+              },
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Dziś został %lld darmowy skan"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Dziś zostało %lld darmowych skanów"
+                }
+              }
+            }
+          }
+        },
         "pt-BR" : {
           "variations" : {
             "plural" : {
@@ -1442,6 +1652,36 @@
                 "stringUnit" : {
                   "state" : "translated",
                   "value" : "%lld articoli"
+                }
+              }
+            }
+          }
+        },
+        "pl" : {
+          "variations" : {
+            "plural" : {
+              "few" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld przedmioty"
+                }
+              },
+              "many" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld przedmiotów"
+                }
+              },
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld przedmiot"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld przedmiotów"
                 }
               }
             }
@@ -1608,6 +1848,36 @@
             }
           }
         },
+        "pl" : {
+          "variations" : {
+            "plural" : {
+              "few" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld sprzedane · dodaj ceny"
+                }
+              },
+              "many" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld sprzedanych · dodaj ceny"
+                }
+              },
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld sprzedany · dodaj ceny"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld sprzedanych · dodaj ceny"
+                }
+              }
+            }
+          }
+        },
         "pt-BR" : {
           "variations" : {
             "plural" : {
@@ -1697,6 +1967,12 @@
             "value" : "Torna domani, o passa a Pro"
           }
         },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wróć jutro albo przejdź na Pro"
+          }
+        },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1749,6 +2025,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Indovinello del giorno"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zgadywanka dnia"
           }
         },
         "pt-BR" : {
@@ -1805,6 +2087,12 @@
             "value" : "Fatto per oggi. Torna domani."
           }
         },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Na dziś koniec. Wróć jutro."
+          }
+        },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1856,6 +2144,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Scopri quanto vale"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sprawdź, ile to jest warte"
           }
         },
         "pt-BR" : {
@@ -1912,6 +2206,12 @@
             "value" : "Indovina ogni giorno il prezzo di rivendita di un articolo, e mantieni la tua serie."
           }
         },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zgaduj codziennie cenę odsprzedaży jednego przedmiotu i utrzymuj serię."
+          }
+        },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1964,6 +2264,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Indovina oggi per non perderla"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zgadnij dziś, by utrzymać serię"
           }
         },
         "pt-BR" : {
@@ -2020,6 +2326,12 @@
             "value" : "Indovina il prezzo di oggi"
           }
         },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zgadnij dzisiejszą cenę"
+          }
+        },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2071,6 +2383,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Bottino"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Łup"
           }
         },
         "pt-BR" : {
@@ -2127,6 +2445,12 @@
             "value" : "Valore del bottino"
           }
         },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wartość łupu"
+          }
+        },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2178,6 +2502,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Il bottino sulla schermata di blocco"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Łup na ekranie blokady"
           }
         },
         "pt-BR" : {
@@ -2233,6 +2563,12 @@
             "value" : "Bottino del valore di %@, %@"
           }
         },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Łup wart %@, %@"
+          }
+        },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2284,6 +2620,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Bottino del valore di %@"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Łup wart %@"
           }
         },
         "pt-BR" : {
@@ -2339,6 +2681,12 @@
             "value" : "Quante scansioni gratis ti restano oggi."
           }
         },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ile darmowych skanów masz dziś."
+          }
+        },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2390,6 +2738,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Ultimo dato noto: apri SnapWorth per aggiornare"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ostatnie znane dane: otwórz SnapWorth, by odświeżyć"
           }
         },
         "pt-BR" : {
@@ -2445,6 +2799,12 @@
             "value" : "Ultima scansione"
           }
         },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ostatni skan"
+          }
+        },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2496,6 +2856,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Ultima scansione, %@, %@"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ostatni skan, %@, %@"
           }
         },
         "pt-BR" : {
@@ -2551,6 +2917,12 @@
             "value" : "Ultima: %@"
           }
         },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ostatni: %@"
+          }
+        },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2602,6 +2974,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Ancora nessuna scoperta scansionata"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Jeszcze nic nie zeskanowano"
           }
         },
         "pt-BR" : {
@@ -2657,6 +3035,12 @@
             "value" : "Ancora nessuna scoperta"
           }
         },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Brak znalezisk"
+          }
+        },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2708,6 +3092,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Nessuna rivendita venduta questo mese"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "W tym miesiącu brak sprzedanych flipów"
           }
         },
         "pt-BR" : {
@@ -2763,6 +3153,12 @@
             "value" : "Nessuna scansione gratis rimasta oggi"
           }
         },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Na dziś brak darmowych skanów"
+          }
+        },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2814,6 +3210,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Ancora nessuna scansione"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Brak skanów"
           }
         },
         "pt-BR" : {
@@ -2869,6 +3271,12 @@
             "value" : "Ancora niente di scansionato"
           }
         },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Jeszcze nic nie zeskanowano"
+          }
+        },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2920,6 +3328,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Ancora niente di scansionato. Tocca per scansionare la tua prima scoperta."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Jeszcze nic nie zeskanowano. Stuknij, by zeskanować pierwsze znalezisko."
           }
         },
         "pt-BR" : {
@@ -2975,6 +3389,12 @@
             "value" : "Ancora niente"
           }
         },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Jeszcze nic"
+          }
+        },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
@@ -3026,6 +3446,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Un tocco per scansionare qualsiasi articolo usato."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Jedno stuknięcie, by zeskanować dowolną rzecz z drugiej ręki."
           }
         },
         "pt-BR" : {
@@ -3081,6 +3507,12 @@
             "value" : "Apri SnapWorth"
           }
         },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Otwórz SnapWorth"
+          }
+        },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
@@ -3132,6 +3564,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Apri SnapWorth con la fotocamera pronta."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Otwórz SnapWorth z gotowym aparatem."
           }
         },
         "pt-BR" : {
@@ -3187,6 +3625,12 @@
             "value" : "Apre SnapWorth con la fotocamera pronta."
           }
         },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Otwiera SnapWorth z gotowym aparatem."
+          }
+        },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
@@ -3238,6 +3682,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Guadagno questo mese"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zysk w tym miesiącu"
           }
         },
         "pt-BR" : {
@@ -3293,6 +3743,12 @@
             "value" : "Scansione rapida"
           }
         },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Szybki skan"
+          }
+        },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
@@ -3344,6 +3800,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Scoperte recenti"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ostatnie znaleziska"
           }
         },
         "pt-BR" : {
@@ -3399,6 +3861,12 @@
             "value" : "Scansiona"
           }
         },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Skanuj"
+          }
+        },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
@@ -3450,6 +3918,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Scansiona un articolo"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zeskanuj przedmiot"
           }
         },
         "pt-BR" : {
@@ -3505,6 +3979,12 @@
             "value" : "Numero di scansioni non ancora disponibile. Apri SnapWorth."
           }
         },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Liczba skanów jeszcze niedostępna. Otwórz SnapWorth."
+          }
+        },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
@@ -3556,6 +4036,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Scansiona ora"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Skanuj teraz"
           }
         },
         "pt-BR" : {
@@ -3611,6 +4097,12 @@
             "value" : "Scansiona qualcosa per iniziare"
           }
         },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zeskanuj coś na start"
+          }
+        },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
@@ -3662,6 +4154,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Scansiona qualcosa per iniziare il giro"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zeskanuj coś, by zacząć rundę"
           }
         },
         "pt-BR" : {
@@ -3717,6 +4215,12 @@
             "value" : "Scansiona la tua prima scoperta"
           }
         },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zeskanuj pierwsze znalezisko"
+          }
+        },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
@@ -3768,6 +4272,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Scansioni rimaste"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pozostałe skany"
           }
         },
         "pt-BR" : {
@@ -3823,6 +4333,12 @@
             "value" : "Vedi a colpo d'occhio il valore di rivendita totale."
           }
         },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Łączna wartość odsprzedaży w mgnieniu oka."
+          }
+        },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
@@ -3872,6 +4388,12 @@
           }
         },
         "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SnapWorth"
+          }
+        },
+        "pl" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "SnapWorth"
@@ -3930,6 +4452,12 @@
             "value" : "Bottino SnapWorth, %@"
           }
         },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Łup SnapWorth, %@"
+          }
+        },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
@@ -3981,6 +4509,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Bottino SnapWorth, %@ scansionati, del valore di %@."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Łup SnapWorth: %@ zeskanowane, warte %@."
           }
         },
         "pt-BR" : {
@@ -4036,6 +4570,12 @@
             "value" : "Bottino SnapWorth, %@, %@"
           }
         },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Łup SnapWorth, %@, %@"
+          }
+        },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
@@ -4087,6 +4627,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "SnapWorth, ancora nessuna scoperta scansionata"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SnapWorth, jeszcze nic nie zeskanowano"
           }
         },
         "pt-BR" : {
@@ -4142,6 +4688,12 @@
             "value" : "SnapWorth, ancora nessuna scoperta. Scansiona qualcosa per iniziare."
           }
         },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SnapWorth, brak znalezisk. Zeskanuj coś na start."
+          }
+        },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
@@ -4193,6 +4745,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "SnapWorth. Ancora niente di scansionato."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SnapWorth. Jeszcze nic nie zeskanowano."
           }
         },
         "pt-BR" : {
@@ -4248,6 +4806,12 @@
             "value" : "Tocca per scansionare\nla tua prima scoperta"
           }
         },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Stuknij, by zeskanować\npierwsze znalezisko"
+          }
+        },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
@@ -4299,6 +4863,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Le ultime cose che hai scansionato, e quanto valgono."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ostatnio zeskanowane rzeczy i ich wartość."
           }
         },
         "pt-BR" : {
@@ -4354,6 +4924,12 @@
             "value" : "Questo mese"
           }
         },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ten miesiąc"
+          }
+        },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
@@ -4405,6 +4981,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Giro dell'usato"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Runda po lumpeksach"
           }
         },
         "pt-BR" : {
@@ -4460,6 +5042,12 @@
             "value" : "Giro dell'usato in corso, %@"
           }
         },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Runda po lumpeksach w toku, %@"
+          }
+        },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
@@ -4511,6 +5099,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Giro dell'usato iniziato, ancora niente di scansionato"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Runda po lumpeksach rozpoczęta, jeszcze nic nie zeskanowano"
           }
         },
         "pt-BR" : {
@@ -4566,6 +5160,12 @@
             "value" : "Giro dell'usato, %@"
           }
         },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Runda po lumpeksach, %@"
+          }
+        },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
@@ -4617,6 +5217,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Giro dell'usato, %@, del valore di %@, iniziato alle %@"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Runda po lumpeksach, %@, warte %@, start o %@"
           }
         },
         "pt-BR" : {
@@ -4672,6 +5278,12 @@
             "value" : "Giro dell'usato, ultimo dato noto, ancora niente di scansionato"
           }
         },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Runda po lumpeksach, ostatnie znane dane, jeszcze nic nie zeskanowano"
+          }
+        },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
@@ -4723,6 +5335,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Scansioni illimitate"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Skany bez limitu"
           }
         },
         "pt-BR" : {
@@ -4845,6 +5463,36 @@
                 "stringUnit" : {
                   "state" : "translated",
                   "value" : "Scansioni illimitate, serie di %lld giorni di scansioni"
+                }
+              }
+            }
+          }
+        },
+        "pl" : {
+          "variations" : {
+            "plural" : {
+              "few" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Skany bez limitu, seria skanowania: %lld dni"
+                }
+              },
+              "many" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Skany bez limitu, seria skanowania: %lld dni"
+                }
+              },
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Skany bez limitu, seria skanowania: %lld dzień"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Skany bez limitu, seria skanowania: %lld dni"
                 }
               }
             }
@@ -5011,6 +5659,36 @@
             }
           }
         },
+        "pl" : {
+          "variations" : {
+            "plural" : {
+              "few" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Bez limitu · seria %lld dni"
+                }
+              },
+              "many" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Bez limitu · seria %lld dni"
+                }
+              },
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Bez limitu · seria %lld dzień"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Bez limitu · seria %lld dni"
+                }
+              }
+            }
+          }
+        },
         "pt-BR" : {
           "variations" : {
             "plural" : {
@@ -5100,6 +5778,12 @@
             "value" : "Quanto hanno fruttato davvero le tue rivendite vendute."
           }
         },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ile naprawdę zarobiły Twoje sprzedane flipy."
+          }
+        },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
@@ -5153,6 +5837,12 @@
             "value" : "Il tuo bottino"
           }
         },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Twój łup"
+          }
+        },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
@@ -5204,6 +5894,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Il tuo valore di rivendita totale, senza sbloccare."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Łączna wartość odsprzedaży bez odblokowywania."
           }
         },
         "pt-BR" : {
@@ -5260,6 +5956,12 @@
             "value" : "giorni di fila"
           }
         },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "dni z rzędu"
+          }
+        },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
@@ -5312,6 +6014,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "trascorso"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "upłynęło"
           }
         },
         "pt-BR" : {
@@ -5368,6 +6076,12 @@
             "value" : "scansione gratis rimasta oggi"
           }
         },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "darmowy skan na dziś"
+          }
+        },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
@@ -5419,6 +6133,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "scansioni gratis rimaste oggi"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "darmowe skany na dziś"
           }
         },
         "pt-BR" : {
@@ -5546,6 +6266,36 @@
             }
           }
         },
+        "pl" : {
+          "variations" : {
+            "plural" : {
+              "few" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "z %lld flipów"
+                }
+              },
+              "many" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "z %lld flipów"
+                }
+              },
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "z %lld flipa"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "z %lld flipów"
+                }
+              }
+            }
+          }
+        },
         "pt-BR" : {
           "variations" : {
             "plural" : {
@@ -5635,6 +6385,12 @@
             "value" : "ancora niente di scansionato"
           }
         },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "jeszcze nic nie zeskanowano"
+          }
+        },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
@@ -5687,6 +6443,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "inizio"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "start"
           }
         },
         "pt-BR" : {

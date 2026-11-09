@@ -10,7 +10,8 @@
       "zh-Hans": "正在保存…",
       "fr": "Enregistrement…",
       "it": "Salvataggio…",
-      "pt-BR": "Salvando…"
+      "pt-BR": "Salvando…",
+      "pl": "Zapisywanie…"
     },
     "Saved to SnapWorth": {
       "comment": "Share extension: the photo was saved for the app to value.",
@@ -21,7 +22,8 @@
       "zh-Hans": "已保存到 SnapWorth",
       "fr": "Enregistré dans SnapWorth",
       "it": "Salvato in SnapWorth",
-      "pt-BR": "Salvo no SnapWorth"
+      "pt-BR": "Salvo no SnapWorth",
+      "pl": "Zapisano w SnapWorth"
     },
     "Tap the notification to see what it's worth.": {
       "comment": "Share extension, after saving, when notifications are allowed: a notification is on its way.",
@@ -32,7 +34,8 @@
       "zh-Hans": "轻点通知，看看它值多少。",
       "fr": "Touche la notification pour voir combien ça vaut.",
       "it": "Tocca la notifica per vedere quanto vale.",
-      "pt-BR": "Toque na notificação para ver quanto vale."
+      "pt-BR": "Toque na notificação para ver quanto vale.",
+      "pl": "Stuknij powiadomienie, by zobaczyć, ile to jest warte."
     },
     "Open SnapWorth to see what it's worth.": {
       "comment": "Share extension, after saving, when notifications are off.",
@@ -43,7 +46,8 @@
       "zh-Hans": "打开 SnapWorth，看看它值多少。",
       "fr": "Ouvre SnapWorth pour voir combien ça vaut.",
       "it": "Apri SnapWorth per vedere quanto vale.",
-      "pt-BR": "Abra o SnapWorth para ver quanto vale."
+      "pt-BR": "Abra o SnapWorth para ver quanto vale.",
+      "pl": "Otwórz SnapWorth, by zobaczyć, ile to jest warte."
     },
     "Couldn't read this image": {
       "comment": "Share extension: the shared item could not be read as an image.",
@@ -54,7 +58,8 @@
       "zh-Hans": "无法读取此图片",
       "fr": "Impossible de lire cette image",
       "it": "Impossibile leggere questa immagine",
-      "pt-BR": "Não foi possível ler esta imagem"
+      "pt-BR": "Não foi possível ler esta imagem",
+      "pl": "Nie udało się odczytać obrazu"
     },
     "Try sharing a photo or a screenshot.": {
       "comment": "Share extension: under Couldn't read this image.",
@@ -65,7 +70,8 @@
       "zh-Hans": "请尝试分享照片或截图。",
       "fr": "Essaie de partager une photo ou une capture d'écran.",
       "it": "Prova a condividere una foto o uno screenshot.",
-      "pt-BR": "Tente compartilhar uma foto ou uma captura de tela."
+      "pt-BR": "Tente compartilhar uma foto ou uma captura de tela.",
+      "pl": "Spróbuj udostępnić zdjęcie lub zrzut ekranu."
     },
     "Done": {
       "comment": "Share extension: closes the sheet.",
@@ -76,7 +82,8 @@
       "zh-Hans": "完成",
       "fr": "OK",
       "it": "Fine",
-      "pt-BR": "OK"
+      "pt-BR": "OK",
+      "pl": "Gotowe"
     },
     "Ready to value": {
       "comment": "Notification title, sent by the share extension: the shared photo is waiting in SnapWorth.",
@@ -87,7 +94,8 @@
       "zh-Hans": "可以估价了",
       "fr": "Prêt à estimer",
       "it": "Pronto da valutare",
-      "pt-BR": "Pronto para avaliar"
+      "pt-BR": "Pronto para avaliar",
+      "pl": "Gotowe do wyceny"
     },
     "Tap to see what it's worth.": {
       "comment": "Notification body, sent by the share extension.",
@@ -98,7 +106,8 @@
       "zh-Hans": "轻点查看它值多少。",
       "fr": "Touche pour voir combien ça vaut.",
       "it": "Tocca per vedere quanto vale.",
-      "pt-BR": "Toque para ver quanto vale."
+      "pt-BR": "Toque para ver quanto vale.",
+      "pl": "Stuknij, by zobaczyć, ile to jest warte."
     }
   }
 }
