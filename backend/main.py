@@ -1879,7 +1879,9 @@ receives Apple's signed record of your purchase, described above. It never
 receives photos, item names or scan results, or your name, email address or
 payment details, and it is not used to track you across other apps or websites.
 Turning analytics off in Settings turns it off too, from the next time the app
-starts.</p>
+starts. When we started using RevenueCat, our server also sent it, once,
+Apple's current signed record of each subscription it had on file, so that its
+figures include subscriptions bought before then.</p>
 <p><strong>Telegram.</strong> To monitor the service, operational information may
 be relayed to the operator through Telegram: the name of an item the AI
 identified and its estimated price range; and, so that a support request can be

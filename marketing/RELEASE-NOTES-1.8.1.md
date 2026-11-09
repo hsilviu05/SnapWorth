@@ -208,8 +208,8 @@ Nothing is submitted until the last step, and that one is yours.
 ### 2. Archive
 - [ ] Xcode 27 (`.xcode-version`), scheme **SnapWorth**, Release. Organizer
       shows **1.8.1 (33)**.
-- [ ] Distribute → App Store Connect → Upload, once. A re-archive needs 34.
-- [ ] Record the commit and Organizer's creation date under *Build 33*.
+- [x] Distribute → App Store Connect → Upload, once. A re-archive needs 34.
+- [x] Record the commit and Organizer's creation date under *Build 33*.
 
 ### 3. TestFlight
 - [ ] 33 has no *Missing Compliance* badge.
@@ -233,5 +233,8 @@ Nothing is submitted until the last step, and that one is yours.
 
 ### Build 33 — the archive
 
-- **Archive commit:** _(fill in)_
-- **Organizer creation date:** _(fill in)_
+- **Archive commit:** `f2a5da7` (#457), the `main` HEAD when it was archived;
+  it carries RevenueCat (#456)
+- **Organizer creation date:** 2026-11-09 15:03:41 EET (`SnapWorth-1.8.1-33.xcarchive`)
+- Uploaded to App Store Connect once, at 15:05 EET; not submitted for review.
+  A re-archive needs 34.
