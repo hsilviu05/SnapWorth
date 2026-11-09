@@ -28,7 +28,7 @@ from billing.entitlements import Entitlement  # noqa: E402
 async def configured(monkeypatch):
     monkeypatch.delenv("TELEGRAM_BOT_TOKEN", raising=False)
     monkeypatch.delenv("TELEGRAM_CHAT_ID", raising=False)
-    monkeypatch.setenv(opsrevenuecat.SECRET_ENV, "sk_test")
+    monkeypatch.setenv(opsrevenuecat.KEY_ENV, "appl_test")
     monkeypatch.setattr(opsrevenuecat, "PAUSE_SECONDS", 0)
     cache = ResilientCache(None, InMemoryCache())
     notify.configure(cache)
@@ -93,7 +93,7 @@ class TestImport:
 
         assert [s["body"]["fetch_token"] for s in seen] == ["jws-a", "jws-b"]
         assert seen[0]["url"] == opsrevenuecat.RECEIPTS_URL
-        assert seen[0]["headers"]["authorization"] == "Bearer sk_test"
+        assert seen[0]["headers"]["authorization"] == "Bearer appl_test"
         assert seen[0]["headers"]["x-platform"] == "ios"
         assert seen[0]["body"]["product_id"] == "com.snapworth.yearly"
         assert "2 sent" in text
@@ -152,13 +152,25 @@ class TestImport:
         assert "Stopped early" in text
 
     @pytest.mark.asyncio
-    async def test_needs_a_v1_secret_key(self, configured, apple, monkeypatch):
+    async def test_refuses_a_secret_key_and_defaults_to_the_apps(
+            self, configured, apple, monkeypatch):
+        await put_index(configured, {"1000": {"env": "Production"}})
+        apple["subs"] = {"1000": ("Production", "jws-a")}
         client, seen = revenuecat()
-        monkeypatch.delenv(opsrevenuecat.SECRET_ENV)
+        monkeypatch.setenv(opsrevenuecat.KEY_ENV, "sk_secret")
         assert "did not run" in await opsrevenuecat.import_subscriptions(client=client)
-        monkeypatch.setenv(opsrevenuecat.SECRET_ENV, "appl_public")
-        assert "not a secret key" in await opsrevenuecat.import_subscriptions(client=client)
         assert seen == []
+        monkeypatch.delenv(opsrevenuecat.KEY_ENV)
+        await opsrevenuecat.import_subscriptions(client=client)
+        assert seen[0]["headers"]["authorization"] == f"Bearer {opsrevenuecat.PUBLIC_KEY}"
+
+    def test_default_key_is_the_apps(self):
+        config = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                              "..", "..", "ios", "SnapWorth", "Config.swift")
+        if not os.path.exists(config):
+            pytest.skip("iOS sources not checked out")
+        with open(config, encoding="utf-8") as f:
+            assert f'"{opsrevenuecat.PUBLIC_KEY}"' in f.read()
 
 
 class TestCommand:
@@ -209,7 +221,7 @@ class TestUsersImport:
         assert [s["url"] for s in seen] == [
             opsrevenuecat.SUBSCRIBERS_URL + "%24RCAnonymousID%3A" + e.split(":", 1)[1]
             for e in expected]
-        assert seen[0]["headers"]["authorization"] == "Bearer sk_test"
+        assert seen[0]["headers"]["authorization"] == "Bearer appl_test"
         assert all("bbbb" not in s["url"] and "cccc" not in s["url"] for s in seen)
         assert "2 devices without a subscription" in text
         assert "2 sent" in text
@@ -238,8 +250,8 @@ class TestUsersImport:
         assert "HTTP 403 — 7243: Forbidden" in text
 
     @pytest.mark.asyncio
-    async def test_needs_a_secret_key(self, configured, monkeypatch):
-        monkeypatch.delenv(opsrevenuecat.SECRET_ENV)
+    async def test_refuses_a_secret_key(self, configured, monkeypatch):
+        monkeypatch.setenv(opsrevenuecat.KEY_ENV, "sk_secret")
         client, seen = revenuecat_customers()
         assert "did not run" in await opsrevenuecat.import_users(client=client)
         assert seen == []

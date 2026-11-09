@@ -29,7 +29,10 @@ never merged with the ones the SDK makes on the same phones, because nothing
 connects the two IDs: from 1.8.1 on a device can appear twice.
 
 Like the rest of the operator view this never grants or withdraws access.
-Needs `REVENUECAT_SECRET_KEY`, a v1 secret key, which never leaves the server.
+Both calls take the app's public iOS key (`appl_…`), the same one
+`Config.swift` ships: RevenueCat refuses a secret key on them (403, code 7243,
+"Secret API keys should not be used in your app"). Public by design, so it is
+a constant here; `REVENUECAT_PUBLIC_KEY` overrides it if the app's key changes.
 """
 
 from __future__ import annotations
@@ -51,7 +54,9 @@ log = logging.getLogger("snapworth.notify")
 
 RECEIPTS_URL = "https://api.revenuecat.com/v1/receipts"
 SUBSCRIBERS_URL = "https://api.revenuecat.com/v1/subscribers/"
-SECRET_ENV = "REVENUECAT_SECRET_KEY"
+KEY_ENV = "REVENUECAT_PUBLIC_KEY"
+# Not a secret: it is in every copy of the app. Must match `Config.revenueCatAPIKey`.
+PUBLIC_KEY = "appl_VmTUodlaqELRoxdSRzuGJfcRbnO"
 TIMEOUT_SECONDS = 20.0
 # Between subscriptions: two API calls each, and Apple's status endpoint is
 # rate limited per key, shared with /sub.
@@ -120,15 +125,13 @@ async def create_customer(client: httpx.AsyncClient, secret: str,
     return response.status_code, refusal_detail(response)
 
 
-def secret_problem() -> tuple[str, str | None]:
-    """The v1 secret key, or the reply that says why the import cannot run."""
-    secret = (os.environ.get(SECRET_ENV) or "").strip()
-    if not secret:
-        return "", (f"🐈 Import did not run: no {SECRET_ENV} on this deployment. "
-                    "Add a v1 secret key from RevenueCat → Project settings → API keys.")
-    if not secret.startswith("sk_"):
-        return "", f"🐈 Import did not run: {SECRET_ENV} is not a secret key (sk_…)."
-    return secret, None
+def api_key_problem() -> tuple[str, str | None]:
+    """The public iOS key, or the reply that says why the import cannot run."""
+    key = (os.environ.get(KEY_ENV) or "").strip() or PUBLIC_KEY
+    if not key.startswith("appl_"):
+        return "", (f"🐈 Import did not run: {KEY_ENV} is not the app's public iOS "
+                    "key (appl_…). RevenueCat refuses secret keys here.")
+    return key, None
 
 
 def refusal_detail(response: httpx.Response) -> str:
@@ -157,7 +160,7 @@ async def import_subscriptions(*, limit: int | None = None,
     """
     from billing import appstorestatus
 
-    secret, problem = secret_problem()
+    secret, problem = api_key_problem()
     if problem:
         return problem
     if appstorestatus.credentials_from_env() is None:
@@ -235,7 +238,7 @@ async def import_users(*, limit: int | None = None,
                        client: httpx.AsyncClient | None = None) -> str:
     """Create a RevenueCat customer for each indexed device that never
     subscribed. Returns the operator's reply; never raises for one device."""
-    secret, problem = secret_problem()
+    secret, problem = api_key_problem()
     if problem:
         return problem
     devices = free_devices(await opsindex.read_index(opsindex.USERS_INDEX_KEY),
