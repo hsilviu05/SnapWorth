@@ -19,6 +19,15 @@ the phone's own anonymous ID, RevenueCat aliases the two customers rather than
 transferring the purchase between them. A fixed function of the transaction,
 so a second run posts to the same customers and RevenueCat deduplicates it.
 
+`/revenue rcimport users` does the same for devices that never subscribed:
+each device in `opsidx:users` not already on a subscription row becomes a
+RevenueCat customer, created by fetching it (`GET /v1/subscribers/{id}`
+creates one that does not exist). Its ID is the same kind of hash, of the
+device pseudonym, so it carries nothing RevenueCat could link to the device
+and a second run finds the customers the first created. These customers are
+never merged with the ones the SDK makes on the same phones, because nothing
+connects the two IDs: from 1.8.1 on a device can appear twice.
+
 Like the rest of the operator view this never grants or withdraws access.
 Needs `REVENUECAT_SECRET_KEY`, a v1 secret key, which never leaves the server.
 """
@@ -31,6 +40,7 @@ import html
 import logging
 import os
 from collections import Counter
+from urllib.parse import quote
 
 import httpx
 
@@ -40,6 +50,7 @@ from ops import opsindex
 log = logging.getLogger("snapworth.notify")
 
 RECEIPTS_URL = "https://api.revenuecat.com/v1/receipts"
+SUBSCRIBERS_URL = "https://api.revenuecat.com/v1/subscribers/"
 SECRET_ENV = "REVENUECAT_SECRET_KEY"
 TIMEOUT_SECONDS = 20.0
 # Between subscriptions: two API calls each, and Apple's status endpoint is
@@ -52,6 +63,24 @@ def app_user_id(original_transaction_id: str) -> str:
     """The RevenueCat customer an imported subscription is filed under."""
     digest = hashlib.sha256(f"snapworth-rc-import:{original_transaction_id}".encode())
     return APP_USER_PREFIX + digest.hexdigest()[:32]
+
+
+def device_app_user_id(pseudonym: str) -> str:
+    """The RevenueCat customer a device that never subscribed is filed under."""
+    digest = hashlib.sha256(f"snapworth-rc-user:{pseudonym}".encode())
+    return APP_USER_PREFIX + digest.hexdigest()[:32]
+
+
+def free_devices(users: dict, subs: dict) -> list[str]:
+    """Device pseudonyms in the users index that no subscription row names,
+    oldest first. Those on a row are the subscription import's."""
+    subscribed = [d for row in subs.values() if isinstance(row, dict)
+                  for d in opsindex.row_devices(row)]
+    rows = [(who, row) for who, row in users.items()
+            if isinstance(who, str) and who and isinstance(row, dict)
+            and not any(opsindex.same_device(d, who) for d in subscribed)]
+    rows.sort(key=lambda item: item[1].get("first") or 0)
+    return [who for who, _ in rows]
 
 
 def production_transaction_ids(doc: dict) -> list[str]:
@@ -77,6 +106,29 @@ async def post_receipt(client: httpx.AsyncClient, secret: str, *,
     if 200 <= response.status_code < 300:
         return response.status_code, ""
     return response.status_code, refusal_detail(response)
+
+
+async def create_customer(client: httpx.AsyncClient, secret: str,
+                          app_user: str) -> tuple[int, str]:
+    """Fetch one customer, which creates it if RevenueCat has none. Same
+    return as `post_receipt`."""
+    response = await client.get(
+        SUBSCRIBERS_URL + quote(app_user, safe=""),
+        headers={"Authorization": f"Bearer {secret}", "X-Platform": "ios"})
+    if 200 <= response.status_code < 300:
+        return response.status_code, ""
+    return response.status_code, refusal_detail(response)
+
+
+def secret_problem() -> tuple[str, str | None]:
+    """The v1 secret key, or the reply that says why the import cannot run."""
+    secret = (os.environ.get(SECRET_ENV) or "").strip()
+    if not secret:
+        return "", (f"🐈 Import did not run: no {SECRET_ENV} on this deployment. "
+                    "Add a v1 secret key from RevenueCat → Project settings → API keys.")
+    if not secret.startswith("sk_"):
+        return "", f"🐈 Import did not run: {SECRET_ENV} is not a secret key (sk_…)."
+    return secret, None
 
 
 def refusal_detail(response: httpx.Response) -> str:
@@ -105,12 +157,9 @@ async def import_subscriptions(*, limit: int | None = None,
     """
     from billing import appstorestatus
 
-    secret = (os.environ.get(SECRET_ENV) or "").strip()
-    if not secret:
-        return (f"🐈 Import did not run: no {SECRET_ENV} on this deployment. "
-                "Add a v1 secret key from RevenueCat → Project settings → API keys.")
-    if not secret.startswith("sk_"):
-        return f"🐈 Import did not run: {SECRET_ENV} is not a secret key (sk_…)."
+    secret, problem = secret_problem()
+    if problem:
+        return problem
     if appstorestatus.credentials_from_env() is None:
         return "🐈 Import did not run: no App Store Server API credentials on this deployment."
 
@@ -182,12 +231,77 @@ async def import_subscriptions(*, limit: int | None = None,
     return "\n".join(lines)
 
 
+async def import_users(*, limit: int | None = None,
+                       client: httpx.AsyncClient | None = None) -> str:
+    """Create a RevenueCat customer for each indexed device that never
+    subscribed. Returns the operator's reply; never raises for one device."""
+    secret, problem = secret_problem()
+    if problem:
+        return problem
+    devices = free_devices(await opsindex.read_index(opsindex.USERS_INDEX_KEY),
+                           await opsindex.read_index(opsindex.SUBS_INDEX_KEY))
+    if limit is not None:
+        devices = devices[:limit]
+
+    sent = rejected = 0
+    reasons: Counter[str] = Counter()
+    rate_limited = False
+    owned = client is None
+    client = client or httpx.AsyncClient(timeout=TIMEOUT_SECONDS)
+    try:
+        for index, who in enumerate(devices):
+            if index:
+                await asyncio.sleep(PAUSE_SECONDS)
+            try:
+                code, detail = await create_customer(client, secret, device_app_user_id(who))
+            except httpx.HTTPError as exc:
+                rejected += 1
+                reasons[f"unreachable ({type(exc).__name__})"] += 1
+                log.warning("rcimport users: RevenueCat unreachable (%s)", type(exc).__name__)
+                continue
+            if code == 429:
+                rate_limited = True
+                break
+            if 200 <= code < 300:
+                sent += 1
+            else:
+                rejected += 1
+                reasons[f"HTTP {code}" + (f" — {detail}" if detail else "")] += 1
+                log.warning("rcimport users: RevenueCat answered HTTP %s: %s", code, detail)
+    finally:
+        if owned:
+            await client.aclose()
+
+    lines = [f"🐈 <b>RevenueCat users import</b>: {len(devices)} devices without a subscription",
+             f"{sent} sent" + (f" · {rejected} refused by RevenueCat" if rejected else "")]
+    if rate_limited:
+        lines.append("⚠️ Stopped early: rate limited. Run it again in a minute; "
+                     "devices already sent are found, not duplicated.")
+    for reason, count in reasons.most_common(3):
+        lines.append(f"RevenueCat said ({count}×): {html.escape(reason)}")
+    return "\n".join(lines)
+
+
 async def rcimport_command(rest: str) -> tuple[str, opsformat.Buttons]:
-    """`/revenue rcimport [test|yes]`: two taps, as every bot command that writes.
+    """`/revenue rcimport [users] [test|yes]`: two taps, as every bot command that writes.
 
     `test` sends the oldest subscription only, to check the keys before the
     whole index goes."""
     parts = [p.lower() for p in (rest or "").split()[1:]]
+    if "users" in parts:
+        if "yes" in parts:
+            return await import_users(), []
+        if "test" in parts:
+            return await import_users(limit=1), [
+                [("✅ Send the rest", "revenue rcimport users yes"), ("Cancel", "revenue")]]
+        return ("🐈 <b>Send devices without a subscription to RevenueCat?</b>\n"
+                "Creates one RevenueCat customer for each device in /users that is not "
+                "on a subscription, named by a one-way hash. RevenueCat cannot join these "
+                "to the customers the app creates from 1.8.1, so a device can appear "
+                "twice. Safe to run again. Try one first.",
+                [[("🧪 Send one", "revenue rcimport users test"),
+                  ("✅ Send all", "revenue rcimport users yes")],
+                 [("Cancel", "revenue")]])
     if "yes" in parts:
         return await import_subscriptions(), []
     if "test" in parts:
@@ -199,4 +313,5 @@ async def rcimport_command(rest: str) -> tuple[str, opsformat.Buttons]:
             "deduplicates. Try one first.",
             [[("🧪 Send one", "revenue rcimport test"),
               ("✅ Send all", "revenue rcimport yes")],
+             [("👥 Users without a subscription", "revenue rcimport users")],
              [("Cancel", "revenue")]])
