@@ -225,9 +225,12 @@ async def backfill(now: datetime | None = None, days: int = BACKFILL_DAYS) -> st
 
 
 async def revenue_command(argument: str, rest: str) -> tuple[str, opsformat.Buttons]:
-    """`/revenue`, and `/revenue backfill [yes]`: two taps, as every bot
-    command that writes."""
+    """`/revenue`, `/revenue backfill [yes]` and `/revenue rcimport`: two
+    taps, as every bot command that writes."""
     parts = (rest or "").split()
+    if argument == "rcimport":
+        from ops import opsrevenuecat
+        return await opsrevenuecat.rcimport_command(rest)
     if argument == "backfill":
         if any(p.lower() == "yes" for p in parts[1:]):
             return await backfill(), []

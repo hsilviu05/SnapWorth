@@ -164,6 +164,10 @@ class SubscriptionStatus:
     # When Billing Grace Period ends (epoch seconds), while Apple holds the
     # subscription in it; None otherwise.
     grace_until: int | None = None
+    # The JWS exactly as Apple served it, already verified above. Only
+    # `ops.opsrevenuecat` reads it, to hand RevenueCat a transaction it can
+    # verify for itself; nothing here decides access from it.
+    signed_transaction: str | None = None
 
     @property
     def environment(self) -> str:
@@ -693,6 +697,7 @@ class AppStoreStatusClient:
             offer_identifier=offer_identifier,
             auto_renew_product_id=auto_renew_product_id,
             grace_until=grace_until,
+            signed_transaction=item.signedTransactionInfo,
         )
 
 
