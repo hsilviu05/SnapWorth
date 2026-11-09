@@ -179,9 +179,10 @@ class TestPrices:
         assert "[removed]" in prompt
 
     def test_an_unknown_language_falls_back_to_english(self):
-        assert assist.language_name("ja") == "English"
+        assert assist.language_name("ko") == "English"
         assert assist.language_name("zh-Hans") == "Simplified Chinese"
         assert assist.language_name("fr") == "French"
         assert assist.language_name("it") == "Italian"
         assert assist.language_name("pt-BR") == "Brazilian Portuguese"
         assert assist.language_name("pl") == "Polish"
+        assert assist.language_name("ja") == "Japanese"

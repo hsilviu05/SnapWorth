@@ -35,6 +35,12 @@
             "value" : "SnapWorth"
           }
         },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SnapWorth"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -90,6 +96,12 @@
           }
         },
         "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SnapWorth"
+          }
+        },
+        "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "SnapWorth"
@@ -155,6 +167,12 @@
             "value" : "SnapWorth usa la fotocamera per fotografare gli articoli, così possiamo identificarli e stimarne il valore di rivendita."
           }
         },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SnapWorthはアイテムを撮影して識別し、リセール価格を査定するためにカメラを使用します。"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -215,6 +233,12 @@
             "value" : "Consenti a SnapWorth di salvare in Foto le card da condividere e le foto degli annunci scontornate."
           }
         },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SnapWorthがシェアカードと背景を消した出品写真を写真に保存することを許可してください。"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -273,6 +297,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "SnapWorth ti permette di scegliere foto dalla libreria da scansionare per conoscerne il valore di rivendita."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SnapWorthはライブラリから写真を選んでリセール価格を査定できます。"
           }
         },
         "pl" : {

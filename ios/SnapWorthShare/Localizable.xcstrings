@@ -35,6 +35,12 @@
             "value" : "Impossibile leggere questa immagine"
           }
         },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "この画像を読み取れませんでした"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -93,6 +99,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Fine"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "完了"
           }
         },
         "pl" : {
@@ -155,6 +167,12 @@
             "value" : "Apri SnapWorth per vedere quanto vale."
           }
         },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SnapWorthを開くと価値が分かります。"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -213,6 +231,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Pronto da valutare"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "査定の準備ができました"
           }
         },
         "pl" : {
@@ -275,6 +299,12 @@
             "value" : "Salvato in SnapWorth"
           }
         },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SnapWorthに保存しました"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -333,6 +363,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Salvataggio…"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "保存中…"
           }
         },
         "pl" : {
@@ -395,6 +431,12 @@
             "value" : "Tocca la notifica per vedere quanto vale."
           }
         },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "通知をタップすると価値が分かります。"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -455,6 +497,12 @@
             "value" : "Tocca per vedere quanto vale."
           }
         },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "タップして価値をチェック。"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -513,6 +561,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Prova a condividere una foto o uno screenshot."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "写真かスクリーンショットを共有してみてください。"
           }
         },
         "pl" : {

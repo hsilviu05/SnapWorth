@@ -35,6 +35,12 @@
             "value" : " a "
           }
         },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "〜"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -92,6 +98,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%@ nel tuo bottino"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "収穫 %@"
           }
         },
         "pl" : {
@@ -154,6 +166,12 @@
             "value" : "%@ di guadagno questo mese %@"
           }
         },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "今月の利益 %@ %@"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -211,6 +229,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%@ scansionati"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@スキャン"
           }
         },
         "pl" : {
@@ -272,6 +296,12 @@
             "value" : "%@ in questo giro"
           }
         },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "今回のめぐり %@"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -329,6 +359,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%@ a %@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@〜%@"
           }
         },
         "pl" : {
@@ -462,6 +498,12 @@
             }
           }
         },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ · %lld日連続"
+          }
+        },
         "pl" : {
           "variations" : {
             "plural" : {
@@ -582,6 +624,12 @@
             "value" : "%@, %@"
           }
         },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@、%@"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -639,6 +687,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%@, guadagno sconosciuto finché non aggiungi i prezzi"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@、価格を入れるまで利益は不明"
           }
         },
         "pl" : {
@@ -700,6 +754,12 @@
             "value" : "%@. Ultimo dato noto: apri SnapWorth per aggiornare."
           }
         },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@。前回のデータです。SnapWorthを開いて更新してください。"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -755,6 +815,12 @@
           }
         },
         "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld"
+          }
+        },
+        "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "%lld"
@@ -889,6 +955,12 @@
                 }
               }
             }
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld日連続"
           }
         },
         "pl" : {
@@ -1083,6 +1155,12 @@
             }
           }
         },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "お宝%lld件"
+          }
+        },
         "pl" : {
           "variations" : {
             "plural" : {
@@ -1272,6 +1350,12 @@
                 }
               }
             }
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "今月%lld件のリセールが売却"
           }
         },
         "pl" : {
@@ -1466,6 +1550,12 @@
             }
           }
         },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "今日の無料スキャン残り%lld回"
+          }
+        },
         "pl" : {
           "variations" : {
             "plural" : {
@@ -1655,6 +1745,12 @@
                 }
               }
             }
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld点"
           }
         },
         "pl" : {
@@ -1848,6 +1944,12 @@
             }
           }
         },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld件売却 · 価格を入力"
+          }
+        },
         "pl" : {
           "variations" : {
             "plural" : {
@@ -1967,6 +2069,12 @@
             "value" : "Torna domani, o passa a Pro"
           }
         },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "また明日、またはProへ"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2025,6 +2133,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Indovinello del giorno"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "今日の値当て"
           }
         },
         "pl" : {
@@ -2087,6 +2201,12 @@
             "value" : "Fatto per oggi. Torna domani."
           }
         },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "今日はおしまい。また明日。"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2144,6 +2264,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Scopri quanto vale"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "いくらか調べよう"
           }
         },
         "pl" : {
@@ -2206,6 +2332,12 @@
             "value" : "Indovina ogni giorno il prezzo di rivendita di un articolo, e mantieni la tua serie."
           }
         },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "1日1点、リセール価格を予想して連続記録をのばそう。"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2264,6 +2396,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Indovina oggi per non perderla"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "今日も予想して連続記録をキープ"
           }
         },
         "pl" : {
@@ -2326,6 +2464,12 @@
             "value" : "Indovina il prezzo di oggi"
           }
         },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "今日の価格を予想"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2383,6 +2527,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Bottino"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "収穫"
           }
         },
         "pl" : {
@@ -2445,6 +2595,12 @@
             "value" : "Valore del bottino"
           }
         },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "収穫の価値"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2502,6 +2658,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Il bottino sulla schermata di blocco"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ロック画面に収穫"
           }
         },
         "pl" : {
@@ -2563,6 +2725,12 @@
             "value" : "Bottino del valore di %@, %@"
           }
         },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "収穫の価値 %@、%@"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2620,6 +2788,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Bottino del valore di %@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "収穫の価値 %@"
           }
         },
         "pl" : {
@@ -2681,6 +2855,12 @@
             "value" : "Quante scansioni gratis ti restano oggi."
           }
         },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "今日の無料スキャンの残り回数。"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2738,6 +2918,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Ultimo dato noto: apri SnapWorth per aggiornare"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "前回のデータです。SnapWorthを開いて更新してください"
           }
         },
         "pl" : {
@@ -2799,6 +2985,12 @@
             "value" : "Ultima scansione"
           }
         },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "最後のスキャン"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2856,6 +3048,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Ultima scansione, %@, %@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "最後のスキャン、%@、%@"
           }
         },
         "pl" : {
@@ -2917,6 +3115,12 @@
             "value" : "Ultima: %@"
           }
         },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "最後：%@"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2974,6 +3178,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Ancora nessuna scoperta scansionata"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "まだお宝をスキャンしていません"
           }
         },
         "pl" : {
@@ -3035,6 +3245,12 @@
             "value" : "Ancora nessuna scoperta"
           }
         },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "まだお宝はありません"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -3092,6 +3308,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Nessuna rivendita venduta questo mese"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "今月はまだリセールが売れていません"
           }
         },
         "pl" : {
@@ -3153,6 +3375,12 @@
             "value" : "Nessuna scansione gratis rimasta oggi"
           }
         },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "今日の無料スキャンは終了しました"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -3210,6 +3438,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Ancora nessuna scansione"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "まだスキャンはありません"
           }
         },
         "pl" : {
@@ -3271,6 +3505,12 @@
             "value" : "Ancora niente di scansionato"
           }
         },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "まだ何もスキャンしていません"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -3328,6 +3568,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Ancora niente di scansionato. Tocca per scansionare la tua prima scoperta."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "まだ何もスキャンしていません。タップして最初のお宝をスキャン。"
           }
         },
         "pl" : {
@@ -3389,6 +3635,12 @@
             "value" : "Ancora niente"
           }
         },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "まだありません"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -3446,6 +3698,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Un tocco per scansionare qualsiasi articolo usato."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ワンタップで中古品をスキャン。"
           }
         },
         "pl" : {
@@ -3507,6 +3765,12 @@
             "value" : "Apri SnapWorth"
           }
         },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SnapWorthを開く"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -3564,6 +3828,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Apri SnapWorth con la fotocamera pronta."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "カメラを起動した状態でSnapWorthを開きます。"
           }
         },
         "pl" : {
@@ -3625,6 +3895,12 @@
             "value" : "Apre SnapWorth con la fotocamera pronta."
           }
         },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "カメラを起動した状態でSnapWorthを開きます。"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -3682,6 +3958,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Guadagno questo mese"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "今月の利益"
           }
         },
         "pl" : {
@@ -3743,6 +4025,12 @@
             "value" : "Scansione rapida"
           }
         },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "クイックスキャン"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -3800,6 +4088,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Scoperte recenti"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "最近のお宝"
           }
         },
         "pl" : {
@@ -3861,6 +4155,12 @@
             "value" : "Scansiona"
           }
         },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "スキャン"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -3918,6 +4218,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Scansiona un articolo"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "アイテムをスキャン"
           }
         },
         "pl" : {
@@ -3979,6 +4285,12 @@
             "value" : "Numero di scansioni non ancora disponibile. Apri SnapWorth."
           }
         },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "スキャン回数はまだ表示できません。SnapWorthを開いてください。"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -4036,6 +4348,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Scansiona ora"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "今すぐスキャン"
           }
         },
         "pl" : {
@@ -4097,6 +4415,12 @@
             "value" : "Scansiona qualcosa per iniziare"
           }
         },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "スキャンして始めよう"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -4154,6 +4478,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Scansiona qualcosa per iniziare il giro"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "スキャンしてめぐりを始めよう"
           }
         },
         "pl" : {
@@ -4215,6 +4545,12 @@
             "value" : "Scansiona la tua prima scoperta"
           }
         },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "最初のお宝をスキャン"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -4272,6 +4608,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Scansioni rimaste"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "スキャン残り"
           }
         },
         "pl" : {
@@ -4333,6 +4675,12 @@
             "value" : "Vedi a colpo d'occhio il valore di rivendita totale."
           }
         },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "リセール価値の合計がひと目で分かります。"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -4388,6 +4736,12 @@
           }
         },
         "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SnapWorth"
+          }
+        },
+        "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "SnapWorth"
@@ -4452,6 +4806,12 @@
             "value" : "Bottino SnapWorth, %@"
           }
         },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SnapWorthの収穫、%@"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -4509,6 +4869,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Bottino SnapWorth, %@ scansionati, del valore di %@."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SnapWorthの収穫、%@スキャン、合計%@。"
           }
         },
         "pl" : {
@@ -4570,6 +4936,12 @@
             "value" : "Bottino SnapWorth, %@, %@"
           }
         },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SnapWorthの収穫、%@、%@"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -4627,6 +4999,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "SnapWorth, ancora nessuna scoperta scansionata"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SnapWorth、まだお宝をスキャンしていません"
           }
         },
         "pl" : {
@@ -4688,6 +5066,12 @@
             "value" : "SnapWorth, ancora nessuna scoperta. Scansiona qualcosa per iniziare."
           }
         },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SnapWorth、まだお宝はありません。スキャンして始めよう。"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -4745,6 +5129,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "SnapWorth. Ancora niente di scansionato."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SnapWorth。まだ何もスキャンしていません。"
           }
         },
         "pl" : {
@@ -4806,6 +5196,12 @@
             "value" : "Tocca per scansionare\nla tua prima scoperta"
           }
         },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "タップして\n最初のお宝をスキャン"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -4863,6 +5259,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Le ultime cose che hai scansionato, e quanto valgono."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "最近スキャンしたものと、その価値。"
           }
         },
         "pl" : {
@@ -4924,6 +5326,12 @@
             "value" : "Questo mese"
           }
         },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "今月"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -4981,6 +5389,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Giro dell'usato"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "古着屋めぐり"
           }
         },
         "pl" : {
@@ -5042,6 +5456,12 @@
             "value" : "Giro dell'usato in corso, %@"
           }
         },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "古着屋めぐり中、%@"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -5099,6 +5519,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Giro dell'usato iniziato, ancora niente di scansionato"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "古着屋めぐりを開始、まだ何もスキャンしていません"
           }
         },
         "pl" : {
@@ -5160,6 +5586,12 @@
             "value" : "Giro dell'usato, %@"
           }
         },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "古着屋めぐり、%@"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -5217,6 +5649,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Giro dell'usato, %@, del valore di %@, iniziato alle %@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "古着屋めぐり、%@、合計%@、%@に開始"
           }
         },
         "pl" : {
@@ -5278,6 +5716,12 @@
             "value" : "Giro dell'usato, ultimo dato noto, ancora niente di scansionato"
           }
         },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "古着屋めぐり、前回のデータ、まだ何もスキャンしていません"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -5335,6 +5779,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Scansioni illimitate"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無制限スキャン"
           }
         },
         "pl" : {
@@ -5466,6 +5916,12 @@
                 }
               }
             }
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無制限スキャン、%lld日連続スキャン"
           }
         },
         "pl" : {
@@ -5659,6 +6115,12 @@
             }
           }
         },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無制限 · %lld日連続"
+          }
+        },
         "pl" : {
           "variations" : {
             "plural" : {
@@ -5778,6 +6240,12 @@
             "value" : "Quanto hanno fruttato davvero le tue rivendite vendute."
           }
         },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "売れたリセールで実際に得た金額。"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -5837,6 +6305,12 @@
             "value" : "Il tuo bottino"
           }
         },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "あなたの収穫"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -5894,6 +6368,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Il tuo valore di rivendita totale, senza sbloccare."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ロックを解除せずにリセール価値の合計を。"
           }
         },
         "pl" : {
@@ -5956,6 +6436,12 @@
             "value" : "giorni di fila"
           }
         },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "日連続"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -6014,6 +6500,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "trascorso"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "経過"
           }
         },
         "pl" : {
@@ -6076,6 +6568,12 @@
             "value" : "scansione gratis rimasta oggi"
           }
         },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "今日の無料スキャン残り"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -6133,6 +6631,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "scansioni gratis rimaste oggi"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "今日の無料スキャン残り"
           }
         },
         "pl" : {
@@ -6266,6 +6770,12 @@
             }
           }
         },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld件のリセールから"
+          }
+        },
         "pl" : {
           "variations" : {
             "plural" : {
@@ -6385,6 +6895,12 @@
             "value" : "ancora niente di scansionato"
           }
         },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "まだ何もスキャンしていません"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -6443,6 +6959,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "inizio"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "開始"
           }
         },
         "pl" : {

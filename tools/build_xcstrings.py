@@ -48,7 +48,7 @@ PLURAL_CATEGORIES = {"zero", "one", "two", "few", "many", "other"}
 
 # Every language the app ships in. `en` is the development language and comes
 # first; the rest are written in `ios/Localization/*.json` beside it.
-LANGUAGES = ("en", "ro", "es", "de", "zh-Hans", "fr", "it", "pt-BR", "pl")
+LANGUAGES = ("en", "ro", "es", "de", "zh-Hans", "fr", "it", "pt-BR", "pl", "ja")
 
 # The plural categories each language must define, from CLDR. English, Spanish
 # and German all inflect once, at 1. Romanian inflects twice: at 1, and again
@@ -62,7 +62,7 @@ LANGUAGES = ("en", "ro", "es", "de", "zh-Hans", "fr", "it", "pt-BR", "pl")
 # Brazilian Portuguese is French's shape: 0 and 1 in `one`, and the same `many`.
 # Polish has four: `one` (1), `few` (2–4, 22–24, …: "2 dni", "3 skany"), `many`
 # (0, 5–21, 25–31, …: "5 skanów") and `other`, which only fractions reach; it
-# carries the words of `many`.
+# carries the words of `many`. Japanese, like Chinese, does not inflect.
 # A language listed here with too few forms prints the wrong one for most
 # numbers, silently, which is why this is checked rather than assumed.
 REQUIRED = {
@@ -75,6 +75,7 @@ REQUIRED = {
     "it": {"one", "many", "other"},
     "pt-BR": {"one", "many", "other"},
     "pl": {"one", "few", "many", "other"},
+    "ja": {"other"},
 }
 
 
