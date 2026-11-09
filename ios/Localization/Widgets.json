@@ -12,7 +12,8 @@
       "it": " a ",
       "pt-BR": " a ",
       "pl": " do ",
-      "ja": "〜"
+      "ja": "〜",
+      "nl": " tot "
     },
     "%@ in your haul": {
       "en": "%@ in your haul",
@@ -24,7 +25,8 @@
       "it": "%@ nel tuo bottino",
       "pt-BR": "%@ no seu garimpo",
       "pl": "%@ w Twoim łupie",
-      "ja": "収穫 %@"
+      "ja": "収穫 %@",
+      "nl": "%@ in je buit"
     },
     "%@ profit this month %@": {
       "comment": "Amount, then the already-inflected flip count.",
@@ -37,7 +39,8 @@
       "it": "%@ di guadagno questo mese %@",
       "pt-BR": "%@ de lucro este mês %@",
       "pl": "%@ zysku w tym miesiącu %@",
-      "ja": "今月の利益 %@ %@"
+      "ja": "今月の利益 %@ %@",
+      "nl": "%@ winst deze maand %@"
     },
     "%@ scanned": {
       "en": "%@ scanned",
@@ -49,7 +52,8 @@
       "it": "%@ scansionati",
       "pt-BR": "%@ escaneados",
       "pl": "Zeskanowano: %@",
-      "ja": "%@スキャン"
+      "ja": "%@スキャン",
+      "nl": "%@ gescand"
     },
     "%@ this trip": {
       "en": "%@ this trip",
@@ -61,7 +65,8 @@
       "it": "%@ in questo giro",
       "pt-BR": "%@ neste rolê",
       "pl": "%@ w tej rundzie",
-      "ja": "今回のめぐり %@"
+      "ja": "今回のめぐり %@",
+      "nl": "%@ dit rondje"
     },
     "%@ to %@": {
       "en": "%@ to %@",
@@ -73,7 +78,8 @@
       "it": "%@ a %@",
       "pt-BR": "%@ a %@",
       "pl": "%@ do %@",
-      "ja": "%@〜%@"
+      "ja": "%@〜%@",
+      "nl": "%@ tot %@"
     },
     "%@ · %lld-day streak": {
       "en": {
@@ -115,7 +121,11 @@
         "many": "%@ · seria %lld dni",
         "other": "%@ · seria %lld dni"
       },
-      "ja": "%@ · %lld日連続"
+      "ja": "%@ · %lld日連続",
+      "nl": {
+        "one": "%@ · %lld dag op rij",
+        "other": "%@ · %lld dagen op rij"
+      }
     },
     "%@, %@": {
       "comment": "Punctuation or a format with no words: identical in every language. In the catalog only so Xcode stops re-extracting it.",
@@ -128,7 +138,8 @@
       "it": "%@, %@",
       "pt-BR": "%@, %@",
       "pl": "%@, %@",
-      "ja": "%@、%@"
+      "ja": "%@、%@",
+      "nl": "%@, %@"
     },
     "%@, profit unknown until you add the prices": {
       "en": "%@, profit unknown until you add the prices",
@@ -140,7 +151,8 @@
       "it": "%@, guadagno sconosciuto finché non aggiungi i prezzi",
       "pt-BR": "%@, lucro desconhecido até você adicionar os preços",
       "pl": "%@, zysk nieznany, dopóki nie dodasz cen",
-      "ja": "%@、価格を入れるまで利益は不明"
+      "ja": "%@、価格を入れるまで利益は不明",
+      "nl": "%@, winst onbekend tot je de prijzen invult"
     },
     "%@. Last known — open SnapWorth to refresh.": {
       "en": "%@. Last known — open SnapWorth to refresh.",
@@ -152,7 +164,8 @@
       "it": "%@. Ultimo dato noto: apri SnapWorth per aggiornare.",
       "pt-BR": "%@. Último dado conhecido: abra o SnapWorth para atualizar.",
       "pl": "%@. Ostatnie znane dane: otwórz SnapWorth, by odświeżyć.",
-      "ja": "%@。前回のデータです。SnapWorthを開いて更新してください。"
+      "ja": "%@。前回のデータです。SnapWorthを開いて更新してください。",
+      "nl": "%@. Laatst bekend: open SnapWorth om te vernieuwen."
     },
     "%lld": {
       "comment": "Punctuation or a format with no words: identical in every language. In the catalog only so Xcode stops re-extracting it.",
@@ -165,7 +178,8 @@
       "it": "%lld",
       "pt-BR": "%lld",
       "pl": "%lld",
-      "ja": "%lld"
+      "ja": "%lld",
+      "nl": "%lld"
     },
     "%lld day streak": {
       "en": {
@@ -207,7 +221,11 @@
         "many": "Seria: %lld dni",
         "other": "Seria: %lld dni"
       },
-      "ja": "%lld日連続"
+      "ja": "%lld日連続",
+      "nl": {
+        "one": "%lld dag op rij",
+        "other": "%lld dagen op rij"
+      }
     },
     "%lld finds": {
       "comment": "Spelled out beside a number on the accessory families.",
@@ -250,7 +268,11 @@
         "many": "%lld znalezisk",
         "other": "%lld znalezisk"
       },
-      "ja": "お宝%lld件"
+      "ja": "お宝%lld件",
+      "nl": {
+        "one": "%lld vondst",
+        "other": "%lld vondsten"
+      }
     },
     "%lld flips sold this month": {
       "en": {
@@ -292,7 +314,11 @@
         "many": "%lld flipów sprzedanych w tym miesiącu",
         "other": "%lld flipów sprzedanych w tym miesiącu"
       },
-      "ja": "今月%lld件のリセールが売却"
+      "ja": "今月%lld件のリセールが売却",
+      "nl": {
+        "one": "%lld flip verkocht deze maand",
+        "other": "%lld flips verkocht deze maand"
+      }
     },
     "%lld free scans left today": {
       "comment": "Scanner header. Romanian needs the 20+ form: 'de scanări'.",
@@ -335,7 +361,11 @@
         "many": "Dziś zostało %lld darmowych skanów",
         "other": "Dziś zostało %lld darmowych skanów"
       },
-      "ja": "今日の無料スキャン残り%lld回"
+      "ja": "今日の無料スキャン残り%lld回",
+      "nl": {
+        "one": "Nog %lld gratis scan vandaag",
+        "other": "Nog %lld gratis scans vandaag"
+      }
     },
     "%lld items": {
       "en": {
@@ -377,7 +407,11 @@
         "many": "%lld przedmiotów",
         "other": "%lld przedmiotów"
       },
-      "ja": "%lld点"
+      "ja": "%lld点",
+      "nl": {
+        "one": "%lld item",
+        "other": "%lld items"
+      }
     },
     "%lld sold · add the prices": {
       "en": {
@@ -419,7 +453,11 @@
         "many": "%lld sprzedanych · dodaj ceny",
         "other": "%lld sprzedanych · dodaj ceny"
       },
-      "ja": "%lld件売却 · 価格を入力"
+      "ja": "%lld件売却 · 価格を入力",
+      "nl": {
+        "one": "%lld verkocht · vul de prijzen in",
+        "other": "%lld verkocht · vul de prijzen in"
+      }
     },
     "Back tomorrow, or go Pro": {
       "en": "Back tomorrow, or go Pro",
@@ -431,7 +469,8 @@
       "it": "Torna domani, o passa a Pro",
       "pt-BR": "Volte amanhã, ou seja Pro",
       "pl": "Wróć jutro albo przejdź na Pro",
-      "ja": "また明日、またはProへ"
+      "ja": "また明日、またはProへ",
+      "nl": "Morgen weer, of neem Pro"
     },
     "Find out what it's worth": {
       "en": "Find out what it's worth",
@@ -443,7 +482,8 @@
       "it": "Scopri quanto vale",
       "pt-BR": "Descubra quanto vale",
       "pl": "Sprawdź, ile to jest warte",
-      "ja": "いくらか調べよう"
+      "ja": "いくらか調べよう",
+      "nl": "Ontdek wat het waard is"
     },
     "Haul": {
       "en": "Haul",
@@ -455,7 +495,8 @@
       "it": "Bottino",
       "pt-BR": "Garimpo",
       "pl": "Łup",
-      "ja": "収穫"
+      "ja": "収穫",
+      "nl": "Buit"
     },
     "Haul Value": {
       "comment": "Widget name in the gallery.",
@@ -468,7 +509,8 @@
       "it": "Valore del bottino",
       "pt-BR": "Valor do garimpo",
       "pl": "Wartość łupu",
-      "ja": "収穫の価値"
+      "ja": "収穫の価値",
+      "nl": "Waarde van je buit"
     },
     "Haul on the Lock Screen": {
       "en": "Haul on the Lock Screen",
@@ -480,7 +522,8 @@
       "it": "Il bottino sulla schermata di blocco",
       "pt-BR": "Garimpo na Tela Bloqueada",
       "pl": "Łup na ekranie blokady",
-      "ja": "ロック画面に収穫"
+      "ja": "ロック画面に収穫",
+      "nl": "Buit op het toegangsscherm"
     },
     "Haul value %@, %@": {
       "en": "Haul value %@, %@",
@@ -492,7 +535,8 @@
       "it": "Bottino del valore di %@, %@",
       "pt-BR": "Garimpo valendo %@, %@",
       "pl": "Łup wart %@, %@",
-      "ja": "収穫の価値 %@、%@"
+      "ja": "収穫の価値 %@、%@",
+      "nl": "Buit ter waarde van %@, %@"
     },
     "Haul worth %@": {
       "en": "Haul worth %@",
@@ -504,7 +548,8 @@
       "it": "Bottino del valore di %@",
       "pt-BR": "Garimpo valendo %@",
       "pl": "Łup wart %@",
-      "ja": "収穫の価値 %@"
+      "ja": "収穫の価値 %@",
+      "nl": "Buit ter waarde van %@"
     },
     "How many free scans you have today.": {
       "en": "How many free scans you have today.",
@@ -516,7 +561,8 @@
       "it": "Quante scansioni gratis ti restano oggi.",
       "pt-BR": "Quantos escaneamentos grátis você tem hoje.",
       "pl": "Ile darmowych skanów masz dziś.",
-      "ja": "今日の無料スキャンの残り回数。"
+      "ja": "今日の無料スキャンの残り回数。",
+      "nl": "Hoeveel gratis scans je vandaag hebt."
     },
     "Last known — open SnapWorth to refresh": {
       "en": "Last known — open SnapWorth to refresh",
@@ -528,7 +574,8 @@
       "it": "Ultimo dato noto: apri SnapWorth per aggiornare",
       "pt-BR": "Último dado conhecido: abra o SnapWorth para atualizar",
       "pl": "Ostatnie znane dane: otwórz SnapWorth, by odświeżyć",
-      "ja": "前回のデータです。SnapWorthを開いて更新してください"
+      "ja": "前回のデータです。SnapWorthを開いて更新してください",
+      "nl": "Laatst bekend: open SnapWorth om te vernieuwen"
     },
     "Last scanned": {
       "en": "Last scanned",
@@ -540,7 +587,8 @@
       "it": "Ultima scansione",
       "pt-BR": "Último escaneado",
       "pl": "Ostatni skan",
-      "ja": "最後のスキャン"
+      "ja": "最後のスキャン",
+      "nl": "Laatst gescand"
     },
     "Last scanned, %@, %@": {
       "en": "Last scanned, %@, %@",
@@ -552,7 +600,8 @@
       "it": "Ultima scansione, %@, %@",
       "pt-BR": "Último escaneado, %@, %@",
       "pl": "Ostatni skan, %@, %@",
-      "ja": "最後のスキャン、%@、%@"
+      "ja": "最後のスキャン、%@、%@",
+      "nl": "Laatst gescand, %@, %@"
     },
     "Last: %@": {
       "en": "Last: %@",
@@ -564,7 +613,8 @@
       "it": "Ultima: %@",
       "pt-BR": "Último: %@",
       "pl": "Ostatni: %@",
-      "ja": "最後：%@"
+      "ja": "最後：%@",
+      "nl": "Laatst: %@"
     },
     "No finds scanned yet": {
       "en": "No finds scanned yet",
@@ -576,7 +626,8 @@
       "it": "Ancora nessuna scoperta scansionata",
       "pt-BR": "Nenhum achado escaneado ainda",
       "pl": "Jeszcze nic nie zeskanowano",
-      "ja": "まだお宝をスキャンしていません"
+      "ja": "まだお宝をスキャンしていません",
+      "nl": "Nog geen vondsten gescand"
     },
     "No finds yet": {
       "en": "No finds yet",
@@ -588,7 +639,8 @@
       "it": "Ancora nessuna scoperta",
       "pt-BR": "Nenhum achado ainda",
       "pl": "Brak znalezisk",
-      "ja": "まだお宝はありません"
+      "ja": "まだお宝はありません",
+      "nl": "Nog geen vondsten"
     },
     "No flips sold yet this month": {
       "en": "No flips sold yet this month",
@@ -600,7 +652,8 @@
       "it": "Nessuna rivendita venduta questo mese",
       "pt-BR": "Nenhuma revenda vendida este mês",
       "pl": "W tym miesiącu brak sprzedanych flipów",
-      "ja": "今月はまだリセールが売れていません"
+      "ja": "今月はまだリセールが売れていません",
+      "nl": "Nog geen flips verkocht deze maand"
     },
     "No free scans left today": {
       "en": "No free scans left today",
@@ -612,7 +665,8 @@
       "it": "Nessuna scansione gratis rimasta oggi",
       "pt-BR": "Sem escaneamentos grátis hoje",
       "pl": "Na dziś brak darmowych skanów",
-      "ja": "今日の無料スキャンは終了しました"
+      "ja": "今日の無料スキャンは終了しました",
+      "nl": "Geen gratis scans meer vandaag"
     },
     "No scans yet": {
       "en": "No scans yet",
@@ -624,7 +678,8 @@
       "it": "Ancora nessuna scansione",
       "pt-BR": "Nenhum escaneamento ainda",
       "pl": "Brak skanów",
-      "ja": "まだスキャンはありません"
+      "ja": "まだスキャンはありません",
+      "nl": "Nog geen scans"
     },
     "Nothing scanned yet": {
       "en": "Nothing scanned yet",
@@ -636,7 +691,8 @@
       "it": "Ancora niente di scansionato",
       "pt-BR": "Nada escaneado ainda",
       "pl": "Jeszcze nic nie zeskanowano",
-      "ja": "まだ何もスキャンしていません"
+      "ja": "まだ何もスキャンしていません",
+      "nl": "Nog niets gescand"
     },
     "Nothing scanned yet. Tap to scan your first find.": {
       "en": "Nothing scanned yet. Tap to scan your first find.",
@@ -648,7 +704,8 @@
       "it": "Ancora niente di scansionato. Tocca per scansionare la tua prima scoperta.",
       "pt-BR": "Nada escaneado ainda. Toque para escanear seu primeiro achado.",
       "pl": "Jeszcze nic nie zeskanowano. Stuknij, by zeskanować pierwsze znalezisko.",
-      "ja": "まだ何もスキャンしていません。タップして最初のお宝をスキャン。"
+      "ja": "まだ何もスキャンしていません。タップして最初のお宝をスキャン。",
+      "nl": "Nog niets gescand. Tik om je eerste vondst te scannen."
     },
     "Nothing yet": {
       "en": "Nothing yet",
@@ -660,7 +717,8 @@
       "it": "Ancora niente",
       "pt-BR": "Nada ainda",
       "pl": "Jeszcze nic",
-      "ja": "まだありません"
+      "ja": "まだありません",
+      "nl": "Nog niets"
     },
     "One tap to scan any secondhand item.": {
       "en": "One tap to scan any secondhand item.",
@@ -672,7 +730,8 @@
       "it": "Un tocco per scansionare qualsiasi articolo usato.",
       "pt-BR": "Um toque para escanear qualquer item usado.",
       "pl": "Jedno stuknięcie, by zeskanować dowolną rzecz z drugiej ręki.",
-      "ja": "ワンタップで中古品をスキャン。"
+      "ja": "ワンタップで中古品をスキャン。",
+      "nl": "Eén tik om elk tweedehands item te scannen."
     },
     "Open SnapWorth": {
       "en": "Open SnapWorth",
@@ -684,7 +743,8 @@
       "it": "Apri SnapWorth",
       "pt-BR": "Abra o SnapWorth",
       "pl": "Otwórz SnapWorth",
-      "ja": "SnapWorthを開く"
+      "ja": "SnapWorthを開く",
+      "nl": "Open SnapWorth"
     },
     "Open SnapWorth with the camera ready.": {
       "en": "Open SnapWorth with the camera ready.",
@@ -696,7 +756,8 @@
       "it": "Apri SnapWorth con la fotocamera pronta.",
       "pt-BR": "Abra o SnapWorth com a câmera pronta.",
       "pl": "Otwórz SnapWorth z gotowym aparatem.",
-      "ja": "カメラを起動した状態でSnapWorthを開きます。"
+      "ja": "カメラを起動した状態でSnapWorthを開きます。",
+      "nl": "Open SnapWorth met de camera klaar."
     },
     "Opens SnapWorth with the camera ready.": {
       "en": "Opens SnapWorth with the camera ready.",
@@ -708,7 +769,8 @@
       "it": "Apre SnapWorth con la fotocamera pronta.",
       "pt-BR": "Abre o SnapWorth com a câmera pronta.",
       "pl": "Otwiera SnapWorth z gotowym aparatem.",
-      "ja": "カメラを起動した状態でSnapWorthを開きます。"
+      "ja": "カメラを起動した状態でSnapWorthを開きます。",
+      "nl": "Opent SnapWorth met de camera klaar."
     },
     "Profit this month": {
       "en": "Profit this month",
@@ -720,7 +782,8 @@
       "it": "Guadagno questo mese",
       "pt-BR": "Lucro este mês",
       "pl": "Zysk w tym miesiącu",
-      "ja": "今月の利益"
+      "ja": "今月の利益",
+      "nl": "Winst deze maand"
     },
     "Quick Scan": {
       "en": "Quick Scan",
@@ -732,7 +795,8 @@
       "it": "Scansione rapida",
       "pt-BR": "Scan rápido",
       "pl": "Szybki skan",
-      "ja": "クイックスキャン"
+      "ja": "クイックスキャン",
+      "nl": "Snelle scan"
     },
     "Recent finds": {
       "en": "Recent finds",
@@ -744,7 +808,8 @@
       "it": "Scoperte recenti",
       "pt-BR": "Achados recentes",
       "pl": "Ostatnie znaleziska",
-      "ja": "最近のお宝"
+      "ja": "最近のお宝",
+      "nl": "Recente vondsten"
     },
     "Scan": {
       "en": "Scan",
@@ -756,7 +821,8 @@
       "it": "Scansiona",
       "pt-BR": "Escanear",
       "pl": "Skanuj",
-      "ja": "スキャン"
+      "ja": "スキャン",
+      "nl": "Scan"
     },
     "Scan an item": {
       "en": "Scan an item",
@@ -768,7 +834,8 @@
       "it": "Scansiona un articolo",
       "pt-BR": "Escanear um item",
       "pl": "Zeskanuj przedmiot",
-      "ja": "アイテムをスキャン"
+      "ja": "アイテムをスキャン",
+      "nl": "Scan een item"
     },
     "Scan count not available yet. Open SnapWorth.": {
       "en": "Scan count not available yet. Open SnapWorth.",
@@ -780,7 +847,8 @@
       "it": "Numero di scansioni non ancora disponibile. Apri SnapWorth.",
       "pt-BR": "Número de escaneamentos ainda indisponível. Abra o SnapWorth.",
       "pl": "Liczba skanów jeszcze niedostępna. Otwórz SnapWorth.",
-      "ja": "スキャン回数はまだ表示できません。SnapWorthを開いてください。"
+      "ja": "スキャン回数はまだ表示できません。SnapWorthを開いてください。",
+      "nl": "Aantal scans nog niet beschikbaar. Open SnapWorth."
     },
     "Scan now": {
       "en": "Scan now",
@@ -792,7 +860,8 @@
       "it": "Scansiona ora",
       "pt-BR": "Escaneie agora",
       "pl": "Skanuj teraz",
-      "ja": "今すぐスキャン"
+      "ja": "今すぐスキャン",
+      "nl": "Scan nu"
     },
     "Scan something to start": {
       "en": "Scan something to start",
@@ -804,7 +873,8 @@
       "it": "Scansiona qualcosa per iniziare",
       "pt-BR": "Escaneie algo para começar",
       "pl": "Zeskanuj coś na start",
-      "ja": "スキャンして始めよう"
+      "ja": "スキャンして始めよう",
+      "nl": "Scan iets om te beginnen"
     },
     "Scan something to start the run": {
       "en": "Scan something to start the run",
@@ -816,7 +886,8 @@
       "it": "Scansiona qualcosa per iniziare il giro",
       "pt-BR": "Escaneie algo para começar o rolê",
       "pl": "Zeskanuj coś, by zacząć rundę",
-      "ja": "スキャンしてめぐりを始めよう"
+      "ja": "スキャンしてめぐりを始めよう",
+      "nl": "Scan iets om het rondje te starten"
     },
     "Scan your first find": {
       "en": "Scan your first find",
@@ -828,7 +899,8 @@
       "it": "Scansiona la tua prima scoperta",
       "pt-BR": "Escaneie seu primeiro achado",
       "pl": "Zeskanuj pierwsze znalezisko",
-      "ja": "最初のお宝をスキャン"
+      "ja": "最初のお宝をスキャン",
+      "nl": "Scan je eerste vondst"
     },
     "Scans left": {
       "en": "Scans left",
@@ -840,7 +912,8 @@
       "it": "Scansioni rimaste",
       "pt-BR": "Escaneamentos restantes",
       "pl": "Pozostałe skany",
-      "ja": "スキャン残り"
+      "ja": "スキャン残り",
+      "nl": "Scans over"
     },
     "See your total resale value at a glance.": {
       "en": "See your total resale value at a glance.",
@@ -852,7 +925,8 @@
       "it": "Vedi a colpo d'occhio il valore di rivendita totale.",
       "pt-BR": "Veja seu valor total de revenda num relance.",
       "pl": "Łączna wartość odsprzedaży w mgnieniu oka.",
-      "ja": "リセール価値の合計がひと目で分かります。"
+      "ja": "リセール価値の合計がひと目で分かります。",
+      "nl": "Zie je totale doorverkoopwaarde in één oogopslag."
     },
     "SnapWorth": {
       "comment": "Brand or feature name: the same in every language, deliberately (see DELIBERATELY_ENGLISH). In the catalog only so Xcode stops re-extracting it.",
@@ -865,7 +939,8 @@
       "it": "SnapWorth",
       "pt-BR": "SnapWorth",
       "pl": "SnapWorth",
-      "ja": "SnapWorth"
+      "ja": "SnapWorth",
+      "nl": "SnapWorth"
     },
     "SnapWorth haul, %@": {
       "en": "SnapWorth haul, %@",
@@ -877,7 +952,8 @@
       "it": "Bottino SnapWorth, %@",
       "pt-BR": "Garimpo do SnapWorth, %@",
       "pl": "Łup SnapWorth, %@",
-      "ja": "SnapWorthの収穫、%@"
+      "ja": "SnapWorthの収穫、%@",
+      "nl": "SnapWorth-buit, %@"
     },
     "SnapWorth haul, %@ scanned, worth %@.": {
       "en": "SnapWorth haul, %@ scanned, worth %@.",
@@ -889,7 +965,8 @@
       "it": "Bottino SnapWorth, %@ scansionati, del valore di %@.",
       "pt-BR": "Garimpo do SnapWorth, %@ escaneados, valendo %@.",
       "pl": "Łup SnapWorth: %@ zeskanowane, warte %@.",
-      "ja": "SnapWorthの収穫、%@スキャン、合計%@。"
+      "ja": "SnapWorthの収穫、%@スキャン、合計%@。",
+      "nl": "SnapWorth-buit, %@ gescand, %@ waard."
     },
     "SnapWorth haul, %@, %@": {
       "en": "SnapWorth haul, %@, %@",
@@ -901,7 +978,8 @@
       "it": "Bottino SnapWorth, %@, %@",
       "pt-BR": "Garimpo do SnapWorth, %@, %@",
       "pl": "Łup SnapWorth, %@, %@",
-      "ja": "SnapWorthの収穫、%@、%@"
+      "ja": "SnapWorthの収穫、%@、%@",
+      "nl": "SnapWorth-buit, %@, %@"
     },
     "SnapWorth, no finds scanned yet": {
       "en": "SnapWorth, no finds scanned yet",
@@ -913,7 +991,8 @@
       "it": "SnapWorth, ancora nessuna scoperta scansionata",
       "pt-BR": "SnapWorth, nenhum achado escaneado ainda",
       "pl": "SnapWorth, jeszcze nic nie zeskanowano",
-      "ja": "SnapWorth、まだお宝をスキャンしていません"
+      "ja": "SnapWorth、まだお宝をスキャンしていません",
+      "nl": "SnapWorth, nog geen vondsten gescand"
     },
     "SnapWorth, no finds yet. Scan something to start.": {
       "en": "SnapWorth, no finds yet. Scan something to start.",
@@ -925,7 +1004,8 @@
       "it": "SnapWorth, ancora nessuna scoperta. Scansiona qualcosa per iniziare.",
       "pt-BR": "SnapWorth, nenhum achado ainda. Escaneie algo para começar.",
       "pl": "SnapWorth, brak znalezisk. Zeskanuj coś na start.",
-      "ja": "SnapWorth、まだお宝はありません。スキャンして始めよう。"
+      "ja": "SnapWorth、まだお宝はありません。スキャンして始めよう。",
+      "nl": "SnapWorth, nog geen vondsten. Scan iets om te beginnen."
     },
     "SnapWorth. Nothing scanned yet.": {
       "en": "SnapWorth. Nothing scanned yet.",
@@ -937,7 +1017,8 @@
       "it": "SnapWorth. Ancora niente di scansionato.",
       "pt-BR": "SnapWorth. Nada escaneado ainda.",
       "pl": "SnapWorth. Jeszcze nic nie zeskanowano.",
-      "ja": "SnapWorth。まだ何もスキャンしていません。"
+      "ja": "SnapWorth。まだ何もスキャンしていません。",
+      "nl": "SnapWorth. Nog niets gescand."
     },
     "Tap to scan\nyour first find": {
       "en": "Tap to scan\nyour first find",
@@ -949,7 +1030,8 @@
       "it": "Tocca per scansionare\nla tua prima scoperta",
       "pt-BR": "Toque para escanear\nseu primeiro achado",
       "pl": "Stuknij, by zeskanować\npierwsze znalezisko",
-      "ja": "タップして\n最初のお宝をスキャン"
+      "ja": "タップして\n最初のお宝をスキャン",
+      "nl": "Tik om je eerste\nvondst te scannen"
     },
     "The last few things you scanned, and what they're worth.": {
       "en": "The last few things you scanned, and what they're worth.",
@@ -961,7 +1043,8 @@
       "it": "Le ultime cose che hai scansionato, e quanto valgono.",
       "pt-BR": "As últimas coisas que você escaneou, e quanto valem.",
       "pl": "Ostatnio zeskanowane rzeczy i ich wartość.",
-      "ja": "最近スキャンしたものと、その価値。"
+      "ja": "最近スキャンしたものと、その価値。",
+      "nl": "De laatste dingen die je scande, en wat ze waard zijn."
     },
     "This month": {
       "en": "This month",
@@ -973,7 +1056,8 @@
       "it": "Questo mese",
       "pt-BR": "Este mês",
       "pl": "Ten miesiąc",
-      "ja": "今月"
+      "ja": "今月",
+      "nl": "Deze maand"
     },
     "Thrift run": {
       "en": "Thrift run",
@@ -985,7 +1069,8 @@
       "it": "Giro dell'usato",
       "pt-BR": "Rolê de garimpo",
       "pl": "Runda po lumpeksach",
-      "ja": "古着屋めぐり"
+      "ja": "古着屋めぐり",
+      "nl": "Kringlooprondje"
     },
     "Thrift run in progress, %@": {
       "en": "Thrift run in progress, %@",
@@ -997,7 +1082,8 @@
       "it": "Giro dell'usato in corso, %@",
       "pt-BR": "Rolê de garimpo em andamento, %@",
       "pl": "Runda po lumpeksach w toku, %@",
-      "ja": "古着屋めぐり中、%@"
+      "ja": "古着屋めぐり中、%@",
+      "nl": "Kringlooprondje bezig, %@"
     },
     "Thrift run started, nothing scanned yet": {
       "en": "Thrift run started, nothing scanned yet",
@@ -1009,7 +1095,8 @@
       "it": "Giro dell'usato iniziato, ancora niente di scansionato",
       "pt-BR": "Rolê de garimpo começado, nada escaneado ainda",
       "pl": "Runda po lumpeksach rozpoczęta, jeszcze nic nie zeskanowano",
-      "ja": "古着屋めぐりを開始、まだ何もスキャンしていません"
+      "ja": "古着屋めぐりを開始、まだ何もスキャンしていません",
+      "nl": "Kringlooprondje gestart, nog niets gescand"
     },
     "Thrift run, %@": {
       "en": "Thrift run, %@",
@@ -1021,7 +1108,8 @@
       "it": "Giro dell'usato, %@",
       "pt-BR": "Rolê de garimpo, %@",
       "pl": "Runda po lumpeksach, %@",
-      "ja": "古着屋めぐり、%@"
+      "ja": "古着屋めぐり、%@",
+      "nl": "Kringlooprondje, %@"
     },
     "Thrift run, %@, worth %@, started %@": {
       "en": "Thrift run, %@, worth %@, started %@",
@@ -1033,7 +1121,8 @@
       "it": "Giro dell'usato, %@, del valore di %@, iniziato alle %@",
       "pt-BR": "Rolê de garimpo, %@, valendo %@, começou às %@",
       "pl": "Runda po lumpeksach, %@, warte %@, start o %@",
-      "ja": "古着屋めぐり、%@、合計%@、%@に開始"
+      "ja": "古着屋めぐり、%@、合計%@、%@に開始",
+      "nl": "Kringlooprondje, %@, %@ waard, gestart om %@"
     },
     "Thrift run, last known, nothing scanned yet": {
       "en": "Thrift run, last known, nothing scanned yet",
@@ -1045,7 +1134,8 @@
       "it": "Giro dell'usato, ultimo dato noto, ancora niente di scansionato",
       "pt-BR": "Rolê de garimpo, último dado conhecido, nada escaneado ainda",
       "pl": "Runda po lumpeksach, ostatnie znane dane, jeszcze nic nie zeskanowano",
-      "ja": "古着屋めぐり、前回のデータ、まだ何もスキャンしていません"
+      "ja": "古着屋めぐり、前回のデータ、まだ何もスキャンしていません",
+      "nl": "Kringlooprondje, laatst bekend, nog niets gescand"
     },
     "Unlimited scans": {
       "en": "Unlimited scans",
@@ -1057,7 +1147,8 @@
       "it": "Scansioni illimitate",
       "pt-BR": "Escaneamentos ilimitados",
       "pl": "Skany bez limitu",
-      "ja": "無制限スキャン"
+      "ja": "無制限スキャン",
+      "nl": "Onbeperkt scannen"
     },
     "Unlimited scans, %lld day scanning streak": {
       "en": {
@@ -1099,7 +1190,11 @@
         "many": "Skany bez limitu, seria skanowania: %lld dni",
         "other": "Skany bez limitu, seria skanowania: %lld dni"
       },
-      "ja": "無制限スキャン、%lld日連続スキャン"
+      "ja": "無制限スキャン、%lld日連続スキャン",
+      "nl": {
+        "one": "Onbeperkt scannen, %lld dag op rij gescand",
+        "other": "Onbeperkt scannen, %lld dagen op rij gescand"
+      }
     },
     "Unlimited · %lld-day streak": {
       "en": {
@@ -1141,7 +1236,11 @@
         "many": "Bez limitu · seria %lld dni",
         "other": "Bez limitu · seria %lld dni"
       },
-      "ja": "無制限 · %lld日連続"
+      "ja": "無制限 · %lld日連続",
+      "nl": {
+        "one": "Onbeperkt · %lld dag op rij",
+        "other": "Onbeperkt · %lld dagen op rij"
+      }
     },
     "What your sold flips actually made.": {
       "en": "What your sold flips actually made.",
@@ -1153,7 +1252,8 @@
       "it": "Quanto hanno fruttato davvero le tue rivendite vendute.",
       "pt-BR": "O que suas revendas vendidas renderam de verdade.",
       "pl": "Ile naprawdę zarobiły Twoje sprzedane flipy.",
-      "ja": "売れたリセールで実際に得た金額。"
+      "ja": "売れたリセールで実際に得た金額。",
+      "nl": "Wat je verkochte flips echt opleverden."
     },
     "Your haul": {
       "en": "Your haul",
@@ -1165,7 +1265,8 @@
       "it": "Il tuo bottino",
       "pt-BR": "Seu garimpo",
       "pl": "Twój łup",
-      "ja": "あなたの収穫"
+      "ja": "あなたの収穫",
+      "nl": "Je buit"
     },
     "Your total resale value, without unlocking.": {
       "en": "Your total resale value, without unlocking.",
@@ -1177,7 +1278,8 @@
       "it": "Il tuo valore di rivendita totale, senza sbloccare.",
       "pt-BR": "Seu valor total de revenda, sem desbloquear.",
       "pl": "Łączna wartość odsprzedaży bez odblokowywania.",
-      "ja": "ロックを解除せずにリセール価値の合計を。"
+      "ja": "ロックを解除せずにリセール価値の合計を。",
+      "nl": "Je totale doorverkoopwaarde, zonder te ontgrendelen."
     },
     "elapsed": {
       "comment": "Thrift-run Live Activity: under a running timer (\"12:04 elapsed\"). Was shown in English in every language: a ternary of literals, which check_localization cannot see.",
@@ -1190,7 +1292,8 @@
       "it": "trascorso",
       "pt-BR": "decorrido",
       "pl": "upłynęło",
-      "ja": "経過"
+      "ja": "経過",
+      "nl": "verstreken"
     },
     "free scan left today": {
       "comment": "The number is the widget's headline; this is the noun under it.",
@@ -1203,7 +1306,8 @@
       "it": "scansione gratis rimasta oggi",
       "pt-BR": "escaneamento grátis restante hoje",
       "pl": "darmowy skan na dziś",
-      "ja": "今日の無料スキャン残り"
+      "ja": "今日の無料スキャン残り",
+      "nl": "gratis scan over vandaag"
     },
     "free scans left today": {
       "en": "free scans left today",
@@ -1215,7 +1319,8 @@
       "it": "scansioni gratis rimaste oggi",
       "pt-BR": "escaneamentos grátis restantes hoje",
       "pl": "darmowe skany na dziś",
-      "ja": "今日の無料スキャン残り"
+      "ja": "今日の無料スキャン残り",
+      "nl": "gratis scans over vandaag"
     },
     "from %lld flips": {
       "en": {
@@ -1257,7 +1362,11 @@
         "many": "z %lld flipów",
         "other": "z %lld flipów"
       },
-      "ja": "%lld件のリセールから"
+      "ja": "%lld件のリセールから",
+      "nl": {
+        "one": "uit %lld flip",
+        "other": "uit %lld flips"
+      }
     },
     "nothing scanned yet": {
       "en": "nothing scanned yet",
@@ -1269,7 +1378,8 @@
       "it": "ancora niente di scansionato",
       "pt-BR": "nada escaneado ainda",
       "pl": "jeszcze nic nie zeskanowano",
-      "ja": "まだ何もスキャンしていません"
+      "ja": "まだ何もスキャンしていません",
+      "nl": "nog niets gescand"
     },
     "started": {
       "comment": "Thrift-run Live Activity: under a clock time once the run is stale (\"14:32 started\").",
@@ -1282,7 +1392,8 @@
       "it": "inizio",
       "pt-BR": "início",
       "pl": "start",
-      "ja": "開始"
+      "ja": "開始",
+      "nl": "gestart"
     },
     "Daily guess": {
       "comment": "Name of the Daily guess widget and its header.",
@@ -1295,7 +1406,8 @@
       "it": "Indovinello del giorno",
       "pt-BR": "Palpite do dia",
       "pl": "Zgadywanka dnia",
-      "ja": "今日の値当て"
+      "ja": "今日の値当て",
+      "nl": "Raad van de dag"
     },
     "day streak": {
       "comment": "Under the number of days in a row the daily guess was played, on the widget.",
@@ -1308,7 +1420,8 @@
       "it": "giorni di fila",
       "pt-BR": "dias seguidos",
       "pl": "dni z rzędu",
-      "ja": "日連続"
+      "ja": "日連続",
+      "nl": "dagen op rij"
     },
     "Done for today. Back tomorrow.": {
       "comment": "Daily guess widget once today's round is played.",
@@ -1321,7 +1434,8 @@
       "it": "Fatto per oggi. Torna domani.",
       "pt-BR": "Feito por hoje. Volte amanhã.",
       "pl": "Na dziś koniec. Wróć jutro.",
-      "ja": "今日はおしまい。また明日。"
+      "ja": "今日はおしまい。また明日。",
+      "nl": "Klaar voor vandaag. Morgen weer."
     },
     "Guess today to keep it going": {
       "comment": "Daily guess widget when there is a streak and today's round is not played yet.",
@@ -1334,7 +1448,8 @@
       "it": "Indovina oggi per non perderla",
       "pt-BR": "Chute hoje para não perder",
       "pl": "Zgadnij dziś, by utrzymać serię",
-      "ja": "今日も予想して連続記録をキープ"
+      "ja": "今日も予想して連続記録をキープ",
+      "nl": "Raad vandaag om je reeks te houden"
     },
     "Guess today's price": {
       "comment": "Daily guess widget with no streak: today's round is waiting.",
@@ -1347,7 +1462,8 @@
       "it": "Indovina il prezzo di oggi",
       "pt-BR": "Chute o preço de hoje",
       "pl": "Zgadnij dzisiejszą cenę",
-      "ja": "今日の価格を予想"
+      "ja": "今日の価格を予想",
+      "nl": "Raad de prijs van vandaag"
     },
     "Guess one item's resale price a day, and keep your streak.": {
       "comment": "Description in the widget gallery.",
@@ -1360,7 +1476,8 @@
       "it": "Indovina ogni giorno il prezzo di rivendita di un articolo, e mantieni la tua serie.",
       "pt-BR": "Chute o preço de revenda de um item por dia e mantenha sua sequência.",
       "pl": "Zgaduj codziennie cenę odsprzedaży jednego przedmiotu i utrzymuj serię.",
-      "ja": "1日1点、リセール価格を予想して連続記録をのばそう。"
+      "ja": "1日1点、リセール価格を予想して連続記録をのばそう。",
+      "nl": "Raad elke dag de doorverkoopprijs van één item, en houd je reeks vast."
     }
   }
 }

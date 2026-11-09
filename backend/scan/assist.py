@@ -52,6 +52,7 @@ LANGUAGES = {
     "pt-BR": "Brazilian Portuguese",
     "pl": "Polish",
     "ja": "Japanese",
+    "nl": "Dutch",
 }
 
 _STATUSES = {"scanned", "owned", "listed", "sold"}

@@ -12,7 +12,8 @@
       "it": "SnapWorth",
       "pt-BR": "SnapWorth",
       "pl": "SnapWorth",
-      "ja": "SnapWorth"
+      "ja": "SnapWorth",
+      "nl": "SnapWorth"
     },
     "CFBundleName": {
       "comment": "The bundle's short name, from $(PRODUCT_NAME). Same brand name, same reasoning as CFBundleDisplayName.",
@@ -25,7 +26,8 @@
       "it": "SnapWorth",
       "pt-BR": "SnapWorth",
       "pl": "SnapWorth",
-      "ja": "SnapWorth"
+      "ja": "SnapWorth",
+      "nl": "SnapWorth"
     },
     "NSCameraUsageDescription": {
       "comment": "Shown by iOS the first time the scanner opens the camera.",
@@ -38,7 +40,8 @@
       "it": "SnapWorth usa la fotocamera per fotografare gli articoli, così possiamo identificarli e stimarne il valore di rivendita.",
       "pt-BR": "O SnapWorth usa sua câmera para fotografar itens, para podermos identificá-los e estimar o valor de revenda.",
       "pl": "SnapWorth używa aparatu do fotografowania przedmiotów, byśmy mogli je rozpoznać i oszacować ich wartość odsprzedaży.",
-      "ja": "SnapWorthはアイテムを撮影して識別し、リセール価格を査定するためにカメラを使用します。"
+      "ja": "SnapWorthはアイテムを撮影して識別し、リセール価格を査定するためにカメラを使用します。",
+      "nl": "SnapWorth gebruikt je camera om items te fotograferen, zodat we ze kunnen herkennen en hun doorverkoopwaarde kunnen schatten."
     },
     "NSPhotoLibraryUsageDescription": {
       "comment": "Shown when the user picks an existing photo to scan.",
@@ -51,7 +54,8 @@
       "it": "SnapWorth ti permette di scegliere foto dalla libreria da scansionare per conoscerne il valore di rivendita.",
       "pt-BR": "O SnapWorth permite escolher fotos da sua biblioteca para escanear o valor de revenda.",
       "pl": "SnapWorth pozwala wybierać zdjęcia z biblioteki, by sprawdzić wartość odsprzedaży.",
-      "ja": "SnapWorthはライブラリから写真を選んでリセール価格を査定できます。"
+      "ja": "SnapWorthはライブラリから写真を選んでリセール価格を査定できます。",
+      "nl": "Met SnapWorth kies je foto's uit je bibliotheek om de doorverkoopwaarde te laten scannen."
     },
     "NSPhotoLibraryAddUsageDescription": {
       "comment": "Shown the first time SnapWorth saves to Photos: a share card from the share sheet, or a cleaned-up listing photo from Snap → Sell.",
@@ -64,7 +68,8 @@
       "it": "Consenti a SnapWorth di salvare in Foto le card da condividere e le foto degli annunci scontornate.",
       "pt-BR": "Permita que o SnapWorth salve em Fotos os cards de compartilhamento e as fotos de anúncio sem fundo.",
       "pl": "Zezwól SnapWorth na zapisywanie w Zdjęciach kart do udostępnienia i oczyszczonych zdjęć do ogłoszeń.",
-      "ja": "SnapWorthがシェアカードと背景を消した出品写真を写真に保存することを許可してください。"
+      "ja": "SnapWorthがシェアカードと背景を消した出品写真を写真に保存することを許可してください。",
+      "nl": "Sta SnapWorth toe om deelkaarten en opgeschoonde advertentiefoto's in Foto's te bewaren."
     }
   }
 }

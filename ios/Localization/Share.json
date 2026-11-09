@@ -12,7 +12,8 @@
       "it": "Salvataggio…",
       "pt-BR": "Salvando…",
       "pl": "Zapisywanie…",
-      "ja": "保存中…"
+      "ja": "保存中…",
+      "nl": "Bewaren…"
     },
     "Saved to SnapWorth": {
       "comment": "Share extension: the photo was saved for the app to value.",
@@ -25,7 +26,8 @@
       "it": "Salvato in SnapWorth",
       "pt-BR": "Salvo no SnapWorth",
       "pl": "Zapisano w SnapWorth",
-      "ja": "SnapWorthに保存しました"
+      "ja": "SnapWorthに保存しました",
+      "nl": "Bewaard in SnapWorth"
     },
     "Tap the notification to see what it's worth.": {
       "comment": "Share extension, after saving, when notifications are allowed: a notification is on its way.",
@@ -38,7 +40,8 @@
       "it": "Tocca la notifica per vedere quanto vale.",
       "pt-BR": "Toque na notificação para ver quanto vale.",
       "pl": "Stuknij powiadomienie, by zobaczyć, ile to jest warte.",
-      "ja": "通知をタップすると価値が分かります。"
+      "ja": "通知をタップすると価値が分かります。",
+      "nl": "Tik op de melding om te zien wat het waard is."
     },
     "Open SnapWorth to see what it's worth.": {
       "comment": "Share extension, after saving, when notifications are off.",
@@ -51,7 +54,8 @@
       "it": "Apri SnapWorth per vedere quanto vale.",
       "pt-BR": "Abra o SnapWorth para ver quanto vale.",
       "pl": "Otwórz SnapWorth, by zobaczyć, ile to jest warte.",
-      "ja": "SnapWorthを開くと価値が分かります。"
+      "ja": "SnapWorthを開くと価値が分かります。",
+      "nl": "Open SnapWorth om te zien wat het waard is."
     },
     "Couldn't read this image": {
       "comment": "Share extension: the shared item could not be read as an image.",
@@ -64,7 +68,8 @@
       "it": "Impossibile leggere questa immagine",
       "pt-BR": "Não foi possível ler esta imagem",
       "pl": "Nie udało się odczytać obrazu",
-      "ja": "この画像を読み取れませんでした"
+      "ja": "この画像を読み取れませんでした",
+      "nl": "Kon deze afbeelding niet lezen"
     },
     "Try sharing a photo or a screenshot.": {
       "comment": "Share extension: under Couldn't read this image.",
@@ -77,7 +82,8 @@
       "it": "Prova a condividere una foto o uno screenshot.",
       "pt-BR": "Tente compartilhar uma foto ou uma captura de tela.",
       "pl": "Spróbuj udostępnić zdjęcie lub zrzut ekranu.",
-      "ja": "写真かスクリーンショットを共有してみてください。"
+      "ja": "写真かスクリーンショットを共有してみてください。",
+      "nl": "Probeer een foto of screenshot te delen."
     },
     "Done": {
       "comment": "Share extension: closes the sheet.",
@@ -90,7 +96,8 @@
       "it": "Fine",
       "pt-BR": "OK",
       "pl": "Gotowe",
-      "ja": "完了"
+      "ja": "完了",
+      "nl": "Gereed"
     },
     "Ready to value": {
       "comment": "Notification title, sent by the share extension: the shared photo is waiting in SnapWorth.",
@@ -103,7 +110,8 @@
       "it": "Pronto da valutare",
       "pt-BR": "Pronto para avaliar",
       "pl": "Gotowe do wyceny",
-      "ja": "査定の準備ができました"
+      "ja": "査定の準備ができました",
+      "nl": "Klaar om te schatten"
     },
     "Tap to see what it's worth.": {
       "comment": "Notification body, sent by the share extension.",
@@ -116,7 +124,8 @@
       "it": "Tocca per vedere quanto vale.",
       "pt-BR": "Toque para ver quanto vale.",
       "pl": "Stuknij, by zobaczyć, ile to jest warte.",
-      "ja": "タップして価値をチェック。"
+      "ja": "タップして価値をチェック。",
+      "nl": "Tik om te zien wat het waard is."
     }
   }
 }

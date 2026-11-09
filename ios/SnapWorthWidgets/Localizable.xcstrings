@@ -41,6 +41,12 @@
             "value" : "〜"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : " tot "
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -104,6 +110,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "収穫 %@"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ in je buit"
           }
         },
         "pl" : {
@@ -172,6 +184,12 @@
             "value" : "今月の利益 %@ %@"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ winst deze maand %@"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -235,6 +253,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%@スキャン"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ gescand"
           }
         },
         "pl" : {
@@ -302,6 +326,12 @@
             "value" : "今回のめぐり %@"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ dit rondje"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -365,6 +395,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%@〜%@"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ tot %@"
           }
         },
         "pl" : {
@@ -504,6 +540,24 @@
             "value" : "%@ · %lld日連続"
           }
         },
+        "nl" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%@ · %lld dag op rij"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%@ · %lld dagen op rij"
+                }
+              }
+            }
+          }
+        },
         "pl" : {
           "variations" : {
             "plural" : {
@@ -630,6 +684,12 @@
             "value" : "%@、%@"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@, %@"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -693,6 +753,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%@、価格を入れるまで利益は不明"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@, winst onbekend tot je de prijzen invult"
           }
         },
         "pl" : {
@@ -760,6 +826,12 @@
             "value" : "%@。前回のデータです。SnapWorthを開いて更新してください。"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@. Laatst bekend: open SnapWorth om te vernieuwen."
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -821,6 +893,12 @@
           }
         },
         "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld"
+          }
+        },
+        "nl" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "%lld"
@@ -961,6 +1039,24 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%lld日連続"
+          }
+        },
+        "nl" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld dag op rij"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld dagen op rij"
+                }
+              }
+            }
           }
         },
         "pl" : {
@@ -1161,6 +1257,24 @@
             "value" : "お宝%lld件"
           }
         },
+        "nl" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld vondst"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld vondsten"
+                }
+              }
+            }
+          }
+        },
         "pl" : {
           "variations" : {
             "plural" : {
@@ -1356,6 +1470,24 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "今月%lld件のリセールが売却"
+          }
+        },
+        "nl" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld flip verkocht deze maand"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld flips verkocht deze maand"
+                }
+              }
+            }
           }
         },
         "pl" : {
@@ -1556,6 +1688,24 @@
             "value" : "今日の無料スキャン残り%lld回"
           }
         },
+        "nl" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Nog %lld gratis scan vandaag"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Nog %lld gratis scans vandaag"
+                }
+              }
+            }
+          }
+        },
         "pl" : {
           "variations" : {
             "plural" : {
@@ -1751,6 +1901,24 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%lld点"
+          }
+        },
+        "nl" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld item"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld items"
+                }
+              }
+            }
           }
         },
         "pl" : {
@@ -1950,6 +2118,24 @@
             "value" : "%lld件売却 · 価格を入力"
           }
         },
+        "nl" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld verkocht · vul de prijzen in"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld verkocht · vul de prijzen in"
+                }
+              }
+            }
+          }
+        },
         "pl" : {
           "variations" : {
             "plural" : {
@@ -2075,6 +2261,12 @@
             "value" : "また明日、またはProへ"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Morgen weer, of neem Pro"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2139,6 +2331,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "今日の値当て"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Raad van de dag"
           }
         },
         "pl" : {
@@ -2207,6 +2405,12 @@
             "value" : "今日はおしまい。また明日。"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Klaar voor vandaag. Morgen weer."
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2270,6 +2474,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "いくらか調べよう"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ontdek wat het waard is"
           }
         },
         "pl" : {
@@ -2338,6 +2548,12 @@
             "value" : "1日1点、リセール価格を予想して連続記録をのばそう。"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Raad elke dag de doorverkoopprijs van één item, en houd je reeks vast."
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2402,6 +2618,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "今日も予想して連続記録をキープ"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Raad vandaag om je reeks te houden"
           }
         },
         "pl" : {
@@ -2470,6 +2692,12 @@
             "value" : "今日の価格を予想"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Raad de prijs van vandaag"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2533,6 +2761,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "収穫"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Buit"
           }
         },
         "pl" : {
@@ -2601,6 +2835,12 @@
             "value" : "収穫の価値"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Waarde van je buit"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2664,6 +2904,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "ロック画面に収穫"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Buit op het toegangsscherm"
           }
         },
         "pl" : {
@@ -2731,6 +2977,12 @@
             "value" : "収穫の価値 %@、%@"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Buit ter waarde van %@, %@"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2794,6 +3046,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "収穫の価値 %@"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Buit ter waarde van %@"
           }
         },
         "pl" : {
@@ -2861,6 +3119,12 @@
             "value" : "今日の無料スキャンの残り回数。"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hoeveel gratis scans je vandaag hebt."
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2924,6 +3188,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "前回のデータです。SnapWorthを開いて更新してください"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Laatst bekend: open SnapWorth om te vernieuwen"
           }
         },
         "pl" : {
@@ -2991,6 +3261,12 @@
             "value" : "最後のスキャン"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Laatst gescand"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -3054,6 +3330,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "最後のスキャン、%@、%@"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Laatst gescand, %@, %@"
           }
         },
         "pl" : {
@@ -3121,6 +3403,12 @@
             "value" : "最後：%@"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Laatst: %@"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -3184,6 +3472,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "まだお宝をスキャンしていません"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nog geen vondsten gescand"
           }
         },
         "pl" : {
@@ -3251,6 +3545,12 @@
             "value" : "まだお宝はありません"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nog geen vondsten"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -3314,6 +3614,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "今月はまだリセールが売れていません"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nog geen flips verkocht deze maand"
           }
         },
         "pl" : {
@@ -3381,6 +3687,12 @@
             "value" : "今日の無料スキャンは終了しました"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Geen gratis scans meer vandaag"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -3444,6 +3756,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "まだスキャンはありません"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nog geen scans"
           }
         },
         "pl" : {
@@ -3511,6 +3829,12 @@
             "value" : "まだ何もスキャンしていません"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nog niets gescand"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -3574,6 +3898,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "まだ何もスキャンしていません。タップして最初のお宝をスキャン。"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nog niets gescand. Tik om je eerste vondst te scannen."
           }
         },
         "pl" : {
@@ -3641,6 +3971,12 @@
             "value" : "まだありません"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nog niets"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -3704,6 +4040,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "ワンタップで中古品をスキャン。"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Eén tik om elk tweedehands item te scannen."
           }
         },
         "pl" : {
@@ -3771,6 +4113,12 @@
             "value" : "SnapWorthを開く"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open SnapWorth"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -3834,6 +4182,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "カメラを起動した状態でSnapWorthを開きます。"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open SnapWorth met de camera klaar."
           }
         },
         "pl" : {
@@ -3901,6 +4255,12 @@
             "value" : "カメラを起動した状態でSnapWorthを開きます。"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Opent SnapWorth met de camera klaar."
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -3964,6 +4324,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "今月の利益"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Winst deze maand"
           }
         },
         "pl" : {
@@ -4031,6 +4397,12 @@
             "value" : "クイックスキャン"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Snelle scan"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -4094,6 +4466,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "最近のお宝"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Recente vondsten"
           }
         },
         "pl" : {
@@ -4161,6 +4539,12 @@
             "value" : "スキャン"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Scan"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -4224,6 +4608,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "アイテムをスキャン"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Scan een item"
           }
         },
         "pl" : {
@@ -4291,6 +4681,12 @@
             "value" : "スキャン回数はまだ表示できません。SnapWorthを開いてください。"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aantal scans nog niet beschikbaar. Open SnapWorth."
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -4354,6 +4750,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "今すぐスキャン"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Scan nu"
           }
         },
         "pl" : {
@@ -4421,6 +4823,12 @@
             "value" : "スキャンして始めよう"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Scan iets om te beginnen"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -4484,6 +4892,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "スキャンしてめぐりを始めよう"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Scan iets om het rondje te starten"
           }
         },
         "pl" : {
@@ -4551,6 +4965,12 @@
             "value" : "最初のお宝をスキャン"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Scan je eerste vondst"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -4614,6 +5034,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "スキャン残り"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Scans over"
           }
         },
         "pl" : {
@@ -4681,6 +5107,12 @@
             "value" : "リセール価値の合計がひと目で分かります。"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zie je totale doorverkoopwaarde in één oogopslag."
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -4742,6 +5174,12 @@
           }
         },
         "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SnapWorth"
+          }
+        },
+        "nl" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "SnapWorth"
@@ -4812,6 +5250,12 @@
             "value" : "SnapWorthの収穫、%@"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SnapWorth-buit, %@"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -4875,6 +5319,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "SnapWorthの収穫、%@スキャン、合計%@。"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SnapWorth-buit, %@ gescand, %@ waard."
           }
         },
         "pl" : {
@@ -4942,6 +5392,12 @@
             "value" : "SnapWorthの収穫、%@、%@"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SnapWorth-buit, %@, %@"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -5005,6 +5461,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "SnapWorth、まだお宝をスキャンしていません"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SnapWorth, nog geen vondsten gescand"
           }
         },
         "pl" : {
@@ -5072,6 +5534,12 @@
             "value" : "SnapWorth、まだお宝はありません。スキャンして始めよう。"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SnapWorth, nog geen vondsten. Scan iets om te beginnen."
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -5135,6 +5603,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "SnapWorth。まだ何もスキャンしていません。"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SnapWorth. Nog niets gescand."
           }
         },
         "pl" : {
@@ -5202,6 +5676,12 @@
             "value" : "タップして\n最初のお宝をスキャン"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tik om je eerste\nvondst te scannen"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -5265,6 +5745,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "最近スキャンしたものと、その価値。"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "De laatste dingen die je scande, en wat ze waard zijn."
           }
         },
         "pl" : {
@@ -5332,6 +5818,12 @@
             "value" : "今月"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Deze maand"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -5395,6 +5887,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "古着屋めぐり"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kringlooprondje"
           }
         },
         "pl" : {
@@ -5462,6 +5960,12 @@
             "value" : "古着屋めぐり中、%@"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kringlooprondje bezig, %@"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -5525,6 +6029,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "古着屋めぐりを開始、まだ何もスキャンしていません"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kringlooprondje gestart, nog niets gescand"
           }
         },
         "pl" : {
@@ -5592,6 +6102,12 @@
             "value" : "古着屋めぐり、%@"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kringlooprondje, %@"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -5655,6 +6171,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "古着屋めぐり、%@、合計%@、%@に開始"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kringlooprondje, %@, %@ waard, gestart om %@"
           }
         },
         "pl" : {
@@ -5722,6 +6244,12 @@
             "value" : "古着屋めぐり、前回のデータ、まだ何もスキャンしていません"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kringlooprondje, laatst bekend, nog niets gescand"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -5785,6 +6313,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "無制限スキャン"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Onbeperkt scannen"
           }
         },
         "pl" : {
@@ -5922,6 +6456,24 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "無制限スキャン、%lld日連続スキャン"
+          }
+        },
+        "nl" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Onbeperkt scannen, %lld dag op rij gescand"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Onbeperkt scannen, %lld dagen op rij gescand"
+                }
+              }
+            }
           }
         },
         "pl" : {
@@ -6121,6 +6673,24 @@
             "value" : "無制限 · %lld日連続"
           }
         },
+        "nl" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Onbeperkt · %lld dag op rij"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Onbeperkt · %lld dagen op rij"
+                }
+              }
+            }
+          }
+        },
         "pl" : {
           "variations" : {
             "plural" : {
@@ -6246,6 +6816,12 @@
             "value" : "売れたリセールで実際に得た金額。"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wat je verkochte flips echt opleverden."
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -6311,6 +6887,12 @@
             "value" : "あなたの収穫"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Je buit"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -6374,6 +6956,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "ロックを解除せずにリセール価値の合計を。"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Je totale doorverkoopwaarde, zonder te ontgrendelen."
           }
         },
         "pl" : {
@@ -6442,6 +7030,12 @@
             "value" : "日連続"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "dagen op rij"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -6506,6 +7100,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "経過"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "verstreken"
           }
         },
         "pl" : {
@@ -6574,6 +7174,12 @@
             "value" : "今日の無料スキャン残り"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "gratis scan over vandaag"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -6637,6 +7243,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "今日の無料スキャン残り"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "gratis scans over vandaag"
           }
         },
         "pl" : {
@@ -6776,6 +7388,24 @@
             "value" : "%lld件のリセールから"
           }
         },
+        "nl" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "uit %lld flip"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "uit %lld flips"
+                }
+              }
+            }
+          }
+        },
         "pl" : {
           "variations" : {
             "plural" : {
@@ -6901,6 +7531,12 @@
             "value" : "まだ何もスキャンしていません"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "nog niets gescand"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -6965,6 +7601,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "開始"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "gestart"
           }
         },
         "pl" : {

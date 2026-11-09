@@ -1,7 +1,14 @@
 # Localization
 
 The app ships in English (`en`, the development language), Romanian (`ro`),
-Spanish (`es`), German (`de`) and Simplified Chinese (`zh-Hans`).
+Spanish (`es`), German (`de`), Simplified Chinese (`zh-Hans`), and since 1.8.1
+French (`fr`), Italian (`it`), Brazilian Portuguese (`pt-BR`), Polish (`pl`),
+Japanese (`ja`) and Dutch (`nl`).
+
+The six added in 1.8.1 have not had a native reader. Their voice follows the
+existing four: informal (tu, tu, você, ty, je; polite です/ます in Japanese),
+the brand and feature names untouched, and money in dollars. A find is
+*trouvaille*, *scoperta*, *achado*, *znalezisko*, *お宝* and *vondst*.
 
 ## Where the strings live
 
@@ -122,8 +129,13 @@ A key whose value depends on a count is written with all three:
 }
 ```
 
-English, Spanish and German inflect once, at 1, so they need `one` and `other`.
-Romanian needs `few` as well. Chinese does not inflect at all, so its value is
+English, Spanish, German and Dutch inflect once, at 1, so they need `one` and
+`other`. Romanian needs `few` as well. French, Italian and Brazilian Portuguese
+need `one`, `many` and `other`: CLDR's `many` is for exact millions, which the
+app never counts, so it carries the words of `other`; French and Portuguese put
+0 in `one`. Polish needs all four: `one` (1), `few` (2–4, 22–24, …), `many`
+(0, 5–21, …) and `other`, which only fractions reach and which repeats `many`.
+Chinese and Japanese do not inflect at all, so their value is
 a plain string — one form covers every number, and writing it as a one-entry
 plural would be a dictionary pretending to a distinction the language does not
 make. The builder requires exactly those, and refuses a translation whose format specifiers disagree with the

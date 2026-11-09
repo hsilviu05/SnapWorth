@@ -41,6 +41,12 @@
             "value" : "この画像を読み取れませんでした"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kon deze afbeelding niet lezen"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -105,6 +111,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "完了"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gereed"
           }
         },
         "pl" : {
@@ -173,6 +185,12 @@
             "value" : "SnapWorthを開くと価値が分かります。"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open SnapWorth om te zien wat het waard is."
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -237,6 +255,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "査定の準備ができました"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Klaar om te schatten"
           }
         },
         "pl" : {
@@ -305,6 +329,12 @@
             "value" : "SnapWorthに保存しました"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bewaard in SnapWorth"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -369,6 +399,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "保存中…"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bewaren…"
           }
         },
         "pl" : {
@@ -437,6 +473,12 @@
             "value" : "通知をタップすると価値が分かります。"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tik op de melding om te zien wat het waard is."
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -503,6 +545,12 @@
             "value" : "タップして価値をチェック。"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tik om te zien wat het waard is."
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -567,6 +615,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "写真かスクリーンショットを共有してみてください。"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Probeer een foto of screenshot te delen."
           }
         },
         "pl" : {

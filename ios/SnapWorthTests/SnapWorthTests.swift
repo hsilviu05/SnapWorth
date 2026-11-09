@@ -3214,6 +3214,7 @@ final class AskTagTests: XCTestCase {
         XCTAssertEqual(AskTagThread.languageCode(["pt-PT"]), "pt-BR")
         XCTAssertEqual(AskTagThread.languageCode(["pl-PL"]), "pl")
         XCTAssertEqual(AskTagThread.languageCode(["ja-JP"]), "ja")
+        XCTAssertEqual(AskTagThread.languageCode(["nl-BE"]), "nl")
         XCTAssertEqual(AskTagThread.languageCode(["ko"]), "en")
         XCTAssertEqual(AskTagThread.languageCode([]), "en")
     }

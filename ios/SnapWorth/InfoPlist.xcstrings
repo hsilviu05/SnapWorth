@@ -41,6 +41,12 @@
             "value" : "SnapWorth"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SnapWorth"
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -102,6 +108,12 @@
           }
         },
         "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SnapWorth"
+          }
+        },
+        "nl" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "SnapWorth"
@@ -173,6 +185,12 @@
             "value" : "SnapWorthはアイテムを撮影して識別し、リセール価格を査定するためにカメラを使用します。"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SnapWorth gebruikt je camera om items te fotograferen, zodat we ze kunnen herkennen en hun doorverkoopwaarde kunnen schatten."
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -239,6 +257,12 @@
             "value" : "SnapWorthがシェアカードと背景を消した出品写真を写真に保存することを許可してください。"
           }
         },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sta SnapWorth toe om deelkaarten en opgeschoonde advertentiefoto's in Foto's te bewaren."
+          }
+        },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -303,6 +327,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "SnapWorthはライブラリから写真を選んでリセール価格を査定できます。"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Met SnapWorth kies je foto's uit je bibliotheek om de doorverkoopwaarde te laten scannen."
           }
         },
         "pl" : {
