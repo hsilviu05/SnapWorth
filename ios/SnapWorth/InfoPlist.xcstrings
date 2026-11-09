@@ -35,6 +35,12 @@
             "value" : "SnapWorth"
           }
         },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SnapWorth"
+          }
+        },
         "ro" : {
           "stringUnit" : {
             "state" : "translated",
@@ -78,6 +84,12 @@
           }
         },
         "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SnapWorth"
+          }
+        },
+        "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "SnapWorth"
@@ -131,6 +143,12 @@
             "value" : "SnapWorth usa la fotocamera per fotografare gli articoli, così possiamo identificarli e stimarne il valore di rivendita."
           }
         },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "O SnapWorth usa sua câmera para fotografar itens, para podermos identificá-los e estimar o valor de revenda."
+          }
+        },
         "ro" : {
           "stringUnit" : {
             "state" : "translated",
@@ -179,6 +197,12 @@
             "value" : "Consenti a SnapWorth di salvare in Foto le card da condividere e le foto degli annunci scontornate."
           }
         },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Permita que o SnapWorth salve em Fotos os cards de compartilhamento e as fotos de anúncio sem fundo."
+          }
+        },
         "ro" : {
           "stringUnit" : {
             "state" : "translated",
@@ -225,6 +249,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "SnapWorth ti permette di scegliere foto dalla libreria da scansionare per conoscerne il valore di rivendita."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "O SnapWorth permite escolher fotos da sua biblioteca para escanear o valor de revenda."
           }
         },
         "ro" : {

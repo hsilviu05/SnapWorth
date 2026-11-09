@@ -49,6 +49,7 @@ LANGUAGES = {
     "zh-Hans": "Simplified Chinese",
     "fr": "French",
     "it": "Italian",
+    "pt-BR": "Brazilian Portuguese",
 }
 
 _STATUSES = {"scanned", "owned", "listed", "sold"}

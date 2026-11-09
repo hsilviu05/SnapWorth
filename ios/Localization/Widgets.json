@@ -9,7 +9,8 @@
       "de": " bis ",
       "zh-Hans": " 到 ",
       "fr": " à ",
-      "it": " a "
+      "it": " a ",
+      "pt-BR": " a "
     },
     "%@ in your haul": {
       "en": "%@ in your haul",
@@ -18,7 +19,8 @@
       "de": "%@ in deiner Sammlung",
       "zh-Hans": "收获里有 %@",
       "fr": "%@ dans ton butin",
-      "it": "%@ nel tuo bottino"
+      "it": "%@ nel tuo bottino",
+      "pt-BR": "%@ no seu garimpo"
     },
     "%@ profit this month %@": {
       "comment": "Amount, then the already-inflected flip count.",
@@ -28,7 +30,8 @@
       "de": "%@ Gewinn diesen Monat %@",
       "zh-Hans": "本月利润 %@，%@",
       "fr": "%@ de bénéfice ce mois-ci %@",
-      "it": "%@ di guadagno questo mese %@"
+      "it": "%@ di guadagno questo mese %@",
+      "pt-BR": "%@ de lucro este mês %@"
     },
     "%@ scanned": {
       "en": "%@ scanned",
@@ -37,7 +40,8 @@
       "de": "%@ gescannt",
       "zh-Hans": "已扫描 %@",
       "fr": "%@ scannés",
-      "it": "%@ scansionati"
+      "it": "%@ scansionati",
+      "pt-BR": "%@ escaneados"
     },
     "%@ this trip": {
       "en": "%@ this trip",
@@ -46,7 +50,8 @@
       "de": "%@ auf dieser Tour",
       "zh-Hans": "这趟 %@",
       "fr": "%@ cette tournée",
-      "it": "%@ in questo giro"
+      "it": "%@ in questo giro",
+      "pt-BR": "%@ neste rolê"
     },
     "%@ to %@": {
       "en": "%@ to %@",
@@ -55,7 +60,8 @@
       "de": "%@ bis %@",
       "zh-Hans": "%@ 到 %@",
       "fr": "%@ à %@",
-      "it": "%@ a %@"
+      "it": "%@ a %@",
+      "pt-BR": "%@ a %@"
     },
     "%@ · %lld-day streak": {
       "en": {
@@ -85,6 +91,11 @@
         "one": "%@ · serie di %lld giorno",
         "many": "%@ · serie di %lld giorni",
         "other": "%@ · serie di %lld giorni"
+      },
+      "pt-BR": {
+        "one": "%@ · sequência de %lld dia",
+        "many": "%@ · sequência de %lld dias",
+        "other": "%@ · sequência de %lld dias"
       }
     },
     "%@, %@": {
@@ -95,7 +106,8 @@
       "de": "%@, %@",
       "zh-Hans": "%@, %@",
       "fr": "%@, %@",
-      "it": "%@, %@"
+      "it": "%@, %@",
+      "pt-BR": "%@, %@"
     },
     "%@, profit unknown until you add the prices": {
       "en": "%@, profit unknown until you add the prices",
@@ -104,7 +116,8 @@
       "de": "%@, der Gewinn bleibt unbekannt, bis du die Preise einträgst",
       "zh-Hans": "%@，填上价格才能算出利润",
       "fr": "%@, bénéfice inconnu tant que tu n'as pas ajouté les prix",
-      "it": "%@, guadagno sconosciuto finché non aggiungi i prezzi"
+      "it": "%@, guadagno sconosciuto finché non aggiungi i prezzi",
+      "pt-BR": "%@, lucro desconhecido até você adicionar os preços"
     },
     "%@. Last known — open SnapWorth to refresh.": {
       "en": "%@. Last known — open SnapWorth to refresh.",
@@ -113,7 +126,8 @@
       "de": "%@. Letzter bekannter Stand – öffne SnapWorth zum Aktualisieren.",
       "zh-Hans": "%@。这是最后一次的数据，打开 SnapWorth 可刷新。",
       "fr": "%@. Dernière valeur connue : ouvre SnapWorth pour actualiser.",
-      "it": "%@. Ultimo dato noto: apri SnapWorth per aggiornare."
+      "it": "%@. Ultimo dato noto: apri SnapWorth per aggiornare.",
+      "pt-BR": "%@. Último dado conhecido: abra o SnapWorth para atualizar."
     },
     "%lld": {
       "comment": "Punctuation or a format with no words: identical in every language. In the catalog only so Xcode stops re-extracting it.",
@@ -123,7 +137,8 @@
       "de": "%lld",
       "zh-Hans": "%lld",
       "fr": "%lld",
-      "it": "%lld"
+      "it": "%lld",
+      "pt-BR": "%lld"
     },
     "%lld day streak": {
       "en": {
@@ -153,6 +168,11 @@
         "one": "Serie di %lld giorno",
         "many": "Serie di %lld giorni",
         "other": "Serie di %lld giorni"
+      },
+      "pt-BR": {
+        "one": "Sequência de %lld dia",
+        "many": "Sequência de %lld dias",
+        "other": "Sequência de %lld dias"
       }
     },
     "%lld finds": {
@@ -184,6 +204,11 @@
         "one": "%lld scoperta",
         "many": "%lld scoperte",
         "other": "%lld scoperte"
+      },
+      "pt-BR": {
+        "one": "%lld achado",
+        "many": "%lld achados",
+        "other": "%lld achados"
       }
     },
     "%lld flips sold this month": {
@@ -214,6 +239,11 @@
         "one": "%lld rivendita venduta questo mese",
         "many": "%lld rivendite vendute questo mese",
         "other": "%lld rivendite vendute questo mese"
+      },
+      "pt-BR": {
+        "one": "%lld revenda vendida este mês",
+        "many": "%lld revendas vendidas este mês",
+        "other": "%lld revendas vendidas este mês"
       }
     },
     "%lld free scans left today": {
@@ -245,6 +275,11 @@
         "one": "%lld scansione gratis rimasta oggi",
         "many": "%lld scansioni gratis rimaste oggi",
         "other": "%lld scansioni gratis rimaste oggi"
+      },
+      "pt-BR": {
+        "one": "%lld escaneamento grátis restante hoje",
+        "many": "%lld escaneamentos grátis restantes hoje",
+        "other": "%lld escaneamentos grátis restantes hoje"
       }
     },
     "%lld items": {
@@ -275,6 +310,11 @@
         "one": "%lld articolo",
         "many": "%lld articoli",
         "other": "%lld articoli"
+      },
+      "pt-BR": {
+        "one": "%lld item",
+        "many": "%lld itens",
+        "other": "%lld itens"
       }
     },
     "%lld sold · add the prices": {
@@ -305,6 +345,11 @@
         "one": "%lld venduto · aggiungi i prezzi",
         "many": "%lld venduti · aggiungi i prezzi",
         "other": "%lld venduti · aggiungi i prezzi"
+      },
+      "pt-BR": {
+        "one": "%lld vendido · adicione os preços",
+        "many": "%lld vendidos · adicione os preços",
+        "other": "%lld vendidos · adicione os preços"
       }
     },
     "Back tomorrow, or go Pro": {
@@ -314,7 +359,8 @@
       "de": "Morgen wieder – oder hol dir Pro",
       "zh-Hans": "明天再来，或升级 Pro",
       "fr": "Reviens demain, ou passe à Pro",
-      "it": "Torna domani, o passa a Pro"
+      "it": "Torna domani, o passa a Pro",
+      "pt-BR": "Volte amanhã, ou seja Pro"
     },
     "Find out what it's worth": {
       "en": "Find out what it's worth",
@@ -323,7 +369,8 @@
       "de": "Finde heraus, was es wert ist",
       "zh-Hans": "看看它值多少",
       "fr": "Découvre combien ça vaut",
-      "it": "Scopri quanto vale"
+      "it": "Scopri quanto vale",
+      "pt-BR": "Descubra quanto vale"
     },
     "Haul": {
       "en": "Haul",
@@ -332,7 +379,8 @@
       "de": "Sammlung",
       "zh-Hans": "收获",
       "fr": "Butin",
-      "it": "Bottino"
+      "it": "Bottino",
+      "pt-BR": "Garimpo"
     },
     "Haul Value": {
       "comment": "Widget name in the gallery.",
@@ -342,7 +390,8 @@
       "de": "Wert der Sammlung",
       "zh-Hans": "收获总值",
       "fr": "Valeur du butin",
-      "it": "Valore del bottino"
+      "it": "Valore del bottino",
+      "pt-BR": "Valor do garimpo"
     },
     "Haul on the Lock Screen": {
       "en": "Haul on the Lock Screen",
@@ -351,7 +400,8 @@
       "de": "Die Sammlung auf dem Sperrbildschirm",
       "zh-Hans": "锁定屏幕上的收获",
       "fr": "Ton butin sur l'écran verrouillé",
-      "it": "Il bottino sulla schermata di blocco"
+      "it": "Il bottino sulla schermata di blocco",
+      "pt-BR": "Garimpo na Tela Bloqueada"
     },
     "Haul value %@, %@": {
       "en": "Haul value %@, %@",
@@ -360,7 +410,8 @@
       "de": "Sammlung im Wert von %@, %@",
       "zh-Hans": "收获总值 %@，%@",
       "fr": "Butin d'une valeur de %@, %@",
-      "it": "Bottino del valore di %@, %@"
+      "it": "Bottino del valore di %@, %@",
+      "pt-BR": "Garimpo valendo %@, %@"
     },
     "Haul worth %@": {
       "en": "Haul worth %@",
@@ -369,7 +420,8 @@
       "de": "Sammlung im Wert von %@",
       "zh-Hans": "收获价值 %@",
       "fr": "Butin d'une valeur de %@",
-      "it": "Bottino del valore di %@"
+      "it": "Bottino del valore di %@",
+      "pt-BR": "Garimpo valendo %@"
     },
     "How many free scans you have today.": {
       "en": "How many free scans you have today.",
@@ -378,7 +430,8 @@
       "de": "Wie viele Gratis-Scans du heute noch hast.",
       "zh-Hans": "今天还剩几次免费扫描。",
       "fr": "Combien de scans gratuits il te reste aujourd'hui.",
-      "it": "Quante scansioni gratis ti restano oggi."
+      "it": "Quante scansioni gratis ti restano oggi.",
+      "pt-BR": "Quantos escaneamentos grátis você tem hoje."
     },
     "Last known — open SnapWorth to refresh": {
       "en": "Last known — open SnapWorth to refresh",
@@ -387,7 +440,8 @@
       "de": "Letzter bekannter Stand – öffne SnapWorth zum Aktualisieren",
       "zh-Hans": "这是最后一次的数据，打开 SnapWorth 可刷新",
       "fr": "Dernière valeur connue : ouvre SnapWorth pour actualiser",
-      "it": "Ultimo dato noto: apri SnapWorth per aggiornare"
+      "it": "Ultimo dato noto: apri SnapWorth per aggiornare",
+      "pt-BR": "Último dado conhecido: abra o SnapWorth para atualizar"
     },
     "Last scanned": {
       "en": "Last scanned",
@@ -396,7 +450,8 @@
       "de": "Zuletzt gescannt",
       "zh-Hans": "最近扫描",
       "fr": "Dernier scan",
-      "it": "Ultima scansione"
+      "it": "Ultima scansione",
+      "pt-BR": "Último escaneado"
     },
     "Last scanned, %@, %@": {
       "en": "Last scanned, %@, %@",
@@ -405,7 +460,8 @@
       "de": "Zuletzt gescannt, %@, %@",
       "zh-Hans": "最近扫描，%@，%@",
       "fr": "Dernier scan, %@, %@",
-      "it": "Ultima scansione, %@, %@"
+      "it": "Ultima scansione, %@, %@",
+      "pt-BR": "Último escaneado, %@, %@"
     },
     "Last: %@": {
       "en": "Last: %@",
@@ -414,7 +470,8 @@
       "de": "Zuletzt: %@",
       "zh-Hans": "最近：%@",
       "fr": "Dernier : %@",
-      "it": "Ultima: %@"
+      "it": "Ultima: %@",
+      "pt-BR": "Último: %@"
     },
     "No finds scanned yet": {
       "en": "No finds scanned yet",
@@ -423,7 +480,8 @@
       "de": "Noch keine Funde gescannt",
       "zh-Hans": "还没扫描过好物",
       "fr": "Aucune trouvaille scannée pour l'instant",
-      "it": "Ancora nessuna scoperta scansionata"
+      "it": "Ancora nessuna scoperta scansionata",
+      "pt-BR": "Nenhum achado escaneado ainda"
     },
     "No finds yet": {
       "en": "No finds yet",
@@ -432,7 +490,8 @@
       "de": "Noch keine Funde",
       "zh-Hans": "还没有好物",
       "fr": "Aucune trouvaille pour l'instant",
-      "it": "Ancora nessuna scoperta"
+      "it": "Ancora nessuna scoperta",
+      "pt-BR": "Nenhum achado ainda"
     },
     "No flips sold yet this month": {
       "en": "No flips sold yet this month",
@@ -441,7 +500,8 @@
       "de": "Diesen Monat noch kein Flip verkauft",
       "zh-Hans": "本月还没卖出过",
       "fr": "Aucune revente vendue ce mois-ci",
-      "it": "Nessuna rivendita venduta questo mese"
+      "it": "Nessuna rivendita venduta questo mese",
+      "pt-BR": "Nenhuma revenda vendida este mês"
     },
     "No free scans left today": {
       "en": "No free scans left today",
@@ -450,7 +510,8 @@
       "de": "Heute keine Gratis-Scans mehr",
       "zh-Hans": "今天的免费扫描用完了",
       "fr": "Plus de scans gratuits aujourd'hui",
-      "it": "Nessuna scansione gratis rimasta oggi"
+      "it": "Nessuna scansione gratis rimasta oggi",
+      "pt-BR": "Sem escaneamentos grátis hoje"
     },
     "No scans yet": {
       "en": "No scans yet",
@@ -459,7 +520,8 @@
       "de": "Noch keine Scans",
       "zh-Hans": "还没有扫描",
       "fr": "Aucun scan pour l'instant",
-      "it": "Ancora nessuna scansione"
+      "it": "Ancora nessuna scansione",
+      "pt-BR": "Nenhum escaneamento ainda"
     },
     "Nothing scanned yet": {
       "en": "Nothing scanned yet",
@@ -468,7 +530,8 @@
       "de": "Noch nichts gescannt",
       "zh-Hans": "还什么都没扫描",
       "fr": "Rien de scanné pour l'instant",
-      "it": "Ancora niente di scansionato"
+      "it": "Ancora niente di scansionato",
+      "pt-BR": "Nada escaneado ainda"
     },
     "Nothing scanned yet. Tap to scan your first find.": {
       "en": "Nothing scanned yet. Tap to scan your first find.",
@@ -477,7 +540,8 @@
       "de": "Noch nichts gescannt. Tippe, um deinen ersten Fund zu scannen.",
       "zh-Hans": "还什么都没扫描。点一下，扫描你的第一件好物。",
       "fr": "Rien de scanné pour l'instant. Touche pour scanner ta première trouvaille.",
-      "it": "Ancora niente di scansionato. Tocca per scansionare la tua prima scoperta."
+      "it": "Ancora niente di scansionato. Tocca per scansionare la tua prima scoperta.",
+      "pt-BR": "Nada escaneado ainda. Toque para escanear seu primeiro achado."
     },
     "Nothing yet": {
       "en": "Nothing yet",
@@ -486,7 +550,8 @@
       "de": "Noch nichts",
       "zh-Hans": "还没有",
       "fr": "Rien pour l'instant",
-      "it": "Ancora niente"
+      "it": "Ancora niente",
+      "pt-BR": "Nada ainda"
     },
     "One tap to scan any secondhand item.": {
       "en": "One tap to scan any secondhand item.",
@@ -495,7 +560,8 @@
       "de": "Ein Tipp, und du scannst jeden Second-Hand-Artikel.",
       "zh-Hans": "点一下，就能扫描任何二手物品。",
       "fr": "Un toucher pour scanner n'importe quel article de seconde main.",
-      "it": "Un tocco per scansionare qualsiasi articolo usato."
+      "it": "Un tocco per scansionare qualsiasi articolo usato.",
+      "pt-BR": "Um toque para escanear qualquer item usado."
     },
     "Open SnapWorth": {
       "en": "Open SnapWorth",
@@ -504,7 +570,8 @@
       "de": "SnapWorth öffnen",
       "zh-Hans": "打开 SnapWorth",
       "fr": "Ouvre SnapWorth",
-      "it": "Apri SnapWorth"
+      "it": "Apri SnapWorth",
+      "pt-BR": "Abra o SnapWorth"
     },
     "Open SnapWorth with the camera ready.": {
       "en": "Open SnapWorth with the camera ready.",
@@ -513,7 +580,8 @@
       "de": "Öffnet SnapWorth mit startbereiter Kamera.",
       "zh-Hans": "打开 SnapWorth，相机已就绪。",
       "fr": "Ouvre SnapWorth avec l'appareil photo prêt.",
-      "it": "Apri SnapWorth con la fotocamera pronta."
+      "it": "Apri SnapWorth con la fotocamera pronta.",
+      "pt-BR": "Abra o SnapWorth com a câmera pronta."
     },
     "Opens SnapWorth with the camera ready.": {
       "en": "Opens SnapWorth with the camera ready.",
@@ -522,7 +590,8 @@
       "de": "Öffnet SnapWorth mit startbereiter Kamera.",
       "zh-Hans": "打开 SnapWorth，相机已就绪。",
       "fr": "Ouvre SnapWorth avec l'appareil photo prêt.",
-      "it": "Apre SnapWorth con la fotocamera pronta."
+      "it": "Apre SnapWorth con la fotocamera pronta.",
+      "pt-BR": "Abre o SnapWorth com a câmera pronta."
     },
     "Profit this month": {
       "en": "Profit this month",
@@ -531,7 +600,8 @@
       "de": "Gewinn diesen Monat",
       "zh-Hans": "本月利润",
       "fr": "Bénéfice ce mois-ci",
-      "it": "Guadagno questo mese"
+      "it": "Guadagno questo mese",
+      "pt-BR": "Lucro este mês"
     },
     "Quick Scan": {
       "en": "Quick Scan",
@@ -540,7 +610,8 @@
       "de": "Schnellscan",
       "zh-Hans": "快速扫描",
       "fr": "Scan rapide",
-      "it": "Scansione rapida"
+      "it": "Scansione rapida",
+      "pt-BR": "Scan rápido"
     },
     "Recent finds": {
       "en": "Recent finds",
@@ -549,7 +620,8 @@
       "de": "Neueste Funde",
       "zh-Hans": "最近的好物",
       "fr": "Trouvailles récentes",
-      "it": "Scoperte recenti"
+      "it": "Scoperte recenti",
+      "pt-BR": "Achados recentes"
     },
     "Scan": {
       "en": "Scan",
@@ -558,7 +630,8 @@
       "de": "Scannen",
       "zh-Hans": "扫描",
       "fr": "Scanner",
-      "it": "Scansiona"
+      "it": "Scansiona",
+      "pt-BR": "Escanear"
     },
     "Scan an item": {
       "en": "Scan an item",
@@ -567,7 +640,8 @@
       "de": "Artikel scannen",
       "zh-Hans": "扫描一件物品",
       "fr": "Scanner un article",
-      "it": "Scansiona un articolo"
+      "it": "Scansiona un articolo",
+      "pt-BR": "Escanear um item"
     },
     "Scan count not available yet. Open SnapWorth.": {
       "en": "Scan count not available yet. Open SnapWorth.",
@@ -576,7 +650,8 @@
       "de": "Die Anzahl der Scans ist noch nicht verfügbar. Öffne SnapWorth.",
       "zh-Hans": "还拿不到扫描次数。打开 SnapWorth 看看。",
       "fr": "Nombre de scans pas encore disponible. Ouvre SnapWorth.",
-      "it": "Numero di scansioni non ancora disponibile. Apri SnapWorth."
+      "it": "Numero di scansioni non ancora disponibile. Apri SnapWorth.",
+      "pt-BR": "Número de escaneamentos ainda indisponível. Abra o SnapWorth."
     },
     "Scan now": {
       "en": "Scan now",
@@ -585,7 +660,8 @@
       "de": "Jetzt scannen",
       "zh-Hans": "现在扫描",
       "fr": "Scanner",
-      "it": "Scansiona ora"
+      "it": "Scansiona ora",
+      "pt-BR": "Escaneie agora"
     },
     "Scan something to start": {
       "en": "Scan something to start",
@@ -594,7 +670,8 @@
       "de": "Scann etwas, um anzufangen",
       "zh-Hans": "扫点什么开始吧",
       "fr": "Scanne quelque chose pour commencer",
-      "it": "Scansiona qualcosa per iniziare"
+      "it": "Scansiona qualcosa per iniziare",
+      "pt-BR": "Escaneie algo para começar"
     },
     "Scan something to start the run": {
       "en": "Scan something to start the run",
@@ -603,7 +680,8 @@
       "de": "Scann etwas, um die Tour zu starten",
       "zh-Hans": "扫点什么，这趟就开始了",
       "fr": "Scanne quelque chose pour lancer la tournée",
-      "it": "Scansiona qualcosa per iniziare il giro"
+      "it": "Scansiona qualcosa per iniziare il giro",
+      "pt-BR": "Escaneie algo para começar o rolê"
     },
     "Scan your first find": {
       "en": "Scan your first find",
@@ -612,7 +690,8 @@
       "de": "Scann deinen ersten Fund",
       "zh-Hans": "扫描你的第一件好物",
       "fr": "Scanne ta première trouvaille",
-      "it": "Scansiona la tua prima scoperta"
+      "it": "Scansiona la tua prima scoperta",
+      "pt-BR": "Escaneie seu primeiro achado"
     },
     "Scans left": {
       "en": "Scans left",
@@ -621,7 +700,8 @@
       "de": "Scans übrig",
       "zh-Hans": "剩余扫描",
       "fr": "Scans restants",
-      "it": "Scansioni rimaste"
+      "it": "Scansioni rimaste",
+      "pt-BR": "Escaneamentos restantes"
     },
     "See your total resale value at a glance.": {
       "en": "See your total resale value at a glance.",
@@ -630,7 +710,8 @@
       "de": "Sieh auf einen Blick, was alles im Wiederverkauf wert ist.",
       "zh-Hans": "一眼看清全部转卖价值。",
       "fr": "Vois ta valeur de revente totale en un coup d'œil.",
-      "it": "Vedi a colpo d'occhio il valore di rivendita totale."
+      "it": "Vedi a colpo d'occhio il valore di rivendita totale.",
+      "pt-BR": "Veja seu valor total de revenda num relance."
     },
     "SnapWorth": {
       "comment": "Brand or feature name: the same in every language, deliberately (see DELIBERATELY_ENGLISH). In the catalog only so Xcode stops re-extracting it.",
@@ -640,7 +721,8 @@
       "de": "SnapWorth",
       "zh-Hans": "SnapWorth",
       "fr": "SnapWorth",
-      "it": "SnapWorth"
+      "it": "SnapWorth",
+      "pt-BR": "SnapWorth"
     },
     "SnapWorth haul, %@": {
       "en": "SnapWorth haul, %@",
@@ -649,7 +731,8 @@
       "de": "SnapWorth-Sammlung, %@",
       "zh-Hans": "SnapWorth 收获，%@",
       "fr": "Butin SnapWorth, %@",
-      "it": "Bottino SnapWorth, %@"
+      "it": "Bottino SnapWorth, %@",
+      "pt-BR": "Garimpo do SnapWorth, %@"
     },
     "SnapWorth haul, %@ scanned, worth %@.": {
       "en": "SnapWorth haul, %@ scanned, worth %@.",
@@ -658,7 +741,8 @@
       "de": "SnapWorth-Sammlung, %@ gescannt, im Wert von %@.",
       "zh-Hans": "SnapWorth 收获，已扫描 %@，价值 %@。",
       "fr": "Butin SnapWorth, %@ scannés, d'une valeur de %@.",
-      "it": "Bottino SnapWorth, %@ scansionati, del valore di %@."
+      "it": "Bottino SnapWorth, %@ scansionati, del valore di %@.",
+      "pt-BR": "Garimpo do SnapWorth, %@ escaneados, valendo %@."
     },
     "SnapWorth haul, %@, %@": {
       "en": "SnapWorth haul, %@, %@",
@@ -667,7 +751,8 @@
       "de": "SnapWorth-Sammlung, %@, %@",
       "zh-Hans": "SnapWorth 收获，%@，%@",
       "fr": "Butin SnapWorth, %@, %@",
-      "it": "Bottino SnapWorth, %@, %@"
+      "it": "Bottino SnapWorth, %@, %@",
+      "pt-BR": "Garimpo do SnapWorth, %@, %@"
     },
     "SnapWorth, no finds scanned yet": {
       "en": "SnapWorth, no finds scanned yet",
@@ -676,7 +761,8 @@
       "de": "SnapWorth, noch keine Funde gescannt",
       "zh-Hans": "SnapWorth，还没扫描过好物",
       "fr": "SnapWorth, aucune trouvaille scannée pour l'instant",
-      "it": "SnapWorth, ancora nessuna scoperta scansionata"
+      "it": "SnapWorth, ancora nessuna scoperta scansionata",
+      "pt-BR": "SnapWorth, nenhum achado escaneado ainda"
     },
     "SnapWorth, no finds yet. Scan something to start.": {
       "en": "SnapWorth, no finds yet. Scan something to start.",
@@ -685,7 +771,8 @@
       "de": "SnapWorth, noch keine Funde. Scann etwas, um anzufangen.",
       "zh-Hans": "SnapWorth，还没有好物。扫点什么开始吧。",
       "fr": "SnapWorth, aucune trouvaille pour l'instant. Scanne quelque chose pour commencer.",
-      "it": "SnapWorth, ancora nessuna scoperta. Scansiona qualcosa per iniziare."
+      "it": "SnapWorth, ancora nessuna scoperta. Scansiona qualcosa per iniziare.",
+      "pt-BR": "SnapWorth, nenhum achado ainda. Escaneie algo para começar."
     },
     "SnapWorth. Nothing scanned yet.": {
       "en": "SnapWorth. Nothing scanned yet.",
@@ -694,7 +781,8 @@
       "de": "SnapWorth. Noch nichts gescannt.",
       "zh-Hans": "SnapWorth。还什么都没扫描。",
       "fr": "SnapWorth. Rien de scanné pour l'instant.",
-      "it": "SnapWorth. Ancora niente di scansionato."
+      "it": "SnapWorth. Ancora niente di scansionato.",
+      "pt-BR": "SnapWorth. Nada escaneado ainda."
     },
     "Tap to scan\nyour first find": {
       "en": "Tap to scan\nyour first find",
@@ -703,7 +791,8 @@
       "de": "Tippe, um deinen\nersten Fund zu scannen",
       "zh-Hans": "点一下，扫描\n你的第一件好物",
       "fr": "Touche pour scanner\nta première trouvaille",
-      "it": "Tocca per scansionare\nla tua prima scoperta"
+      "it": "Tocca per scansionare\nla tua prima scoperta",
+      "pt-BR": "Toque para escanear\nseu primeiro achado"
     },
     "The last few things you scanned, and what they're worth.": {
       "en": "The last few things you scanned, and what they're worth.",
@@ -712,7 +801,8 @@
       "de": "Die letzten Dinge, die du gescannt hast, und was sie wert sind.",
       "zh-Hans": "最近扫描的几件东西，以及它们值多少。",
       "fr": "Les derniers articles scannés, et ce qu'ils valent.",
-      "it": "Le ultime cose che hai scansionato, e quanto valgono."
+      "it": "Le ultime cose che hai scansionato, e quanto valgono.",
+      "pt-BR": "As últimas coisas que você escaneou, e quanto valem."
     },
     "This month": {
       "en": "This month",
@@ -721,7 +811,8 @@
       "de": "Diesen Monat",
       "zh-Hans": "本月",
       "fr": "Ce mois-ci",
-      "it": "Questo mese"
+      "it": "Questo mese",
+      "pt-BR": "Este mês"
     },
     "Thrift run": {
       "en": "Thrift run",
@@ -730,7 +821,8 @@
       "de": "Second-Hand-Tour",
       "zh-Hans": "淘货行程",
       "fr": "Tournée friperie",
-      "it": "Giro dell'usato"
+      "it": "Giro dell'usato",
+      "pt-BR": "Rolê de garimpo"
     },
     "Thrift run in progress, %@": {
       "en": "Thrift run in progress, %@",
@@ -739,7 +831,8 @@
       "de": "Second-Hand-Tour läuft, %@",
       "zh-Hans": "淘货行程进行中，%@",
       "fr": "Tournée friperie en cours, %@",
-      "it": "Giro dell'usato in corso, %@"
+      "it": "Giro dell'usato in corso, %@",
+      "pt-BR": "Rolê de garimpo em andamento, %@"
     },
     "Thrift run started, nothing scanned yet": {
       "en": "Thrift run started, nothing scanned yet",
@@ -748,7 +841,8 @@
       "de": "Second-Hand-Tour gestartet, noch nichts gescannt",
       "zh-Hans": "淘货行程已开始，还什么都没扫描",
       "fr": "Tournée friperie lancée, rien de scanné pour l'instant",
-      "it": "Giro dell'usato iniziato, ancora niente di scansionato"
+      "it": "Giro dell'usato iniziato, ancora niente di scansionato",
+      "pt-BR": "Rolê de garimpo começado, nada escaneado ainda"
     },
     "Thrift run, %@": {
       "en": "Thrift run, %@",
@@ -757,7 +851,8 @@
       "de": "Second-Hand-Tour, %@",
       "zh-Hans": "淘货行程，%@",
       "fr": "Tournée friperie, %@",
-      "it": "Giro dell'usato, %@"
+      "it": "Giro dell'usato, %@",
+      "pt-BR": "Rolê de garimpo, %@"
     },
     "Thrift run, %@, worth %@, started %@": {
       "en": "Thrift run, %@, worth %@, started %@",
@@ -766,7 +861,8 @@
       "de": "Second-Hand-Tour, %@, im Wert von %@, gestartet um %@",
       "zh-Hans": "淘货行程，%@，价值 %@，开始于 %@",
       "fr": "Tournée friperie, %@, d'une valeur de %@, commencée à %@",
-      "it": "Giro dell'usato, %@, del valore di %@, iniziato alle %@"
+      "it": "Giro dell'usato, %@, del valore di %@, iniziato alle %@",
+      "pt-BR": "Rolê de garimpo, %@, valendo %@, começou às %@"
     },
     "Thrift run, last known, nothing scanned yet": {
       "en": "Thrift run, last known, nothing scanned yet",
@@ -775,7 +871,8 @@
       "de": "Second-Hand-Tour, letzter bekannter Stand, noch nichts gescannt",
       "zh-Hans": "淘货行程，这是最后一次的数据，还什么都没扫描",
       "fr": "Tournée friperie, dernière valeur connue, rien de scanné pour l'instant",
-      "it": "Giro dell'usato, ultimo dato noto, ancora niente di scansionato"
+      "it": "Giro dell'usato, ultimo dato noto, ancora niente di scansionato",
+      "pt-BR": "Rolê de garimpo, último dado conhecido, nada escaneado ainda"
     },
     "Unlimited scans": {
       "en": "Unlimited scans",
@@ -784,7 +881,8 @@
       "de": "Unbegrenzte Scans",
       "zh-Hans": "无限扫描",
       "fr": "Scans illimités",
-      "it": "Scansioni illimitate"
+      "it": "Scansioni illimitate",
+      "pt-BR": "Escaneamentos ilimitados"
     },
     "Unlimited scans, %lld day scanning streak": {
       "en": {
@@ -814,6 +912,11 @@
         "one": "Scansioni illimitate, serie di %lld giorno di scansioni",
         "many": "Scansioni illimitate, serie di %lld giorni di scansioni",
         "other": "Scansioni illimitate, serie di %lld giorni di scansioni"
+      },
+      "pt-BR": {
+        "one": "Escaneamentos ilimitados, sequência de %lld dia escaneando",
+        "many": "Escaneamentos ilimitados, sequência de %lld dias escaneando",
+        "other": "Escaneamentos ilimitados, sequência de %lld dias escaneando"
       }
     },
     "Unlimited · %lld-day streak": {
@@ -844,6 +947,11 @@
         "one": "Illimitate · serie di %lld giorno",
         "many": "Illimitate · serie di %lld giorni",
         "other": "Illimitate · serie di %lld giorni"
+      },
+      "pt-BR": {
+        "one": "Ilimitado · sequência de %lld dia",
+        "many": "Ilimitado · sequência de %lld dias",
+        "other": "Ilimitado · sequência de %lld dias"
       }
     },
     "What your sold flips actually made.": {
@@ -853,7 +961,8 @@
       "de": "Was deine verkauften Flips wirklich gebracht haben.",
       "zh-Hans": "卖出去的那些，到底赚了多少。",
       "fr": "Ce que tes reventes vendues t'ont vraiment rapporté.",
-      "it": "Quanto hanno fruttato davvero le tue rivendite vendute."
+      "it": "Quanto hanno fruttato davvero le tue rivendite vendute.",
+      "pt-BR": "O que suas revendas vendidas renderam de verdade."
     },
     "Your haul": {
       "en": "Your haul",
@@ -862,7 +971,8 @@
       "de": "Deine Sammlung",
       "zh-Hans": "你的收获",
       "fr": "Ton butin",
-      "it": "Il tuo bottino"
+      "it": "Il tuo bottino",
+      "pt-BR": "Seu garimpo"
     },
     "Your total resale value, without unlocking.": {
       "en": "Your total resale value, without unlocking.",
@@ -871,7 +981,8 @@
       "de": "Was alles im Wiederverkauf wert ist, ohne zu entsperren.",
       "zh-Hans": "不用解锁，就能看到全部转卖价值。",
       "fr": "Ta valeur de revente totale, sans déverrouiller.",
-      "it": "Il tuo valore di rivendita totale, senza sbloccare."
+      "it": "Il tuo valore di rivendita totale, senza sbloccare.",
+      "pt-BR": "Seu valor total de revenda, sem desbloquear."
     },
     "elapsed": {
       "comment": "Thrift-run Live Activity: under a running timer (\"12:04 elapsed\"). Was shown in English in every language: a ternary of literals, which check_localization cannot see.",
@@ -881,7 +992,8 @@
       "de": "vergangen",
       "zh-Hans": "已用时",
       "fr": "écoulé",
-      "it": "trascorso"
+      "it": "trascorso",
+      "pt-BR": "decorrido"
     },
     "free scan left today": {
       "comment": "The number is the widget's headline; this is the noun under it.",
@@ -891,7 +1003,8 @@
       "de": "Gratis-Scan heute übrig",
       "zh-Hans": "次免费扫描（今天）",
       "fr": "scan gratuit restant aujourd'hui",
-      "it": "scansione gratis rimasta oggi"
+      "it": "scansione gratis rimasta oggi",
+      "pt-BR": "escaneamento grátis restante hoje"
     },
     "free scans left today": {
       "en": "free scans left today",
@@ -900,7 +1013,8 @@
       "de": "Gratis-Scans heute übrig",
       "zh-Hans": "次免费扫描（今天）",
       "fr": "scans gratuits restants aujourd'hui",
-      "it": "scansioni gratis rimaste oggi"
+      "it": "scansioni gratis rimaste oggi",
+      "pt-BR": "escaneamentos grátis restantes hoje"
     },
     "from %lld flips": {
       "en": {
@@ -930,6 +1044,11 @@
         "one": "da %lld rivendita",
         "many": "da %lld rivendite",
         "other": "da %lld rivendite"
+      },
+      "pt-BR": {
+        "one": "de %lld revenda",
+        "many": "de %lld revendas",
+        "other": "de %lld revendas"
       }
     },
     "nothing scanned yet": {
@@ -939,7 +1058,8 @@
       "de": "noch nichts gescannt",
       "zh-Hans": "还什么都没扫描",
       "fr": "rien de scanné pour l'instant",
-      "it": "ancora niente di scansionato"
+      "it": "ancora niente di scansionato",
+      "pt-BR": "nada escaneado ainda"
     },
     "started": {
       "comment": "Thrift-run Live Activity: under a clock time once the run is stale (\"14:32 started\").",
@@ -949,7 +1069,8 @@
       "de": "gestartet",
       "zh-Hans": "开始于",
       "fr": "début",
-      "it": "inizio"
+      "it": "inizio",
+      "pt-BR": "início"
     },
     "Daily guess": {
       "comment": "Name of the Daily guess widget and its header.",
@@ -959,7 +1080,8 @@
       "de": "Tagesrätsel",
       "zh-Hans": "每日猜价",
       "fr": "Devinette du jour",
-      "it": "Indovinello del giorno"
+      "it": "Indovinello del giorno",
+      "pt-BR": "Palpite do dia"
     },
     "day streak": {
       "comment": "Under the number of days in a row the daily guess was played, on the widget.",
@@ -969,7 +1091,8 @@
       "de": "Tage in Folge",
       "zh-Hans": "连续天数",
       "fr": "jours d'affilée",
-      "it": "giorni di fila"
+      "it": "giorni di fila",
+      "pt-BR": "dias seguidos"
     },
     "Done for today. Back tomorrow.": {
       "comment": "Daily guess widget once today's round is played.",
@@ -979,7 +1102,8 @@
       "de": "Für heute erledigt. Bis morgen.",
       "zh-Hans": "今天已完成，明天再来。",
       "fr": "Fini pour aujourd'hui. Reviens demain.",
-      "it": "Fatto per oggi. Torna domani."
+      "it": "Fatto per oggi. Torna domani.",
+      "pt-BR": "Feito por hoje. Volte amanhã."
     },
     "Guess today to keep it going": {
       "comment": "Daily guess widget when there is a streak and today's round is not played yet.",
@@ -989,7 +1113,8 @@
       "de": "Rate heute, damit sie hält",
       "zh-Hans": "今天猜一下，保持连续",
       "fr": "Devine aujourd'hui pour continuer",
-      "it": "Indovina oggi per non perderla"
+      "it": "Indovina oggi per non perderla",
+      "pt-BR": "Chute hoje para não perder"
     },
     "Guess today's price": {
       "comment": "Daily guess widget with no streak: today's round is waiting.",
@@ -999,7 +1124,8 @@
       "de": "Rate den heutigen Preis",
       "zh-Hans": "猜猜今天的价格",
       "fr": "Devine le prix du jour",
-      "it": "Indovina il prezzo di oggi"
+      "it": "Indovina il prezzo di oggi",
+      "pt-BR": "Chute o preço de hoje"
     },
     "Guess one item's resale price a day, and keep your streak.": {
       "comment": "Description in the widget gallery.",
@@ -1009,7 +1135,8 @@
       "de": "Rate jeden Tag den Wiederverkaufspreis eines Artikels und halte deine Serie.",
       "zh-Hans": "每天猜一件物品的转卖价，保持连续记录。",
       "fr": "Devine le prix de revente d'un article par jour, et garde ta série.",
-      "it": "Indovina ogni giorno il prezzo di rivendita di un articolo, e mantieni la tua serie."
+      "it": "Indovina ogni giorno il prezzo di rivendita di un articolo, e mantieni la tua serie.",
+      "pt-BR": "Chute o preço de revenda de um item por dia e mantenha sua sequência."
     }
   }
 }

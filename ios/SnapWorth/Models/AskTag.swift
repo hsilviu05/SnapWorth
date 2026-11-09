@@ -64,10 +64,11 @@ enum AskTagThread {
 
     /// The app's language as `/assist` names it, or English.
     static func languageCode(_ preferred: [String] = Bundle.main.preferredLocalizations) -> String {
-        let supported = ["en", "ro", "es", "de", "zh-Hans", "fr", "it"]
+        let supported = ["en", "ro", "es", "de", "zh-Hans", "fr", "it", "pt-BR"]
         guard let first = preferred.first else { return "en" }
         if supported.contains(first) { return first }
         if first.hasPrefix("zh") { return "zh-Hans" }
+        if first.hasPrefix("pt") { return "pt-BR" }
         let base = String(first.prefix { $0 != "-" && $0 != "_" })
         return supported.contains(base) ? base : "en"
     }
