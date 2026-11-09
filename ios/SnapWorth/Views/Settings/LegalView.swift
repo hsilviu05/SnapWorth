@@ -24,12 +24,12 @@ struct PrivacyPolicyView: View {
 /// Change this and `backend/main.py`'s `/privacy` together.
 /// `PrivacyPolicyDisclosureTests` fails if a processor goes missing.
 enum PrivacyPolicy {
-    static let updated = "November 5, 2026"
+    static let updated = "November 9, 2026"
 
     /// Every third party that receives user data, by the name a reader would
     /// recognise. The test asserts each appears in `sections`.
     static let processors = ["Railway", "Google", "Gemini", "Apple", "DeviceCheck",
-                             "TypeSafe", "TelemetryDeck", "Telegram", "Vercel"]
+                             "TypeSafe", "TelemetryDeck", "RevenueCat", "Telegram", "Vercel"]
 
     static let sections: [(heading: String?, text: String)] = [
         (heading: nil, text: """
@@ -63,7 +63,7 @@ enum PrivacyPolicy {
 
             Rate limits, the DeviceCheck check that stops a free allowance being reset, the operational record relayed through Telegram, the device tags beside each scan tally, and referral records: our legitimate interest in keeping the service secure and free of abuse, and in rewarding each invite once (Article 6(1)(f)).
 
-            Anonymous app analytics, website analytics, scan tallies, trends and the week's highest-value finds: our legitimate interest in understanding how SnapWorth is used and improving it (Article 6(1)(f)). You can turn app analytics off in Settings at any time, and object to the rest by contacting us.
+            Anonymous app analytics, subscription analytics through RevenueCat, website analytics, scan tallies, trends and the week's highest-value finds: our legitimate interest in understanding how SnapWorth is used and improving it (Article 6(1)(f)). You can turn app analytics off in Settings at any time, and object to the rest by contacting us.
 
             Shared sale prices: your consent, given when you turn sharing on (Article 6(1)(a)). Turning it off stops new records, and Delete my shared sales in Settings removes the ones already sent.
             """),
@@ -77,6 +77,8 @@ enum PrivacyPolicy {
             TypeSafe (Jev). May receive text about an item to answer a yes/no check on it: when you ask for a listing draft, the draft's title and description with the item name, brand, category and condition it was written from, to check that it does not claim the item is authentic or in better condition than the scan shows; and the brand and model the AI identified with the titles of sold listings found for it, to check that they are the same product. Never the photo, and never your device identifier, name, email address or location.
 
             TelemetryDeck. Receives the anonymous usage events described above. It never receives photos, item names, prices, or identifiers.
+
+            RevenueCat. Produces our subscription figures, such as revenue, renewals and cancellations. Each time the app contacts it, it receives a random identifier its software creates for your install, your device's identifier for vendor (an identifier Apple gives one developer's apps on a device, not the advertising identifier), your device model, operating system and app version, language settings and App Store country. If you subscribe, it also receives Apple's signed record of your purchase, described above. It never receives photos, item names or scan results, or your name, email address or payment details, and it is not used to track you across other apps or websites. Turning analytics off in Settings turns it off too, from the next time the app starts.
 
             Telegram. To monitor the service, operational information may be relayed to the operator through Telegram: the name of an item the AI identified and its estimated price range; and, so that a support request can be answered, a one-way salted hash of your device's attestation key together with that device's scan count, first and last activity dates, and subscription state. The hash is not the device identifier itself and cannot be reversed to it, and it is not an advertising identifier. This operational record is kept for up to 400 days after the device last uses the service or, for a subscription, after the app or Apple last tells us about it. Never the photo, and never your name, email address or location.
             """),
@@ -95,7 +97,7 @@ enum PrivacyPolicy {
             The website sets no cookies. The home page remembers, in your browser's local storage, whether you have hidden its guide. That stays in your browser, is never sent to us, and is removed when you clear the site's data.
             """),
         (heading: "International Transfers", text: """
-            Some of the service providers above, including Google, Railway, Vercel and Telegram, may process data outside the European Economic Area, including in the United States. Where they do, the transfer relies on the safeguards the GDPR provides for it, such as the European Commission's Standard Contractual Clauses or the provider's certification under the EU-U.S. Data Privacy Framework.
+            Some of the service providers above, including Google, Railway, Vercel, RevenueCat and Telegram, may process data outside the European Economic Area, including in the United States. Where they do, the transfer relies on the safeguards the GDPR provides for it, such as the European Commission's Standard Contractual Clauses or the provider's certification under the EU-U.S. Data Privacy Framework.
             """),
         (heading: "Your Rights", text: """
             You have the right to access the personal data we hold about you, to have it corrected or deleted, to restrict or object to how we use it, to receive it in a portable form, and to withdraw a consent you gave at any time, without affecting what was done before.

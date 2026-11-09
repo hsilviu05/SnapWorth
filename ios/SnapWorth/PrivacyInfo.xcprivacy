@@ -39,9 +39,13 @@
 			<false/>
 			<key>NSPrivacyCollectedDataTypeTracking</key>
 			<false/>
+			<!-- Analytics: the RevenueCat SDK sends the raw identifierForVendor
+			     on every request (see RevenueCatObserver.swift), and its own
+			     manifest does not declare it. -->
 			<key>NSPrivacyCollectedDataTypePurposes</key>
 			<array>
 				<string>NSPrivacyCollectedDataTypePurposeAppFunctionality</string>
+				<string>NSPrivacyCollectedDataTypePurposeAnalytics</string>
 			</array>
 		</dict>
 		<!-- A subscriber's signed StoreKit transaction, which the app uploads
@@ -64,9 +68,13 @@
 			<true/>
 			<key>NSPrivacyCollectedDataTypeTracking</key>
 			<false/>
+			<!-- Analytics: the same signed transaction also goes to RevenueCat
+			     for subscription charts (RevenueCatObserver.swift). RevenueCat's
+			     App Privacy guide requires both purposes here. -->
 			<key>NSPrivacyCollectedDataTypePurposes</key>
 			<array>
 				<string>NSPrivacyCollectedDataTypePurposeAppFunctionality</string>
+				<string>NSPrivacyCollectedDataTypePurposeAnalytics</string>
 			</array>
 		</dict>
 		<!-- Shared sale outcomes (#224), only when the user turns on "Share sale

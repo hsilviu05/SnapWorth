@@ -79,6 +79,10 @@ final class StoreKitPurchaseService: PurchaseService, ObservableObject {
                                                        trigger: trigger))
                 throw error
             }
+            // Analytics only, so not awaited: a slow network must not hold the
+            // paywall open. It posts the signed result passed in, so `finish()`
+            // overtaking it does not lose the purchase.
+            Task { await RevenueCatObserver.record(result) }
             await transaction.finish()
             // The one sync that says which paywall sold it (#218).
             await refreshSubscriptionStatus(serverSync: .afterPurchase(trigger))
@@ -140,6 +144,7 @@ final class StoreKitPurchaseService: PurchaseService, ObservableObject {
         }
         await refreshSubscriptionStatus()
         Analytics.shared.track(.restoreCompleted)
+        Task { await RevenueCatObserver.sync() }
     }
 
     // MARK: - Private

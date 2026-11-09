@@ -231,7 +231,7 @@ class TestLegalEndpoints:
         Review and an EU user read."""
         body = client.get("/privacy").text
         for processor in ("Railway", "Google", "Gemini", "TypeSafe", "TelemetryDeck",
-                          "Telegram", "DeviceCheck", "Vercel"):
+                          "RevenueCat", "Telegram", "DeviceCheck", "Vercel"):
             assert processor in body, f"{processor} receives data but is not disclosed"
 
     def test_privacy_does_not_claim_data_is_unshared(self):
