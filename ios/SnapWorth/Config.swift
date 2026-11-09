@@ -200,5 +200,5 @@ enum Config {
     /// Public by design: it ships in the binary and can only send purchases
     /// and read their own customer, so it is not a secret. Never put an
     /// `sk_` secret key here. Empty keeps `RevenueCatObserver` a no-op.
-    static let revenueCatAPIKey = ""
+    static let revenueCatAPIKey = "appl_VmTUodlaqELRoxdSRzuGJfcRbnO"
 }
