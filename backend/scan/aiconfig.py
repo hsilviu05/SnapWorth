@@ -239,6 +239,13 @@ def generation_config(
 # that is left, or is skipped when too little is.
 REQUEST_TIMEOUT_MS = int(os.environ.get("GEMINI_TIMEOUT_MS", "25000"))
 
+# google-genai 3.0.0 moved the Gemini Developer API default from v1beta to v1.
+# Every scan, prompt and model in this repo was tuned and evaluated on v1beta,
+# and CI mocks the client, so a switch would first be seen in production.
+# Pinned here so the SDK bump changes the library, not the API; moving to v1 is
+# its own change, made by setting GEMINI_API_VERSION after an eval run on it.
+GEMINI_API_VERSION = os.environ.get("GEMINI_API_VERSION", "v1beta")
+
 # Cap on the model's internal reasoning tokens. Unset by default, which is
 # exactly today's behaviour — this adds the knob, not a new setting.
 #
@@ -340,7 +347,8 @@ def _client() -> genai.Client:
     """
     return genai.Client(
         api_key=os.environ.get("GEMINI_API_KEY", ""),
-        http_options=types.HttpOptions(timeout=REQUEST_TIMEOUT_MS),
+        http_options=types.HttpOptions(timeout=REQUEST_TIMEOUT_MS,
+                                       api_version=GEMINI_API_VERSION),
     )
 
 
