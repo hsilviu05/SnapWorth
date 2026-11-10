@@ -126,8 +126,8 @@ Nothing is submitted until the last step, and that one is yours.
 ### 2. Archive
 - [ ] Xcode 27 (`.xcode-version`), scheme **SnapWorth**, Release. Organizer
       shows **1.8.2 (34)**.
-- [ ] Distribute → App Store Connect → Upload, once. A re-archive needs 35.
-- [ ] Record the commit and Organizer's creation date under *Build 34*.
+- [x] Distribute → App Store Connect → Upload, once. A re-archive needs 35.
+- [x] Record the commit and Organizer's creation date under *Build 34*.
 
 ### 3. TestFlight
 - [ ] 34 has no *Missing Compliance* badge.
@@ -146,5 +146,8 @@ Nothing is submitted until the last step, and that one is yours.
 
 ### Build 34 — the archive
 
-- **Archive commit:** _not yet archived_
-- **Organizer creation date:** _not yet archived_
+- **Archive commit:** `7259937` (#466), the `main` HEAD when it was archived;
+  it carries the google-genai 3.0.0 bump (#464), which is backend-only
+- **Organizer creation date:** 2026-11-10 21:53:07 EET (`SnapWorth-1.8.2-34.xcarchive`)
+- Uploaded to App Store Connect once, at about 21:53 EET; not submitted for review.
+  A re-archive needs 35.
