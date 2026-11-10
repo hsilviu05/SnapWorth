@@ -36,7 +36,7 @@ google-genai==2.34.0
 # (PYSEC-2026-3040). This is the highest-exploitability item in the tree — the
 # upload path is the app's front door. 0.0.31 is the floor those advisories
 # set; the pin has moved past it with Dependabot.
-python-multipart==0.0.32
+python-multipart==0.0.33
 # NOT on the original fix list — surfaced by the audit added in this change.
 # PYSEC-2026-2270: set_key()/unset_key() follow symlinks when rewriting .env,
 # letting a local attacker overwrite arbitrary files. Not reachable here: the
