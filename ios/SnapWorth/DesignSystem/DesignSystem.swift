@@ -542,6 +542,12 @@ struct PrimaryButton: View {
                         .tint(Color.snapOnAccent)
                 } else {
                     Text(title)
+                        // The font every other button carries (`GhostButton`,
+                        // the empty states' capsules). Without it the label
+                        // fell back to the system body face, regular weight:
+                        // the paywall's and onboarding's main action read
+                        // thinner than the secondary button beneath it.
+                        .font(.snapButton)
                         // `snapOnAccent` is fixed cream because "the accent is
                         // dark enough in both themes that the label must not
                         // follow the theme" — true at full opacity (5.43:1).

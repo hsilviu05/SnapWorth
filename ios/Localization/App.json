@@ -6304,6 +6304,34 @@
       "ja": "許可するまで、これらのリマインダーは届きません。",
       "nl": "Geen van deze herinneringen kan aankomen tot je dat doet."
     },
+    "Reminders arrive quietly": {
+      "comment": "Banner title in Notification settings when iOS delivers this app's notifications quietly (provisional: Notification Center only, no sound or banner). Tapping it asks iOS to let them through.",
+      "en": "Reminders arrive quietly",
+      "ro": "Memento-urile ajung discret",
+      "es": "Los avisos llegan en silencio",
+      "de": "Erinnerungen kommen still an",
+      "zh-Hans": "提醒以静默方式送达",
+      "fr": "Les rappels arrivent discrètement",
+      "it": "I promemoria arrivano in silenzio",
+      "pt-BR": "Os lembretes chegam em silêncio",
+      "pl": "Przypomnienia przychodzą po cichu",
+      "ja": "リマインダーは目立たないように届きます",
+      "nl": "Herinneringen komen stil binnen"
+    },
+    "They go to Notification Center without a sound or banner. Tap to let them through.": {
+      "comment": "Under 'Reminders arrive quietly'. Notification Center is the iOS name; use Apple's term for it in each language.",
+      "en": "They go to Notification Center without a sound or banner. Tap to let them through.",
+      "ro": "Ajung în Centrul de notificări fără sunet sau banner. Atinge ca să le primești normal.",
+      "es": "Van al Centro de notificaciones sin sonido ni banner. Toca para recibirlos con normalidad.",
+      "de": "Sie landen ohne Ton oder Banner in der Mitteilungszentrale. Tippe, um sie durchzulassen.",
+      "zh-Hans": "它们会进入通知中心，没有声音或横幅。轻点即可正常接收。",
+      "fr": "Ils arrivent dans le Centre de notifications sans son ni bannière. Touche pour les recevoir normalement.",
+      "it": "Finiscono nel Centro Notifiche senza suono né banner. Tocca per riceverli normalmente.",
+      "pt-BR": "Eles vão para a Central de Notificações sem som nem banner. Toque para recebê-los normalmente.",
+      "pl": "Trafiają do Centrum powiadomień bez dźwięku i banera. Stuknij, aby dostawać je normalnie.",
+      "ja": "サウンドやバナーなしで通知センターに届きます。タップすると通常どおり受け取れます。",
+      "nl": "Ze komen zonder geluid of banner in het berichtgevingscentrum. Tik om ze gewoon door te laten."
+    },
     "Not a shirt. An heirloom.": {
       "comment": "Rare-find easter egg (RareFind.swift). The joke is hype and rarity only — keep it that way in translation.",
       "en": "Not a shirt. An heirloom.",

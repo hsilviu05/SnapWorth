@@ -47405,6 +47405,78 @@
         }
       }
     },
+    "Reminders arrive quietly" : {
+      "comment" : "Banner title in Notification settings when iOS delivers this app's notifications quietly (provisional: Notification Center only, no sound or banner). Tapping it asks iOS to let them through.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Erinnerungen kommen still an"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reminders arrive quietly"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Los avisos llegan en silencio"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Les rappels arrivent discrètement"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "I promemoria arrivano in silenzio"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "リマインダーは目立たないように届きます"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Herinneringen komen stil binnen"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Przypomnienia przychodzą po cichu"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Os lembretes chegam em silêncio"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Memento-urile ajung discret"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "提醒以静默方式送达"
+          }
+        }
+      }
+    },
     "Remove photo" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -61028,6 +61100,78 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "之后 %@。可随时取消。"
+          }
+        }
+      }
+    },
+    "They go to Notification Center without a sound or banner. Tap to let them through." : {
+      "comment" : "Under 'Reminders arrive quietly'. Notification Center is the iOS name; use Apple's term for it in each language.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sie landen ohne Ton oder Banner in der Mitteilungszentrale. Tippe, um sie durchzulassen."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "They go to Notification Center without a sound or banner. Tap to let them through."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Van al Centro de notificaciones sin sonido ni banner. Toca para recibirlos con normalidad."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ils arrivent dans le Centre de notifications sans son ni bannière. Touche pour les recevoir normalement."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Finiscono nel Centro Notifiche senza suono né banner. Tocca per riceverli normalmente."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "サウンドやバナーなしで通知センターに届きます。タップすると通常どおり受け取れます。"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ze komen zonder geluid of banner in het berichtgevingscentrum. Tik om ze gewoon door te laten."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Trafiają do Centrum powiadomień bez dźwięku i banera. Stuknij, aby dostawać je normalnie."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Eles vão para a Central de Notificações sem som nem banner. Toque para recebê-los normalmente."
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ajung în Centrul de notificări fără sunet sau banner. Atinge ca să le primești normal."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "它们会进入通知中心，没有声音或横幅。轻点即可正常接收。"
           }
         }
       }

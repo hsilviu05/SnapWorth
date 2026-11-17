@@ -115,6 +115,18 @@ struct HistoryView: View {
                             .padding(.horizontal, hPad)
                         }
 
+                        // ── First run: the way to a first scan ─────────────────
+                        // Above the trending card, not below it. Below it,
+                        // "Start scanning" sat under the tab bar on a 6.3"
+                        // iPhone, so a new user's first look at this tab had
+                        // no action on screen.
+                        if results.isEmpty {
+                            EmptyFindsView()
+                                .frame(maxWidth: .infinity)
+                                .padding(.horizontal, hPad)
+                                .padding(.vertical, 12)
+                        }
+
                         // ── Trending at the thrift ─────────────────────────────
                         if let trends, !trends.isEmpty {
                             TrendingCard(
@@ -165,9 +177,8 @@ struct HistoryView: View {
 
                         // ── Grid ───────────────────────────────────────────────
                         if results.isEmpty {
-                            EmptyFindsView()
-                                .frame(maxWidth: .infinity)
-                                .padding(.top, 60)
+                            // The empty state is above the trending card.
+                            EmptyView()
                         } else if shown.isEmpty {
                             NoSearchResultsView(query: vm.searchText)
                                 .frame(maxWidth: .infinity)
