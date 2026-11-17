@@ -2982,6 +2982,46 @@ final class PaywallPitchTests: XCTestCase {
     }
 }
 
+// MARK: - The first result's Pro card
+
+/// The card that replaced the full-screen paywall after a free user's first
+/// result (`FirstResultOffer`).
+final class FirstResultOfferTests: XCTestCase {
+
+    func test_onlyAFreeUsersFirstFreshResultCarriesIt() {
+        XCTAssertTrue(FirstResultOffer.isOffered(isPro: false, isFreshScan: true, alreadySeen: false))
+        XCTAssertFalse(FirstResultOffer.isOffered(isPro: true, isFreshScan: true, alreadySeen: false),
+                       "a subscriber has nothing to buy")
+        XCTAssertFalse(FirstResultOffer.isOffered(isPro: false, isFreshScan: false, alreadySeen: false),
+                       "a find reopened from My Finds is not a first result")
+        XCTAssertFalse(FirstResultOffer.isOffered(isPro: false, isFreshScan: true, alreadySeen: true),
+                       "once, ever")
+    }
+
+    /// Someone who met the old full-screen paywall is not offered Pro again
+    /// as if this were their first result.
+    func test_itSharesTheOldPaywallsSeenFlag() {
+        XCTAssertEqual(FirstResultOffer.seenKey, "hasSeenFirstResultPaywall")
+    }
+
+    /// The paywall it opens leads with the card's first row, and every row is
+    /// something the paywall's own list sells.
+    func test_thePaywallItOpensLeadsWithTheCardsFirstRow() {
+        let pitch = PaywallCopy.pitch(for: .firstResult)
+        XCTAssertEqual(pitch?.headline, "Get the most for this find")
+        XCTAssertEqual(pitch?.leadIcon, FirstResultOffer.rows.first?.icon)
+        for row in FirstResultOffer.rows {
+            XCTAssertTrue(PaywallCopy.benefits.contains { $0.icon == row.icon },
+                          "\(row.text) sells something the paywall does not list")
+        }
+    }
+
+    func test_itsTriggerIsItsOwnRowInTheCounters() {
+        XCTAssertEqual(PaywallTrigger.firstResult.rawValue, "first_result")
+        XCTAssertNotEqual(PaywallTrigger.firstResult, .onboarding)
+    }
+}
+
 // MARK: - EXIF / GPS on the upload path
 //
 // A photo of your belongings, taken at home, carries your home coordinates in

@@ -71,6 +71,7 @@
 		AA0000000000000000000203 /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000201 /* Localizable.xcstrings */; };
 		AA0000000000000000000204 /* InfoPlist.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000202 /* InfoPlist.xcstrings */; };
 		AA0000000000000000229A01 /* FullDetailOffer.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000229A02 /* FullDetailOffer.swift */; };
+		AA000000000000000F125A01 /* FirstResultOffer.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000000000000000F125A02 /* FirstResultOffer.swift */; };
 		AA0000000000000000229A03 /* ValuationDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000229A04 /* ValuationDetailView.swift */; };
 		AA0000000000000000229A05 /* TagCameraSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000229A06 /* TagCameraSheet.swift */; };
 		AA0000000000000000229A07 /* SnapSellSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000229A08 /* SnapSellSection.swift */; };
@@ -235,6 +236,7 @@
 		AA0000000000000000000201 /* Localizable.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = Localizable.xcstrings; sourceTree = "<group>"; };
 		AA0000000000000000000202 /* InfoPlist.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = InfoPlist.xcstrings; sourceTree = "<group>"; };
 		AA0000000000000000229A02 /* FullDetailOffer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FullDetailOffer.swift; sourceTree = "<group>"; };
+		AA000000000000000F125A02 /* FirstResultOffer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FirstResultOffer.swift; sourceTree = "<group>"; };
 		AA0000000000000000229A04 /* ValuationDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ValuationDetailView.swift; sourceTree = "<group>"; };
 		AA0000000000000000229A06 /* TagCameraSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TagCameraSheet.swift; sourceTree = "<group>"; };
 		AA0000000000000000229A08 /* SnapSellSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SnapSellSection.swift; sourceTree = "<group>"; };
@@ -392,6 +394,7 @@
 				AA0000000000000000229A0C /* ResultValueSection.swift */,
 				AA0000000000000000229A04 /* ValuationDetailView.swift */,
 				AA0000000000000000229A02 /* FullDetailOffer.swift */,
+				AA000000000000000F125A02 /* FirstResultOffer.swift */,
 				AA0000000000000000229A0E /* RereadCards.swift */,
 				AA0000000000000000447A02 /* TagTipsCard.swift */,
 				AA0000000000000000448A08 /* AskTagView.swift */,
@@ -994,6 +997,7 @@
 				90A0C0DE0000000000000003 /* LegitCheckView.swift in Sources */,
 				AA0000000000000000229A03 /* ValuationDetailView.swift in Sources */,
 				AA0000000000000000229A01 /* FullDetailOffer.swift in Sources */,
+				AA000000000000000F125A01 /* FirstResultOffer.swift in Sources */,
 				AA00000000000000000000E9 /* HistoryView.swift in Sources */,
 				AA0000000000000000452B03 /* WrappedView.swift in Sources */,
 				AA00000000000000000000EB /* SettingsView.swift in Sources */,

@@ -64,6 +64,10 @@ struct ResultView: View {
     /// open: the funnel counted every paywall twice.
     @State private var paywallTrigger: PaywallTrigger = .snapSell
     @State private var showListingShare = false
+    /// Whether this sheet carries `FirstResultOfferCard`. Decided as it
+    /// opens, because the card marks itself seen as it appears and must not
+    /// vanish from under the user when it does; "Not now" clears it.
+    @State private var offersFirstResultCard: Bool
 
     /// Which money field has the keyboard. Internal: the ledger cards
     /// (`FlipLedgerSection.swift`) take a binding to the sheet's focus.
@@ -125,6 +129,9 @@ struct ResultView: View {
         _soldPriceText = State(initialValue: gone ? "" : Self.moneyField(result.soldPrice))
         _feesText      = State(initialValue: gone ? "" : Self.moneyField(result.feesEstimate))
         _soldAtProfitOnOpen = State(initialValue: gone ? true : Self.isSaleAtProfit(result))
+        _offersFirstResultCard = State(initialValue: FirstResultOffer.isOffered(
+            isPro: purchaseService.isSubscribed, isFreshScan: isFreshScan,
+            alreadySeen: UserDefaults.standard.bool(forKey: FirstResultOffer.seenKey)))
     }
 
     /// The find was deleted while this sheet still held it.
@@ -185,6 +192,19 @@ struct ResultView: View {
                                 // sitting on this card's shadow.
                                 .padding(.top, -12)
                                 .padding(.bottom, 8)
+
+                            // Prints the range, so it waits for the cover
+                            // like the ladder above. `isPro` again because a
+                            // purchase made from it lands while it is up.
+                            if offersFirstResultCard && !isPro {
+                                FirstResultOfferCard(result: result, onPaywall: openPaywall,
+                                                     onDismiss: { offersFirstResultCard = false })
+                                    .padding(.horizontal, 20)
+                                    .padding(.bottom, 8)
+                                    .onAppear {
+                                        UserDefaults.standard.set(true, forKey: FirstResultOffer.seenKey)
+                                    }
+                            }
 
                             addTagCard
                                 .padding(.horizontal, 20)

@@ -479,6 +479,10 @@ enum ReminderOptInSource: String {
 /// `CaseIterable` so the tests can hold every trigger's paywall copy to the
 /// same rules.
 enum PaywallTrigger: String, CaseIterable {
+    /// The full-screen paywall that opened by itself after a free user's
+    /// first result. Not sent after 1.8.2: that result now carries
+    /// `FirstResultOfferCard` instead (`.firstResult`). Historic events carry
+    /// it, and the counters keep its row.
     case onboarding
     case scanLimit     = "scan_limit"
     case upgradeButton = "upgrade_button"
@@ -507,6 +511,10 @@ enum PaywallTrigger: String, CaseIterable {
     case tagTips = "tag_tips"
     /// "Add your year's profit with Pro" on the Year in Finds sheet.
     case wrapped = "wrapped"
+    /// "See Pro plans" on the card a free user's first fresh result shows
+    /// (`FirstResultOfferCard`). A tap, where `.onboarding` was an
+    /// impression nobody asked for, so the two rows are not one series.
+    case firstResult = "first_result"
 }
 
 // ═══════════════════════════════════════════════════════════════════
