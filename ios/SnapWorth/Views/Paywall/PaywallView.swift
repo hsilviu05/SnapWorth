@@ -130,8 +130,8 @@ struct PaywallView: View {
                             title: String(localized: "Yearly"),
                             price: yearly.displayPrice,
                             priceDetail: yearlyDetail(yearly),
-                            badge: yearly.savingsPercent.map { String(localized: "SAVE \($0.formatted(.percent))") }
-                                ?? String(localized: "BEST VALUE"),
+                            badge: PaywallCopy.yearlyBadge(offer: yearly.introductoryOffer,
+                                                           savingsPercent: yearly.savingsPercent),
                             isSelected: vm.selectedProductID == Config.yearlyProductID,
                             isLoaded: isLoaded(Config.yearlyProductID)
                         ) {
@@ -375,8 +375,8 @@ private extension PaywallView {
     }
 
     func yearlyDetail(_ plan: PlanPricing) -> String {
-        PaywallCopy.planDetail(weekly: plan.displayPricePerWeek,
-                               offer: plan.introductoryOffer)
+        PaywallCopy.yearlyDetail(weekly: plan.displayPricePerWeek,
+                                 offer: plan.introductoryOffer)
     }
 }
 
@@ -436,6 +436,27 @@ enum PaywallCopy {
         if let weekly { parts.append(String(localized: "\(weekly) per week")) }
         if let offer { parts.append(offerPhrase(offer)) }
         return parts.isEmpty ? String(localized: "Best value") : parts.joined(separator: " · ")
+    }
+
+    /// The yearly card's badge: a free trial this account can take, else the
+    /// saving, else "BEST VALUE".
+    ///
+    /// The trial goes here because the badge is the one part of the card read
+    /// at a glance, and the only one that names the trial whichever plan is
+    /// selected. With monthly preselected (`/lever plan`) the headline and the
+    /// button stop mentioning it, and it was left as the tail of a caption.
+    /// `introductoryOffer` is nil unless StoreKit said this account is
+    /// eligible, so nobody is shown a trial they cannot start.
+    static func yearlyBadge(offer: IntroOffer?, savingsPercent: Int?) -> String {
+        if let offer, offer.isFree { return offerPhrase(offer).localizedUppercase }
+        if let savingsPercent { return String(localized: "SAVE \(savingsPercent.formatted(.percent))") }
+        return String(localized: "BEST VALUE")
+    }
+
+    /// The yearly card's detail line, without the trial when the badge
+    /// already says it.
+    static func yearlyDetail(weekly: String?, offer: IntroOffer?) -> String {
+        planDetail(weekly: weekly, offer: offer?.isFree == true ? nil : offer)
     }
 
     /// The offer in as few words as a card row allows.
