@@ -13,6 +13,7 @@ struct NotificationSettingsView: View {
     @State private var ledgerOn = NotificationManager.shared.isEnabled(.ledger)
     @State private var trialOn  = NotificationManager.shared.isEnabled(.trial)
     @State private var portfolioOn = NotificationManager.shared.isEnabled(.portfolio)
+    @State private var priceDropOn = NotificationManager.shared.isEnabled(.priceDrop)
     @State private var freeScanOn = NotificationManager.shared.isEnabled(.freeScan)
     @State private var freeScanTime: Date = {
         let t = NotificationManager.shared.freeScanReminderTime
@@ -76,6 +77,17 @@ struct NotificationSettingsView: View {
                     // back at UTC midnight, so east of UTC it can be back the
                     // same evening as a morning scan, and the reminder says so.
                     Text("Off by default. When on, one reminder at the time you pick — only once your free scan is back, and never once you're on Pro.")
+                }
+            }
+
+            // The free-scan section's counterpart: shown only where it can fire.
+            if isPro {
+                Section {
+                    toggle("Price-drop nudges", "arrow.down.circle", $priceDropOn, .priceDrop)
+                } header: {
+                    Text("Pro")
+                } footer: {
+                    Text("When something has been listed for 30 days without selling, one nudge that a lower price could help it go.")
                 }
             }
 

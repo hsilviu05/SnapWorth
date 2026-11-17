@@ -1816,7 +1816,10 @@ your identity, and is never used to track you across other apps or websites. You
 can turn analytics off at any time in the app's Settings.
 The app also tells our server when a paywall opens and which feature opened it;
 the server keeps only daily totals, counting each device once a day, and the same
-setting turns this off.</p>
+setting turns this off. If you answer the &ldquo;What should SnapWorth add
+next?&rdquo; question in My Finds, the app sends your answer; the server keeps
+only the total for each answer, with a marker so each install counts once, for
+up to 400 days.</p>
 
 <h2>How We Use Your Information</h2>
 <p>Photos are used only to generate the valuation or legit check you requested.
@@ -3568,6 +3571,32 @@ async def paywall_view(
     if principal.authenticated:
         await _enforce_paywall_view_limit(principal.subject, _client_ip(request))
         notify.paywall_viewed(principal.subject, body.trigger)
+    return Response(status_code=204)
+
+
+class FeatureVote(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    choice: str = Field(min_length=1, max_length=32)
+    round: str = Field(min_length=1, max_length=16)
+
+
+@app.post("/events/vote", status_code=204, response_class=Response)
+async def feature_vote(
+    body: FeatureVote,
+    request: Request,
+    principal: Principal = Depends(require_auth),
+) -> Response:
+    """One answer to My Finds' "What should SnapWorth add next?", for the
+    bot's `/votes`. Counted once per device per round against the pseudonym;
+    nothing about the device is kept beyond that marker. An unknown round or
+    choice is a 422, so a client cannot create counter names. Shares the
+    paywall-view rate limit: both are one-tap events, never a scan."""
+    if (body.round != opsstats.FEATURE_VOTE_ROUND
+            or body.choice not in opsstats.FEATURE_VOTE_CHOICES):
+        raise HTTPException(status_code=422, detail="Unknown vote.")
+    if principal.authenticated:
+        await _enforce_paywall_view_limit(principal.subject, _client_ip(request))
+        notify.feature_voted(principal.subject, body.round, body.choice)
     return Response(status_code=204)
 
 

@@ -66,6 +66,36 @@ def paywall_views_counter(trigger: str) -> str:
     return f"paywall_views:{trigger}"
 
 
+#: My Finds' "What should SnapWorth add next?" (`FeatureVote` in
+#: ios/SnapWorth/Views/Flips/HistoryView.swift). The round and the choices are
+#: the app's, copied exactly; a new round with new options is a new pair here
+#: and in the app. Closed sets, because each becomes a counter key.
+FEATURE_VOTE_ROUND = "2026-11"
+FEATURE_VOTE_CHOICES: tuple[str, ...] = (
+    "sold_prices", "shipping", "ebay_post", "barcode", "other",
+)
+#: A vote is a running total, not a day's count: kept for the life of a
+#: round, which no round outlasts.
+FEATURE_VOTE_TTL = 60 * 60 * 24 * 400
+
+
+def feature_vote_key(round_: str, choice: str) -> str:
+    return f"opsvote:{round_}:{choice}"
+
+
+async def feature_vote_tallies(round_: str = FEATURE_VOTE_ROUND) -> dict[str, int]:
+    """Votes per choice in a round, every choice present."""
+    tallies = {choice: 0 for choice in FEATURE_VOTE_CHOICES}
+    if _cache is None:
+        return tallies
+    for choice in FEATURE_VOTE_CHOICES:
+        try:
+            tallies[choice] = int(await _cache.get(feature_vote_key(round_, choice)) or 0)
+        except Exception as exc:
+            log.debug("vote tally %s failed: %s", choice, type(exc).__name__)
+    return tallies
+
+
 _cache: ResilientCache | None = None
 
 

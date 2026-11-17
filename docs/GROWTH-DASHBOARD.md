@@ -135,6 +135,8 @@ The launch funnel the enum documents (`Analytics.swift:11-14`) also has
 | Return loop (S) | `reminder_opt_in` by `source`: `scan_spent` (the "Remind me" beside the next free scan) or `settings`. Then `notification_scheduled` and `notification_opened` with `category` = `freeScan` | `reminder_opt_in` from 1.5.1 (21) (`65e04c7`, #239). The two notification events with `category=freeScan` ≤ 1.3.5 (12) | TelemetryDeck |
 | Notification opt-in | `notification_status` by `status` (`authorized`, `provisional`, `denied`, `not_determined`, `ephemeral`), users per week: sent at most once a day per device, on foreground, so users per status is the share who can receive anything. `provisional` is quiet delivery, asked for without an alert after "Not now". The answers: `notification_priming_answered{accepted}` (the alert after the first result) and `notification_permission_answered{granted, source}` with `source` = `priming`, `settings`, `scan_spent` or `quiet` | The first build after 1.8.2 (34). Before it nothing measured opt-in | TelemetryDeck |
 | Trial tip | `notification_scheduled` and `notification_opened` with `category` = `trialTip`: one notification during a trial naming Haul, or Rack scan once Haul has been opened. Read against `purchase_completed` for the trial's renewal | The first build after 1.8.2 (34) | TelemetryDeck |
+| Price-drop nudge (Pro) | `notification_scheduled` and `notification_opened` with `category` = `priceDrop`: a listing 30 days old with no sale. Read against `ledger_item_marked_sold` | The first build after 1.8.2 (34) | TelemetryDeck |
+| What to build next | The bot's `/votes`: one vote per device per round from My Finds' card, counted by the server (`POST /events/vote`). `feature_voted{choice}` and `feature_vote_dismissed` in TelemetryDeck give the answer rate against devices shown the card | The first build after 1.8.2 (34) | Bot, TelemetryDeck |
 
 ## Sharing loops
 
@@ -262,7 +264,8 @@ for e in onboarding_started onboarding_completed scan_started scan_result_shown 
          rack_scan_completed rack_candidate_chosen daily_guess_played app_icon_changed \
          wrapped_opened wrapped_shared offer_code_sheet_opened \
          notification_status notification_priming_answered \
-         notification_permission_answered sold_listings_opened; do
+         notification_permission_answered sold_listings_opened \
+         feature_voted feature_vote_dismissed; do
   grep -q "return \"$e\"" ios/SnapWorth/Services/Telemetry/Analytics.swift || echo "missing: $e"
 done
 ```

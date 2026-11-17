@@ -23,3 +23,27 @@ enum PaywallViewClient {
         _ = try await req.sendRetryingAuth(on: .snapWorthAPI)
     }
 }
+
+/// `POST /events/vote`: one answer to My Finds' "What should SnapWorth add
+/// next?" (`FeatureVote`). The server counts each device once per round, so a
+/// retry or a reinstall cannot vote twice; the totals are the bot's `/votes`.
+///
+/// Fire-and-forget, and behind the same analytics switch as the paywall
+/// report above.
+enum FeatureVoteClient {
+    static func report(choice: String, round: String) {
+        guard Analytics.shared.isEnabled, !Config.mockScans else { return }
+        Task(priority: .utility) {
+            try? await send(choice: choice, round: round)
+        }
+    }
+
+    private static func send(choice: String, round: String) async throws {
+        var req = URLRequest(url: Config.baseURL.appendingPathComponent("events/vote"))
+        req.httpMethod = "POST"
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.httpBody = try JSONEncoder().encode(["choice": choice, "round": round])
+        try await req.requireBearerToken()
+        _ = try await req.sendRetryingAuth(on: .snapWorthAPI)
+    }
+}

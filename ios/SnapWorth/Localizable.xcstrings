@@ -1076,6 +1076,78 @@
         }
       }
     },
+    "%@ has been listed for 30 days. A small price drop could help it sell." : {
+      "comment" : "Notification (Pro). %@ is the item's name as scanned (e.g. Levi's 501 jeans).",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ ist seit 30 Tagen inseriert. Eine kleine Preissenkung könnte beim Verkauf helfen."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ has been listed for 30 days. A small price drop could help it sell."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ lleva 30 días a la venta. Bajar un poco el precio podría ayudar a venderlo."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ est en vente depuis 30 jours. Une petite baisse de prix pourrait l'aider à partir."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ è in vendita da 30 giorni. Un piccolo ribasso del prezzo potrebbe aiutarlo a vendersi."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@を出品して30日が経ちました。少し値下げすると売れやすくなるかもしれません。"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ staat al 30 dagen te koop. Een kleine prijsverlaging kan helpen om het te verkopen."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ jest wystawione od 30 dni. Niewielka obniżka ceny może pomóc w sprzedaży."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ está anunciado há 30 dias. Uma pequena redução no preço pode ajudar a vender."
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ e scos la vânzare de 30 de zile. O mică reducere de preț l-ar putea ajuta să se vândă."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 已上架 30 天。稍微降点价可能更容易卖出。"
+          }
+        }
+      }
+    },
     "%@ in" : {
       "comment" : "Caption under 'Not sold yet': how much money is tied up.",
       "extractionState" : "manual",
@@ -31507,6 +31579,78 @@
         }
       }
     },
+    "Hides this question for good" : {
+      "comment" : "VoiceOver hint on the vote card's close button.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Blendet diese Frage dauerhaft aus"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hides this question for good"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Oculta esta pregunta para siempre"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Masque cette question pour de bon"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nasconde questa domanda per sempre"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "この質問を今後表示しません"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Verbergt deze vraag voorgoed"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ukrywa to pytanie na dobre"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Esconde esta pergunta de vez"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ascunde definitiv această întrebare"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "永久隐藏此问题"
+          }
+        }
+      }
+    },
     "High confidence" : {
       "comment" : "Badge on a result: how clearly the AI identified the item.",
       "extractionState" : "manual",
@@ -40821,6 +40965,78 @@
         }
       }
     },
+    "One tap. It decides what gets built." : {
+      "comment" : "Subtitle on the feature vote card.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ein Tipp. Er entscheidet, was gebaut wird."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "One tap. It decides what gets built."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Un toque. Así decidimos qué se hace."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Un seul tap. C'est ce qui décide de la suite."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Un tocco. Decide cosa verrà creato."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "タップ1回で投票。次に作る機能が決まります。"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Eén tik. Zo bepalen we wat we bouwen."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Jedno dotknięcie. To decyduje, co powstanie."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Um toque. Isso decide o que vamos criar."
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "O singură atingere. Așa decidem ce construim."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "点一下就行，这决定我们接下来做什么。"
+          }
+        }
+      }
+    },
     "Only a few recent sales to compare. Start near the top of the range; you can always lower it." : {
       "comment" : "Tag's tip when the scan found fewer than five sold listings.",
       "extractionState" : "manual",
@@ -43539,6 +43755,78 @@
         }
       }
     },
+    "Post my listing straight to eBay" : {
+      "comment" : "Vote option: publish the generated listing to eBay from the app. eBay is a brand name.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mein Inserat direkt auf eBay stellen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Post my listing straight to eBay"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Publicar mi anuncio directamente en eBay"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Publier mon annonce directement sur eBay"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pubblicare l'annuncio direttamente su eBay"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "出品をそのままeBayに投稿"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mijn advertentie direct op eBay zetten"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wystawianie oferty prosto na eBay"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Publicar meu anúncio direto no eBay"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Publicarea anunțului direct pe eBay"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "把商品直接发布到 eBay"
+          }
+        }
+      }
+    },
     "Preparing your export…" : {
       "comment" : "Shown while the My Flips ZIP export is being built.",
       "extractionState" : "manual",
@@ -43754,6 +44042,78 @@
         }
       }
     },
+    "Price-drop nudges" : {
+      "comment" : "Settings → Notifications toggle (Pro): a reminder when a listing has gone 30 days without selling.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hinweise zur Preissenkung"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Price-drop nudges"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Avisos para bajar el precio"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rappels de baisse de prix"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Promemoria per abbassare il prezzo"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "値下げのリマインダー"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Herinneringen om de prijs te verlagen"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Przypomnienia o obniżce ceny"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lembretes para baixar o preço"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sugestii de reducere a prețului"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "降价提醒"
+          }
+        }
+      }
+    },
     "Priceless." : {
       "comment" : "Rare-find easter egg (RareFind.swift). The joke is hype and rarity only — keep it that way in translation. Replaces the figure once the ticker lands.",
       "extractionState" : "manual",
@@ -43964,6 +44324,78 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "隐私政策"
+          }
+        }
+      }
+    },
+    "Pro" : {
+      "comment" : "Settings → Notifications: section header over the Pro-only reminder. The brand tier name, unchanged.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pro"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pro"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pro"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pro"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pro"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pro"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pro"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pro"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pro"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pro"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pro"
           }
         }
       }
@@ -46400,6 +46832,78 @@
         }
       }
     },
+    "Real sold prices next to my estimate" : {
+      "comment" : "Vote option: show actual sold prices beside the AI estimate.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Echte Verkaufspreise neben meiner Schätzung"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Real sold prices next to my estimate"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Precios de venta reales junto a mi estimación"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "De vrais prix de vente à côté de mon estimation"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Prezzi di vendita reali accanto alla mia stima"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "見積もりの横に実際の落札価格"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Echte verkoopprijzen naast mijn schatting"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Prawdziwe ceny sprzedaży obok mojej wyceny"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Preços reais de venda ao lado da minha estimativa"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Prețuri reale de vânzare lângă estimare"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在估价旁显示真实成交价"
+          }
+        }
+      }
+    },
     "Redeem" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -48678,6 +49182,78 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "扫描一件物品，再标记成“在手”或“已售出”，就能在这里跟踪利润了。"
+          }
+        }
+      }
+    },
+    "Scan barcodes on books, games and DVDs" : {
+      "comment" : "Vote option: barcode scanning for media.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Barcodes auf Büchern, Spielen und DVDs scannen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Scan barcodes on books, games and DVDs"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Escanear códigos de barras de libros, juegos y DVD"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Scanner les codes-barres des livres, jeux et DVD"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Scansionare i codici a barre di libri, giochi e DVD"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "本・ゲーム・DVDのバーコードをスキャン"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Barcodes scannen op boeken, games en dvd's"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Skanowanie kodów kreskowych książek, gier i DVD"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Escanear código de barras de livros, jogos e DVDs"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Scanarea codurilor de bare pe cărți, jocuri și DVD-uri"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "扫描书籍、游戏和 DVD 的条形码"
           }
         }
       }
@@ -52332,6 +52908,78 @@
         }
       }
     },
+    "Shipping costs in my profit" : {
+      "comment" : "Vote option: include postage in the profit calculation.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Versandkosten in meinem Gewinn"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Shipping costs in my profit"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gastos de envío en mi beneficio"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Les frais de port dans mon bénéfice"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Spese di spedizione nel mio profitto"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "利益に送料を反映"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Verzendkosten in mijn winst"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Koszty wysyłki w moim zysku"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Custo de frete no meu lucro"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Costurile de livrare incluse în profit"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在利润中计入运费"
+          }
+        }
+      }
+    },
     "Shoes" : {
       "comment" : "An item category (ScanCategory), as a label on its own: a row of 'Trending at the thrift', and the start of that row's VoiceOver sentence.",
       "extractionState" : "manual",
@@ -55623,6 +56271,150 @@
         }
       }
     },
+    "Some of your listings have been up for 30 days. A small price drop could help them sell." : {
+      "comment" : "Notification (Pro), when several listings reach 30 days on the same day.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Einige deiner Inserate sind seit 30 Tagen online. Eine kleine Preissenkung könnte beim Verkauf helfen."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Some of your listings have been up for 30 days. A small price drop could help them sell."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Algunos de tus anuncios llevan 30 días publicados. Bajar un poco el precio podría ayudar a venderlos."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Certaines de tes annonces sont en ligne depuis 30 jours. Une petite baisse de prix pourrait les aider à partir."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Alcuni dei tuoi annunci sono online da 30 giorni. Un piccolo ribasso del prezzo potrebbe aiutarli a vendersi."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "出品から30日経ったアイテムがあります。少し値下げすると売れやすくなるかもしれません。"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Een paar van je advertenties staan al 30 dagen online. Een kleine prijsverlaging kan helpen om ze te verkopen."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Niektóre z twoich ofert wiszą od 30 dni. Niewielka obniżka ceny może pomóc w sprzedaży."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Alguns dos seus anúncios estão no ar há 30 dias. Uma pequena redução no preço pode ajudar a vender."
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Câteva dintre anunțurile tale sunt active de 30 de zile. O mică reducere de preț le-ar putea ajuta să se vândă."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "你有几件商品已上架 30 天。稍微降点价可能更容易卖出。"
+          }
+        }
+      }
+    },
+    "Something else…" : {
+      "comment" : "Last option on the vote card; opens the feedback form.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Etwas anderes …"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Something else…"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Otra cosa…"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Autre chose…"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Altro…"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "その他…"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Iets anders…"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Coś innego…"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Outra coisa…"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Altceva…"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "其他…"
+          }
+        }
+      }
+    },
     "Something went wrong. Please try again." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -58515,6 +59307,78 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "服务条款"
+          }
+        }
+      }
+    },
+    "Thanks — your vote is in." : {
+      "comment" : "Shown in place of the vote card after a vote.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Danke – deine Stimme ist gezählt."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Thanks — your vote is in."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gracias, tu voto está registrado."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Merci, ton vote est enregistré."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Grazie, il tuo voto è stato registrato."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ありがとうございます。投票を受け付けました。"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bedankt, je stem is geteld."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dzięki — twój głos został zapisany."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Valeu, seu voto foi registrado."
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mulțumim — votul tău a fost înregistrat."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "谢谢，你的投票已记录。"
           }
         }
       }
@@ -66254,6 +67118,78 @@
         }
       }
     },
+    "Votes for this, once" : {
+      "comment" : "VoiceOver hint on each vote option.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Stimmt einmalig hierfür"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Votes for this, once"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vota por esto, una sola vez"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vote pour ceci, une seule fois"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vota per questo, una sola volta"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "これに投票します（1回のみ）"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Stemt hierop, één keer"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Głosuje na to, jednorazowo"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vota nisto, uma única vez"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Votează pentru asta, o singură dată"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "为此投票（仅一次）"
+          }
+        }
+      }
+    },
     "WARNING: value exceeds scale" : {
       "comment" : "Rare-find easter egg (RareFind.swift). The joke is hype and rarity only — keep it that way in translation.",
       "extractionState" : "manual",
@@ -67757,6 +68693,78 @@
         }
       }
     },
+    "What should SnapWorth add next?" : {
+      "comment" : "My Finds: title of the one-time feature vote card.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Was soll SnapWorth als Nächstes bekommen?"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "What should SnapWorth add next?"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "¿Qué debería añadir SnapWorth ahora?"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Que devrait ajouter SnapWorth ensuite ?"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cosa dovrebbe aggiungere SnapWorth adesso?"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SnapWorthに次に追加してほしい機能は？"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wat moet SnapWorth hierna krijgen?"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Co SnapWorth powinien dodać w następnej kolejności?"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "O que o SnapWorth deveria ganhar agora?"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ce să adauge SnapWorth în continuare?"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SnapWorth 接下来该加什么？"
+          }
+        }
+      }
+    },
     "What the photo suggests about authenticity" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -68180,6 +69188,78 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "开启后，每条结果都会先盖住价格，直到你点“看估价”"
+          }
+        }
+      }
+    },
+    "When something has been listed for 30 days without selling, one nudge that a lower price could help it go." : {
+      "comment" : "Footer under 'Price-drop nudges'.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wenn etwas 30 Tage inseriert ist, ohne sich zu verkaufen, ein Hinweis, dass ein niedrigerer Preis helfen könnte."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "When something has been listed for 30 days without selling, one nudge that a lower price could help it go."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cuando algo lleva 30 días a la venta sin venderse, un aviso de que un precio más bajo podría ayudar."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Quand un article est en vente depuis 30 jours sans trouver preneur, un rappel qu'un prix plus bas pourrait aider."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Quando un articolo è in vendita da 30 giorni senza vendersi, un promemoria che un prezzo più basso potrebbe aiutare."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "出品から30日売れていないアイテムがあると、値下げで売れやすくなるかもとお知らせします。"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Als iets 30 dagen te koop staat zonder te verkopen, één seintje dat een lagere prijs kan helpen."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gdy coś jest wystawione od 30 dni i się nie sprzedało, jedno przypomnienie, że niższa cena może pomóc."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Quando algo está anunciado há 30 dias sem vender, um lembrete de que um preço menor pode ajudar."
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Când un obiect stă scos la vânzare 30 de zile fără să se vândă, primești un îndemn că un preț mai mic l-ar putea ajuta."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "物品上架 30 天仍未卖出时，提醒你降点价可能更好卖。"
           }
         }
       }

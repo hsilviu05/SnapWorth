@@ -32,6 +32,10 @@ struct HistoryView: View {
     /// no confirmation and no undo was the inconsistency — deletion is
     /// irreversible here (no soft delete), so it earns the same guard.
     @State private var pendingDelete: ScanResult?
+    /// The "what should we add next?" card (`FeatureVote`): offered, thanked
+    /// for a vote until the tab is left, or gone.
+    @State private var voteCard: FeatureVote.CardState = .hidden
+    @State private var showFeedback = false
 
     var filteredResults: [ScanResult] { vm.filtered(results) }
 
@@ -123,6 +127,10 @@ struct HistoryView: View {
                             )
                             .padding(.horizontal, hPad)
                         }
+
+                        // ── What should we add next? (once) ───────────────────
+                        FeatureVoteSlot(state: voteCard, onVote: castVote, onDismiss: dismissVote)
+                            .padding(.horizontal, hPad)
 
                         // ── Search ─────────────────────────────────────────────
                         if !results.isEmpty {
@@ -279,6 +287,8 @@ struct HistoryView: View {
                 vm.libraryEmptied()
             }
             .task { recapLabel = NotificationManager.shared.readyRecapLabel() }
+            .onAppear { voteCard = FeatureVote.initialState(findCount: results.count) }
+            .onDisappear { if voteCard == .thanked { voteCard = .hidden } }
             // Best-effort: a failure leaves the card absent, which is the same
             // as a quiet week. Never an error banner — this is a nice-to-have
             // above the user's own finds, not something they asked for.
@@ -295,6 +305,9 @@ struct HistoryView: View {
         .sheet(isPresented: $showPaywall) {
             PaywallView(purchaseService: purchaseService, trigger: paywallTrigger)
         }
+        .sheet(isPresented: $showFeedback) {
+            NavigationStack { FeedbackView(initialType: .featureRequest) }
+        }
         .sheet(item: $wrapped) { card in
             WrappedView(wrapped: card, purchaseService: purchaseService)
         }
@@ -310,6 +323,7 @@ struct HistoryView: View {
             showPaywall = false
             selectedResult = nil
             wrapped = nil
+            showFeedback = false
         }
         .confirmationDialog(
             "Delete this find?",
@@ -339,6 +353,20 @@ struct HistoryView: View {
         } message: {
             Text(vm.deleteError ?? "")
         }
+    }
+
+    /// One tap is the whole vote. "Something else" (`nil`) is counted too and
+    /// opens the feedback form, so the idea is not lost.
+    private func castVote(_ choice: FeatureVote?) {
+        FeatureVote.record(choice)
+        Haptics.light()
+        withAnimation(.easeInOut(duration: 0.2)) { voteCard = .thanked }
+        if choice == nil { showFeedback = true }
+    }
+
+    private func dismissVote() {
+        FeatureVote.recordDismissal()
+        withAnimation(.easeInOut(duration: 0.2)) { voteCard = .hidden }
     }
 
     /// A find reopened from My Finds. Not a scan: it sends no funnel event and
@@ -844,5 +872,157 @@ struct FindsSearchView: View {
         .onReceive(NotificationCenter.default.publisher(for: .snapDismissForRoute)) { _ in
             selectedResult = nil
         }
+    }
+}
+
+// MARK: - Feature vote
+
+/// "What should SnapWorth add next?" — one card in My Finds, one tap to answer.
+///
+/// Asked here and not over a scan: My Finds is where someone already using
+/// the app looks back at what they have, nothing is interrupted, and the
+/// result screen stays as it is while 1.8.3's first-result card is measured.
+/// Offered once per round, from the third find, and gone for good after an
+/// answer or the close button.
+enum FeatureVote: String, CaseIterable, Identifiable {
+    case soldPrices = "sold_prices"
+    case shipping
+    case ebayPost = "ebay_post"
+    case barcode
+
+    var id: String { rawValue }
+
+    /// Bump to ask again with new options; each round is counted apart on
+    /// the server (`opsstats.FEATURE_VOTE_ROUND`), and the two must match.
+    static let round = "2026-11"
+    /// The wire value for "Something else".
+    static let otherChoice = "other"
+    static let minimumFinds = 3
+    static var answeredKey: String { "feature_vote_\(round)_answered" }
+
+    enum CardState: Equatable { case offered, thanked, hidden }
+
+    static func initialState(findCount: Int, defaults: UserDefaults = .standard) -> CardState {
+        guard findCount >= minimumFinds, !defaults.bool(forKey: answeredKey) else { return .hidden }
+        return .offered
+    }
+
+    static func record(_ choice: FeatureVote?, defaults: UserDefaults = .standard) {
+        defaults.set(true, forKey: answeredKey)
+        let wire = choice?.rawValue ?? otherChoice
+        Analytics.shared.track(.featureVoted(choice: wire))
+        FeatureVoteClient.report(choice: wire, round: round)
+    }
+
+    static func recordDismissal(defaults: UserDefaults = .standard) {
+        defaults.set(true, forKey: answeredKey)
+        Analytics.shared.track(.featureVoteDismissed)
+    }
+
+    var label: String {
+        switch self {
+        case .soldPrices: return String(localized: "Real sold prices next to my estimate")
+        case .shipping:   return String(localized: "Shipping costs in my profit")
+        case .ebayPost:   return String(localized: "Post my listing straight to eBay")
+        case .barcode:    return String(localized: "Scan barcodes on books, games and DVDs")
+        }
+    }
+
+    var icon: String {
+        switch self {
+        case .soldPrices: return "chart.line.uptrend.xyaxis"
+        case .shipping:   return "shippingbox"
+        case .ebayPost:   return "paperplane"
+        case .barcode:    return "barcode.viewfinder"
+        }
+    }
+}
+
+/// The card, its thank-you line, or nothing.
+private struct FeatureVoteSlot: View {
+    let state: FeatureVote.CardState
+    let onVote: (FeatureVote?) -> Void
+    let onDismiss: () -> Void
+
+    var body: some View {
+        switch state {
+        case .hidden:
+            EmptyView()
+        case .thanked:
+            Label("Thanks — your vote is in.", systemImage: "checkmark.circle.fill")
+                .font(.snapCaption)
+                .foregroundStyle(Color.snapSageText)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        case .offered:
+            FeatureVoteCard(onVote: onVote, onDismiss: onDismiss)
+        }
+    }
+}
+
+private struct FeatureVoteCard: View {
+    let onVote: (FeatureVote?) -> Void
+    let onDismiss: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .firstTextBaseline) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("What should SnapWorth add next?")
+                        .font(.dmSans(15, weight: .semibold))
+                        .foregroundStyle(Color.snapEspresso)
+                        .accessibilityAddTraits(.isHeader)
+                    Text("One tap. It decides what gets built.")
+                        .font(.snapCaption)
+                        .foregroundStyle(Color.snapWarmGray)
+                }
+                Spacer()
+                Button(action: onDismiss) {
+                    Image(systemName: "xmark")
+                        .snapSymbol(13, weight: .semibold)
+                        .foregroundStyle(Color.snapWarmGray)
+                }
+                .buttonStyle(.plain)
+                .snapHitTarget()
+                .accessibilityLabel("Not now")
+                .accessibilityHint("Hides this question for good")
+            }
+
+            ForEach(FeatureVote.allCases) { choice in
+                optionRow(choice.label, icon: choice.icon) { onVote(choice) }
+            }
+            optionRow(String(localized: "Something else…"), icon: "ellipsis.bubble") { onVote(nil) }
+        }
+        .padding(16)
+        .background(Color.snapCard)
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .strokeBorder(Color.snapBorder, lineWidth: 1)
+        )
+    }
+
+    private func optionRow(_ label: String, icon: String,
+                           action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack(spacing: 12) {
+                Image(systemName: icon)
+                    .snapSymbol(15, weight: .medium)
+                    .foregroundStyle(Color.snapTerracottaText)
+                    .frame(width: 22)
+                Text(label)
+                    .font(.snapBody)
+                    .foregroundStyle(Color.snapEspresso)
+                    .multilineTextAlignment(.leading)
+                    .fixedSize(horizontal: false, vertical: true)
+                Spacer(minLength: 0)
+            }
+            .padding(.vertical, 10)
+            .padding(.horizontal, 12)
+            .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+            .background(Color.snapTerracotta.opacity(0.08))
+            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        }
+        .buttonStyle(.plain)
+        .accessibilityHint("Votes for this, once")
     }
 }

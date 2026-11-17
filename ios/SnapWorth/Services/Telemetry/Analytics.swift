@@ -212,6 +212,11 @@ enum AnalyticsEvent {
     /// The permission status, once per local day on foreground. Users per
     /// `status` is the opt-in rate, which no event measured before.
     case notificationStatus(status: String)
+    /// An answer to My Finds' "What should SnapWorth add next?". `choice` is
+    /// a `FeatureVote` raw value or `other`.
+    case featureVoted(choice: String)
+    /// The same card closed without an answer.
+    case featureVoteDismissed
 
     // ── Ratings ──────────────────────────────────────────────────────
     /// `ReviewPrompt` asked iOS for a rating prompt. Whether iOS showed one is
@@ -316,6 +321,8 @@ enum AnalyticsEvent {
         case .notificationPrimingAnswered: return "notification_priming_answered"
         case .notificationPermissionAnswered: return "notification_permission_answered"
         case .notificationStatus:   return "notification_status"
+        case .featureVoted:         return "feature_voted"
+        case .featureVoteDismissed: return "feature_vote_dismissed"
         case .soldListingsOpened:   return "sold_listings_opened"
         case .reviewPromptRequested: return "review_prompt_requested"
         case .persistentStoreFallback: return "persistent_store_fallback"
@@ -391,6 +398,8 @@ enum AnalyticsEvent {
             return ["granted": String(granted), "source": source.rawValue]
         case let .notificationStatus(status):
             return ["status": status]
+        case let .featureVoted(choice):
+            return ["choice": choice]
         case let .listingGenerated(marketplace), let .listingPhotoCleaned(marketplace),
              let .listingCopied(marketplace), let .listingShared(marketplace),
              let .marketplaceOpened(marketplace):

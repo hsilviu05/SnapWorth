@@ -11854,3 +11854,110 @@ final class SoldListingsSearchTests: XCTestCase {
         XCTAssertEqual(items["LH_Complete"], "1")
     }
 }
+
+// MARK: - Price-drop nudge (Pro) and the in-app feature vote
+
+final class PriceDropNudgeTests: XCTestCase {
+    private var cal: Calendar = {
+        var c = Calendar(identifier: .gregorian)
+        c.timeZone = TimeZone(identifier: "UTC")!
+        return c
+    }()
+    private func at(_ month: Int, _ day: Int, _ hour: Int = 12) -> Date {
+        cal.date(from: DateComponents(year: 2026, month: month, day: day, hour: hour))!
+    }
+    private func listing(_ name: String, _ date: Date) -> NotificationManager.Listing {
+        NotificationManager.Listing(name: name, listedDate: date)
+    }
+
+    func test_aListingIsNudgedAtTenOnItsThirtiethDay() {
+        let schedule = NotificationManager.priceDropSchedule(
+            for: [listing("Levi's 501", at(11, 1, 15))], now: at(11, 2), calendar: cal)
+        XCTAssertEqual(schedule.map { $0.fireDate }, [at(12, 1, 10)])
+        XCTAssertEqual(schedule.first?.body,
+                       "Levi's 501 has been listed for 30 days. A small price drop could help it sell.")
+    }
+
+    func test_listingsDueTheSameDayShareOneNotification() {
+        let schedule = NotificationManager.priceDropSchedule(
+            for: [listing("A", at(11, 1, 9)), listing("B", at(11, 1, 20)), listing("C", at(11, 3))],
+            now: at(11, 2), calendar: cal)
+        XCTAssertEqual(schedule.map { $0.fireDate }, [at(12, 1, 10), at(12, 3, 10)])
+        XCTAssertEqual(schedule.first?.body,
+                       "Some of your listings have been up for 30 days. A small price drop could help them sell.")
+    }
+
+    /// Already past the mark: nothing, or every foreground would re-nudge it.
+    func test_aListingAlreadyPastTheMarkIsNotNudged() {
+        XCTAssertTrue(NotificationManager.priceDropSchedule(
+            for: [listing("Old", at(9, 1))], now: at(11, 17), calendar: cal).isEmpty)
+    }
+
+    func test_onlyTheNextFewDaysAreScheduled() {
+        let many = (1...10).map { listing("\($0)", at(11, $0)) }
+        let schedule = NotificationManager.priceDropSchedule(for: many, now: at(11, 1, 0), calendar: cal)
+        XCTAssertEqual(schedule.count, NotificationManager.priceDropRungs)
+        XCTAssertEqual(schedule.map { $0.fireDate }, schedule.map { $0.fireDate }.sorted())
+    }
+
+    func test_itRanksBetweenTheLedgerFollowUpAndTheDigest() {
+        XCTAssertLessThan(NotificationManager.Category.priceDrop.priority,
+                          NotificationManager.Category.ledger.priority)
+        XCTAssertGreaterThan(NotificationManager.Category.priceDrop.priority,
+                             NotificationManager.Category.portfolio.priority)
+        XCTAssertTrue(NotificationManager.priceDropIDs.allSatisfy { $0.hasPrefix("priceDrop.") })
+    }
+
+    /// Source-inspected: the nudge is Pro-only, rebuilt on every sync, and
+    /// cleared whenever an item leaves Listed.
+    func test_itIsProOnlyAndClearedWhenAnItemLeavesListed() throws {
+        let manager = try String(contentsOf: URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("SnapWorth/Services/System/NotificationManager.swift"),
+                                 encoding: .utf8)
+        XCTAssertTrue(manager.contains("guard isPro, isEnabled(.priceDrop) else { return }"))
+        XCTAssertTrue(manager.contains(
+            "await syncPriceDrops(results: all, isPro: purchaseService.isSubscribed)"))
+        let cancelLedger = try XCTUnwrap(manager.range(of: "func cancelLedgerFollowUp"))
+        let tail = manager[cancelLedger.upperBound...].prefix(600)
+        XCTAssertTrue(tail.contains("cancel(.priceDrop)"))
+    }
+}
+
+final class FeatureVoteTests: XCTestCase {
+    private var name = ""
+    private var defaults: UserDefaults!
+
+    override func setUp() {
+        super.setUp()
+        name = "FeatureVoteTests.\(UUID().uuidString)"
+        defaults = UserDefaults(suiteName: name)
+    }
+
+    override func tearDown() {
+        defaults.removePersistentDomain(forName: name)
+        super.tearDown()
+    }
+
+    func test_offeredFromTheThirdFindUntilAnswered() {
+        XCTAssertEqual(FeatureVote.initialState(findCount: 2, defaults: defaults), .hidden)
+        XCTAssertEqual(FeatureVote.initialState(findCount: 3, defaults: defaults), .offered)
+        defaults.set(true, forKey: FeatureVote.answeredKey)
+        XCTAssertEqual(FeatureVote.initialState(findCount: 30, defaults: defaults), .hidden)
+    }
+
+    func test_closingItIsAnAnswerToo() {
+        FeatureVote.recordDismissal(defaults: defaults)
+        XCTAssertEqual(FeatureVote.initialState(findCount: 5, defaults: defaults), .hidden)
+    }
+
+    /// The server refuses anything else (`opsstats.FEATURE_VOTE_CHOICES`).
+    func test_wireValuesMatchTheServer() {
+        XCTAssertEqual(FeatureVote.allCases.map(\.rawValue),
+                       ["sold_prices", "shipping", "ebay_post", "barcode"])
+        XCTAssertEqual(FeatureVote.otherChoice, "other")
+        XCTAssertEqual(AnalyticsEvent.featureVoted(choice: "barcode").name, "feature_voted")
+        XCTAssertEqual(AnalyticsEvent.featureVoted(choice: "barcode").parameters, ["choice": "barcode"])
+        XCTAssertEqual(AnalyticsEvent.featureVoteDismissed.name, "feature_vote_dismissed")
+    }
+}

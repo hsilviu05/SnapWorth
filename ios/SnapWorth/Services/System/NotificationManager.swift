@@ -25,6 +25,7 @@ extension Notification.Name {
 /// |----------|-------------------------------------------|-----------------------|
 /// | recap    | ≥3 scans this month → 1st of next mo 10:00 | `recap.monthly`       |
 /// | ledger   | item marked *listed* → +14 days 10:00      | `ledger.day.<yyyymmdd>` (coalesced per fire-day) |
+/// | priceDrop | Pro: listed 30 days, no sale → 10:00      | `priceDrop.<n>` (rebuilt each sync) |
 /// | portfolio | next 4 Sundays 11:00                      | `portfolio.weekly.<n>` (a ladder) |
 /// | trial    | ≥24h before trial end, 09:00–21:00 local   | `trial.ending`        |
 /// | trial    | 18:00 the day before that warning (a tip)  | `trial.tip`           |
@@ -45,14 +46,19 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
     enum Category: String, CaseIterable {
         case trial      // highest priority for the daily cap
         case ledger
+        case priceDrop
         case portfolio
         case freeScan
         case recap      // lowest
 
         var priority: Int {
             switch self {
-            case .trial:     return 5
-            case .ledger:    return 4
+            case .trial:     return 6
+            case .ledger:    return 5
+            // A Pro listing that has sat for a month: below "did it sell?",
+            // which is about the same items and more urgent, and above the
+            // weekly digest, which comes back next Sunday anyway.
+            case .priceDrop: return 4
             // Above the monthly recap, below anything time-critical: this is a
             // weekly habit nudge, so losing one to a trial warning costs
             // nothing, but it should outrank a once-a-month summary.
@@ -474,6 +480,11 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
     /// Cancel an item's follow-up (marked sold / deleted). Reschedules or removes
     /// the shared day notification so no orphaned reminder survives.
     func cancelLedgerFollowUp(itemID: UUID) async {
+        // The price-drop nudges are rebuilt from the library on the next
+        // foreground; until then none may fire for an item that just sold,
+        // went back to Owned, or was deleted. Every such change comes through
+        // here.
+        cancel(.priceDrop)
         var buckets = ledgerBuckets()
         var affectedDays: [String] = []
         for (day, items) in buckets where items.contains(itemID.uuidString) {
@@ -865,11 +876,85 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
 
         await schedulePortfolioDigest(results: all)
 
+        await syncPriceDrops(results: all, isPro: purchaseService.isSubscribed)
+
         await syncTrialReminder(endDate: purchaseService.trialEndDate)
 
         await syncFreeScanReminder(isPro: purchaseService.isSubscribed,
                                    lastScan: ScanStreak.lastScan,
                                    streak: ScanStreak.current())
+    }
+
+    // MARK: - Price-drop nudge (Pro)
+
+    /// How long a listing sits before the nudge. Past the 14-day "did it
+    /// sell?" follow-up, so the two are never about the same day.
+    nonisolated static var priceDropAfterDays: Int { 30 }
+
+    /// How many upcoming days are scheduled at a time. Each sync rebuilds them
+    /// from the library, so this only bounds what a user who stops opening the
+    /// app can receive.
+    nonisolated static var priceDropRungs: Int { 4 }
+
+    /// Prefix == Category.priceDrop.rawValue: `category(fromID:)` relies on it.
+    nonisolated static func priceDropID(rung: Int) -> String { "priceDrop.\(rung)" }
+
+    nonisolated static var priceDropIDs: [String] {
+        (0..<priceDropRungs).map(priceDropID(rung:))
+    }
+
+    /// A listing the nudge is about: its name and when it went up.
+    struct Listing: Equatable {
+        let name: String
+        let listedDate: Date
+    }
+
+    /// One notification per day that has listings turning 30 days old, soonest
+    /// first, at 10:00 local like the ledger follow-up. One listing is named;
+    /// several on the same day share a sentence. A listing already past the
+    /// mark is not nudged: nothing would ever stop it being re-nudged on
+    /// every foreground.
+    ///
+    /// Pure, and takes its calendar, for the tests.
+    nonisolated static func priceDropSchedule(for listings: [Listing], now: Date,
+                                              calendar: Calendar = .current)
+        -> [(fireDate: Date, body: String)] {
+        var byDay: [Date: [String]] = [:]
+        for listing in listings {
+            guard let due = calendar.date(byAdding: .day, value: priceDropAfterDays,
+                                          to: listing.listedDate),
+                  let fire = calendar.date(bySettingHour: 10, minute: 0, second: 0, of: due),
+                  fire > now
+            else { continue }
+            byDay[fire, default: []].append(listing.name)
+        }
+        var schedule: [(fireDate: Date, body: String)] = []
+        for fire in byDay.keys.sorted().prefix(priceDropRungs) {
+            schedule.append((fireDate: fire, body: priceDropBody(names: byDay[fire] ?? [])))
+        }
+        return schedule
+    }
+
+    nonisolated static func priceDropBody(names: [String]) -> String {
+        if names.count == 1, let name = names.first {
+            return String(localized: "\(name) has been listed for 30 days. A small price drop could help it sell.")
+        }
+        return String(localized: "Some of your listings have been up for 30 days. A small price drop could help them sell.")
+    }
+
+    /// Rebuilds the nudges from what is listed now. Pro only: it is part of
+    /// what the subscription keeps doing for a reseller between scans.
+    func syncPriceDrops(results: [ScanResult], isPro: Bool, now: Date = Date()) async {
+        cancel(.priceDrop)
+        guard isPro, isEnabled(.priceDrop) else { return }
+        let listings = results.filter { $0.status == .listed }.map {
+            Listing(name: $0.itemName, listedDate: $0.listedDate ?? $0.timestamp)
+        }
+        for (rung, entry) in Self.priceDropSchedule(for: listings, now: now).enumerated() {
+            // One event per sync, not one per rung, as the other ladders do.
+            await add(id: Self.priceDropID(rung: rung), category: .priceDrop,
+                      fireDate: entry.fireDate, body: entry.body, track: rung == 0)
+        }
     }
 
     // MARK: - Weekly portfolio nudge
@@ -1021,6 +1106,7 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
         switch category {
         case .recap: center.removePendingNotificationRequests(withIdentifiers: [Self.recapID])
         case .portfolio: center.removePendingNotificationRequests(withIdentifiers: Self.portfolioIDs)
+        case .priceDrop: center.removePendingNotificationRequests(withIdentifiers: Self.priceDropIDs)
         case .trial:
             center.removePendingNotificationRequests(withIdentifiers: [Self.trialID, Self.trialTipID])
         case .freeScan:
@@ -1147,7 +1233,7 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
     nonisolated static func isAnchoredToAnInstant(_ category: Category) -> Bool {
         switch category {
         case .trial:                              return true
-        case .recap, .ledger, .portfolio, .freeScan: return false
+        case .recap, .ledger, .priceDrop, .portfolio, .freeScan: return false
         }
     }
 
@@ -1266,7 +1352,7 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
         case .recap:
             markRecapViewed()
             SnapWorthApp.open(.snapOpenFlips)
-        case .ledger:
+        case .ledger, .priceDrop:
             SnapWorthApp.open(.snapOpenFlips)
         case .trial:
             SnapWorthApp.open(.snapOpenSettings)
