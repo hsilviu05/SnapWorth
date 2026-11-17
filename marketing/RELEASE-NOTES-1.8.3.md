@@ -150,15 +150,16 @@ Promotional text is unchanged; it is not tied to a build.
 Nothing is submitted until the last step, and that one is yours.
 
 ### 1. Before archiving
-- [ ] `git pull` on `main` and confirm the bump is in the checkout:
+- [x] `git pull` on `main` and confirm the bump is in the checkout:
       `grep -m1 "CURRENT_PROJECT_VERSION = 35" ios/SnapWorth.xcodeproj/project.pbxproj`.
-- [ ] CI green on that `main` commit.
+- [x] CI green on that `main` commit (#474's head, `22915db`, has the same tree;
+      the push run on `745f9c2` adds only the screenshot report).
 
 ### 2. Archive
-- [ ] Xcode 27 (`.xcode-version`), scheme **SnapWorth**, Release. Organizer
+- [x] Xcode 27 (`.xcode-version`), scheme **SnapWorth**, Release. Organizer
       shows **1.8.3 (35)**.
-- [ ] Distribute → App Store Connect → Upload, once. A re-archive needs 36.
-- [ ] Record the commit and Organizer's creation date under *Build 35*.
+- [x] Distribute → App Store Connect → Upload, once. A re-archive needs 36.
+- [x] Record the commit and Organizer's creation date under *Build 35*.
 
 ### 3. TestFlight
 - [ ] 35 has no *Missing Compliance* badge.
@@ -178,5 +179,10 @@ Nothing is submitted until the last step, and that one is yours.
 
 ### Build 35 — the archive
 
-- **Archive commit:** _to fill in_
-- **Organizer creation date:** _to fill in_
+- **Archive commit:** `745f9c2` (#474), the `main` HEAD when it was archived.
+- **Organizer creation date:** 2026-11-17 21:18:00 EET (`SnapWorth-1.8.3-35.xcarchive`),
+  Xcode 27.0 (27A266a). The app and its Share, Stickers and Widgets extensions
+  all read 1.8.3 (35).
+- Uploaded to App Store Connect once, at about 21:18 EET, with
+  `xcodebuild -exportArchive` (`app-store-connect`, upload, version and build
+  numbers left as built); not submitted for review. A re-archive needs 36.
