@@ -65,7 +65,7 @@ Portuguese (Brazil). The feature names match the in-app strings.
 2026-11-17). The app itself keeps its Simplified Chinese strings for people
 whose iPhone is set to Chinese. If the version page still lists Chinese
 (Simplified), App Store Connect will ask for its What's New: remove that
-language from the listing in App Information first. The paste sheet is
+language from the listing first, from the language menu on the App Store tab. The paste sheet is
 `launch/APP-STORE-PASTE-1.8.3.md` in the project files.
 
 ### `en-US`
@@ -73,6 +73,7 @@ language from the listing in App Information first. The paste sheet is
 • Check sold prices on eBay, right under your estimate.
 • Pro: a nudge when something has been listed 30 days without selling.
 • Tell us what SnapWorth should add next, in My Finds.
+• Clearer plans: when a free trial is available, the Yearly plan says so.
 • Fixes and polish.
 ```
 
@@ -81,6 +82,7 @@ language from the listing in App Information first. The paste sheet is
 • Vezi prețurile de vânzare pe eBay, chiar sub estimare.
 • Pro: un memento când ceva e listat de 30 de zile și nu s-a vândut.
 • Spune-ne ce să adauge SnapWorth în continuare, în Găselnițe.
+• Planuri mai clare: când ai o probă gratuită disponibilă, planul Anual o arată.
 • Remedieri și îmbunătățiri.
 ```
 
@@ -89,6 +91,7 @@ language from the listing in App Information first. The paste sheet is
 • Ver precios de venta en eBay, justo debajo de tu estimación.
 • Pro: un aviso cuando algo lleva 30 días publicado sin venderse.
 • Dinos qué debería añadir SnapWorth, en Mis hallazgos.
+• Planes más claros: si tienes una prueba gratis disponible, el plan Anual lo indica.
 • Correcciones y mejoras.
 ```
 
@@ -97,6 +100,7 @@ language from the listing in App Information first. The paste sheet is
 • Verkaufspreise auf eBay prüfen, direkt unter deiner Schätzung.
 • Pro: ein Hinweis, wenn etwas seit 30 Tagen unverkauft eingestellt ist.
 • Sag uns in Meine Funde, was SnapWorth als Nächstes bekommen soll.
+• Klarere Abos: Ist ein Gratis-Test für dich verfügbar, zeigt ihn das Abo „Jährlich“ an.
 • Fehlerbehebungen und Verbesserungen.
 ```
 
@@ -105,6 +109,7 @@ language from the listing in App Information first. The paste sheet is
 • Voir les prix de vente sur eBay, juste sous ton estimation.
 • Pro : un rappel quand un article est en vente depuis 30 jours sans trouver preneur.
 • Dis-nous ce que SnapWorth devrait ajouter, dans Mes trouvailles.
+• Des offres plus claires : quand un essai gratuit t'est proposé, l'offre Annuel l'indique.
 • Corrections et améliorations.
 ```
 
@@ -113,6 +118,7 @@ language from the listing in App Information first. The paste sheet is
 • Vedi i prezzi di vendita su eBay, subito sotto la stima.
 • Pro: un promemoria quando un articolo è in vendita da 30 giorni senza essere venduto.
 • Dicci cosa dovrebbe aggiungere SnapWorth, in Le mie scoperte.
+• Piani più chiari: se hai una prova gratuita disponibile, il piano Annuale lo mostra.
 • Correzioni e miglioramenti.
 ```
 
@@ -121,6 +127,7 @@ language from the listing in App Information first. The paste sheet is
 • Veja preços de venda no eBay, logo abaixo da sua estimativa.
 • Pro: um lembrete quando algo está anunciado há 30 dias sem vender.
 • Diga o que o SnapWorth deve adicionar, em Meus achados.
+• Planos mais claros: quando você tem um teste grátis disponível, o plano Anual mostra.
 • Correções e melhorias.
 ```
 
@@ -129,6 +136,7 @@ language from the listing in App Information first. The paste sheet is
 • Sprawdź ceny sprzedaży na eBay, tuż pod wyceną.
 • Pro: przypomnienie, gdy coś jest wystawione od 30 dni i się nie sprzedało.
 • Powiedz nam w Moich znaleziskach, co SnapWorth ma dodać dalej.
+• Czytelniejsze plany: gdy masz dostępny darmowy okres próbny, plan Rocznie to pokazuje.
 • Poprawki i ulepszenia.
 ```
 
@@ -137,6 +145,7 @@ language from the listing in App Information first. The paste sheet is
 • 査定額のすぐ下から、eBayで落札価格を確認できます。
 • Pro：出品から30日たっても売れていないときにお知らせします。
 • SnapWorthに次に追加してほしい機能を「マイお宝」で教えてください。
+• プランをわかりやすく：無料トライアルを利用できる場合は「年額」プランに表示されます。
 • 不具合の修正と改善。
 ```
 
@@ -145,6 +154,7 @@ language from the listing in App Information first. The paste sheet is
 • Bekijk verkoopprijzen op eBay, direct onder je schatting.
 • Pro: een herinnering als iets 30 dagen te koop staat zonder te verkopen.
 • Laat in Mijn vondsten weten wat SnapWorth hierna moet toevoegen.
+• Duidelijkere abonnementen: als je een gratis proefperiode kunt starten, staat die bij Jaarlijks.
 • Oplossingen en verbeteringen.
 ```
 
