@@ -1187,6 +1187,8 @@ final class PaywallCopyTests: XCTestCase {
                 PaywallCopy.subheadline(isYearly: true, price: "$39.99", offer: offer),
                 PaywallCopy.offerPhrase(offer),
                 PaywallCopy.planDetail(weekly: "$0.77", offer: offer),
+                PaywallCopy.yearlyBadge(offer: offer, savingsPercent: 33),
+                PaywallCopy.yearlyDetail(weekly: "$0.77", offer: offer),
                 PaywallCopy.ctaTitle(isYearly: true, offer: offer),
             ]
             for text in strings {
@@ -1320,6 +1322,35 @@ final class PaywallCopyTests: XCTestCase {
                        "$0.77 per week")
         XCTAssertEqual(PaywallCopy.planDetail(weekly: "$0.77", offer: freeTrial()),
                        "$0.77 per week · 3-day free trial")
+    }
+
+    // ── The yearly badge ──────────────────────────────────────────────────
+
+    /// With monthly preselected, the badge is the only part of the screen
+    /// that names the trial, so a free trial takes it over the saving.
+    func test_yearlyBadge_namesAFreeTrialOverTheSaving() {
+        XCTAssertEqual(PaywallCopy.yearlyBadge(offer: freeTrial(), savingsPercent: 33),
+                       "3-DAY FREE TRIAL")
+        XCTAssertEqual(PaywallCopy.yearlyBadge(offer: freeTrial(1, "week"), savingsPercent: 33),
+                       "1-WEEK FREE TRIAL")
+    }
+
+    /// No trial for this account (StoreKit gives no offer) or a paid one:
+    /// the saving, as before, or "BEST VALUE" when there is none to show.
+    func test_yearlyBadge_fallsBackToTheSavingThenBestValue() {
+        XCTAssertEqual(PaywallCopy.yearlyBadge(offer: nil, savingsPercent: 33), "SAVE 33%")
+        XCTAssertEqual(PaywallCopy.yearlyBadge(offer: payUpFront(), savingsPercent: 33), "SAVE 33%")
+        XCTAssertEqual(PaywallCopy.yearlyBadge(offer: nil, savingsPercent: nil), "BEST VALUE")
+    }
+
+    /// The card does not say the trial twice; a paid offer, which the badge
+    /// does not carry, stays in the detail line.
+    func test_yearlyDetail_leavesTheTrialToTheBadge() {
+        XCTAssertEqual(PaywallCopy.yearlyDetail(weekly: "$0.77", offer: freeTrial()),
+                       "$0.77 per week")
+        XCTAssertEqual(PaywallCopy.yearlyDetail(weekly: "$0.77", offer: payUpFront()),
+                       PaywallCopy.planDetail(weekly: "$0.77", offer: payUpFront()))
+        XCTAssertEqual(PaywallCopy.yearlyDetail(weekly: "$0.77", offer: nil), "$0.77 per week")
     }
 
     // ── Partial fetch copy ────────────────────────────────────────────────
