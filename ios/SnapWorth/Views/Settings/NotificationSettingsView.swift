@@ -13,6 +13,7 @@ struct NotificationSettingsView: View {
     @State private var ledgerOn = NotificationManager.shared.isEnabled(.ledger)
     @State private var trialOn  = NotificationManager.shared.isEnabled(.trial)
     @State private var portfolioOn = NotificationManager.shared.isEnabled(.portfolio)
+    @State private var priceDropOn = NotificationManager.shared.isEnabled(.priceDrop)
     @State private var freeScanOn = NotificationManager.shared.isEnabled(.freeScan)
     @State private var freeScanTime: Date = {
         let t = NotificationManager.shared.freeScanReminderTime
@@ -29,7 +30,7 @@ struct NotificationSettingsView: View {
                 Section {
                     Button {
                         Task {
-                            let allowed = await NotificationManager.shared.requestAuthorizationIfNeeded()
+                            let allowed = await NotificationManager.shared.requestAuthorizationIfNeeded(source: .settings)
                             await refreshSystemState()
                             if allowed, freeScanOn { resyncFreeScan() }
                         }
@@ -79,6 +80,17 @@ struct NotificationSettingsView: View {
                 }
             }
 
+            // The free-scan section's counterpart: shown only where it can fire.
+            if isPro {
+                Section {
+                    toggle("Price-drop nudges", "arrow.down.circle", $priceDropOn, .priceDrop)
+                } header: {
+                    Text("Pro")
+                } footer: {
+                    Text("When something has been listed for 30 days without selling, one nudge that a lower price could help it go.")
+                }
+            }
+
             Section {
                 toggle("Weekly portfolio", "bag", $portfolioOn, .portfolio)
                 toggle("Monthly recap", "chart.bar.doc.horizontal", $recapOn, .recap)
@@ -87,7 +99,7 @@ struct NotificationSettingsView: View {
             } header: {
                 Text("Notifications")
             } footer: {
-                Text("Occasional, functional reminders only — a monthly recap, a nudge to update your ledger, and a heads-up before a free trial ends. We never send promotional notifications.")
+                Text("Occasional, functional reminders only — a monthly recap, a nudge to update your ledger, and during a free trial one tip on what it includes and a heads-up before it ends. We never send promotional notifications.")
             }
         }
         .scrollContentBackground(.hidden)
@@ -147,7 +159,7 @@ struct NotificationSettingsView: View {
             // asked again by anything in the app: every toggle here wrote a
             // preference that `add()` then ignored, silently, forever.
             Task {
-                let allowed = await NotificationManager.shared.requestAuthorizationIfNeeded()
+                let allowed = await NotificationManager.shared.requestAuthorizationIfNeeded(source: .settings)
                 await refreshSystemState()
                 if allowed, category == .freeScan { resyncFreeScan() }
             }

@@ -7,6 +7,9 @@ import SwiftData
 extension Notification.Name {
     static let snapOpenFlips    = Notification.Name("snapOpenFlips")
     static let snapOpenSettings = Notification.Name("snapOpenSettings")
+    /// The trial tip's two destinations, on the Scan tab (`TrialTip`).
+    static let snapOpenHaul     = Notification.Name("snapOpenHaul")
+    static let snapOpenRack     = Notification.Name("snapOpenRack")
 }
 
 /// The single entry point for all local notifications. Centralizing scheduling
@@ -22,8 +25,10 @@ extension Notification.Name {
 /// |----------|-------------------------------------------|-----------------------|
 /// | recap    | ≥3 scans this month → 1st of next mo 10:00 | `recap.monthly`       |
 /// | ledger   | item marked *listed* → +14 days 10:00      | `ledger.day.<yyyymmdd>` (coalesced per fire-day) |
+/// | priceDrop | Pro: listed 30 days, no sale → 10:00      | `priceDrop.<n>` (rebuilt each sync) |
 /// | portfolio | next 4 Sundays 11:00                      | `portfolio.weekly.<n>` (a ladder) |
 /// | trial    | ≥24h before trial end, 09:00–21:00 local   | `trial.ending`        |
+/// | trial    | 18:00 the day before that warning (a tip)  | `trial.tip`           |
 /// | freeScan | opt-in; the user's hour, once the UTC allowance is back | `freeScan.daily.<yyyymmdd>` (a ladder) |
 ///
 /// Recap/trial use fixed identifiers so re-scheduling replaces rather than
@@ -41,14 +46,19 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
     enum Category: String, CaseIterable {
         case trial      // highest priority for the daily cap
         case ledger
+        case priceDrop
         case portfolio
         case freeScan
         case recap      // lowest
 
         var priority: Int {
             switch self {
-            case .trial:     return 5
-            case .ledger:    return 4
+            case .trial:     return 6
+            case .ledger:    return 5
+            // A Pro listing that has sat for a month: below "did it sell?",
+            // which is about the same items and more urgent, and above the
+            // weekly digest, which comes back next Sunday anyway.
+            case .priceDrop: return 4
             // Above the monthly recap, below anything time-critical: this is a
             // weekly habit nudge, so losing one to a trial warning costs
             // nothing, but it should outrank a once-a-month summary.
@@ -74,6 +84,12 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
     private static let recapID = "recap.monthly"
     // The weekly digest is a ladder too — see `portfolioIDs`.
     private static let trialID = "trial.ending"
+    /// The tip during a trial (`TrialTip`). Category `trial`, so it shares the
+    /// trial toggle; `dailyCapPriority` ranks it below everything else.
+    nonisolated private static let trialTipID = "trial.tip"
+    /// What `notification_scheduled` and `notification_opened` call the tip,
+    /// so it is not counted as the end-of-trial warning.
+    nonisolated static let trialTipEventName = "trialTip"
     // Prefix == Category.freeScan.rawValue: `category(fromID:)` relies on it.
     //
     // Retained as the *legacy* identifier. A build before the ladder scheduled
@@ -198,11 +214,19 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
     /// Returns whether notifications can now be delivered, so the caller can
     /// show the "turn them on in iOS Settings" banner if the user declines the
     /// system alert here.
+    ///
+    /// Quiet delivery (`.provisional`, see `requestQuietDeliveryIfDeclined`)
+    /// counts as not yet asked here. It was granted without the user seeing
+    /// anything, and switching a reminder on is asking for the kind that
+    /// shows on the Lock Screen, so this is when iOS puts up its alert.
     @discardableResult
-    func requestAuthorizationIfNeeded() async -> Bool {
-        guard await needsAuthorizationRequest() else { return await isAuthorized() }
+    func requestAuthorizationIfNeeded(source: NotificationAskSource) async -> Bool {
+        let status = await authorizationStatus()
+        guard status == .notDetermined || status == .provisional else { return await isAuthorized() }
         primingShown = true          // iOS has now been asked; never prime again
-        return (try? await center.requestAuthorization(options: [.alert, .sound, .badge])) ?? false
+        let granted = (try? await center.requestAuthorization(options: [.alert, .sound, .badge])) ?? false
+        Analytics.shared.track(.notificationPermissionAnswered(granted: granted, source: source))
+        return granted
     }
 
     // MARK: - Authorization & priming
@@ -235,12 +259,63 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
     /// eligible so a mid-session grant doesn't wait for the next trigger.
     func enableFromPriming(context: ModelContext, purchaseService: any PurchaseService) async {
         primingShown = true
+        Analytics.shared.track(.notificationPrimingAnswered(accepted: true))
         let granted = (try? await center.requestAuthorization(options: [.alert, .sound, .badge])) ?? false
+        Analytics.shared.track(.notificationPermissionAnswered(granted: granted, source: .priming))
         if granted { await syncEligible(context: context, purchaseService: purchaseService) }
     }
 
     /// User declined the in-app priming — record it and never nag again.
-    func declinePriming() { primingShown = true }
+    /// The next foreground sync asks iOS for quiet delivery instead, which
+    /// shows no alert (`requestQuietDeliveryIfDeclined`).
+    func declinePriming() {
+        primingShown = true
+        Analytics.shared.track(.notificationPrimingAnswered(accepted: false))
+    }
+
+    /// After "Not now", ask iOS for provisional authorization.
+    ///
+    /// It puts up no alert and is granted at once. What it allows is quiet
+    /// delivery: no sound, no banner, no Lock Screen, only Notification
+    /// Centre, where iOS asks the user under the first one whether to keep
+    /// getting them. Before this, "Not now" left the status `.notDetermined`
+    /// for good unless the user went to Settings, so nothing the app scheduled
+    /// was ever delivered to most installs — including the heads-up before a
+    /// trial charge.
+    ///
+    /// Only after "Not now": an install that has not reached its first result
+    /// still gets the priming alert, which can earn the prominent kind.
+    private func requestQuietDeliveryIfDeclined() async {
+        guard primingShown, await authorizationStatus() == .notDetermined else { return }
+        let granted = (try? await center.requestAuthorization(
+            options: [.alert, .sound, .badge, .provisional])) ?? false
+        Analytics.shared.track(.notificationPermissionAnswered(granted: granted, source: .quiet))
+    }
+
+    /// `notification_status`, at most once per local day. Users per status
+    /// over a week is the opt-in rate, which nothing measured before: the
+    /// scheduling events say what was queued, not who could receive it.
+    private static let statusReportedDayKey = "notif_status_reported_day"
+
+    private func reportStatusOncePerDay(now: Date = Date()) async {
+        let day = Self.dayKey(now)
+        guard UserDefaults.standard.string(forKey: Self.statusReportedDayKey) != day else { return }
+        UserDefaults.standard.set(day, forKey: Self.statusReportedDayKey)
+        Analytics.shared.track(.notificationStatus(
+            status: Self.statusName(await authorizationStatus())))
+    }
+
+    /// A closed set for the event, so an SDK addition cannot open it.
+    nonisolated static func statusName(_ status: UNAuthorizationStatus) -> String {
+        switch status {
+        case .notDetermined: return "not_determined"
+        case .denied:        return "denied"
+        case .authorized:    return "authorized"
+        case .provisional:   return "provisional"
+        case .ephemeral:     return "ephemeral"
+        @unknown default:    return "unknown"
+        }
+    }
 
     func registerAsDelegate() { center.delegate = self }
 
@@ -405,6 +480,11 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
     /// Cancel an item's follow-up (marked sold / deleted). Reschedules or removes
     /// the shared day notification so no orphaned reminder survives.
     func cancelLedgerFollowUp(itemID: UUID) async {
+        // The price-drop nudges are rebuilt from the library on the next
+        // foreground; until then none may fire for an item that just sold,
+        // went back to Owned, or was deleted. Every such change comes through
+        // here.
+        cancel(.priceDrop)
         var buckets = ledgerBuckets()
         var affectedDays: [String] = []
         for (day, items) in buckets where items.contains(itemID.uuidString) {
@@ -419,6 +499,11 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
     }
 
     /// Remove every ledger follow-up (e.g. "clear history").
+    /// Every pending price-drop nudge, for "Delete all", which leaves the app
+    /// in the foreground: the next sync that would rebuild them from an empty
+    /// library may be days away.
+    func cancelPriceDrops() { cancel(.priceDrop) }
+
     func cancelAllLedger() {
         let ids = ledgerBuckets().keys.map(Self.ledgerDayID)
         if !ids.isEmpty { center.removePendingNotificationRequests(withIdentifiers: ids) }
@@ -453,11 +538,49 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
               let endDate,
               let fireDate = Self.trialReminderFireDate(endDate: endDate, now: Date())
         else {
-            center.removePendingNotificationRequests(withIdentifiers: [id])
+            center.removePendingNotificationRequests(withIdentifiers: [id, Self.trialTipID])
             return
         }
         await add(id: id, category: .trial, fireDate: fireDate,
                   body: Self.trialBody(fireDate: fireDate, endDate: endDate))
+        await syncTrialTip(endDate: endDate)
+    }
+
+    /// One tip during the trial, about a Pro feature the user has not opened
+    /// yet. A trial that ends without the user finding what it unlocked is
+    /// the likeliest one to be cancelled, and the result screen shows only
+    /// the single-item scan.
+    ///
+    /// It names a feature the trial already includes, never a price or an
+    /// upgrade — guideline 4.5.4 needs a separate opt-in for promotional
+    /// notifications, and this is the trial's own content. No tip once Haul
+    /// and Rack have both been opened.
+    private func syncTrialTip(endDate: Date) async {
+        guard let tip = TrialTip.next(),
+              let fireDate = Self.trialTipDate(endDate: endDate, now: Date())
+        else {
+            center.removePendingNotificationRequests(withIdentifiers: [Self.trialTipID])
+            return
+        }
+        await add(id: Self.trialTipID, category: .trial, fireDate: fireDate,
+                  body: tip.body, route: tip.rawValue)
+    }
+
+    /// 18:00 on the day before the end-of-trial warning's day, while that is
+    /// still ahead. Anchored to the warning rather than to a trial length the
+    /// app is never told — StoreKit gives the end date only — and on a day of
+    /// its own by construction, so the two never arrive together. For the
+    /// three-day trial that is the evening of its first or second day.
+    ///
+    /// Pure, and takes its calendar, for the tests.
+    nonisolated static func trialTipDate(endDate: Date, now: Date,
+                                         calendar: Calendar = .current) -> Date? {
+        guard let warning = trialReminderDate(endDate: endDate, calendar: calendar),
+              let dayBefore = calendar.date(byAdding: .day, value: -1, to: warning),
+              let tip = calendar.date(bySettingHour: 18, minute: 0, second: 0, of: dayBefore),
+              tip > now
+        else { return nil }
+        return tip
     }
 
     /// The latest moment between 09:00 and 21:00 local that is still at least
@@ -697,7 +820,7 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
     func optInToFreeScanReminder(source: ReminderOptInSource, context: ModelContext,
                                  purchaseService: any PurchaseService) async -> Bool {
         switchOnFreeScanReminder(source: source)
-        guard await requestAuthorizationIfNeeded() else { return false }
+        guard await requestAuthorizationIfNeeded(source: NotificationAskSource(source)) else { return false }
         await syncEligible(context: context, purchaseService: purchaseService)
         return true
     }
@@ -741,6 +864,9 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
     /// Rebuilds all schedules from current state. Safe to call repeatedly —
     /// every scheduler here is idempotent.
     func syncEligible(context: ModelContext, purchaseService: any PurchaseService) async {
+        await requestQuietDeliveryIfDeclined()
+        await reportStatusOncePerDay()
+
         let all = (try? context.fetch(FetchDescriptor<ScanResult>())) ?? []
 
         let monthCount = all.filter {
@@ -755,11 +881,85 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
 
         await schedulePortfolioDigest(results: all)
 
+        await syncPriceDrops(results: all, isPro: purchaseService.isSubscribed)
+
         await syncTrialReminder(endDate: purchaseService.trialEndDate)
 
         await syncFreeScanReminder(isPro: purchaseService.isSubscribed,
                                    lastScan: ScanStreak.lastScan,
                                    streak: ScanStreak.current())
+    }
+
+    // MARK: - Price-drop nudge (Pro)
+
+    /// How long a listing sits before the nudge. Past the 14-day "did it
+    /// sell?" follow-up, so the two are never about the same day.
+    nonisolated static var priceDropAfterDays: Int { 30 }
+
+    /// How many upcoming days are scheduled at a time. Each sync rebuilds them
+    /// from the library, so this only bounds what a user who stops opening the
+    /// app can receive.
+    nonisolated static var priceDropRungs: Int { 4 }
+
+    /// Prefix == Category.priceDrop.rawValue: `category(fromID:)` relies on it.
+    nonisolated static func priceDropID(rung: Int) -> String { "priceDrop.\(rung)" }
+
+    nonisolated static var priceDropIDs: [String] {
+        (0..<priceDropRungs).map(priceDropID(rung:))
+    }
+
+    /// A listing the nudge is about: its name and when it went up.
+    struct Listing: Equatable {
+        let name: String
+        let listedDate: Date
+    }
+
+    /// One notification per day that has listings turning 30 days old, soonest
+    /// first, at 10:00 local like the ledger follow-up. One listing is named;
+    /// several on the same day share a sentence. A listing already past the
+    /// mark is not nudged: nothing would ever stop it being re-nudged on
+    /// every foreground.
+    ///
+    /// Pure, and takes its calendar, for the tests.
+    nonisolated static func priceDropSchedule(for listings: [Listing], now: Date,
+                                              calendar: Calendar = .current)
+        -> [(fireDate: Date, body: String)] {
+        var byDay: [Date: [String]] = [:]
+        for listing in listings {
+            guard let due = calendar.date(byAdding: .day, value: priceDropAfterDays,
+                                          to: listing.listedDate),
+                  let fire = calendar.date(bySettingHour: 10, minute: 0, second: 0, of: due),
+                  fire > now
+            else { continue }
+            byDay[fire, default: []].append(listing.name)
+        }
+        var schedule: [(fireDate: Date, body: String)] = []
+        for fire in byDay.keys.sorted().prefix(priceDropRungs) {
+            schedule.append((fireDate: fire, body: priceDropBody(names: byDay[fire] ?? [])))
+        }
+        return schedule
+    }
+
+    nonisolated static func priceDropBody(names: [String]) -> String {
+        if names.count == 1, let name = names.first {
+            return String(localized: "\(name) has been listed for 30 days. A small price drop could help it sell.")
+        }
+        return String(localized: "Some of your listings have been up for 30 days. A small price drop could help them sell.")
+    }
+
+    /// Rebuilds the nudges from what is listed now. Pro only: it is part of
+    /// what the subscription keeps doing for a reseller between scans.
+    func syncPriceDrops(results: [ScanResult], isPro: Bool, now: Date = Date()) async {
+        cancel(.priceDrop)
+        guard isPro, isEnabled(.priceDrop) else { return }
+        let listings = results.filter { $0.status == .listed }.map {
+            Listing(name: $0.itemName, listedDate: $0.listedDate ?? $0.timestamp)
+        }
+        for (rung, entry) in Self.priceDropSchedule(for: listings, now: now).enumerated() {
+            // One event per sync, not one per rung, as the other ladders do.
+            await add(id: Self.priceDropID(rung: rung), category: .priceDrop,
+                      fireDate: entry.fireDate, body: entry.body, track: rung == 0)
+        }
     }
 
     // MARK: - Weekly portfolio nudge
@@ -911,7 +1111,9 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
         switch category {
         case .recap: center.removePendingNotificationRequests(withIdentifiers: [Self.recapID])
         case .portfolio: center.removePendingNotificationRequests(withIdentifiers: Self.portfolioIDs)
-        case .trial: center.removePendingNotificationRequests(withIdentifiers: [Self.trialID])
+        case .priceDrop: center.removePendingNotificationRequests(withIdentifiers: Self.priceDropIDs)
+        case .trial:
+            center.removePendingNotificationRequests(withIdentifiers: [Self.trialID, Self.trialTipID])
         case .freeScan:
             center.removePendingNotificationRequests(
                 withIdentifiers: Self.freeScanIDs(around: Date()))
@@ -950,19 +1152,19 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
     /// added to stop.
     @discardableResult
     private func add(id: String, category: Category, fireDate: Date, body: String,
-                     track: Bool = true) async -> Bool {
+                     track: Bool = true, route: String? = nil) async -> Bool {
         let previous = scheduling
         let mine = Task { @MainActor () -> Bool in
             _ = await previous?.value
             return await self.schedule(id: id, category: category, fireDate: fireDate,
-                                       body: body, track: track)
+                                       body: body, track: track, route: route)
         }
         scheduling = mine
         return await mine.value
     }
 
     private func schedule(id: String, category: Category, fireDate: Date, body: String,
-                          track: Bool) async -> Bool {
+                          track: Bool, route: String?) async -> Bool {
         guard isEnabled(category) else { return false }
         // A fire date in the past is not a reminder. `syncEligible` runs on
         // every foreground and re-schedules the ledger follow-up for every
@@ -995,7 +1197,11 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
         content.title = "SnapWorth"
         content.body = body
         content.sound = .default
-        content.userInfo = ["category": category.rawValue]
+        var info: [String: String] = ["category": category.rawValue]
+        // Where a tap goes when the category alone does not say (the trial
+        // tip names the feature it opens).
+        if let route { info["route"] = route }
+        content.userInfo = info
 
         let trigger = UNCalendarNotificationTrigger(
             dateMatching: Self.triggerComponents(for: category, fireDate: fireDate),
@@ -1005,7 +1211,8 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
         do {
             try await center.add(request)   // same identifier replaces any pending
             if track {
-                Analytics.shared.track(.notificationScheduled(category: category.rawValue))
+                Analytics.shared.track(.notificationScheduled(
+                    category: id == Self.trialTipID ? Self.trialTipEventName : category.rawValue))
             }
             return true
         } catch {
@@ -1031,7 +1238,7 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
     nonisolated static func isAnchoredToAnInstant(_ category: Category) -> Bool {
         switch category {
         case .trial:                              return true
-        case .recap, .ledger, .portfolio, .freeScan: return false
+        case .recap, .ledger, .priceDrop, .portfolio, .freeScan: return false
         }
     }
 
@@ -1066,6 +1273,7 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
         let cal = Calendar.current
         let pending = await center.pendingNotificationRequests()
         var toEvict: [String] = []
+        let mine = Self.dailyCapPriority(id: ownID, category: category)
 
         for req in pending where req.identifier != ownID {
             guard let trigger = req.trigger as? UNCalendarNotificationTrigger,
@@ -1074,7 +1282,7 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
             guard let otherCategory = Self.category(fromID: req.identifier),
                   otherCategory != category else { continue }
 
-            if category.priority > otherCategory.priority {
+            if mine > Self.dailyCapPriority(id: req.identifier, category: otherCategory) {
                 toEvict.append(req.identifier)
             } else {
                 return false   // a same/higher-priority notification owns that day
@@ -1083,6 +1291,14 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
 
         if !toEvict.isEmpty { center.removePendingNotificationRequests(withIdentifiers: toEvict) }
         return true
+    }
+
+    /// The category's priority, except for the trial tip, which ranks under
+    /// everything: it shares the trial's category for the toggle, and the
+    /// trial's priority is the highest so that a charge warning always gets
+    /// its day. A tip should give its day to anything functional instead.
+    nonisolated static func dailyCapPriority(id: String, category: Category) -> Int {
+        id == trialTipID ? 0 : category.priority
     }
 
     // MARK: - UNUserNotificationCenterDelegate (deep links)
@@ -1117,23 +1333,31 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
         didReceive response: UNNotificationResponse,
         withCompletionHandler completionHandler: @escaping () -> Void
     ) {
-        let category = response.notification.request.content.userInfo["category"] as? String
+        let info = response.notification.request.content.userInfo
+        let category = info["category"] as? String
+        let route = info["route"] as? String
         Task { @MainActor in
-            self.handleOpen(category)
+            self.handleOpen(category, route: route)
             completionHandler()
         }
     }
 
-    private func handleOpen(_ categoryRaw: String?) {
+    private func handleOpen(_ categoryRaw: String?, route: String?) {
         guard let categoryRaw, let category = Category(rawValue: categoryRaw) else { return }
-        Analytics.shared.track(.notificationOpened(category: categoryRaw))
+        let tip = route.flatMap(TrialTip.init(rawValue:))
+        Analytics.shared.track(.notificationOpened(
+            category: tip == nil ? categoryRaw : Self.trialTipEventName))
+        if let tip {
+            SnapWorthApp.open(tip.destination)
+            return
+        }
         // Through `SnapWorthApp.open`, which first clears anything presented
         // over the tab bar, so the destination is not left hidden behind it.
         switch category {
         case .recap:
             markRecapViewed()
             SnapWorthApp.open(.snapOpenFlips)
-        case .ledger:
+        case .ledger, .priceDrop:
             SnapWorthApp.open(.snapOpenFlips)
         case .trial:
             SnapWorthApp.open(.snapOpenSettings)
@@ -1231,5 +1455,46 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
         f.locale = .current
         f.setLocalizedDateFormatFromTemplate("MMMM")
         return f.string(from: date)
+    }
+}
+
+// MARK: - Trial tip
+
+/// The Pro feature the trial tip points to: the first of these the user has
+/// not opened. Both are on the Scan tab, behind a button a new subscriber has
+/// no reason to try before they know what it does.
+enum TrialTip: String, CaseIterable {
+    case haul
+    case rack
+
+    /// Set the first time the feature opens, by anyone. A user who opened it
+    /// before the trial needs no tip about it during one.
+    var openedKey: String { "pro_feature_opened_\(rawValue)" }
+
+    static func markOpened(_ tip: TrialTip, defaults: UserDefaults = .standard) {
+        defaults.set(true, forKey: tip.openedKey)
+    }
+
+    /// The first feature not yet opened, or nil when all have been.
+    static func next(defaults: UserDefaults = .standard) -> TrialTip? {
+        allCases.first { !defaults.bool(forKey: $0.openedKey) }
+    }
+
+    var body: String {
+        switch self {
+        case .haul:
+            return String(localized: "Your trial includes Haul mode: snap item after item and watch the total add up.")
+        case .rack:
+            return String(localized: "Your trial includes Rack scan: one photo of a rail, and SnapWorth picks out what's worth a closer look.")
+        }
+    }
+
+    /// Where a tap on the tip goes. `ScanView` opens the feature, or its
+    /// paywall if the trial has ended by then.
+    var destination: Notification.Name {
+        switch self {
+        case .haul: return .snapOpenHaul
+        case .rack: return .snapOpenRack
+        }
     }
 }

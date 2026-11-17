@@ -131,13 +131,36 @@ struct ResultValueCard: View {
     let focus: FocusState<ResultView.Field?>.Binding
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.openURL) private var openURL
     @State private var rates: ExchangeRateTable?
 
     var body: some View {
         if covered {
             coveredValueCard
         } else {
-            revealedValueCard
+            VStack(spacing: 6) {
+                revealedValueCard
+                soldListingsLink
+            }
+        }
+    }
+
+    /// Under the card rather than in it: the card is one VoiceOver element
+    /// with its children ignored, which would hide a link inside it.
+    @ViewBuilder
+    private var soldListingsLink: some View {
+        if let url = SoldListingsSearch.url(itemName: result.itemName, brand: result.brand) {
+            Button {
+                Analytics.shared.track(.soldListingsOpened)
+                openURL(url)
+            } label: {
+                Label("Check sold prices on eBay", systemImage: "arrow.up.right.square")
+                    .font(.snapLabel)
+                    .foregroundStyle(Color.snapTerracottaText)
+            }
+            .buttonStyle(.plain)
+            .snapHitTarget()
+            .accessibilityHint("Opens eBay's sold listings for items like this one")
         }
     }
 

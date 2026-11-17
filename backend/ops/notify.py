@@ -227,6 +227,7 @@ COMMANDS: tuple[tuple[str, str], ...] = (
     ("lever", "Arm or disarm the free-scan allowance without a redeploy"),
     ("paywall", "28 days: trial starts and direct purchases per paywall, trial → paid"),
     ("revenue", "MRR over time, and each month's payments, refunds and churn"),
+    ("votes", "The in-app vote: what users want added next"),
     ("lifetime", "Totals since launch: scans, users, trials, paid, Gemini spend, revenue"),
     ("trials", "Every trial of 30 days: paid, cancelled (after how long), card failed, scans used"),
     ("minbuild", "Tell app builds below a number to update, without a redeploy"),
@@ -427,6 +428,54 @@ def paywall_viewed(subject: str, trigger: str) -> None:
     if _cache is None or not subject or trigger not in opsstats.PAYWALL_TRIGGERS:
         return
     _spawn(_note_paywall_view(subject, trigger))
+
+
+async def _note_feature_vote(subject: str, round_: str, choice: str) -> None:
+    try:
+        # Once per device per round: a retry or a replayed request is still
+        # one answer. A reinstall is a new device key and can vote again,
+        # which the app's own once-per-install marker cannot prevent either.
+        who = auditlog.pseudonymise(subject)
+        if await _cache.add(f"opsseen:vote:{round_}:{who}", "1", opsstats.FEATURE_VOTE_TTL):
+            await _cache.incr(opsstats.feature_vote_key(round_, choice),
+                              opsstats.FEATURE_VOTE_TTL)
+    except Exception as exc:
+        log.debug("feature vote note failed: %s", type(exc).__name__)
+
+
+def feature_voted(subject: str, round_: str, choice: str) -> None:
+    """Count one device's answer to the in-app vote. Fire-and-forget.
+
+    The route has already refused an unknown round or choice; checked again
+    here so nothing else can mint a counter name."""
+    if (_cache is None or not subject or round_ != opsstats.FEATURE_VOTE_ROUND
+            or choice not in opsstats.FEATURE_VOTE_CHOICES):
+        return
+    _spawn(_note_feature_vote(subject, round_, choice))
+
+
+VOTE_LABELS = {
+    "sold_prices": "Real sold prices next to the estimate",
+    "shipping": "Shipping costs in profit",
+    "ebay_post": "Post the listing straight to eBay",
+    "barcode": "Barcode scanning (books, games, DVDs)",
+    "other": "Something else (opens the feedback form)",
+}
+
+
+async def _votes_text() -> str:
+    tallies = await opsstats.feature_vote_tallies()
+    total = sum(tallies.values())
+    lines = [f"<b>🗳 What should SnapWorth add next?</b> (round {opsstats.FEATURE_VOTE_ROUND})"]
+    if total == 0:
+        lines.append("No votes yet. The card shows in My Finds from the third find, "
+                     "on builds after 1.8.2 (34).")
+        return "\n".join(lines)
+    for choice, count in sorted(tallies.items(), key=lambda kv: (-kv[1], kv[0])):
+        share = round(100 * count / total)
+        lines.append(f"{count:>4}  {share:>3}%  {html.escape(VOTE_LABELS.get(choice, choice))}")
+    lines.append(f"\n{total} device{'s' if total != 1 else ''} voted, one vote each.")
+    return "\n".join(lines)
 
 
 # The ways a scan that reached the model can still fail the user. They are
@@ -1669,6 +1718,8 @@ async def handle_command_with_buttons(text: str) -> tuple[str, opsformat.Buttons
                 await _buttons())
     if command == "/week":
         return await _weekly_text(datetime.now(timezone.utc)), await _buttons()
+    if command == "/votes":
+        return await _votes_text(), await _buttons()
     if command == "/feed":
         return await _feed_command(argument), await _buttons()
     if command == "/subs":

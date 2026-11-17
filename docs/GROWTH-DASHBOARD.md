@@ -133,6 +133,10 @@ The launch funnel the enum documents (`Analytics.swift:11-14`) also has
 | Day-1 return | **Not an app event.** TelemetryDeck's retention over the SDK's own `TelemetryDeck.Session.started`, which it sends at launch and on every return to the foreground (`TelemetryDeckAnalytics.swift`). Users whose `TelemetryDeck.Acquisition.firstSessionDate` falls on day D, and who start a session on D+1. `app_opened` would undercount: it fires on a cold launch only (`AnalyticsBootstrap.start`) | The SDK, pinned at 2.14.1 since `4c483cc`: every build ≤ 1.1.0 (1) | TelemetryDeck retention |
 | Paywall to purchase, by trigger | `paywall_viewed` against `purchase_completed`, both split by `trigger`: `onboarding`, `scan_limit`, `upgrade_button`, `settings`, `ledger_history`, `ledger_export`, `snap_sell`, `portfolio_trend`, `valuation_detail`, `trends`, `add_tag`, and `haul` from 1.5.1. From the first build after 1.8.2 (34), `first_result` (the Pro card on a free user's first result, counted when tapped) replaces `onboarding` (a full-screen paywall that opened by itself), so the two are not one series | `paywall_viewed{trigger}` ≤ 1.1.0 (1). `purchase_completed{trigger}` from 1.5.1 (21) (`f1d6b7f`, #239, "S"). On 1.5.0, `paywall_viewed{trigger}` minus `paywall_dismissed{trigger}` (≤ 1.4.2 (18)) approximates purchases per trigger, because a purchase closes the paywall without `paywall_dismissed`. It is an upper bound: a paywall closed by killing the app counts too | TelemetryDeck |
 | Return loop (S) | `reminder_opt_in` by `source`: `scan_spent` (the "Remind me" beside the next free scan) or `settings`. Then `notification_scheduled` and `notification_opened` with `category` = `freeScan` | `reminder_opt_in` from 1.5.1 (21) (`65e04c7`, #239). The two notification events with `category=freeScan` ≤ 1.3.5 (12) | TelemetryDeck |
+| Notification opt-in | `notification_status` by `status` (`authorized`, `provisional`, `denied`, `not_determined`, `ephemeral`), users per week: sent at most once a day per device, on foreground, so users per status is the share who can receive anything. `provisional` is quiet delivery, asked for without an alert after "Not now". The answers: `notification_priming_answered{accepted}` (the alert after the first result) and `notification_permission_answered{granted, source}` with `source` = `priming`, `settings`, `scan_spent` or `quiet` | The first build after 1.8.2 (34). Before it nothing measured opt-in | TelemetryDeck |
+| Trial tip | `notification_scheduled` and `notification_opened` with `category` = `trialTip`: one notification during a trial naming Haul, or Rack scan once Haul has been opened. Read against `purchase_completed` for the trial's renewal | The first build after 1.8.2 (34) | TelemetryDeck |
+| Price-drop nudge (Pro) | `notification_scheduled` and `notification_opened` with `category` = `priceDrop`: a listing 30 days old with no sale. Read against `ledger_item_marked_sold` | The first build after 1.8.2 (34) | TelemetryDeck |
+| What to build next | The bot's `/votes`: one vote per device per round from My Finds' card, counted by the server (`POST /events/vote`). `feature_voted{choice}` and `feature_vote_dismissed` in TelemetryDeck give the answer rate against devices shown the card | The first build after 1.8.2 (34) | Bot, TelemetryDeck |
 
 ## Sharing loops
 
@@ -163,6 +167,7 @@ The leading half of each loop. The install half is in the
 | Listings copied | `listing_copied` by `marketplace`: `ebay`, `poshmark`, `mercari`, `depop`, `facebook`, `vinted`, `olx`, `xianyu`, `kleinanzeigen`, or `draft` for the plain draft on every result | 1.5.1 (21) (`b4f7820`, #193) | TelemetryDeck |
 | Listings shared | `listing_shared` by `marketplace`, completed shares | 1.5.1 (21) (`b4f7820`) | TelemetryDeck |
 | Marketplace opened | `marketplace_opened` by `marketplace` ("Open <marketplace>" under a listing) | 1.5.1 (21) (`b4f7820`) | TelemetryDeck |
+| Sold prices checked | `sold_listings_opened` (no parameters): "Check sold prices on eBay" under the estimate, which opens eBay's own sold-listings search for the item. Users per week against `scan_result_shown` is how often an estimate gets checked | The first build after 1.8.2 (34) | TelemetryDeck |
 | Widget opens | `widget_opened` by `source`: `quick_scan`, `haul`, `haul_scan`, `lock_haul`, `recent_finds`, `scans_left`, `month_profit`, `live_activity`, `dynamic_island`, `control`. From outside the widgets, sent by the app itself: `siri` (the "Value an item" App Shortcut, #412), `share` (a photo shared to SnapWorth, #410) and `visual_intelligence` (a tapped "Value this with SnapWorth" result, #412, iOS 26 and later). A free user's `visual_intelligence` open is followed by the paywall with `trigger=visual_intelligence`, since the feature is Pro | 1.5.1 (21) (`b4f7820`); the last three from the build that ships them | TelemetryDeck |
 | Widgets placed | `widgets_installed`, once a day per device: `count` (`0`, `1`, `2-3`, `4+`) and `kinds` (the placed widget kinds, comma-joined) | 1.5.1 (21) (`b4f7820`) | TelemetryDeck |
 | Listed, then sold | `ledger_item_marked_listed` against `ledger_item_marked_sold` | Listed from 1.5.1 (21) (`b4f7820`); sold ≤ 1.1.0 (1) | TelemetryDeck |
@@ -257,7 +262,10 @@ for e in onboarding_started onboarding_completed scan_started scan_result_shown 
          ledger_item_marked_listed ledger_item_marked_sold \
          review_prompt_requested entitlement_sync_failed legit_check_completed \
          rack_scan_completed rack_candidate_chosen daily_guess_played app_icon_changed \
-         wrapped_opened wrapped_shared offer_code_sheet_opened; do
+         wrapped_opened wrapped_shared offer_code_sheet_opened \
+         notification_status notification_priming_answered \
+         notification_permission_answered sold_listings_opened \
+         feature_voted feature_vote_dismissed; do
   grep -q "return \"$e\"" ios/SnapWorth/Services/Telemetry/Analytics.swift || echo "missing: $e"
 done
 ```

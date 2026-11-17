@@ -3776,7 +3776,7 @@ final class QuotaResetTests: XCTestCase {
         let optIn = try body(of: "func optInToFreeScanReminder",
                              in: source("SnapWorth/Services/System/NotificationManager.swift"))
         XCTAssertTrue(optIn.contains("switchOnFreeScanReminder(source: source)"))
-        XCTAssertTrue(optIn.contains("requestAuthorizationIfNeeded()"))
+        XCTAssertTrue(optIn.contains("requestAuthorizationIfNeeded(source:"))
         let switchOn = try body(of: "func switchOnFreeScanReminder",
                                 in: source("SnapWorth/Services/System/NotificationManager.swift"))
         XCTAssertTrue(switchOn.contains("setEnabled(.freeScan, true)"))
@@ -3823,7 +3823,7 @@ final class QuotaResetTests: XCTestCase {
     func test_theOptInSchedulesEverythingBeforeTheRowReadsItBack() throws {
         let optIn = try body(of: "func optInToFreeScanReminder",
                              in: source("SnapWorth/Services/System/NotificationManager.swift"))
-        let asked = try XCTUnwrap(optIn.range(of: "requestAuthorizationIfNeeded()"))
+        let asked = try XCTUnwrap(optIn.range(of: "requestAuthorizationIfNeeded(source:"))
         let synced = try XCTUnwrap(
             optIn.range(of: "syncEligible(context: context, purchaseService: purchaseService)"),
             "the ladder alone is built into an empty calendar after a first grant")
@@ -11656,5 +11656,308 @@ final class ServerDataDeletionTests: XCTestCase {
         XCTAssertTrue(rights.contains("Delete my server data in Settings"))
         XCTAssertTrue(rights.contains("We keep what stops a free allowance"),
                       "the policy must say what the button does not delete")
+    }
+}
+
+// MARK: - Trial tip, notification opt-in measurement, sold listings link
+
+@MainActor
+final class TrialTipTests: XCTestCase {
+    private var cal: Calendar = {
+        var c = Calendar(identifier: .gregorian)
+        c.timeZone = TimeZone(identifier: "UTC")!
+        return c
+    }()
+    private func at(_ day: Int, _ hour: Int, _ minute: Int = 0) -> Date {
+        cal.date(from: DateComponents(year: 2026, month: 11, day: day, hour: hour, minute: minute))!
+    }
+
+    /// A three-day trial started mid-morning: the warning is on its third
+    /// day, so the tip is the evening of its second.
+    func test_theTipIsTheEveningBeforeTheWarningsDay() {
+        let end = at(4, 10)
+        XCTAssertEqual(NotificationManager.trialReminderDate(endDate: end, calendar: cal), at(3, 10))
+        XCTAssertEqual(NotificationManager.trialTipDate(endDate: end, now: at(1, 10), calendar: cal),
+                       at(2, 18))
+    }
+
+    /// Started in the small hours, the warning moves to 21:00 the evening
+    /// before, so the tip moves a day earlier with it.
+    func test_aSmallHoursTrialMovesTheTipWithTheWarning() {
+        let end = at(4, 1, 40)
+        XCTAssertEqual(NotificationManager.trialReminderDate(endDate: end, calendar: cal), at(2, 21))
+        XCTAssertEqual(NotificationManager.trialTipDate(endDate: end, now: at(1, 1, 40), calendar: cal),
+                       at(1, 18))
+    }
+
+    func test_aTipThatHasPassedIsNotScheduled() {
+        XCTAssertNil(NotificationManager.trialTipDate(endDate: at(4, 10), now: at(2, 18, 1),
+                                                      calendar: cal))
+    }
+
+    /// Whatever minute the trial started, the tip comes after it, before the
+    /// warning, and on a day of its own.
+    func test_theTipNeverSharesADayWithTheWarning() {
+        for hour in 0..<24 {
+            for minute in [0, 29, 59] {
+                let start = at(1, hour, minute)
+                let end = cal.date(byAdding: .day, value: 3, to: start)!
+                guard let warning = NotificationManager.trialReminderDate(endDate: end, calendar: cal),
+                      let tip = NotificationManager.trialTipDate(endDate: end, now: start, calendar: cal)
+                else {
+                    // Only a trial started after 18:00 on the day before its
+                    // warning's day can miss its tip; none of these is one.
+                    return XCTFail("no tip for a trial started at \(hour):\(minute)")
+                }
+                XCTAssertGreaterThan(tip, start)
+                XCTAssertLessThan(tip, warning)
+                XCTAssertFalse(cal.isDate(tip, inSameDayAs: warning), "\(hour):\(minute)")
+            }
+        }
+    }
+
+    /// The tip shares the trial's toggle and category, but must not take the
+    /// one-a-day slot from anything functional.
+    func test_theTipRanksBelowEveryCategoryUnderTheDailyCap() {
+        let tip = NotificationManager.dailyCapPriority(id: "trial.tip", category: .trial)
+        for category in NotificationManager.Category.allCases {
+            XCTAssertLessThan(tip, category.priority, "\(category)")
+        }
+        XCTAssertEqual(NotificationManager.dailyCapPriority(id: "trial.ending", category: .trial),
+                       NotificationManager.Category.trial.priority)
+    }
+
+    func test_theTipNamesTheFirstFeatureNotYetOpened() throws {
+        let name = "TrialTipTests.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: name))
+        defer { defaults.removePersistentDomain(forName: name) }
+
+        XCTAssertEqual(TrialTip.next(defaults: defaults), .haul)
+        TrialTip.markOpened(.haul, defaults: defaults)
+        XCTAssertEqual(TrialTip.next(defaults: defaults), .rack)
+        TrialTip.markOpened(.rack, defaults: defaults)
+        XCTAssertNil(TrialTip.next(defaults: defaults))
+    }
+
+    /// 4.5.4: a notification that sells needs its own opt-in. The tip talks
+    /// about what the trial includes and nothing else.
+    func test_theTipNeverSells() {
+        for tip in TrialTip.allCases {
+            let body = tip.body.lowercased()
+            for word in ["upgrade", "subscribe", "$", "price", "offer", "discount", "pro"] {
+                XCTAssertFalse(body.contains(word), "\(tip) says \"\(word)\"")
+            }
+        }
+    }
+
+    func test_eachTipOpensItsOwnFeature() {
+        XCTAssertEqual(TrialTip.haul.destination, .snapOpenHaul)
+        XCTAssertEqual(TrialTip.rack.destination, .snapOpenRack)
+    }
+
+    /// Source-inspected: the routes are listened for, and every way into each
+    /// feature marks it opened.
+    func test_theRoutesAreWiredAndOpeningMarksTheFeature() throws {
+        let scan = try source("SnapWorth/Views/Scan/ScanView.swift")
+        XCTAssertTrue(scan.contains("publisher(for: .snapOpenHaul)"))
+        XCTAssertTrue(scan.contains("publisher(for: .snapOpenRack)"))
+        XCTAssertTrue(scan.contains("TrialTip.markOpened(.haul)"))
+        XCTAssertTrue(scan.contains("TrialTip.markOpened(.rack)"))
+        let tabs = try source("SnapWorth/Views/MainTabView.swift")
+        XCTAssertTrue(tabs.contains("publisher(for: .snapOpenHaul)"))
+        XCTAssertTrue(tabs.contains("publisher(for: .snapOpenRack)"))
+        let manager = try source("SnapWorth/Services/System/NotificationManager.swift")
+        XCTAssertTrue(manager.contains("await syncTrialTip(endDate: endDate)"))
+        XCTAssertTrue(manager.contains("[Self.trialID, Self.trialTipID]"),
+                      "switching trial reminders off must cancel the tip too")
+    }
+
+    private func source(_ path: String) throws -> String {
+        try String(contentsOf: URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent(path), encoding: .utf8)
+    }
+}
+
+final class NotificationOptInEventTests: XCTestCase {
+    func test_wireNamesAndParameters() {
+        XCTAssertEqual(AnalyticsEvent.notificationPrimingAnswered(accepted: false).name,
+                       "notification_priming_answered")
+        XCTAssertEqual(AnalyticsEvent.notificationPrimingAnswered(accepted: false).parameters,
+                       ["accepted": "false"])
+        let answered = AnalyticsEvent.notificationPermissionAnswered(granted: true, source: .quiet)
+        XCTAssertEqual(answered.name, "notification_permission_answered")
+        XCTAssertEqual(answered.parameters, ["granted": "true", "source": "quiet"])
+        XCTAssertEqual(AnalyticsEvent.notificationStatus(status: "provisional").name,
+                       "notification_status")
+        XCTAssertEqual(AnalyticsEvent.notificationStatus(status: "provisional").parameters,
+                       ["status": "provisional"])
+        XCTAssertEqual(AnalyticsEvent.soldListingsOpened.name, "sold_listings_opened")
+        XCTAssertEqual(AnalyticsEvent.soldListingsOpened.parameters, [:])
+    }
+
+    func test_statusNamesAreAClosedSet() {
+        XCTAssertEqual(NotificationManager.statusName(.notDetermined), "not_determined")
+        XCTAssertEqual(NotificationManager.statusName(.denied), "denied")
+        XCTAssertEqual(NotificationManager.statusName(.authorized), "authorized")
+        XCTAssertEqual(NotificationManager.statusName(.provisional), "provisional")
+        XCTAssertEqual(NotificationManager.statusName(.ephemeral), "ephemeral")
+    }
+
+    func test_anOptInIsReportedUnderTheSameSourceName() {
+        XCTAssertEqual(NotificationAskSource(ReminderOptInSource.scanSpent).rawValue,
+                       ReminderOptInSource.scanSpent.rawValue)
+        XCTAssertEqual(NotificationAskSource(ReminderOptInSource.settings).rawValue,
+                       ReminderOptInSource.settings.rawValue)
+    }
+}
+
+final class SoldListingsSearchTests: XCTestCase {
+    func test_theBrandLeadsUnlessTheNameCarriesIt() {
+        XCTAssertEqual(SoldListingsSearch.query(itemName: "501 jeans", brand: "Levi's"),
+                       "Levi's 501 jeans")
+        XCTAssertEqual(SoldListingsSearch.query(itemName: "Levi's 501 jeans", brand: "levi's"),
+                       "Levi's 501 jeans")
+    }
+
+    func test_anUnreadBrandIsNotSearchedFor() {
+        for brand in ["Unknown", "unbranded", "Generic", "", "  ", "N/A"] {
+            XCTAssertEqual(SoldListingsSearch.query(itemName: "wool coat", brand: brand), "wool coat",
+                           brand)
+        }
+    }
+
+    func test_whitespaceIsCollapsedAndNothingIsNil() {
+        XCTAssertEqual(SoldListingsSearch.query(itemName: "  Air  Max\n90 ", brand: "Nike"),
+                       "Nike Air Max 90")
+        XCTAssertNil(SoldListingsSearch.query(itemName: "   ", brand: "Unknown"))
+        XCTAssertNil(SoldListingsSearch.url(itemName: "", brand: ""))
+    }
+
+    func test_aLongNameIsCut() throws {
+        let query = try XCTUnwrap(SoldListingsSearch.query(
+            itemName: String(repeating: "word ", count: 40), brand: "Brand"))
+        XCTAssertLessThanOrEqual(query.count, SoldListingsSearch.maxQueryLength)
+        XCTAssertFalse(query.hasSuffix(" "))
+    }
+
+    func test_theURLIsEbaysSoldAndCompletedSearch() throws {
+        let url = try XCTUnwrap(SoldListingsSearch.url(itemName: "Air Max 90 & co", brand: "Nike"))
+        let parts = try XCTUnwrap(URLComponents(url: url, resolvingAgainstBaseURL: false))
+        XCTAssertEqual(parts.scheme, "https")
+        XCTAssertEqual(parts.host, "www.ebay.com")
+        XCTAssertEqual(parts.path, "/sch/i.html")
+        let items = Dictionary(uniqueKeysWithValues: (parts.queryItems ?? []).map { ($0.name, $0.value) })
+        XCTAssertEqual(items["_nkw"], "Nike Air Max 90 & co")
+        XCTAssertEqual(items["LH_Sold"], "1")
+        XCTAssertEqual(items["LH_Complete"], "1")
+    }
+}
+
+// MARK: - Price-drop nudge (Pro) and the in-app feature vote
+
+final class PriceDropNudgeTests: XCTestCase {
+    private var cal: Calendar = {
+        var c = Calendar(identifier: .gregorian)
+        c.timeZone = TimeZone(identifier: "UTC")!
+        return c
+    }()
+    private func at(_ month: Int, _ day: Int, _ hour: Int = 12) -> Date {
+        cal.date(from: DateComponents(year: 2026, month: month, day: day, hour: hour))!
+    }
+    private func listing(_ name: String, _ date: Date) -> NotificationManager.Listing {
+        NotificationManager.Listing(name: name, listedDate: date)
+    }
+
+    func test_aListingIsNudgedAtTenOnItsThirtiethDay() {
+        let schedule = NotificationManager.priceDropSchedule(
+            for: [listing("Levi's 501", at(11, 1, 15))], now: at(11, 2), calendar: cal)
+        XCTAssertEqual(schedule.map { $0.fireDate }, [at(12, 1, 10)])
+        XCTAssertEqual(schedule.first?.body,
+                       "Levi's 501 has been listed for 30 days. A small price drop could help it sell.")
+    }
+
+    func test_listingsDueTheSameDayShareOneNotification() {
+        let schedule = NotificationManager.priceDropSchedule(
+            for: [listing("A", at(11, 1, 9)), listing("B", at(11, 1, 20)), listing("C", at(11, 3))],
+            now: at(11, 2), calendar: cal)
+        XCTAssertEqual(schedule.map { $0.fireDate }, [at(12, 1, 10), at(12, 3, 10)])
+        XCTAssertEqual(schedule.first?.body,
+                       "Some of your listings have been up for 30 days. A small price drop could help them sell.")
+    }
+
+    /// Already past the mark: nothing, or every foreground would re-nudge it.
+    func test_aListingAlreadyPastTheMarkIsNotNudged() {
+        XCTAssertTrue(NotificationManager.priceDropSchedule(
+            for: [listing("Old", at(9, 1))], now: at(11, 17), calendar: cal).isEmpty)
+    }
+
+    func test_onlyTheNextFewDaysAreScheduled() {
+        let many = (1...10).map { listing("\($0)", at(11, $0)) }
+        let schedule = NotificationManager.priceDropSchedule(for: many, now: at(11, 1, 0), calendar: cal)
+        XCTAssertEqual(schedule.count, NotificationManager.priceDropRungs)
+        XCTAssertEqual(schedule.map { $0.fireDate }, schedule.map { $0.fireDate }.sorted())
+    }
+
+    func test_itRanksBetweenTheLedgerFollowUpAndTheDigest() {
+        XCTAssertLessThan(NotificationManager.Category.priceDrop.priority,
+                          NotificationManager.Category.ledger.priority)
+        XCTAssertGreaterThan(NotificationManager.Category.priceDrop.priority,
+                             NotificationManager.Category.portfolio.priority)
+        XCTAssertTrue(NotificationManager.priceDropIDs.allSatisfy { $0.hasPrefix("priceDrop.") })
+    }
+
+    /// Source-inspected: the nudge is Pro-only, rebuilt on every sync, and
+    /// cleared whenever an item leaves Listed.
+    func test_itIsProOnlyAndClearedWhenAnItemLeavesListed() throws {
+        let manager = try String(contentsOf: URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("SnapWorth/Services/System/NotificationManager.swift"),
+                                 encoding: .utf8)
+        XCTAssertTrue(manager.contains("guard isPro, isEnabled(.priceDrop) else { return }"))
+        XCTAssertTrue(manager.contains(
+            "await syncPriceDrops(results: all, isPro: purchaseService.isSubscribed)"))
+        let cancelLedger = try XCTUnwrap(manager.range(of: "func cancelLedgerFollowUp"))
+        let tail = manager[cancelLedger.upperBound...].prefix(600)
+        XCTAssertTrue(tail.contains("cancel(.priceDrop)"))
+    }
+}
+
+final class FeatureVoteTests: XCTestCase {
+    private var suite = ""
+    private var defaults: UserDefaults!
+
+    override func setUp() {
+        super.setUp()
+        suite = "FeatureVoteTests.\(UUID().uuidString)"
+        defaults = UserDefaults(suiteName: suite)
+    }
+
+    override func tearDown() {
+        defaults.removePersistentDomain(forName: suite)
+        super.tearDown()
+    }
+
+    func test_offeredFromTheThirdFindUntilAnswered() {
+        XCTAssertEqual(FeatureVote.initialState(findCount: 2, defaults: defaults), .hidden)
+        XCTAssertEqual(FeatureVote.initialState(findCount: 3, defaults: defaults), .offered)
+        defaults.set(true, forKey: FeatureVote.answeredKey)
+        XCTAssertEqual(FeatureVote.initialState(findCount: 30, defaults: defaults), .hidden)
+    }
+
+    func test_closingItIsAnAnswerToo() {
+        FeatureVote.recordDismissal(defaults: defaults)
+        XCTAssertEqual(FeatureVote.initialState(findCount: 5, defaults: defaults), .hidden)
+    }
+
+    /// The server refuses anything else (`opsstats.FEATURE_VOTE_CHOICES`).
+    func test_wireValuesMatchTheServer() {
+        XCTAssertEqual(FeatureVote.allCases.map(\.rawValue),
+                       ["sold_prices", "shipping", "ebay_post", "barcode"])
+        XCTAssertEqual(FeatureVote.otherChoice, "other")
+        XCTAssertEqual(AnalyticsEvent.featureVoted(choice: "barcode").name, "feature_voted")
+        XCTAssertEqual(AnalyticsEvent.featureVoted(choice: "barcode").parameters, ["choice": "barcode"])
+        XCTAssertEqual(AnalyticsEvent.featureVoteDismissed.name, "feature_vote_dismissed")
     }
 }

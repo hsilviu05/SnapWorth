@@ -138,6 +138,12 @@ struct MainTabView: View {
         .onReceive(NotificationCenter.default.publisher(for: .snapOpenDailyGuess)) { _ in
             selectedTab = 0
         }
+        .onReceive(NotificationCenter.default.publisher(for: .snapOpenHaul)) { _ in
+            selectedTab = 0
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .snapOpenRack)) { _ in
+            selectedTab = 0
+        }
         .onReceive(NotificationCenter.default.publisher(for: .snapWidgetOpenHistory)) { _ in
             selectedTab = 1
         }
