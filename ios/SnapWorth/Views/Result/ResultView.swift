@@ -401,6 +401,9 @@ struct ResultView: View {
         // camera opened inside it covers the result without cancelling this
         // task, and the system prompt would land on top of that screen.
         .task(id: priceCovered) {
+            // Not on the result that offers Pro: one ask per screen, and
+            // Apple's prompt landed on top of the card.
+            guard !(offersFirstResultCard && !isPro) else { return }
             guard Self.asksForReview(isFreshScan: isFreshScan, priceCovered: priceCovered,
                                      confidence: result.confidence,
                                      isCovered: isCoveredByAnotherScreen) else { return }

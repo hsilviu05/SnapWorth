@@ -80,7 +80,9 @@ struct FirstResultOfferCard: View {
                         Image(systemName: row.icon)
                             .snapSymbol(16, weight: .medium)
                             .foregroundStyle(Color.snapSageText)
-                            .frame(minWidth: 24)
+                            // A fixed width, so the wider speech-bubble
+                            // icon does not push its row's text right.
+                            .frame(width: 28)
                         Text(row.text)
                             .font(.snapBody)
                             .foregroundStyle(Color.snapEspresso)
