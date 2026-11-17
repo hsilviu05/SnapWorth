@@ -16844,6 +16844,78 @@
         }
       }
     },
+    "Check sold prices on eBay" : {
+      "comment" : "Link under the estimate on a result. Opens eBay's search for sold listings of the item (SoldListingsSearch). eBay is a brand name, unchanged.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Verkaufspreise auf eBay prüfen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Check sold prices on eBay"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ver precios de venta en eBay"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Voir les prix de vente sur eBay"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vedi i prezzi di vendita su eBay"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "eBayで落札価格を確認"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bekijk verkoopprijzen op eBay"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sprawdź ceny sprzedaży na eBay"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ver preços de venda no eBay"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vezi prețurile de vânzare pe eBay"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在 eBay 查看成交价"
+          }
+        }
+      }
+    },
     "Checked %@" : {
       "comment" : "Legit check: when the read was made; %@ is a date.",
       "extractionState" : "manual",
@@ -41246,6 +41318,78 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "打开 SnapWorth，相机已就绪。"
+          }
+        }
+      }
+    },
+    "Opens eBay's sold listings for items like this one" : {
+      "comment" : "VoiceOver hint on 'Check sold prices on eBay'.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Öffnet auf eBay verkaufte Angebote für Artikel wie diesen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Opens eBay's sold listings for items like this one"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Abre en eBay los anuncios vendidos de artículos como este"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ouvre sur eBay les annonces vendues d'articles comme celui-ci"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apre su eBay gli annunci venduti di articoli come questo"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "eBayで似たアイテムの落札済み出品を開きます"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Opent op eBay verkochte advertenties van items zoals dit"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Otwiera na eBay sprzedane oferty podobnych przedmiotów"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Abre no eBay os anúncios vendidos de itens como este"
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Deschide pe eBay anunțurile vândute pentru obiecte ca acesta"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在 eBay 打开类似物品的已售商品"
           }
         }
       }

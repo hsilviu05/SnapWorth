@@ -165,6 +165,7 @@ The leading half of each loop. The install half is in the
 | Listings copied | `listing_copied` by `marketplace`: `ebay`, `poshmark`, `mercari`, `depop`, `facebook`, `vinted`, `olx`, `xianyu`, `kleinanzeigen`, or `draft` for the plain draft on every result | 1.5.1 (21) (`b4f7820`, #193) | TelemetryDeck |
 | Listings shared | `listing_shared` by `marketplace`, completed shares | 1.5.1 (21) (`b4f7820`) | TelemetryDeck |
 | Marketplace opened | `marketplace_opened` by `marketplace` ("Open <marketplace>" under a listing) | 1.5.1 (21) (`b4f7820`) | TelemetryDeck |
+| Sold prices checked | `sold_listings_opened` (no parameters): "Check sold prices on eBay" under the estimate, which opens eBay's own sold-listings search for the item. Users per week against `scan_result_shown` is how often an estimate gets checked | The first build after 1.8.2 (34) | TelemetryDeck |
 | Widget opens | `widget_opened` by `source`: `quick_scan`, `haul`, `haul_scan`, `lock_haul`, `recent_finds`, `scans_left`, `month_profit`, `live_activity`, `dynamic_island`, `control`. From outside the widgets, sent by the app itself: `siri` (the "Value an item" App Shortcut, #412), `share` (a photo shared to SnapWorth, #410) and `visual_intelligence` (a tapped "Value this with SnapWorth" result, #412, iOS 26 and later). A free user's `visual_intelligence` open is followed by the paywall with `trigger=visual_intelligence`, since the feature is Pro | 1.5.1 (21) (`b4f7820`); the last three from the build that ships them | TelemetryDeck |
 | Widgets placed | `widgets_installed`, once a day per device: `count` (`0`, `1`, `2-3`, `4+`) and `kinds` (the placed widget kinds, comma-joined) | 1.5.1 (21) (`b4f7820`) | TelemetryDeck |
 | Listed, then sold | `ledger_item_marked_listed` against `ledger_item_marked_sold` | Listed from 1.5.1 (21) (`b4f7820`); sold ≤ 1.1.0 (1) | TelemetryDeck |
@@ -261,7 +262,7 @@ for e in onboarding_started onboarding_completed scan_started scan_result_shown 
          rack_scan_completed rack_candidate_chosen daily_guess_played app_icon_changed \
          wrapped_opened wrapped_shared offer_code_sheet_opened \
          notification_status notification_priming_answered \
-         notification_permission_answered; do
+         notification_permission_answered sold_listings_opened; do
   grep -q "return \"$e\"" ios/SnapWorth/Services/Telemetry/Analytics.swift || echo "missing: $e"
 done
 ```

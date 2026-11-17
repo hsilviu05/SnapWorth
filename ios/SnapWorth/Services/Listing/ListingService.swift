@@ -95,6 +95,53 @@ enum Marketplace: String, CaseIterable, Identifiable {
     }
 }
 
+// ── Sold listings search ──────────────────────────────────────────────────────
+
+/// eBay's own search, filtered to completed sales, for the item a result
+/// names: a way to check the estimate against real sold prices without
+/// SnapWorth showing or storing any eBay data. Nothing is fetched; the user
+/// reads eBay's page in eBay's app or site. eBay has not granted SnapWorth
+/// sold data (`docs/COMPS-ARCHITECTURE.md`), and a link is not that.
+///
+/// Always ebay.com: the estimate is in US prices ("converted from US
+/// prices"), so the US sales are the ones it can be checked against.
+enum SoldListingsSearch {
+    /// Long enough for brand and model, short enough that eBay does not
+    /// search on a sentence and find nothing.
+    static let maxQueryLength = 80
+
+    /// What the model writes when it cannot read a brand — the server's own
+    /// `UNKNOWN_BRANDS` (backend/scan/confidence.py). Not words to search for.
+    static let unknownBrands: Set<String> = ["", "unknown", "unbranded", "generic", "n/a", "none", "null"]
+
+    /// "Levi's 501 jeans" — the brand once, before the item name, unless the
+    /// name already carries it. Whitespace is collapsed; nil when there is
+    /// nothing to search for.
+    static func query(itemName: String, brand: String) -> String? {
+        func collapse(_ text: String) -> String {
+            text.split(whereSeparator: \.isWhitespace).joined(separator: " ")
+        }
+        let name = collapse(itemName)
+        let brand = collapse(brand)
+        let unknownBrand = unknownBrands.contains(brand.lowercased())
+        let needsBrand = !unknownBrand && name.range(of: brand, options: .caseInsensitive) == nil
+        let joined = needsBrand ? "\(brand) \(name)" : name
+        let query = String(joined.prefix(maxQueryLength)).trimmingCharacters(in: .whitespaces)
+        return query.isEmpty ? nil : query
+    }
+
+    static func url(itemName: String, brand: String) -> URL? {
+        guard let query = query(itemName: itemName, brand: brand) else { return nil }
+        var components = URLComponents(string: "https://www.ebay.com/sch/i.html")
+        components?.queryItems = [
+            URLQueryItem(name: "_nkw", value: query),
+            URLQueryItem(name: "LH_Sold", value: "1"),
+            URLQueryItem(name: "LH_Complete", value: "1"),
+        ]
+        return components?.url
+    }
+}
+
 // ── Generated listing (client model) ──────────────────────────────────────────
 
 /// A marketplace-ready listing. Every field is guaranteed non-empty and valid

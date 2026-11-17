@@ -11659,7 +11659,7 @@ final class ServerDataDeletionTests: XCTestCase {
     }
 }
 
-// MARK: - Trial tip and notification opt-in measurement
+// MARK: - Trial tip, notification opt-in measurement, sold listings link
 
 @MainActor
 final class TrialTipTests: XCTestCase {
@@ -11793,6 +11793,8 @@ final class NotificationOptInEventTests: XCTestCase {
                        "notification_status")
         XCTAssertEqual(AnalyticsEvent.notificationStatus(status: "provisional").parameters,
                        ["status": "provisional"])
+        XCTAssertEqual(AnalyticsEvent.soldListingsOpened.name, "sold_listings_opened")
+        XCTAssertEqual(AnalyticsEvent.soldListingsOpened.parameters, [:])
     }
 
     func test_statusNamesAreAClosedSet() {
@@ -11808,5 +11810,47 @@ final class NotificationOptInEventTests: XCTestCase {
                        ReminderOptInSource.scanSpent.rawValue)
         XCTAssertEqual(NotificationAskSource(ReminderOptInSource.settings).rawValue,
                        ReminderOptInSource.settings.rawValue)
+    }
+}
+
+final class SoldListingsSearchTests: XCTestCase {
+    func test_theBrandLeadsUnlessTheNameCarriesIt() {
+        XCTAssertEqual(SoldListingsSearch.query(itemName: "501 jeans", brand: "Levi's"),
+                       "Levi's 501 jeans")
+        XCTAssertEqual(SoldListingsSearch.query(itemName: "Levi's 501 jeans", brand: "levi's"),
+                       "Levi's 501 jeans")
+    }
+
+    func test_anUnreadBrandIsNotSearchedFor() {
+        for brand in ["Unknown", "unbranded", "Generic", "", "  ", "N/A"] {
+            XCTAssertEqual(SoldListingsSearch.query(itemName: "wool coat", brand: brand), "wool coat",
+                           brand)
+        }
+    }
+
+    func test_whitespaceIsCollapsedAndNothingIsNil() {
+        XCTAssertEqual(SoldListingsSearch.query(itemName: "  Air  Max\n90 ", brand: "Nike"),
+                       "Nike Air Max 90")
+        XCTAssertNil(SoldListingsSearch.query(itemName: "   ", brand: "Unknown"))
+        XCTAssertNil(SoldListingsSearch.url(itemName: "", brand: ""))
+    }
+
+    func test_aLongNameIsCut() throws {
+        let query = try XCTUnwrap(SoldListingsSearch.query(
+            itemName: String(repeating: "word ", count: 40), brand: "Brand"))
+        XCTAssertLessThanOrEqual(query.count, SoldListingsSearch.maxQueryLength)
+        XCTAssertFalse(query.hasSuffix(" "))
+    }
+
+    func test_theURLIsEbaysSoldAndCompletedSearch() throws {
+        let url = try XCTUnwrap(SoldListingsSearch.url(itemName: "Air Max 90 & co", brand: "Nike"))
+        let parts = try XCTUnwrap(URLComponents(url: url, resolvingAgainstBaseURL: false))
+        XCTAssertEqual(parts.scheme, "https")
+        XCTAssertEqual(parts.host, "www.ebay.com")
+        XCTAssertEqual(parts.path, "/sch/i.html")
+        let items = Dictionary(uniqueKeysWithValues: (parts.queryItems ?? []).map { ($0.name, $0.value) })
+        XCTAssertEqual(items["_nkw"], "Nike Air Max 90 & co")
+        XCTAssertEqual(items["LH_Sold"], "1")
+        XCTAssertEqual(items["LH_Complete"], "1")
     }
 }

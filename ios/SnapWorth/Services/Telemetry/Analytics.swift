@@ -90,6 +90,10 @@ enum AnalyticsEvent {
     case listingShared(marketplace: String)
     /// "Open <marketplace>" under a generated listing.
     case marketplaceOpened(marketplace: String)
+    /// "Check sold prices on eBay" under the estimate: eBay's own search for
+    /// sold listings like the item. Not `marketplace_opened`, which is the
+    /// sell flow.
+    case soldListingsOpened
 
     // ── Widgets ──────────────────────────────────────────────────────
     /// The app was opened from a widget, Live Activity or control. `source`
@@ -312,6 +316,7 @@ enum AnalyticsEvent {
         case .notificationPrimingAnswered: return "notification_priming_answered"
         case .notificationPermissionAnswered: return "notification_permission_answered"
         case .notificationStatus:   return "notification_status"
+        case .soldListingsOpened:   return "sold_listings_opened"
         case .reviewPromptRequested: return "review_prompt_requested"
         case .persistentStoreFallback: return "persistent_store_fallback"
         case .certificatePinMismatch: return "certificate_pin_mismatch"

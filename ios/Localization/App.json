@@ -15132,6 +15132,34 @@
       "pl": "Twój darmowy okres obejmuje Skan wieszaka: jedno zdjęcie wieszaka, a SnapWorth wskaże, co warto obejrzeć z bliska.",
       "ja": "トライアルにはラックスキャンが含まれます。ラックを1枚撮るだけで、SnapWorthが要チェックのアイテムを見つけます。",
       "nl": "Je proefperiode bevat Rekscan: één foto van een rek, en SnapWorth wijst aan wat een tweede blik waard is."
+    },
+    "Check sold prices on eBay": {
+      "comment": "Link under the estimate on a result. Opens eBay's search for sold listings of the item (SoldListingsSearch). eBay is a brand name, unchanged.",
+      "en": "Check sold prices on eBay",
+      "ro": "Vezi prețurile de vânzare pe eBay",
+      "es": "Ver precios de venta en eBay",
+      "de": "Verkaufspreise auf eBay prüfen",
+      "zh-Hans": "在 eBay 查看成交价",
+      "fr": "Voir les prix de vente sur eBay",
+      "it": "Vedi i prezzi di vendita su eBay",
+      "pt-BR": "Ver preços de venda no eBay",
+      "pl": "Sprawdź ceny sprzedaży na eBay",
+      "ja": "eBayで落札価格を確認",
+      "nl": "Bekijk verkoopprijzen op eBay"
+    },
+    "Opens eBay's sold listings for items like this one": {
+      "comment": "VoiceOver hint on 'Check sold prices on eBay'.",
+      "en": "Opens eBay's sold listings for items like this one",
+      "ro": "Deschide pe eBay anunțurile vândute pentru obiecte ca acesta",
+      "es": "Abre en eBay los anuncios vendidos de artículos como este",
+      "de": "Öffnet auf eBay verkaufte Angebote für Artikel wie diesen",
+      "zh-Hans": "在 eBay 打开类似物品的已售商品",
+      "fr": "Ouvre sur eBay les annonces vendues d'articles comme celui-ci",
+      "it": "Apre su eBay gli annunci venduti di articoli come questo",
+      "pt-BR": "Abre no eBay os anúncios vendidos de itens como este",
+      "pl": "Otwiera na eBay sprzedane oferty podobnych przedmiotów",
+      "ja": "eBayで似たアイテムの落札済み出品を開きます",
+      "nl": "Opent op eBay verkochte advertenties van items zoals dit"
     }
   }
 }
