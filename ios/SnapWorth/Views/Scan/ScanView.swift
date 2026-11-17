@@ -43,10 +43,6 @@ struct ScanView: View {
     /// system alert does not land on top of someone typing. Made once it closes.
     @State private var cameraSetupDeferred = false
 
-    /// Value-first paywall: the intro paywall is deferred until the user has
-    /// actually seen their first result. Shown once, then never again here.
-    @AppStorage("hasSeenFirstResultPaywall") private var hasSeenFirstResultPaywall = false
-
     @Environment(\.scenePhase) private var scenePhase
 
     /// Mirrors whether a run is live. `Activity.activities` is the truth — this
@@ -624,22 +620,13 @@ struct ScanView: View {
                 return
             }
 
-            // Value-first paywall: the user has now seen a real result. If this is
-            // their first one and they're not subscribed, surface the intro paywall
-            // (and skip notif priming this round so we don't stack two prompts).
-            if !purchaseService.isSubscribed && !hasSeenFirstResultPaywall {
-                hasSeenFirstResultPaywall = true
-                vm.paywallTrigger = .onboarding
-                Task {
-                    // Let the result sheet finish dismissing before presenting.
-                    try? await Task.sleep(for: .milliseconds(400))
-                    vm.showPaywall = true
-                }
-                return
-            }
-
-            // Otherwise this is a moment of demonstrated value — prime for
-            // notifications once, only if never decided.
+            // No paywall follows the first result any more: it offers Pro on
+            // a card inside the result (`FirstResultOfferCard`). The
+            // full-screen one that opened here as the sheet closed had 100
+            // views and no trial or purchase in the 28 days to 17 Nov 2026.
+            //
+            // A moment of demonstrated value — prime for notifications once,
+            // only if never decided.
             Task {
                 if await NotificationManager.shared.shouldPrimeAfterScan() {
                     showNotifPriming = true

@@ -583,6 +583,11 @@ enum PaywallCopy {
         // result, and Settings' own "Upgrade". The offer stays the headline.
         case .onboarding, .settings:
             return nil
+        // The first result's card has just named the find and its range;
+        // the paywall it opens keeps talking about that find, and leads with
+        // turning it into a listing, the card's first row.
+        case .firstResult:
+            return Pitch(headline: String(localized: "Get the most for this find"), leadIcon: "cart.fill")
         // `.upgradeButton` is the capsule the Scan tab shows only once the
         // allowance is spent, so it is the scan limit by another door.
         case .scanLimit, .upgradeButton:
