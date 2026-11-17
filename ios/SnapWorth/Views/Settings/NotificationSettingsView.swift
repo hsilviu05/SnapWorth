@@ -29,7 +29,7 @@ struct NotificationSettingsView: View {
                 Section {
                     Button {
                         Task {
-                            let allowed = await NotificationManager.shared.requestAuthorizationIfNeeded()
+                            let allowed = await NotificationManager.shared.requestAuthorizationIfNeeded(source: .settings)
                             await refreshSystemState()
                             if allowed, freeScanOn { resyncFreeScan() }
                         }
@@ -87,7 +87,7 @@ struct NotificationSettingsView: View {
             } header: {
                 Text("Notifications")
             } footer: {
-                Text("Occasional, functional reminders only — a monthly recap, a nudge to update your ledger, and a heads-up before a free trial ends. We never send promotional notifications.")
+                Text("Occasional, functional reminders only — a monthly recap, a nudge to update your ledger, and during a free trial one tip on what it includes and a heads-up before it ends. We never send promotional notifications.")
             }
         }
         .scrollContentBackground(.hidden)
@@ -147,7 +147,7 @@ struct NotificationSettingsView: View {
             // asked again by anything in the app: every toggle here wrote a
             // preference that `add()` then ignored, silently, forever.
             Task {
-                let allowed = await NotificationManager.shared.requestAuthorizationIfNeeded()
+                let allowed = await NotificationManager.shared.requestAuthorizationIfNeeded(source: .settings)
                 await refreshSystemState()
                 if allowed, category == .freeScan { resyncFreeScan() }
             }

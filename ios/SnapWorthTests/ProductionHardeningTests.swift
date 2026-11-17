@@ -3776,7 +3776,7 @@ final class QuotaResetTests: XCTestCase {
         let optIn = try body(of: "func optInToFreeScanReminder",
                              in: source("SnapWorth/Services/System/NotificationManager.swift"))
         XCTAssertTrue(optIn.contains("switchOnFreeScanReminder(source: source)"))
-        XCTAssertTrue(optIn.contains("requestAuthorizationIfNeeded()"))
+        XCTAssertTrue(optIn.contains("requestAuthorizationIfNeeded(source:"))
         let switchOn = try body(of: "func switchOnFreeScanReminder",
                                 in: source("SnapWorth/Services/System/NotificationManager.swift"))
         XCTAssertTrue(switchOn.contains("setEnabled(.freeScan, true)"))
@@ -3823,7 +3823,7 @@ final class QuotaResetTests: XCTestCase {
     func test_theOptInSchedulesEverythingBeforeTheRowReadsItBack() throws {
         let optIn = try body(of: "func optInToFreeScanReminder",
                              in: source("SnapWorth/Services/System/NotificationManager.swift"))
-        let asked = try XCTUnwrap(optIn.range(of: "requestAuthorizationIfNeeded()"))
+        let asked = try XCTUnwrap(optIn.range(of: "requestAuthorizationIfNeeded(source:"))
         let synced = try XCTUnwrap(
             optIn.range(of: "syncEligible(context: context, purchaseService: purchaseService)"),
             "the ladder alone is built into an empty calendar after a first grant")
@@ -11656,5 +11656,157 @@ final class ServerDataDeletionTests: XCTestCase {
         XCTAssertTrue(rights.contains("Delete my server data in Settings"))
         XCTAssertTrue(rights.contains("We keep what stops a free allowance"),
                       "the policy must say what the button does not delete")
+    }
+}
+
+// MARK: - Trial tip and notification opt-in measurement
+
+@MainActor
+final class TrialTipTests: XCTestCase {
+    private var cal: Calendar = {
+        var c = Calendar(identifier: .gregorian)
+        c.timeZone = TimeZone(identifier: "UTC")!
+        return c
+    }()
+    private func at(_ day: Int, _ hour: Int, _ minute: Int = 0) -> Date {
+        cal.date(from: DateComponents(year: 2026, month: 11, day: day, hour: hour, minute: minute))!
+    }
+
+    /// A three-day trial started mid-morning: the warning is on its third
+    /// day, so the tip is the evening of its second.
+    func test_theTipIsTheEveningBeforeTheWarningsDay() {
+        let end = at(4, 10)
+        XCTAssertEqual(NotificationManager.trialReminderDate(endDate: end, calendar: cal), at(3, 10))
+        XCTAssertEqual(NotificationManager.trialTipDate(endDate: end, now: at(1, 10), calendar: cal),
+                       at(2, 18))
+    }
+
+    /// Started in the small hours, the warning moves to 21:00 the evening
+    /// before, so the tip moves a day earlier with it.
+    func test_aSmallHoursTrialMovesTheTipWithTheWarning() {
+        let end = at(4, 1, 40)
+        XCTAssertEqual(NotificationManager.trialReminderDate(endDate: end, calendar: cal), at(2, 21))
+        XCTAssertEqual(NotificationManager.trialTipDate(endDate: end, now: at(1, 1, 40), calendar: cal),
+                       at(1, 18))
+    }
+
+    func test_aTipThatHasPassedIsNotScheduled() {
+        XCTAssertNil(NotificationManager.trialTipDate(endDate: at(4, 10), now: at(2, 18, 1),
+                                                      calendar: cal))
+    }
+
+    /// Whatever minute the trial started, the tip comes after it, before the
+    /// warning, and on a day of its own.
+    func test_theTipNeverSharesADayWithTheWarning() {
+        for hour in 0..<24 {
+            for minute in [0, 29, 59] {
+                let start = at(1, hour, minute)
+                let end = cal.date(byAdding: .day, value: 3, to: start)!
+                guard let warning = NotificationManager.trialReminderDate(endDate: end, calendar: cal),
+                      let tip = NotificationManager.trialTipDate(endDate: end, now: start, calendar: cal)
+                else {
+                    // Only a trial started after 18:00 on the day before its
+                    // warning's day can miss its tip; none of these is one.
+                    return XCTFail("no tip for a trial started at \(hour):\(minute)")
+                }
+                XCTAssertGreaterThan(tip, start)
+                XCTAssertLessThan(tip, warning)
+                XCTAssertFalse(cal.isDate(tip, inSameDayAs: warning), "\(hour):\(minute)")
+            }
+        }
+    }
+
+    /// The tip shares the trial's toggle and category, but must not take the
+    /// one-a-day slot from anything functional.
+    func test_theTipRanksBelowEveryCategoryUnderTheDailyCap() {
+        let tip = NotificationManager.dailyCapPriority(id: "trial.tip", category: .trial)
+        for category in NotificationManager.Category.allCases {
+            XCTAssertLessThan(tip, category.priority, "\(category)")
+        }
+        XCTAssertEqual(NotificationManager.dailyCapPriority(id: "trial.ending", category: .trial),
+                       NotificationManager.Category.trial.priority)
+    }
+
+    func test_theTipNamesTheFirstFeatureNotYetOpened() throws {
+        let name = "TrialTipTests.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: name))
+        defer { defaults.removePersistentDomain(forName: name) }
+
+        XCTAssertEqual(TrialTip.next(defaults: defaults), .haul)
+        TrialTip.markOpened(.haul, defaults: defaults)
+        XCTAssertEqual(TrialTip.next(defaults: defaults), .rack)
+        TrialTip.markOpened(.rack, defaults: defaults)
+        XCTAssertNil(TrialTip.next(defaults: defaults))
+    }
+
+    /// 4.5.4: a notification that sells needs its own opt-in. The tip talks
+    /// about what the trial includes and nothing else.
+    func test_theTipNeverSells() {
+        for tip in TrialTip.allCases {
+            let body = tip.body.lowercased()
+            for word in ["upgrade", "subscribe", "$", "price", "offer", "discount", "pro"] {
+                XCTAssertFalse(body.contains(word), "\(tip) says \"\(word)\"")
+            }
+        }
+    }
+
+    func test_eachTipOpensItsOwnFeature() {
+        XCTAssertEqual(TrialTip.haul.destination, .snapOpenHaul)
+        XCTAssertEqual(TrialTip.rack.destination, .snapOpenRack)
+    }
+
+    /// Source-inspected: the routes are listened for, and every way into each
+    /// feature marks it opened.
+    func test_theRoutesAreWiredAndOpeningMarksTheFeature() throws {
+        let scan = try source("SnapWorth/Views/Scan/ScanView.swift")
+        XCTAssertTrue(scan.contains("publisher(for: .snapOpenHaul)"))
+        XCTAssertTrue(scan.contains("publisher(for: .snapOpenRack)"))
+        XCTAssertTrue(scan.contains("TrialTip.markOpened(.haul)"))
+        XCTAssertTrue(scan.contains("TrialTip.markOpened(.rack)"))
+        let tabs = try source("SnapWorth/Views/MainTabView.swift")
+        XCTAssertTrue(tabs.contains("publisher(for: .snapOpenHaul)"))
+        XCTAssertTrue(tabs.contains("publisher(for: .snapOpenRack)"))
+        let manager = try source("SnapWorth/Services/System/NotificationManager.swift")
+        XCTAssertTrue(manager.contains("await syncTrialTip(endDate: endDate)"))
+        XCTAssertTrue(manager.contains("[Self.trialID, Self.trialTipID]"),
+                      "switching trial reminders off must cancel the tip too")
+    }
+
+    private func source(_ path: String) throws -> String {
+        try String(contentsOf: URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent(path), encoding: .utf8)
+    }
+}
+
+final class NotificationOptInEventTests: XCTestCase {
+    func test_wireNamesAndParameters() {
+        XCTAssertEqual(AnalyticsEvent.notificationPrimingAnswered(accepted: false).name,
+                       "notification_priming_answered")
+        XCTAssertEqual(AnalyticsEvent.notificationPrimingAnswered(accepted: false).parameters,
+                       ["accepted": "false"])
+        let answered = AnalyticsEvent.notificationPermissionAnswered(granted: true, source: .quiet)
+        XCTAssertEqual(answered.name, "notification_permission_answered")
+        XCTAssertEqual(answered.parameters, ["granted": "true", "source": "quiet"])
+        XCTAssertEqual(AnalyticsEvent.notificationStatus(status: "provisional").name,
+                       "notification_status")
+        XCTAssertEqual(AnalyticsEvent.notificationStatus(status: "provisional").parameters,
+                       ["status": "provisional"])
+    }
+
+    func test_statusNamesAreAClosedSet() {
+        XCTAssertEqual(NotificationManager.statusName(.notDetermined), "not_determined")
+        XCTAssertEqual(NotificationManager.statusName(.denied), "denied")
+        XCTAssertEqual(NotificationManager.statusName(.authorized), "authorized")
+        XCTAssertEqual(NotificationManager.statusName(.provisional), "provisional")
+        XCTAssertEqual(NotificationManager.statusName(.ephemeral), "ephemeral")
+    }
+
+    func test_anOptInIsReportedUnderTheSameSourceName() {
+        XCTAssertEqual(NotificationAskSource(ReminderOptInSource.scanSpent).rawValue,
+                       ReminderOptInSource.scanSpent.rawValue)
+        XCTAssertEqual(NotificationAskSource(ReminderOptInSource.settings).rawValue,
+                       ReminderOptInSource.settings.rawValue)
     }
 }

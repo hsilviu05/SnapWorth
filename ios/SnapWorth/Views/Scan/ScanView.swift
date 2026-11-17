@@ -315,22 +315,8 @@ struct ScanView: View {
                     haulWaiting: (haul?.pendingCount ?? 0) + (haul?.failedCount ?? 0),
                     isDisabled: vm.isAnalyzing || captureInFlight,
                     isPresentingDailyGuess: showDailyGuess,
-                    onHaul: {
-                        if purchaseService.isSubscribed {
-                            showHaul = true
-                        } else {
-                            vm.paywallTrigger = .haul
-                            vm.showPaywall = true
-                        }
-                    },
-                    onRack: {
-                        if purchaseService.isSubscribed {
-                            showRack = true
-                        } else {
-                            vm.paywallTrigger = .rackScan
-                            vm.showPaywall = true
-                        }
-                    },
+                    onHaul: openHaul,
+                    onRack: openRack,
                     onDailyGuess: { showDailyGuess = true }
                 )
                 .padding(.bottom, 16)
@@ -670,6 +656,22 @@ struct ScanView: View {
         .onReceive(NotificationCenter.default.publisher(for: .snapOpenDailyGuess)) { _ in
             showDailyGuess = true
         }
+        // The trial tip (`TrialTip`), the same way: the tab is already
+        // selected and whatever was over it cleared.
+        .onReceive(NotificationCenter.default.publisher(for: .snapOpenHaul)) { _ in
+            openHaul()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .snapOpenRack)) { _ in
+            openRack()
+        }
+        // Every way in, the entry row's, a purchase's and the tip's: a
+        // feature that has been opened gets no tip.
+        .onChange(of: showHaul) { _, open in
+            if open { TrialTip.markOpened(.haul) }
+        }
+        .onChange(of: showRack) { _, open in
+            if open { TrialTip.markOpened(.rack) }
+        }
         .modifier(HaulPresentation(isPresented: $showHaul, session: $haul,
                                    purchaseService: purchaseService,
                                    makeRepository: { ScanRepository(context: modelContext) }))
@@ -784,6 +786,26 @@ struct ScanView: View {
     /// Otherwise, a purchase from the scan-limit paywall finishes the scan it
     /// interrupted, rather than leaving a new subscriber in front of an empty
     /// viewfinder to shoot the same item again.
+    /// Haul for a subscriber, its paywall for anyone else.
+    private func openHaul() {
+        if purchaseService.isSubscribed {
+            showHaul = true
+        } else {
+            vm.paywallTrigger = .haul
+            vm.showPaywall = true
+        }
+    }
+
+    /// Rack scan for a subscriber, its paywall for anyone else.
+    private func openRack() {
+        if purchaseService.isSubscribed {
+            showRack = true
+        } else {
+            vm.paywallTrigger = .rackScan
+            vm.showPaywall = true
+        }
+    }
+
     private func paywallDismissed() {
         if vm.paywallTrigger == .visualIntelligence {
             let held = heldVisualImage

@@ -6467,19 +6467,6 @@
       "ja": "OK",
       "nl": "OK"
     },
-    "Occasional, functional reminders only — a monthly recap, a nudge to update your ledger, and a heads-up before a free trial ends. We never send promotional notifications.": {
-      "en": "Occasional, functional reminders only — a monthly recap, a nudge to update your ledger, and a heads-up before a free trial ends. We never send promotional notifications.",
-      "ro": "Doar memento-uri rare și utile — recapitularea lunii, un îndemn să îți actualizezi registrul și un anunț înainte să se termine perioada de probă. Nu trimitem niciodată notificări promoționale.",
-      "es": "Solo avisos puntuales y útiles: el resumen del mes, un recordatorio para actualizar tu registro y un aviso antes de que acabe una prueba gratuita. Nunca enviamos notificaciones promocionales.",
-      "de": "Nur gelegentliche, nützliche Erinnerungen: der Monatsrückblick, ein Anstoß, dein Buch zu aktualisieren, und ein Hinweis, bevor eine Testphase endet. Werbemitteilungen schicken wir nie.",
-      "zh-Hans": "只发有用的提醒，而且不多：月度回顾、提醒你更新账本，以及试用期结束前打个招呼。我们从不发推广通知。",
-      "fr": "Uniquement des rappels utiles et ponctuels : un bilan mensuel, un petit rappel pour mettre à jour ton registre et une alerte avant la fin d'un essai gratuit. Nous n'envoyons jamais de notifications promotionnelles.",
-      "it": "Solo promemoria utili e occasionali: un riepilogo mensile, un promemoria per aggiornare il registro e un avviso prima della fine di una prova gratuita. Non inviamo mai notifiche promozionali.",
-      "pt-BR": "Só lembretes úteis e de vez em quando: um resumo mensal, um toque para atualizar seu registro e um aviso antes de um teste grátis acabar. Nunca mandamos notificações promocionais.",
-      "pl": "Tylko okazjonalne, przydatne przypomnienia: miesięczne podsumowanie, przypomnienie o aktualizacji rejestru i uprzedzenie przed końcem darmowego okresu. Nigdy nie wysyłamy powiadomień promocyjnych.",
-      "ja": "役立つ通知をたまに送るだけです。月間まとめ、記録の更新リマインダー、無料トライアル終了前のお知らせ。宣伝の通知は送りません。",
-      "nl": "Alleen af en toe een nuttige herinnering: een maandoverzicht, een duwtje om je logboek bij te werken en een seintje voordat een proefperiode afloopt. We sturen nooit promotiemeldingen."
-    },
     "Off by default. When on, one reminder at the time you pick — only once your free scan is back, and never once you're on Pro.": {
       "en": "Off by default. When on, one reminder at the time you pick — only once your free scan is back, and never once you're on Pro.",
       "ro": "Oprit implicit. Când e pornit, un singur memento la ora aleasă — doar după ce ai iar scanarea gratuită și niciodată după ce treci pe Pro.",
@@ -15103,6 +15090,48 @@
       "pl": "Ukrywa tę ofertę",
       "ja": "このおすすめを非表示にします",
       "nl": "Verbergt dit aanbod"
+    },
+    "Occasional, functional reminders only — a monthly recap, a nudge to update your ledger, and during a free trial one tip on what it includes and a heads-up before it ends. We never send promotional notifications.": {
+      "comment": "Settings → Notifications footer. The trial tip is one notification during a free trial naming a Pro feature the trial includes (TrialTip).",
+      "en": "Occasional, functional reminders only — a monthly recap, a nudge to update your ledger, and during a free trial one tip on what it includes and a heads-up before it ends. We never send promotional notifications.",
+      "ro": "Doar memento-uri rare și utile — recapitularea lunii, un îndemn să îți actualizezi registrul și, în perioada de probă, un sfat despre ce include și un anunț înainte să se termine. Nu trimitem niciodată notificări promoționale.",
+      "es": "Solo avisos puntuales y útiles: el resumen del mes, un recordatorio para actualizar tu registro y, durante una prueba gratuita, un consejo sobre lo que incluye y un aviso antes de que acabe. Nunca enviamos notificaciones promocionales.",
+      "de": "Nur gelegentliche, nützliche Erinnerungen: der Monatsrückblick, ein Anstoß, dein Buch zu aktualisieren, und während einer Testphase ein Tipp, was sie enthält, und ein Hinweis, bevor sie endet. Werbemitteilungen schicken wir nie.",
+      "zh-Hans": "只发有用的提醒，而且不多：月度回顾、提醒你更新账本，以及免费试用期间一条介绍试用内容的小贴士和结束前的提醒。我们从不发推广通知。",
+      "fr": "Uniquement des rappels utiles et ponctuels : un bilan mensuel, un petit rappel pour mettre à jour ton registre et, pendant un essai gratuit, une astuce sur ce qu'il inclut et une alerte avant qu'il se termine. Nous n'envoyons jamais de notifications promotionnelles.",
+      "it": "Solo promemoria utili e occasionali: un riepilogo mensile, un promemoria per aggiornare il registro e, durante una prova gratuita, un consiglio su cosa include e un avviso prima che finisca. Non inviamo mai notifiche promozionali.",
+      "pt-BR": "Só lembretes úteis e de vez em quando: um resumo mensal, um toque para atualizar seu registro e, durante um teste grátis, uma dica do que ele inclui e um aviso antes de ele acabar. Nunca mandamos notificações promocionais.",
+      "pl": "Tylko okazjonalne, przydatne przypomnienia: miesięczne podsumowanie, przypomnienie o aktualizacji rejestru, a w darmowym okresie jedna wskazówka, co obejmuje, i uprzedzenie przed jego końcem. Nigdy nie wysyłamy powiadomień promocyjnych.",
+      "ja": "役立つ通知をたまに送るだけです。月間まとめ、記録の更新リマインダー、無料トライアル中は内容を紹介するヒントを1回と終了前のお知らせ。宣伝の通知は送りません。",
+      "nl": "Alleen af en toe een nuttige herinnering: een maandoverzicht, een duwtje om je logboek bij te werken en tijdens een proefperiode één tip over wat erin zit en een seintje voordat hij afloopt. We sturen nooit promotiemeldingen."
+    },
+    "Your trial includes Haul mode: snap item after item and watch the total add up.": {
+      "comment": "Notification during a free trial (TrialTip.haul), sent once if the user has never opened Haul. Tapping it opens Haul. Haul mode is named as on the Scan tab.",
+      "en": "Your trial includes Haul mode: snap item after item and watch the total add up.",
+      "ro": "Perioada de probă include modul Lot: fotografiezi obiect după obiect și vezi cum crește totalul.",
+      "es": "Tu prueba incluye el modo Lote: haz fotos de un artículo tras otro y mira cómo sube el total.",
+      "de": "Deine Testphase enthält den Stapel-Modus: Fotografier Artikel für Artikel und sieh zu, wie die Summe wächst.",
+      "zh-Hans": "你的试用包含批量模式：一件接一件地拍，看着总值不断累加。",
+      "fr": "Ton essai inclut le mode Lot : photographie article après article et regarde le total grimper.",
+      "it": "La tua prova include la modalità Lotto: fotografa un articolo dopo l'altro e guarda crescere il totale.",
+      "pt-BR": "Seu teste inclui o modo Lote: fotografe um item atrás do outro e veja o total subir.",
+      "pl": "Twój darmowy okres obejmuje tryb Partia: fotografuj przedmiot za przedmiotem i patrz, jak rośnie suma.",
+      "ja": "トライアルにはまとめスキャンが含まれます。アイテムを次々に撮って、合計が増えていくのを確認できます。",
+      "nl": "Je proefperiode bevat Stapel: fotografeer het ene item na het andere en zie het totaal oplopen."
+    },
+    "Your trial includes Rack scan: one photo of a rail, and SnapWorth picks out what's worth a closer look.": {
+      "comment": "Notification during a free trial (TrialTip.rack), sent once if the user has opened Haul but never Rack scan. Tapping it opens Rack scan. A rail is a clothes rail in a shop.",
+      "en": "Your trial includes Rack scan: one photo of a rail, and SnapWorth picks out what's worth a closer look.",
+      "ro": "Perioada de probă include Scanare raft: o fotografie a unui stand, iar SnapWorth alege ce merită o privire mai atentă.",
+      "es": "Tu prueba incluye el Escaneo de estante: una foto de un perchero y SnapWorth te señala lo que merece una mirada.",
+      "de": "Deine Testphase enthält den Regal-Scan: Ein Foto einer Stange, und SnapWorth zeigt dir, was einen genaueren Blick wert ist.",
+      "zh-Hans": "你的试用包含货架扫描：拍一张衣架照片，SnapWorth 帮你找出最值得细看的物品。",
+      "fr": "Ton essai inclut le Scan de portant : une photo d'un portant, et SnapWorth repère ce qui mérite un coup d'œil.",
+      "it": "La tua prova include la Scansione stender: una foto di uno stender e SnapWorth ti indica cosa merita un'occhiata.",
+      "pt-BR": "Seu teste inclui o Scan da arara: uma foto de uma arara e o SnapWorth aponta o que merece uma olhada.",
+      "pl": "Twój darmowy okres obejmuje Skan wieszaka: jedno zdjęcie wieszaka, a SnapWorth wskaże, co warto obejrzeć z bliska.",
+      "ja": "トライアルにはラックスキャンが含まれます。ラックを1枚撮るだけで、SnapWorthが要チェックのアイテムを見つけます。",
+      "nl": "Je proefperiode bevat Rekscan: één foto van een rek, en SnapWorth wijst aan wat een tweede blik waard is."
     }
   }
 }

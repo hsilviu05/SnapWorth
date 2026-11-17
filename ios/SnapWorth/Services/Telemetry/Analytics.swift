@@ -198,6 +198,16 @@ enum AnalyticsEvent {
     /// the choice, not the outcome: whether iOS then allowed notifications
     /// shows up as `notification_scheduled{category:freeScan}`.
     case reminderOptIn(source: ReminderOptInSource)
+    /// The in-app "Stay on top of your flips" alert was answered. Shown once,
+    /// after the first result; `accepted` is which button.
+    case notificationPrimingAnswered(accepted: Bool)
+    /// iOS answered a permission request. `source` is where it was asked;
+    /// `quiet` is the provisional grant after "Not now", which shows no alert
+    /// and is always granted.
+    case notificationPermissionAnswered(granted: Bool, source: NotificationAskSource)
+    /// The permission status, once per local day on foreground. Users per
+    /// `status` is the opt-in rate, which no event measured before.
+    case notificationStatus(status: String)
 
     // ── Ratings ──────────────────────────────────────────────────────
     /// `ReviewPrompt` asked iOS for a rating prompt. Whether iOS showed one is
@@ -299,6 +309,9 @@ enum AnalyticsEvent {
         case .notificationScheduled:return "notification_scheduled"
         case .notificationOpened:   return "notification_opened"
         case .reminderOptIn:        return "reminder_opt_in"
+        case .notificationPrimingAnswered: return "notification_priming_answered"
+        case .notificationPermissionAnswered: return "notification_permission_answered"
+        case .notificationStatus:   return "notification_status"
         case .reviewPromptRequested: return "review_prompt_requested"
         case .persistentStoreFallback: return "persistent_store_fallback"
         case .certificatePinMismatch: return "certificate_pin_mismatch"
@@ -367,6 +380,12 @@ enum AnalyticsEvent {
             return ["category": category]
         case let .reminderOptIn(source):
             return ["source": source.rawValue]
+        case let .notificationPrimingAnswered(accepted):
+            return ["accepted": String(accepted)]
+        case let .notificationPermissionAnswered(granted, source):
+            return ["granted": String(granted), "source": source.rawValue]
+        case let .notificationStatus(status):
+            return ["status": status]
         case let .listingGenerated(marketplace), let .listingPhotoCleaned(marketplace),
              let .listingCopied(marketplace), let .listingShared(marketplace),
              let .marketplaceOpened(marketplace):
@@ -473,6 +492,26 @@ enum ReminderOptInSource: String {
     case scanSpent = "scan_spent"
     /// The toggle in Settings → Notifications.
     case settings
+}
+
+/// Where iOS was asked for notification permission.
+enum NotificationAskSource: String {
+    /// "Enable notifications" on the alert after the first result.
+    case priming
+    /// Settings → Notifications: the "Allow notifications" banner or a toggle.
+    case settings
+    /// "Remind me" beside the next free scan, on the Scan tab.
+    case scanSpent = "scan_spent"
+    /// Quiet delivery, asked for after "Not now" (see
+    /// `NotificationManager.requestQuietDeliveryIfDeclined`).
+    case quiet
+
+    init(_ source: ReminderOptInSource) {
+        switch source {
+        case .scanSpent: self = .scanSpent
+        case .settings:  self = .settings
+        }
+    }
 }
 
 /// Every place a paywall can be shown. Single source so triggers can't drift.

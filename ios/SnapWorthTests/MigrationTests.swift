@@ -1062,8 +1062,9 @@ final class PortfolioDigestTests: XCTestCase {
         let source = managerSource()
         XCTAssertTrue(source.contains("func requestAuthorizationIfNeeded"),
                       "there must be an entry point Settings can call")
-        XCTAssertEqual(source.components(separatedBy: "center.requestAuthorization").count - 1, 2,
-                       "exactly two: the priming alert and the Settings path")
+        XCTAssertEqual(source.components(separatedBy: "center.requestAuthorization").count - 1, 3,
+                       "exactly three: the priming alert, the Settings path, and quiet " +
+                       "delivery after \"Not now\"")
 
         let view = (try? String(
             contentsOf: URL(fileURLWithPath: #filePath)
