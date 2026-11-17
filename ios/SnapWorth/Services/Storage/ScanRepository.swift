@@ -146,6 +146,7 @@ final class ScanRepository {
         // flight is not recalled: it lands, and saves, a moment later.
         HaulSession.discardAllPending(store: pendingPhotos)
         NotificationManager.shared.cancelAllLedger()
+        NotificationManager.shared.cancelPriceDrops()
         // Their shared sales, in one request for every record of this install:
         // `results` is the whole library (Settings → Clear history). Left
         // behind, each stayed on the server for its 400 days with no flip

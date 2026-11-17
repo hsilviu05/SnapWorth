@@ -499,6 +499,11 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
     }
 
     /// Remove every ledger follow-up (e.g. "clear history").
+    /// Every pending price-drop nudge, for "Delete all", which leaves the app
+    /// in the foreground: the next sync that would rebuild them from an empty
+    /// library may be days away.
+    func cancelPriceDrops() { cancel(.priceDrop) }
+
     func cancelAllLedger() {
         let ids = ledgerBuckets().keys.map(Self.ledgerDayID)
         if !ids.isEmpty { center.removePendingNotificationRequests(withIdentifiers: ids) }

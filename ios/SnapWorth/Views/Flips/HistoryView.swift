@@ -129,8 +129,10 @@ struct HistoryView: View {
                         }
 
                         // ── What should we add next? (once) ───────────────────
-                        FeatureVoteSlot(state: voteCard, onVote: castVote, onDismiss: dismissVote)
-                            .padding(.horizontal, hPad)
+                        if voteCard != .hidden {
+                            FeatureVoteSlot(state: voteCard, onVote: castVote, onDismiss: dismissVote)
+                                .padding(.horizontal, hPad)
+                        }
 
                         // ── Search ─────────────────────────────────────────────
                         if !results.isEmpty {
@@ -306,7 +308,16 @@ struct HistoryView: View {
             PaywallView(purchaseService: purchaseService, trigger: paywallTrigger)
         }
         .sheet(isPresented: $showFeedback) {
-            NavigationStack { FeedbackView(initialType: .featureRequest) }
+            // Pushed from Settings it has a back button; in a sheet it needs
+            // a way out besides the swipe.
+            NavigationStack {
+                FeedbackView(initialType: .featureRequest)
+                    .toolbar {
+                        ToolbarItem(placement: .cancellationAction) {
+                            Button("Close") { showFeedback = false }
+                        }
+                    }
+            }
         }
         .sheet(item: $wrapped) { card in
             WrappedView(wrapped: card, purchaseService: purchaseService)

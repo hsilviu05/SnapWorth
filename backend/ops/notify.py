@@ -432,8 +432,9 @@ def paywall_viewed(subject: str, trigger: str) -> None:
 
 async def _note_feature_vote(subject: str, round_: str, choice: str) -> None:
     try:
-        # Once per device per round: a retry, a second tap after a reinstall
-        # or a replayed request is still one person's answer.
+        # Once per device per round: a retry or a replayed request is still
+        # one answer. A reinstall is a new device key and can vote again,
+        # which the app's own once-per-install marker cannot prevent either.
         who = auditlog.pseudonymise(subject)
         if await _cache.add(f"opsseen:vote:{round_}:{who}", "1", opsstats.FEATURE_VOTE_TTL):
             await _cache.incr(opsstats.feature_vote_key(round_, choice),

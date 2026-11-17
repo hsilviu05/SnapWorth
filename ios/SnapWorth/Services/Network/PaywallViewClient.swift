@@ -26,7 +26,7 @@ enum PaywallViewClient {
 
 /// `POST /events/vote`: one answer to My Finds' "What should SnapWorth add
 /// next?" (`FeatureVote`). The server counts each device once per round, so a
-/// retry or a reinstall cannot vote twice; the totals are the bot's `/votes`.
+/// retry cannot vote twice; the totals are the bot's `/votes`.
 ///
 /// Fire-and-forget, and behind the same analytics switch as the paywall
 /// report above.
