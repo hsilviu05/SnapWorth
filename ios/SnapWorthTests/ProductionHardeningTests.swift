@@ -11925,17 +11925,17 @@ final class PriceDropNudgeTests: XCTestCase {
 }
 
 final class FeatureVoteTests: XCTestCase {
-    private var name = ""
+    private var suite = ""
     private var defaults: UserDefaults!
 
     override func setUp() {
         super.setUp()
-        name = "FeatureVoteTests.\(UUID().uuidString)"
-        defaults = UserDefaults(suiteName: name)
+        suite = "FeatureVoteTests.\(UUID().uuidString)"
+        defaults = UserDefaults(suiteName: suite)
     }
 
     override func tearDown() {
-        defaults.removePersistentDomain(forName: name)
+        defaults.removePersistentDomain(forName: suite)
         super.tearDown()
     }
 
