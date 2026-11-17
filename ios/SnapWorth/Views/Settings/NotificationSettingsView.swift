@@ -40,6 +40,27 @@ struct NotificationSettingsView: View {
                                     detail: "None of these reminders can arrive until you do.")
                     }
                 }
+            case .quiet:
+                Section {
+                    Button {
+                        Task {
+                            _ = await NotificationManager.shared.requestAuthorizationIfNeeded(source: .settings)
+                            await refreshSystemState()
+                            // If iOS answered without showing its alert, the
+                            // status is still quiet and only Settings can turn
+                            // banners and sounds on. Without this the tap did
+                            // nothing at all.
+                            if banner == .quiet, let url = URL(string: UIApplication.openSettingsURLString) {
+                                _ = await UIApplication.shared.open(url)
+                            }
+                            if freeScanOn { resyncFreeScan() }
+                        }
+                    } label: {
+                        bannerLabel(icon: "bell.badge",
+                                    title: "Reminders arrive quietly",
+                                    detail: "They go to Notification Center without a sound or banner. Tap to let them through.")
+                    }
+                }
             case .openSettings:
                 Section {
                     Button {
@@ -196,14 +217,21 @@ extension NotificationSettingsView {
         case none
         /// iOS has never been asked: ask it, here.
         case ask
+        /// Delivered quietly (provisional, after "Not now"): they reach
+        /// Notification Center only. Asking again is how they get through.
+        /// Read as "allowed" before, so nothing here said why a reminder
+        /// never lit up the Lock Screen, and toggles that already read ON
+        /// never asked.
+        case quiet
         /// iOS was asked and said no: only Settings can change that.
         case openSettings
 
         init(status: UNAuthorizationStatus) {
             switch status {
             case .notDetermined: self = .ask
+            case .provisional:   self = .quiet
             case .denied:        self = .openSettings
-            case .authorized, .provisional, .ephemeral: self = .none
+            case .authorized, .ephemeral: self = .none
             @unknown default:    self = .none
             }
         }

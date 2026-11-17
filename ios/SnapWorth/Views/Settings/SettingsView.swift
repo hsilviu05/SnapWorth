@@ -463,7 +463,9 @@ private struct SubscriptionCard: View {
         .padding(16)
         .background(Color.snapCard)
         .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-        .padding(.horizontal, 16)
+        // Vertical only. The row already sits inside the list's own side
+        // margin, so a horizontal 16 here inset the card 16pt more than every
+        // section under it: two left edges on the first screen of Settings.
         .padding(.vertical, 8)
     }
 }

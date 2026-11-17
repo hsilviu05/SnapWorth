@@ -1089,8 +1089,14 @@ final class PortfolioDigestTests: XCTestCase {
         XCTAssertEqual(NotificationSettingsView.PermissionBanner(status: .denied), .openSettings)
     }
 
+    /// Quiet delivery reaches Notification Center only, so it is offered
+    /// the ask rather than read as allowed.
+    func test_quietDeliveryIsOfferedTheAlert() {
+        XCTAssertEqual(NotificationSettingsView.PermissionBanner(status: .provisional), .quiet)
+    }
+
     func test_deliverableStatusesShowNoBanner() {
-        for status: UNAuthorizationStatus in [.authorized, .provisional, .ephemeral] {
+        for status: UNAuthorizationStatus in [.authorized, .ephemeral] {
             XCTAssertEqual(NotificationSettingsView.PermissionBanner(status: status), .none,
                            "status \(status.rawValue)")
         }
