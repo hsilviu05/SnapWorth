@@ -1349,6 +1349,17 @@ class TestUsersTable:
         assert set(json.loads(await cache.get(opsindex.USERS_INDEX_KEY))) == {"kept", "new"}
 
     @pytest.mark.asyncio
+    async def test_a_full_index_says_its_count_is_capped(self, enabled_notify, cache, monkeypatch):
+        monkeypatch.setattr(opsindex, "USERS_INDEX_CAP", 3)
+        for i in range(2):
+            await opsindex.index_user(f"dev{i:05d}", tier="free")
+        assert "row cap" not in await notify.handle_command("/users")
+        for i in range(2, 5):
+            await opsindex.index_user(f"dev{i:05d}", tier="free")
+        text = await notify.handle_command("/users")
+        assert "3 seen" in text and "3-row cap" in text
+
+    @pytest.mark.asyncio
     async def test_empty_table_says_so(self, enabled_notify):
         assert "No device has been seen" in await notify.handle_command("/users")
 

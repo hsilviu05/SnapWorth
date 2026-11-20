@@ -34,7 +34,12 @@ log = logging.getLogger("snapworth.notify")
 SUBS_INDEX_KEY = "opsidx:subs"
 USERS_INDEX_KEY = "opsidx:users"
 SUBS_INDEX_CAP = 500
-USERS_INDEX_CAP = 500
+# 500 devices was reached, after which /users read "500
+# seen" whatever the real number was, and the least recently seen device was
+# dropped on every new one. A row is about 120 bytes (a Pro row with its
+# pro_days a few hundred), so 2,000 stays within the few hundred kilobytes
+# each scan reads and writes back.
+USERS_INDEX_CAP = 2000
 INDEX_TTL = 60 * 60 * 24 * 400
 # How long /user can say what the last purchase sync from a device came to.
 # A subscriber's app re-syncs at every cold launch, so this is the horizon
