@@ -2329,6 +2329,10 @@ async def _users_text() -> str:
         body.append(f"… and {len(rows) - TABLE_ROWS} more")
     lines.append("<pre>" + html.escape("\n".join(body)) + "</pre>")
     lines.append("Devices, not people — there are no accounts. Ids are the audit log's pseudonyms.")
+    if len(doc) >= opsindex.USERS_INDEX_CAP:
+        lines.append(f"⚠️ The device index is at its {opsindex.USERS_INDEX_CAP}-row cap, so "
+                     "\"seen\" stops growing and the least recently seen devices are "
+                     "dropped. App Store Connect's first-time downloads is the real total.")
     return "\n".join(lines)
 
 
