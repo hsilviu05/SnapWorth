@@ -59240,6 +59240,78 @@
         }
       }
     },
+    "Taking a bit longer than usual. Hang tight." : {
+      "comment" : "Analyzing overlay, shown under the last progress message when a scan has taken more than 12 seconds.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dauert etwas länger als sonst. Einen Moment noch."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Taking a bit longer than usual. Hang tight."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Está tardando un poco más de lo normal. Espera un momento."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "C'est un peu plus long que d'habitude. Encore un instant."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ci vuole un po' più del solito. Ancora un attimo."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "いつもより少し時間がかかっています。もう少しお待ちください。"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dit duurt iets langer dan normaal. Nog even geduld."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Trwa to trochę dłużej niż zwykle. Jeszcze chwila."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Está demorando um pouco mais que o normal. Só um instante."
+          }
+        },
+        "ro" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Durează puțin mai mult decât de obicei. Mai stai puțin."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "比平时稍慢一些，请稍候。"
+          }
+        }
+      }
+    },
     "Tap Tag for another tip" : {
       "comment" : "Caption under Tag's tip; Tag is the mascot's name.",
       "extractionState" : "manual",

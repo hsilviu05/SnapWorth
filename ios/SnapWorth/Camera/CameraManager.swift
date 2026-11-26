@@ -408,10 +408,14 @@ extension CameraManager: AVCapturePhotoCaptureDelegate {
 // MARK: - Camera Preview (UIViewRepresentable)
 struct CameraPreview: UIViewRepresentable {
     let session: AVCaptureSession
+    /// Tap to focus and pinch to zoom (`PreviewUIView.adjustable`). Off for
+    /// Rack, which needs the whole rail in frame.
+    var adjustable = false
 
     func makeUIView(context: Context) -> PreviewUIView {
         let view = PreviewUIView()
         view.session = session
+        view.adjustable = adjustable
         return view
     }
 
@@ -468,6 +472,159 @@ final class PreviewUIView: UIView {
         let angle = rotation.videoRotationAngleForHorizonLevelPreview
         if connection.isVideoRotationAngleSupported(angle), connection.videoRotationAngle != angle {
             connection.videoRotationAngle = angle
+        }
+    }
+
+    // MARK: Tap to focus, pinch to zoom
+    //
+    // The things a user tries first on a care label or a small tag. Both act
+    // on the same device the session uses (`CameraManager.backCamera`, which
+    // AVFoundation hands back as one shared instance), so they reach the
+    // photo as well as the preview. Only the touches that land on the preview
+    // itself get here: the SwiftUI chrome above it takes its own.
+
+    var adjustable = false {
+        didSet {
+            guard adjustable != oldValue else { return }
+            if adjustable { installGestures() } else { removeGestures() }
+        }
+    }
+
+    /// Wide-angle digital zoom past this is too soft to read a tag from.
+    nonisolated private static let maxZoom: CGFloat = 4
+    /// Device configuration off the main thread, one change at a time.
+    nonisolated private static let deviceQueue = DispatchQueue(label: "com.snapworth.camera.adjust")
+
+    private var gestures: [UIGestureRecognizer] = []
+    private var zoomAtPinchStart: CGFloat = 1
+    private var subjectAreaObserver: NSObjectProtocol?
+    private let focusRing = CAShapeLayer()
+
+    private func installGestures() {
+        let tap = UITapGestureRecognizer(target: self, action: #selector(handleTap(_:)))
+        let pinch = UIPinchGestureRecognizer(target: self, action: #selector(handlePinch(_:)))
+        gestures = [tap, pinch]
+        gestures.forEach(addGestureRecognizer)
+
+        focusRing.fillColor = UIColor.clear.cgColor
+        focusRing.strokeColor = UIColor(Color.snapOnCharcoal).cgColor
+        focusRing.lineWidth = 1.5
+        focusRing.opacity = 0
+        layer.addSublayer(focusRing)
+
+        // A tapped point is locked until the scene changes under it, then
+        // focus goes back to continuous at the centre, where the viewfinder
+        // frame asks the item to be.
+        subjectAreaObserver = NotificationCenter.default.addObserver(
+            forName: AVCaptureDevice.subjectAreaDidChangeNotification, object: nil, queue: .main
+        ) { _ in
+            Self.configure { device in
+                Self.setFocus(on: device, at: CGPoint(x: 0.5, y: 0.5), continuous: true)
+                device.isSubjectAreaChangeMonitoringEnabled = false
+            }
+        }
+    }
+
+    private func removeGestures() {
+        gestures.forEach(removeGestureRecognizer)
+        gestures = []
+        focusRing.removeFromSuperlayer()
+        if let subjectAreaObserver { NotificationCenter.default.removeObserver(subjectAreaObserver) }
+        subjectAreaObserver = nil
+    }
+
+    deinit {
+        if let subjectAreaObserver { NotificationCenter.default.removeObserver(subjectAreaObserver) }
+    }
+
+    /// Leaving the screen puts the camera back as it was found: zoom 1 and
+    /// continuous focus. The device is shared, so a zoom left here would be
+    /// the next camera screen's starting point, Rack's included.
+    override func willMove(toWindow newWindow: UIWindow?) {
+        super.willMove(toWindow: newWindow)
+        guard adjustable, newWindow == nil else { return }
+        Self.configure { device in
+            device.videoZoomFactor = 1
+            Self.setFocus(on: device, at: CGPoint(x: 0.5, y: 0.5), continuous: true)
+            device.isSubjectAreaChangeMonitoringEnabled = false
+        }
+    }
+
+    @objc private func handleTap(_ recognizer: UITapGestureRecognizer) {
+        let point = recognizer.location(in: self)
+        // The layer converts for aspect-fill cropping and rotation.
+        let devicePoint = previewLayer.captureDevicePointConverted(fromLayerPoint: point)
+        Self.configure { device in
+            Self.setFocus(on: device, at: devicePoint, continuous: false)
+            device.isSubjectAreaChangeMonitoringEnabled = true
+        }
+        showFocusRing(at: point)
+        Haptics.selection()
+    }
+
+    @objc private func handlePinch(_ recognizer: UIPinchGestureRecognizer) {
+        guard let device = CameraManager.backCamera() else { return }
+        switch recognizer.state {
+        case .began:
+            zoomAtPinchStart = device.videoZoomFactor
+        case .changed:
+            let ceiling = min(Self.maxZoom, device.maxAvailableVideoZoomFactor)
+            let factor = max(device.minAvailableVideoZoomFactor,
+                             min(zoomAtPinchStart * recognizer.scale, ceiling))
+            Self.configure { $0.videoZoomFactor = factor }
+        default:
+            break
+        }
+    }
+
+    nonisolated private static func configure(_ change: @escaping @Sendable (AVCaptureDevice) -> Void) {
+        deviceQueue.async {
+            guard let device = CameraManager.backCamera(),
+                  (try? device.lockForConfiguration()) != nil else { return }
+            change(device)
+            device.unlockForConfiguration()
+        }
+    }
+
+    /// Focus and exposure at a point in device coordinates (0...1), each only
+    /// where the hardware supports it: setting an unsupported mode throws an
+    /// Objective-C exception, which Swift cannot catch.
+    nonisolated private static func setFocus(on device: AVCaptureDevice, at point: CGPoint, continuous: Bool) {
+        let focus: AVCaptureDevice.FocusMode = continuous ? .continuousAutoFocus : .autoFocus
+        if device.isFocusPointOfInterestSupported, device.isFocusModeSupported(focus) {
+            device.focusPointOfInterest = point
+            device.focusMode = focus
+        }
+        let exposure: AVCaptureDevice.ExposureMode = continuous ? .continuousAutoExposure : .autoExpose
+        if device.isExposurePointOfInterestSupported, device.isExposureModeSupported(exposure) {
+            device.exposurePointOfInterest = point
+            device.exposureMode = exposure
+        }
+    }
+
+    private func showFocusRing(at point: CGPoint) {
+        let side: CGFloat = 72
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        // The ring's own small layer, centred on the tap, so it scales about
+        // the tap.
+        focusRing.frame = CGRect(x: point.x - side / 2, y: point.y - side / 2, width: side, height: side)
+        focusRing.path = UIBezierPath(roundedRect: CGRect(x: 0, y: 0, width: side, height: side),
+                                      cornerRadius: 12).cgPath
+        CATransaction.commit()
+
+        focusRing.removeAllAnimations()
+        let fade = CAKeyframeAnimation(keyPath: "opacity")
+        fade.values = [1, 1, 0]
+        fade.keyTimes = [0, 0.6, 1]
+        fade.duration = 0.9
+        focusRing.add(fade, forKey: "fade")
+        if !UIAccessibility.isReduceMotionEnabled {
+            let settle = CABasicAnimation(keyPath: "transform.scale")
+            settle.fromValue = 1.25
+            settle.toValue = 1
+            settle.duration = 0.2
+            focusRing.add(settle, forKey: "settle")
         }
     }
 }

@@ -55,7 +55,7 @@ struct HaulView: View {
             Group {
                 switch camera.authStatus {
                 case .authorized:
-                    CameraPreview(session: camera.session)
+                    CameraPreview(session: camera.session, adjustable: true)
                         .ignoresSafeArea()
                 case .notDetermined:
                     EmptyView()
@@ -219,7 +219,7 @@ struct HaulView: View {
                     .foregroundStyle(Color.snapOnCharcoal.opacity(0.9))
                     .padding(.horizontal, 12)
                     .padding(.vertical, 5)
-                    .background(Color.snapCharcoal.opacity(0.5))
+                    .background(Color.snapCameraScrim)
                     .clipShape(Capsule())
                     .transition(.opacity)
             }
@@ -381,7 +381,7 @@ private struct HaulTopBar: View {
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 10)
-        .background(Color.snapCharcoal.opacity(0.5))
+        .background(Color.snapCameraScrim)
         .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
         .padding(.horizontal, 16)
         .padding(.top, 8)
@@ -687,7 +687,7 @@ private struct HaulStrip: View {
             .multilineTextAlignment(.center)
             .padding(.horizontal, 12)
             .padding(.vertical, 5)
-            .background(Color.snapCharcoal.opacity(0.5))
+            .background(Color.snapCameraScrim)
             .clipShape(Capsule())
             .padding(.horizontal, 20)
     }

@@ -220,6 +220,16 @@ extension Color {
     /// so it never inverts to dark-on-dark when the system theme flips.
     static let snapOnCharcoal = Color(hex: SnapDarkHex.cream)
 
+    /// The capsule behind a label drawn over the live camera: the free-scan
+    /// counter, streak, hint, run control and entry pills, and Haul's and
+    /// Rack's. One value so the set stays one style.
+    ///
+    /// 0.65, up from 0.5. The ground is whatever the camera sees, so the worst
+    /// case is white: cream at 0.9 on 0.5 over white measured 2.89:1, on 0.65
+    /// it is 4.55:1, which meets AA for the caption size these use. Over mid
+    /// grey or darker it was never the problem.
+    static let snapCameraScrim = Color.snapCharcoal.opacity(0.65)
+
     /// Content that always sits on a *filled accent* surface — primary button
     /// labels on terracotta. Fixed cream: the accent is dark enough in both
     /// themes that the label must not follow the theme.
@@ -1071,6 +1081,13 @@ struct AnalyzingOverlay: View {
     @State private var messageIndex = 0
     @State private var opacity: Double = 1
     @State private var rotationTask: Task<Void, Never>?
+    /// Past `slowAfter` with no answer: one line saying so, under the last
+    /// message, which the rotation stops on.
+    @State private var isSlow = false
+    /// The rotation reaches "Almost there…" at about 6.6 s; a typical scan is
+    /// 3–6 s. 12 s is well past both and well inside the 35 s request timeout.
+    private let slowAfter: Duration = .seconds(12)
+    @State private var slowTask: Task<Void, Never>?
 
     private let messages = [
         String(localized: "Reading the label…"),
@@ -1123,28 +1140,53 @@ struct AnalyzingOverlay: View {
                     .multilineTextAlignment(.center)
                     .fixedSize(horizontal: false, vertical: true)
                     .padding(.horizontal, 24)
+
+                if isSlow {
+                    Text("Taking a bit longer than usual. Hang tight.")
+                        .font(.dmSans(13, weight: .medium))
+                        // Same ink and ground as the caption above, for the
+                        // contrast reasons given there.
+                        .foregroundStyle(Color.snapOnCharcoal.opacity(0.8))
+                        .multilineTextAlignment(.center)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .padding(.horizontal, 24)
+                        .transition(.opacity)
+                }
             }
             // Progress is conveyed by rotating copy; without a live region a
             // VoiceOver user gets silence for the whole 3–6s analysis.
             .accessibilityElement(children: .combine)
-            .accessibilityLabel(String(localized:
-                "\(messages[messageIndex]) Photo captured — you can lower your phone."))
+            .accessibilityLabel(isSlow
+                ? String(localized: "Taking a bit longer than usual. Hang tight.")
+                : String(localized:
+                    "\(messages[messageIndex]) Photo captured — you can lower your phone."))
             .accessibilityAddTraits(.updatesFrequently)
         }
         .onAppear {
             rotationTask = Task { @MainActor in
-                while !Task.isCancelled {
+                // Stops on the last message rather than wrapping: a slow scan
+                // that cycled back to "Reading the label…" after "Almost
+                // there…" read as a scan that had started over.
+                while !Task.isCancelled, messageIndex < messages.count - 1 {
                     try? await Task.sleep(for: .seconds(1.8))
-                    guard !Task.isCancelled else { break }
+                    guard !Task.isCancelled else { return }
                     withAnimation { opacity = 0 }
                     try? await Task.sleep(for: .seconds(0.4))
-                    guard !Task.isCancelled else { break }
-                    messageIndex = (messageIndex + 1) % messages.count
+                    guard !Task.isCancelled else { return }
+                    messageIndex += 1
                     withAnimation { opacity = 1 }
                 }
             }
+            slowTask = Task { @MainActor in
+                try? await Task.sleep(for: slowAfter)
+                guard !Task.isCancelled else { return }
+                withAnimation(.easeInOut(duration: 0.35)) { isSlow = true }
+            }
         }
-        .onDisappear { rotationTask?.cancel() }
+        .onDisappear {
+            rotationTask?.cancel()
+            slowTask?.cancel()
+        }
     }
 }
 

@@ -75,6 +75,21 @@ enum AppError: LocalizedError, Equatable {
         }
     }
 
+    /// A failure the same request can get past a moment later: the
+    /// connection, or the server, rather than anything about the item or the
+    /// device. The scan screen offers "Try again" for exactly these. The
+    /// server charges only a scan that succeeds, so a retry costs nothing.
+    ///
+    /// Not `.connectionNotTrusted` (its advice is to change networks), not
+    /// `.rateLimit` (its message gives the wait), and not `.aiFailed`, which
+    /// can be a verdict on the photo that the same photo would get again.
+    var isTransient: Bool {
+        switch self {
+        case .network, .timeout, .serverUnavailable, .verificationUnavailable: return true
+        default:                                                              return false
+        }
+    }
+
     var errorDescription: String? {
         switch self {
         case .network:

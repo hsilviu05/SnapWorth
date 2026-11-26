@@ -86,7 +86,7 @@ DELIBERATELY_ENGLISH = {
     "All", "Owned", "Listed", "Sold", "Scanned", "Date", "Profit", "ROI",
     "Newest", "Most Valuable", "New", "Like New", "Good", "Used",
     "High", "Medium", "Low", "Feature Request", "Bug Report", "General Feedback",
-    "com.snapworth.camera",
+    "com.snapworth.camera", "com.snapworth.camera.adjust",
     # The privacy policy and the terms. These are the English documents served
     # at api.snapworth.eu, and a translated copy of a legal text is a second
     # legal text — see ios/Localization/README.md.
