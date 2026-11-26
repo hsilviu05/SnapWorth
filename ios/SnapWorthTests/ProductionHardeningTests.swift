@@ -11873,6 +11873,13 @@ final class SoldListingsSearchTests: XCTestCase {
         XCTAssertFalse(query.hasSuffix(" "))
     }
 
+    func test_aPlusInTheNameStaysAPlus() throws {
+        let url = try XCTUnwrap(SoldListingsSearch.url(itemName: "C++ book", brand: "Unknown"))
+        XCTAssertTrue(url.absoluteString.contains("_nkw=C%2B%2B%20book"), url.absoluteString)
+        let parts = try XCTUnwrap(URLComponents(url: url, resolvingAgainstBaseURL: false))
+        XCTAssertEqual(parts.queryItems?.first { $0.name == "_nkw" }?.value, "C++ book")
+    }
+
     func test_theURLIsEbaysSoldAndCompletedSearch() throws {
         let url = try XCTUnwrap(SoldListingsSearch.url(itemName: "Air Max 90 & co", brand: "Nike"))
         let parts = try XCTUnwrap(URLComponents(url: url, resolvingAgainstBaseURL: false))

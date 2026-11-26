@@ -10,6 +10,22 @@ struct ExchangeRateTable: Codable, Equatable {
     let date: String
     /// Units of each currency per US dollar.
     let rates: [String: Double]
+
+    /// The oldest ECB day still shown. The ECB publishes on working days
+    /// only, so a long holiday weekend leaves Tuesday morning with
+    /// Thursday's rates; six days covers that and nothing staler.
+    static let maxRateAge: TimeInterval = 6 * 24 * 3600
+
+    /// Whether the rates are from a recent enough day.
+    ///
+    /// The phone's own `maxAge` counts from when it fetched the table, and
+    /// the server serves its last good table for up to four days, so the two
+    /// together could print rates over a week old as today's conversion. A
+    /// date that does not parse leaves it to the fetch age, as before.
+    func isRecent(now: Date = Date()) -> Bool {
+        guard let day = try? Date("\(date)T00:00:00Z", strategy: .iso8601) else { return true }
+        return now.timeIntervalSince(day) < Self.maxRateAge
+    }
 }
 
 enum ConvertedPrice {
@@ -57,10 +73,11 @@ actor ExchangeRatesClient {
             defer { inFlight = false }
             if let fresh = try? await fetch() {
                 Self.save(Stored(table: fresh, fetchedAt: now))
-                return fresh
+                return fresh.isRecent(now: now) ? fresh : nil
             }
         }
-        guard let stored, now.timeIntervalSince(stored.fetchedAt) < Self.maxAge else { return nil }
+        guard let stored, now.timeIntervalSince(stored.fetchedAt) < Self.maxAge,
+              stored.table.isRecent(now: now) else { return nil }
         return stored.table
     }
 

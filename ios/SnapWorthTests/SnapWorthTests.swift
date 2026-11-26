@@ -5434,6 +5434,15 @@ final class ConvertedPriceTests: XCTestCase {
         XCTAssertNil(ConvertedPrice.range(low: 40, high: 80, table: nil, locale: Locale(identifier: "ro_RO")))
     }
 
+    /// Measured from the ECB day, not from the fetch: the server can hand
+    /// out a four-day-old table that the phone then keeps for four more.
+    func test_ratesFromAnOldEcbDayAreNotShown() throws {
+        let day = try Date("2026-11-05T00:00:00Z", strategy: .iso8601)
+        XCTAssertTrue(table.isRecent(now: day.addingTimeInterval(5 * 86400)))
+        XCTAssertFalse(table.isRecent(now: day.addingTimeInterval(6 * 86400 + 1)))
+        XCTAssertTrue(ExchangeRateTable(date: "mock", rates: [:]).isRecent(now: day))
+    }
+
     func test_notARangeShowsNothing() {
         XCTAssertNil(ConvertedPrice.range(low: 80, high: 40, table: table, locale: Locale(identifier: "ro_RO")))
         XCTAssertNil(ConvertedPrice.range(low: .nan, high: 40, table: table, locale: Locale(identifier: "ro_RO")))
