@@ -602,7 +602,9 @@ enum PaywallCopy {
         switch trigger {
         // Nobody reached for anything: the intro paywall after the first
         // result, and Settings' own "Upgrade". The offer stays the headline.
-        case .onboarding, .settings:
+        // So does a store link to Pro: the product page or event that sent
+        // the user here has already made the pitch.
+        case .onboarding, .settings, .storeLink:
             return nil
         // The first result's card has just named the find and its range;
         // the paywall it opens keeps talking about that find, and leads with

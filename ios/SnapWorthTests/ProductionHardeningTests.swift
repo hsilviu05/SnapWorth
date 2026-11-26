@@ -9616,6 +9616,18 @@ final class WidgetURLRoutingTests: XCTestCase {
         XCTAssertNil(SnapWorthApp.route(url("https://snapworth.app/scan"), onboarded: true))
     }
 
+    /// The deep links a custom product page or in-app event can name
+    /// (`marketing/STORE-DEEP-LINKS.md`).
+    func test_theStoreRoutesReachTheirScreens() {
+        XCTAssertEqual(SnapWorthApp.route(url("snapworth://pro?src=cpp_resellers"), onboarded: true),
+                       .snapOpenPaywall)
+        XCTAssertEqual(SnapWorthApp.route(url("snapworth://haul?src=event_haul-week"), onboarded: true),
+                       .snapOpenHaul)
+        XCTAssertEqual(SnapWorthApp.route(url("snapworth://rack"), onboarded: true), .snapOpenRack)
+        XCTAssertEqual(SnapWorthApp.route(url("snapworth://guess?src=event_daily-guess"), onboarded: true),
+                       .snapOpenDailyGuess)
+    }
+
     // `MainTabView` answers a route by changing the tab and nothing else, so a
     // sheet or cover presented over the tab bar stayed in front of the tab
     // the user had tapped a notification or widget to reach.
@@ -9761,6 +9773,34 @@ final class WidgetSourceTests: XCTestCase {
 
         XCTAssertEqual(spy.events.map(\.name), ["widget_opened"])
         XCTAssertEqual(spy.params(for: "widget_opened"), ["source": "recent_finds"])
+    }
+
+    func test_aStoreLinkIsCountedWithItsCampaign() {
+        let spy = FunnelSpy()
+        Analytics.shared.configure(spy)
+        UserDefaults.standard.removeObject(forKey: Analytics.enabledKey)
+
+        _ = SnapWorthApp.route(url("snapworth://pro?src=cpp_resellers"), onboarded: true)
+        _ = SnapWorthApp.route(url("snapworth://haul?src=event_haul-week"), onboarded: true)
+
+        XCTAssertEqual(spy.events.map(\.name), ["store_link_opened", "store_link_opened"])
+        XCTAssertEqual(spy.events.first?.params,
+                       ["route": "pro", "kind": "cpp", "campaign": "resellers"])
+        XCTAssertEqual(spy.events.last?.params,
+                       ["route": "haul", "kind": "event", "campaign": "haul-week"])
+    }
+
+    func test_aCampaignNameIsAShortSlugOrNothing() {
+        XCTAssertEqual(StoreCampaign(src: "cpp_black-friday-2026")?.name, "black-friday-2026")
+        XCTAssertEqual(StoreCampaign(src: "event_guess")?.kind, .event)
+        for bad in ["cpp_", "cpp", "ad_resellers", "cpp_Resellers", "cpp_a b", "cpp_a_b",
+                    "event_%3Cscript%3E", "cpp_" + String(repeating: "a", count: 25), "_x", ""] {
+            XCTAssertNil(StoreCampaign(src: bad), bad)
+        }
+        XCTAssertNotNil(StoreCampaign(src: "cpp_" + String(repeating: "a", count: 24)))
+        // A store link is never also counted as a widget, nor the reverse.
+        XCTAssertNil(WidgetSource(url: url("snapworth://pro?src=cpp_resellers")))
+        XCTAssertNil(StoreCampaign(url: url("snapworth://history?src=recent_finds")))
     }
 
     func test_everySourceTheWidgetsSendIsOneTheAppKnows() throws {

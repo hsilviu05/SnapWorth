@@ -298,11 +298,23 @@ struct SnapWorthApp: App {
             // Reuses the name the notification deep links already post, rather
             // than adding a second route to the same screen.
             name = .snapOpenFlips
+        // The three below exist for the App Store: the deep link a custom
+        // product page or an in-app event sends someone to when they tap Open
+        // (`marketing/STORE-DEEP-LINKS.md`). Haul and Rack reuse the trial
+        // tip's routes, which already open the feature or its paywall.
+        case "haul":
+            name = .snapOpenHaul
+        case "rack":
+            name = .snapOpenRack
+        case "pro":
+            name = .snapOpenPaywall
         default:
             return nil
         }
         if let source = WidgetSource(url: url) {
             Analytics.shared.track(.widgetOpened(source: source.rawValue))
+        } else if let campaign = StoreCampaign(url: url) {
+            Analytics.shared.track(.storeLinkOpened(route: url.host ?? "", campaign: campaign))
         }
         return name
     }
@@ -373,6 +385,41 @@ enum WidgetSource: String, CaseIterable {
     }
 }
 
+/// The App Store page or in-app event a `snapworth://` link came from, named
+/// by its `src`: `cpp_<name>` for a custom product page, `event_<name>` for an
+/// in-app event (`marketing/STORE-DEEP-LINKS.md`).
+///
+/// Unlike `WidgetSource` the names are open, because a new product page or
+/// event should not need an app update to be counted. Any app or page can
+/// open this scheme, so the name is held to a short lowercase slug, and
+/// anything else is not counted at all rather than trimmed into one.
+struct StoreCampaign: Equatable {
+    enum Kind: String { case productPage = "cpp", event }
+
+    let kind: Kind
+    let name: String
+
+    static let maxNameLength = 24
+
+    init?(src: String) {
+        guard let underscore = src.firstIndex(of: "_"),
+              let kind = Kind(rawValue: String(src[..<underscore])) else { return nil }
+        let name = String(src[src.index(after: underscore)...])
+        let allowed = Set("abcdefghijklmnopqrstuvwxyz0123456789-")
+        guard !name.isEmpty, name.count <= Self.maxNameLength,
+              name.allSatisfy(allowed.contains) else { return nil }
+        self.kind = kind
+        self.name = name
+    }
+
+    init?(url: URL) {
+        guard let raw = URLComponents(url: url, resolvingAgainstBaseURL: false)?
+            .queryItems?.first(where: { $0.name == "src" })?.value
+        else { return nil }
+        self.init(src: raw)
+    }
+}
+
 /// Where a picture posted with `.snapScanSharedImage` came from. Visual
 /// intelligence is Pro, so `ScanView` asks.
 enum SharedImageOrigin {
@@ -396,6 +443,9 @@ extension Notification.Name {
     static let snapWidgetOpenHistory = Notification.Name("snapWidgetOpenHistory")
     /// The Daily guess widget: the Scan tab, with the game open over it.
     static let snapOpenDailyGuess    = Notification.Name("snapOpenDailyGuess")
+    /// `snapworth://pro`: the Scan tab with the paywall over it, for a
+    /// custom product page or in-app event about Pro. Nothing for a subscriber.
+    static let snapOpenPaywall       = Notification.Name("snapOpenPaywall")
     /// A photo shared from another app or tapped in visual intelligence, as
     /// the notification's `object` (`UIImage`), with its `SharedImageOrigin`
     /// in `userInfo`, for `ScanView` to value. See `scanSharedImage`.

@@ -34,8 +34,12 @@ struct ValueItemIntent: AppIntent {
 
 struct SnapWorthShortcuts: AppShortcutsProvider {
     static var appShortcuts: [AppShortcut] {
-        // Every phrase must name the app. These are English only until an
-        // `AppShortcuts.xcstrings` exists; the title above is translated.
+        // Every phrase must name the app. Their translations are in
+        // `AppShortcuts.xcstrings`, generated from
+        // `ios/Localization/AppShortcuts.json` and keyed by the English with
+        // `${applicationName}` in place of the interpolation — so a phrase
+        // changed here needs the same change there, or iOS matches only the
+        // English one.
         AppShortcut(
             intent: ValueItemIntent(),
             phrases: [

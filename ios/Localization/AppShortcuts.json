@@ -1,0 +1,61 @@
+{
+  "output": "ios/SnapWorth/AppShortcuts.xcstrings",
+  "strings": {
+    "What's this worth in ${applicationName}": {
+      "comment": "Siri and Spotlight: a phrase that runs the Value an item shortcut (#412). ${applicationName} is filled in by iOS with the app's name and must appear exactly once; put it wherever the language puts it. Spoken, so keep it short and natural.",
+      "en": "What's this worth in ${applicationName}",
+      "ro": "Cât valorează asta în ${applicationName}",
+      "es": "Cuánto vale esto en ${applicationName}",
+      "de": "Was ist das wert in ${applicationName}",
+      "zh-Hans": "用${applicationName}看看这个值多少钱",
+      "fr": "Combien ça vaut dans ${applicationName}",
+      "it": "Quanto vale questo su ${applicationName}",
+      "pt-BR": "Quanto vale isso no ${applicationName}",
+      "pl": "Ile to jest warte w ${applicationName}",
+      "ja": "${applicationName}でこれの価値を調べて",
+      "nl": "Wat is dit waard in ${applicationName}"
+    },
+    "Value an item with ${applicationName}": {
+      "comment": "Siri and Spotlight: a phrase that runs the Value an item shortcut (#412). ${applicationName} is filled in by iOS with the app's name and must appear exactly once; put it wherever the language puts it. Spoken, so keep it short and natural.",
+      "en": "Value an item with ${applicationName}",
+      "ro": "Evaluează un obiect cu ${applicationName}",
+      "es": "Valora un artículo con ${applicationName}",
+      "de": "Artikel mit ${applicationName} bewerten",
+      "zh-Hans": "用${applicationName}估价物品",
+      "fr": "Estime un article avec ${applicationName}",
+      "it": "Valuta un articolo con ${applicationName}",
+      "pt-BR": "Avalie um item com o ${applicationName}",
+      "pl": "Wyceń przedmiot w ${applicationName}",
+      "ja": "${applicationName}でアイテムを査定",
+      "nl": "Schat een item met ${applicationName}"
+    },
+    "Scan an item with ${applicationName}": {
+      "comment": "Siri and Spotlight: a phrase that runs the Value an item shortcut (#412). ${applicationName} is filled in by iOS with the app's name and must appear exactly once; put it wherever the language puts it. Spoken, so keep it short and natural.",
+      "en": "Scan an item with ${applicationName}",
+      "ro": "Scanează un obiect cu ${applicationName}",
+      "es": "Escanea un artículo con ${applicationName}",
+      "de": "Artikel mit ${applicationName} scannen",
+      "zh-Hans": "用${applicationName}扫描物品",
+      "fr": "Scanne un article avec ${applicationName}",
+      "it": "Scansiona un articolo con ${applicationName}",
+      "pt-BR": "Escaneie um item com o ${applicationName}",
+      "pl": "Zeskanuj przedmiot w ${applicationName}",
+      "ja": "${applicationName}でアイテムをスキャン",
+      "nl": "Scan een item met ${applicationName}"
+    },
+    "Price this with ${applicationName}": {
+      "comment": "Siri and Spotlight: a phrase that runs the Value an item shortcut (#412). ${applicationName} is filled in by iOS with the app's name and must appear exactly once; put it wherever the language puts it. Spoken, so keep it short and natural.",
+      "en": "Price this with ${applicationName}",
+      "ro": "Pune un preț cu ${applicationName}",
+      "es": "Ponle precio con ${applicationName}",
+      "de": "Preis mit ${applicationName} schätzen",
+      "zh-Hans": "用${applicationName}给这个定价",
+      "fr": "Donne un prix avec ${applicationName}",
+      "it": "Dai un prezzo con ${applicationName}",
+      "pt-BR": "Dê um preço com o ${applicationName}",
+      "pl": "Wyceń to w ${applicationName}",
+      "ja": "${applicationName}で値段を調べて",
+      "nl": "Bepaal de prijs met ${applicationName}"
+    }
+  }
+}

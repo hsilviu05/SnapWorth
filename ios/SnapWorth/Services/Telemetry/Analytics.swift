@@ -102,6 +102,11 @@ enum AnalyticsEvent {
     /// Once a day: how many of this app's widgets are placed, bucketed, and
     /// which kinds.
     case widgetsInstalled(count: String, kinds: String)
+    /// The app was opened from the App Store: Open on a custom product page
+    /// or an in-app event whose deep link carries `src=cpp_…` or `event_…`.
+    /// `route` is the URL's host, already one the router knows; the campaign
+    /// is a `StoreCampaign`, never the raw query.
+    case storeLinkOpened(route: String, campaign: StoreCampaign)
 
     // ── Referrals (#97) ──────────────────────────────────────────────
     //
@@ -294,6 +299,7 @@ enum AnalyticsEvent {
         case .marketplaceOpened:    return "marketplace_opened"
         case .widgetOpened:         return "widget_opened"
         case .widgetsInstalled:     return "widgets_installed"
+        case .storeLinkOpened:      return "store_link_opened"
         case .referralShareOpened:  return "referral_share_opened"
         case .referralCodeAccepted: return "referral_code_accepted"
         case .referralRewardOpened: return "referral_reward_opened"
@@ -408,6 +414,8 @@ enum AnalyticsEvent {
             return ["source": source]
         case let .widgetsInstalled(count, kinds):
             return ["count": count, "kinds": kinds]
+        case let .storeLinkOpened(route, campaign):
+            return ["route": route, "kind": campaign.kind.rawValue, "campaign": campaign.name]
         case let .thriftFlipCalculated(verdict):
             return ["verdict": verdict]
         case let .legitCheckCompleted(verdict):
@@ -562,6 +570,9 @@ enum PaywallTrigger: String, CaseIterable {
     case visualIntelligence = "visual_intelligence"
     /// "Unlock Tag's tips" on a free user's result.
     case tagTips = "tag_tips"
+    /// `snapworth://pro`, from a custom product page or in-app event about
+    /// Pro (`StoreCampaign`).
+    case storeLink = "store_link"
     /// "Add your year's profit with Pro" on the Year in Finds sheet.
     case wrapped = "wrapped"
     /// "See Pro plans" on the card a free user's first fresh result shows
