@@ -81,6 +81,7 @@ from billing.quota import FREE_SCANS_PER_DAY, ScanQuota
 from security.ratelimit import (
     ASSIST_DAILY_MAX_REQUESTS,
     ASSIST_FREE_WEEKLY_MAX,
+    ASSIST_FREE_WEEKLY_RETRIES,
     ASSIST_FREE_WINDOW_SECS,
     ASSIST_WINDOW_SECS,
     IP_RATE_MAX_REQUESTS,
@@ -944,6 +945,7 @@ LISTING_BUCKET = "listing"
 LEGIT_BUCKET = "legit"
 ASSIST_BUCKET = "assist"
 ASSIST_FREE_BUCKET = "assist_free"
+ASSIST_FREE_RETRY_BUCKET = "assist_free_retry"
 TRENDS_BUCKET = "trends"
 RATES_BUCKET = "rates"
 DATA_DELETION_BUCKET = "forget"
@@ -1124,6 +1126,33 @@ async def _enforce_limits(device_id: str, ip: str | None, *,
     except RateLimitExceeded as exc:
         raise APIError(429, apierrors.RATE_LIMITED, exc.message,
                        headers={"Retry-After": str(exc.retry_after)}) from None
+
+
+async def _refund_limit(device_id: str, *, bucket: str) -> None:
+    """Hand back the request `_enforce_limits` last counted against `bucket`
+    for this device. The address bucket is left as it is."""
+    key = f"{bucket}:{device_id[:64]}"
+    if _device_limiter is None:
+        _device_memory.refund_sync(key)
+    else:
+        await _device_limiter.refund(key)
+
+
+async def _refund_free_question(subject: str) -> None:
+    """The free Ask Tag question produced no answer: give it back, up to
+    `ASSIST_FREE_WEEKLY_RETRIES` times a week.
+
+    It was spent before the model was asked, so an outage or an answer that
+    could not be kept used up the week's only question. The app then said
+    "try again" or "try asking another way", and the retry was a 402.
+    """
+    try:
+        await _enforce_limits(subject, None, bucket=ASSIST_FREE_RETRY_BUCKET,
+                              limit=ASSIST_FREE_WEEKLY_RETRIES,
+                              window=ASSIST_FREE_WINDOW_SECS)
+    except APIError:
+        return
+    await _refund_limit(subject, bucket=ASSIST_FREE_BUCKET)
 
 
 # Constructed with explicit generation parameters — see aiconfig.py. The bare
@@ -3788,6 +3817,7 @@ async def assist(
     A free caller gets one question a week (`ASSIST_FREE_WEEKLY_MAX`), with
     no follow-ups, as a preview; past it, or with the preview set to 0, the
     Pro 402 as before."""
+    history = list(req.history)
     if principal.is_pro:
         await _enforce_limits(principal.subject, _client_ip(request),
                               bucket=ASSIST_BUCKET, limit=ASSIST_DAILY_MAX_REQUESTS,
@@ -3800,10 +3830,19 @@ async def assist(
                             "Ask Tag is a SnapWorth Pro feature.")
         if ASSIST_FREE_WEEKLY_MAX <= 0:
             raise _pro_required("not_pro")
-        if req.history:
+        # A follow-up is a question after an answer. The app sends the
+        # thread as it stands, and a question that got no answer stays in it,
+        # so a retry of the free question arrives with history; it is not a
+        # follow-up, and its unanswered turns are not sent to the model.
+        if any(turn.role == "tag" for turn in req.history):
             raise _pro_required("free_follow_up")
+        history = []
+        # The address first, on its own. Checked together, a 429 from the
+        # hourly address cap became "free_preview_used", and the app hid the
+        # free question for a week on the strength of it.
+        await _enforce_ip_limit(_client_ip(request))
         try:
-            await _enforce_limits(principal.subject, _client_ip(request),
+            await _enforce_limits(principal.subject, None,
                                   bucket=ASSIST_FREE_BUCKET, limit=ASSIST_FREE_WEEKLY_MAX,
                                   window=ASSIST_FREE_WINDOW_SECS)
         except APIError as exc:
@@ -3818,9 +3857,10 @@ async def assist(
         condition=req.condition, low=low, likely=req.price_likely_usd, high=high,
         confidence=req.confidence, sold_listings=req.sold_listings, paid=req.paid_usd,
         status=req.status, question=req.question,
-        history=[(turn.role, turn.text) for turn in req.history],
+        history=[(turn.role, turn.text) for turn in history],
         language=req.language)
     none = AssistResponse(answer=None, prompt_version=assist_module.PROMPT_VERSION)
+    free = not principal.is_pro
     try:
         raw, _usage = await _generate_with_retry(
             prompt, label="assist", max_tokens=assist_module.MAX_OUTPUT_TOKENS,
@@ -3829,9 +3869,13 @@ async def assist(
             thinking_level=aiconfig.TEXT_THINKING_LEVEL, tier=principal.tier)
     except aiconfig.ModelBlocked:
         log.info("assist blocked by safety filter")
+        if free:
+            await _refund_free_question(principal.subject)
         return none
     except aiconfig.ModelUnavailable as exc:
         log.error("assist gemini failed after retries: %s", exc)
+        if free:
+            await _refund_free_question(principal.subject)
         raise APIError(502, apierrors.AI_UNAVAILABLE,
                        "The AI service is temporarily unavailable. "
                        "Please try again.") from None
@@ -3841,9 +3885,13 @@ async def assist(
     except (json.JSONDecodeError, ValueError):
         # Length only: the reply is about someone's item.
         log.warning("assist reply unparseable (raw_len=%d)", len(raw))
+        if free:
+            await _refund_free_question(principal.subject)
         return none
 
     answer = assist_module.validate(data, low=low, high=high)
+    if answer is None and free:
+        await _refund_free_question(principal.subject)
     # Whether it was kept, never the question or the answer.
     log.info("assist ok", extra={
         "device": auditlog.pseudonymise(principal.subject), "kept": answer is not None})

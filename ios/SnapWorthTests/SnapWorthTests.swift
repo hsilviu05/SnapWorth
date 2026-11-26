@@ -5232,6 +5232,22 @@ final class ThriftWrappedTests: XCTestCase {
         XCTAssertNil(ThriftWrapped.seasonYear(now: date(2027, 2, 1), calendar: calendar))
     }
 
+    /// The card prints the year, so it is the Gregorian one under any
+    /// calendar the phone is set to.
+    func test_theYearIsGregorianUnderTheJapaneseAndBuddhistCalendars() {
+        for identifier in [Calendar.Identifier.japanese, .buddhist] {
+            var local = Calendar(identifier: identifier)
+            local.timeZone = calendar.timeZone
+            XCTAssertEqual(ThriftWrapped.seasonYear(now: date(2026, 12, 1), calendar: local), 2026)
+            XCTAssertEqual(ThriftWrapped.seasonYear(now: date(2027, 1, 31), calendar: local), 2026)
+            XCTAssertEqual(ThriftWrapped.offeredYear(now: date(2026, 11, 5), calendar: local,
+                                                     isTestBuild: true), 2026)
+            let three = [find("a", on: date(2026, 3, 1)), find("b", on: date(2026, 4, 1)),
+                         find("c", on: date(2026, 5, 1))]
+            XCTAssertEqual(ThriftWrapped(results: three, year: 2026, calendar: local)?.scanCount, 3)
+        }
+    }
+
     func test_aTestBuildIsOfferedTheCurrentYearOutOfSeason() {
         XCTAssertEqual(ThriftWrapped.offeredYear(now: date(2026, 11, 5), calendar: calendar,
                                                  isTestBuild: true), 2026)
@@ -5304,6 +5320,18 @@ final class WidgetGuessDataTests: XCTestCase {
                            DailyGuess.dayNumber(for: day, calendar: calendar))
         }
         XCTAssertEqual(WidgetGuessData.dayNumber(for: date(2026, 10, 1), calendar: calendar), 1)
+    }
+
+    /// The epoch is a Gregorian date. Read in the Japanese calendar it was in
+    /// the current era's year 2026, so every day was day 1.
+    func test_daysCountTheSameUnderTheJapaneseAndBuddhistCalendars() {
+        for identifier in [Calendar.Identifier.japanese, .buddhist] {
+            var local = Calendar(identifier: identifier)
+            local.timeZone = calendar.timeZone
+            XCTAssertEqual(WidgetGuessData.dayNumber(for: date(2026, 10, 1), calendar: local), 1)
+            XCTAssertEqual(WidgetGuessData.dayNumber(for: date(2026, 11, 26), calendar: local), 57)
+            XCTAssertEqual(WidgetGuessData.dayNumber(for: date(2026, 11, 27, hour: 0), calendar: local), 58)
+        }
     }
 
     func test_playedTodayAndTheStreakFollowTheEntryDate() {
@@ -5404,6 +5432,15 @@ final class ConvertedPriceTests: XCTestCase {
         XCTAssertNil(ConvertedPrice.range(low: 40, high: 80, table: table, locale: Locale(identifier: "en_US")))
         XCTAssertNil(ConvertedPrice.range(low: 40, high: 80, table: table, locale: Locale(identifier: "pl_PL")))
         XCTAssertNil(ConvertedPrice.range(low: 40, high: 80, table: nil, locale: Locale(identifier: "ro_RO")))
+    }
+
+    /// Measured from the ECB day, not from the fetch: the server can hand
+    /// out a four-day-old table that the phone then keeps for four more.
+    func test_ratesFromAnOldEcbDayAreNotShown() throws {
+        let day = try Date("2026-11-05T00:00:00Z", strategy: .iso8601)
+        XCTAssertTrue(table.isRecent(now: day.addingTimeInterval(5 * 86400)))
+        XCTAssertFalse(table.isRecent(now: day.addingTimeInterval(6 * 86400 + 1)))
+        XCTAssertTrue(ExchangeRateTable(date: "mock", rates: [:]).isRecent(now: day))
     }
 
     func test_notARangeShowsNothing() {

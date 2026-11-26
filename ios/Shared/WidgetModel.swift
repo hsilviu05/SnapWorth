@@ -268,10 +268,21 @@ struct WidgetGuessData: Codable, Equatable {
 
     /// Which day of the rotation `date` falls on, counting from 1, in the
     /// calendar's time zone.
+    ///
+    /// Counted in the Gregorian calendar, whatever the phone's calendar is.
+    /// `epoch` is a Gregorian date, and read in the calendar the user picked
+    /// it is a different one: under the Japanese calendar the year 2026 is in
+    /// the current era, two thousand years ahead, so every day was day 1, the
+    /// game played its first round forever and a guess made once read as
+    /// played for good. Under the Buddhist calendar (Thailand's default) it
+    /// is the year 1483, a different round from everyone else's. Only the
+    /// time zone is taken from `calendar`, so the day still turns at local
+    /// midnight.
     static func dayNumber(for date: Date, calendar: Calendar = .current) -> Int {
-        guard let start = calendar.date(from: epoch) else { return 1 }
-        let days = calendar.dateComponents([.day], from: calendar.startOfDay(for: start),
-                                           to: calendar.startOfDay(for: date)).day ?? 0
+        let gregorian = Calendar.gregorian(in: calendar.timeZone)
+        guard let start = gregorian.date(from: epoch) else { return 1 }
+        let days = gregorian.dateComponents([.day], from: gregorian.startOfDay(for: start),
+                                            to: gregorian.startOfDay(for: date)).day ?? 0
         return max(1, days + 1)
     }
 
@@ -285,6 +296,17 @@ struct WidgetGuessData: Codable, Equatable {
         guard lastDay > 0 else { return 0 }
         let today = Self.dayNumber(for: date, calendar: calendar)
         return (today == lastDay || today == lastDay + 1) ? streak : 0
+    }
+}
+
+extension Calendar {
+    /// The Gregorian calendar in `timeZone`: for a fixed date written as
+    /// year, month and day (`WidgetGuessData.epoch`, a Year in Finds year),
+    /// which means something else in the Japanese or Buddhist calendar.
+    static func gregorian(in timeZone: TimeZone) -> Calendar {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = timeZone
+        return calendar
     }
 }
 

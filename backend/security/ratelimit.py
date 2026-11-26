@@ -336,6 +336,11 @@ ASSIST_WINDOW_SECS = 24 * 3600
 # question. 0 turns the preview off, and free callers get the Pro 402 again.
 ASSIST_FREE_WEEKLY_MAX = int(os.environ.get("ASSIST_FREE_WEEKLY_MAX", "1"))
 ASSIST_FREE_WINDOW_SECS = 7 * 24 * 3600
+# How many times a week the free question is handed back when no answer came
+# of it (an outage, a reply that could not be kept, a safety block), so the
+# app's "try again" is true. Bounded, because a refunded question still cost a
+# model call.
+ASSIST_FREE_WEEKLY_RETRIES = int(os.environ.get("ASSIST_FREE_WEEKLY_RETRIES", "3"))
 
 # /trends costs no model call: it reads tallies the server caches for 15
 # minutes, and the app caches the answer for 30. So the per-device cap here is
@@ -363,6 +368,10 @@ class RateLimiter(Protocol):
 
     async def check(self, key: str, limit: int, window: int = RATE_WINDOW_SECS) -> None: ...
 
+    async def refund(self, key: str) -> None:
+        """Hands back the newest request counted against `key`."""
+        ...
+
 
 # ── In-memory (fallback / single-instance) ───────────────────────────────────
 
@@ -375,20 +384,30 @@ class InMemoryRateLimiter:
 
     def __init__(self) -> None:
         self.store: dict[str, list[float]] = defaultdict(list)
+        # Each key's own window, for `_prune`.
+        self.windows: dict[str, int] = {}
         self._last_cleanup = time.time()
 
     def _prune(self, now: float) -> None:
         # Bound memory growth: drop keys whose newest entry is outside the window.
+        #
+        # The key's own window, not the hour. Pruning every key at an hour
+        # emptied the longer buckets early: Ask Tag's weekly free question
+        # came back an hour after it was asked, and its 20 a day became 20
+        # an hour, whenever Redis was down or unset.
         if now - self._last_cleanup <= 600:
             return
-        stale = [k for k, v in self.store.items() if not v or now - max(v) > RATE_WINDOW_SECS]
+        stale = [k for k, v in self.store.items()
+                 if not v or now - max(v) > self.windows.get(k, RATE_WINDOW_SECS)]
         for k in stale:
             del self.store[k]
+            self.windows.pop(k, None)
         self._last_cleanup = now
 
     def check_sync(self, key: str, limit: int, window: int = RATE_WINDOW_SECS) -> None:
         now = time.time()
         self._prune(now)
+        self.windows[key] = max(window, self.windows.get(key, 0))
         timestamps = self.store[key]
         timestamps[:] = [t for t in timestamps if now - t < window]
         if len(timestamps) >= limit:
@@ -401,6 +420,14 @@ class InMemoryRateLimiter:
 
     async def check(self, key: str, limit: int, window: int = RATE_WINDOW_SECS) -> None:
         self.check_sync(key, limit, window)
+
+    def refund_sync(self, key: str) -> None:
+        timestamps = self.store.get(key)
+        if timestamps:
+            timestamps.pop()
+
+    async def refund(self, key: str) -> None:
+        self.refund_sync(key)
 
 
 # ── Redis (distributed) ──────────────────────────────────────────────────────
@@ -479,6 +506,11 @@ class RedisRateLimiter:
                 retry_after=abs(int(result)),
             )
 
+    async def refund(self, key: str) -> None:
+        # The newest member. Under concurrency that may be another request's
+        # entry rather than this one's; the count comes out the same.
+        await self._redis.zpopmax(f"rl:{key}")
+
 
 # ── Resilient facade ─────────────────────────────────────────────────────────
 
@@ -518,6 +550,17 @@ class ResilientRateLimiter:
                         "(limits are now per-replica): %s", exc
                     )
         await self._fallback.check(key, limit, window)
+
+    async def refund(self, key: str) -> None:
+        """Best-effort: a refund that fails leaves the request counted, which
+        is what happened before refunds existed. Goes where `check` would."""
+        if self._primary is not None and self._degraded_since is None:
+            try:
+                await self._primary.refund(key)
+            except Exception as exc:
+                log.warning("rate limit refund failed: %s", type(exc).__name__)
+            return
+        await self._fallback.refund(key)
 
 
 async def build_limiter() -> tuple[ResilientRateLimiter, InMemoryRateLimiter]:

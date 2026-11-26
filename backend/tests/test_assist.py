@@ -83,6 +83,59 @@ class TestTheGate:
         assert r.status_code == 402
         assert not model.called
 
+    def test_a_free_question_with_no_answer_can_be_asked_again(self):
+        # The app says "try asking another way"; the retry must not be a 402.
+        r, _ = post_assist("assist-free-dropped", pro=False,
+                           reply={"answer": "List it at $250, it's rare."})
+        assert r.status_code == 200
+        assert r.json()["answer"] is None
+        r, model = post_assist("assist-free-dropped", pro=False)
+        assert r.status_code == 200
+        assert r.json()["answer"] is not None
+        assert model.called
+        # A kept answer spends it.
+        r, model = post_assist("assist-free-dropped", pro=False)
+        assert r.status_code == 402
+        assert not model.called
+
+    def test_the_free_retry_carries_the_unanswered_question_and_is_not_a_follow_up(self):
+        # The app keeps the unanswered question in the thread and sends it
+        # as history with the retry.
+        r, _ = post_assist("assist-free-thread", pro=False, reply="not json at all")
+        assert r.json()["answer"] is None
+        body = BODY | {"history": [{"role": "user", "text": BODY["question"]}]}
+        r, model = post_assist("assist-free-thread", pro=False, body=body)
+        assert r.status_code == 200
+        assert r.json()["answer"] is not None
+        assert model.call_args.args[0].count(BODY["question"]) == 1
+
+    def test_a_free_question_lost_to_an_outage_can_be_asked_again(self):
+        r, _ = post_assist("assist-free-outage", pro=False,
+                           reply=aiconfig.ModelUnavailable("down"))
+        assert r.status_code == 502
+        r, _ = post_assist("assist-free-outage", pro=False)
+        assert r.status_code == 200
+        assert r.json()["answer"] is not None
+
+    def test_free_retries_are_bounded(self, monkeypatch):
+        monkeypatch.setattr(main, "ASSIST_FREE_WEEKLY_RETRIES", 1)
+        for _ in range(2):
+            r, _ = post_assist("assist-free-bounded", pro=False, reply="not json at all")
+            assert r.status_code == 200
+        r, model = post_assist("assist-free-bounded", pro=False)
+        assert r.status_code == 402
+        assert not model.called
+
+    def test_a_free_caller_over_the_address_cap_is_told_later_not_pro(self, monkeypatch):
+        monkeypatch.setattr(main, "IP_RATE_MAX_REQUESTS", 0)
+        r, model = post_assist("assist-free-ip", pro=False)
+        assert r.status_code == 429
+        assert r.json()["code"] == apierrors.RATE_LIMITED
+        assert not model.called
+        monkeypatch.setattr(main, "IP_RATE_MAX_REQUESTS", 10_000)
+        r, _ = post_assist("assist-free-ip", pro=False)
+        assert r.status_code == 200
+
     def test_the_free_preview_is_one_a_week(self):
         assert main.ASSIST_FREE_WEEKLY_MAX == 1
         assert main.ASSIST_FREE_WINDOW_SECS == 7 * 86400

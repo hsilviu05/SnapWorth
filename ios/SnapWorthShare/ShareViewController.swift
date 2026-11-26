@@ -65,6 +65,17 @@ final class ShareModel {
     /// a share extension is killed at a fraction of the app's memory.
     nonisolated static func downscaledJPEG(_ data: Data) -> Data? {
         guard let source = CGImageSourceCreateWithData(data as CFData, nil) else { return nil }
+        return downscaledJPEG(source)
+    }
+
+    /// From a file, which Image I/O reads only as far as the thumbnail needs:
+    /// the whole file is never in memory, as it was with the data path.
+    nonisolated static func downscaledJPEG(at url: URL) -> Data? {
+        guard let source = CGImageSourceCreateWithURL(url as CFURL, nil) else { return nil }
+        return downscaledJPEG(source)
+    }
+
+    private nonisolated static func downscaledJPEG(_ source: CGImageSource) -> Data? {
         let options: [CFString: Any] = [
             kCGImageSourceCreateThumbnailFromImageAlways: true,
             kCGImageSourceCreateThumbnailWithTransform: true,
@@ -76,20 +87,40 @@ final class ShareModel {
     }
 
     private static func loadJPEG(from provider: NSItemProvider) async -> Data? {
-        await withCheckedContinuation { continuation in
+        // A file, not the data: `loadDataRepresentation` put the whole image
+        // in memory first, and a 48 MP ProRAW or a long panorama can be more
+        // than a share extension is allowed. The file is removed when the
+        // handler returns, so it is read inside it.
+        let fromFile: Data? = await withCheckedContinuation { continuation in
+            _ = provider.loadFileRepresentation(forTypeIdentifier: UTType.image.identifier) { url, _ in
+                continuation.resume(returning: url.flatMap(ShareModel.downscaledJPEG(at:)))
+            }
+        }
+        if let fromFile { return fromFile }
+        // An app that offers the image only in memory.
+        return await withCheckedContinuation { continuation in
             _ = provider.loadDataRepresentation(forTypeIdentifier: UTType.image.identifier) { data, _ in
                 continuation.resume(returning: data.flatMap(ShareModel.downscaledJPEG))
             }
         }
     }
 
-    /// True when a notification will take the user to the value.
+    /// True when a notification will show up and take the user to the value.
+    ///
+    /// Quiet delivery (`.provisional`, which the app asks for after "Not
+    /// now" since 1.8.3) still gets one, but it goes straight to Notification
+    /// Center with no banner, so the sheet must not say "Tap the
+    /// notification": it says to open SnapWorth. The same for a user who
+    /// allowed notifications and turned their banners off.
     private static func scheduleNotification() async -> Bool {
         let center = UNUserNotificationCenter.current()
-        switch await center.notificationSettings().authorizationStatus {
+        let settings = await center.notificationSettings()
+        switch settings.authorizationStatus {
         case .authorized, .provisional, .ephemeral: break
         default: return false
         }
+        let showsBanner = settings.authorizationStatus != .provisional
+            && settings.alertSetting == .enabled
         let content = UNMutableNotificationContent()
         content.title = String(localized: "Ready to value")
         content.body = String(localized: "Tap to see what it's worth.")
@@ -97,7 +128,7 @@ final class ShareModel {
         do {
             try await center.add(UNNotificationRequest(identifier: notificationID,
                                                        content: content, trigger: trigger))
-            return true
+            return showsBanner
         } catch {
             return false
         }
