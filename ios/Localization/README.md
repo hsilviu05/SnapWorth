@@ -97,6 +97,13 @@ The share extension (#410) is a third target with a third catalog,
 reason. It shares one file with the app, `ios/Shared/SharedImageInbox.swift`,
 which has no user-facing strings, so nothing needs to be in both.
 
+`AppShortcuts.json` → `ios/SnapWorth/AppShortcuts.xcstrings` holds the Siri
+and Spotlight phrases in `SnapWorthShortcuts`. iOS reads that file by its name,
+so it cannot be folded into `Localizable.xcstrings`. A phrase's key is its
+English with `${applicationName}` where the code interpolates
+`.applicationName`, and every translation must carry that token exactly once —
+`build_xcstrings.py` fails on any that do not.
+
 ## Symbol generation is off, on purpose
 
 `STRING_CATALOG_GENERATE_SYMBOLS` is `NO` in all four build configurations.

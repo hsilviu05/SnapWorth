@@ -70,6 +70,7 @@
 		AA0000000000000000000114 /* ShareCardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000113 /* ShareCardView.swift */; };
 		AA0000000000000000000203 /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000201 /* Localizable.xcstrings */; };
 		AA0000000000000000000204 /* InfoPlist.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000202 /* InfoPlist.xcstrings */; };
+		AA0000000000000000000206 /* AppShortcuts.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000205 /* AppShortcuts.xcstrings */; };
 		AA0000000000000000229A01 /* FullDetailOffer.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000229A02 /* FullDetailOffer.swift */; };
 		AA000000000000000F125A01 /* FirstResultOffer.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000000000000000F125A02 /* FirstResultOffer.swift */; };
 		AA0000000000000000229A03 /* ValuationDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000229A04 /* ValuationDetailView.swift */; };
@@ -235,6 +236,7 @@
 		AA0000000000000000000113 /* ShareCardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareCardView.swift; sourceTree = "<group>"; };
 		AA0000000000000000000201 /* Localizable.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = Localizable.xcstrings; sourceTree = "<group>"; };
 		AA0000000000000000000202 /* InfoPlist.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = InfoPlist.xcstrings; sourceTree = "<group>"; };
+		AA0000000000000000000205 /* AppShortcuts.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = AppShortcuts.xcstrings; sourceTree = "<group>"; };
 		AA0000000000000000229A02 /* FullDetailOffer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FullDetailOffer.swift; sourceTree = "<group>"; };
 		AA000000000000000F125A02 /* FirstResultOffer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FirstResultOffer.swift; sourceTree = "<group>"; };
 		AA0000000000000000229A04 /* ValuationDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ValuationDetailView.swift; sourceTree = "<group>"; };
@@ -534,6 +536,7 @@
 				AA000000000000000000010D /* PrivacyInfo.xcprivacy */,
 				AA0000000000000000000201 /* Localizable.xcstrings */,
 				AA0000000000000000000202 /* InfoPlist.xcstrings */,
+				AA0000000000000000000205 /* AppShortcuts.xcstrings */,
 				ADD1EC0000000000000000F7 /* SnapWorth.storekit */,
 				AA00000000000000000000F5 /* Fonts */,
 				AA00000000000000000000B8 /* DesignSystem */,
@@ -884,6 +887,7 @@
 				AA000000000000000000010E /* PrivacyInfo.xcprivacy in Resources */,
 				AA0000000000000000000203 /* Localizable.xcstrings in Resources */,
 				AA0000000000000000000204 /* InfoPlist.xcstrings in Resources */,
+				AA0000000000000000000206 /* AppShortcuts.xcstrings in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

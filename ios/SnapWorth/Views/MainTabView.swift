@@ -144,6 +144,9 @@ struct MainTabView: View {
         .onReceive(NotificationCenter.default.publisher(for: .snapOpenRack)) { _ in
             selectedTab = 0
         }
+        .onReceive(NotificationCenter.default.publisher(for: .snapOpenPaywall)) { _ in
+            selectedTab = 0
+        }
         .onReceive(NotificationCenter.default.publisher(for: .snapWidgetOpenHistory)) { _ in
             selectedTab = 1
         }

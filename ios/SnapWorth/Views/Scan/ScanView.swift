@@ -664,6 +664,13 @@ struct ScanView: View {
         .onReceive(NotificationCenter.default.publisher(for: .snapOpenRack)) { _ in
             openRack()
         }
+        // `snapworth://pro`, from the App Store. A subscriber already has
+        // what the page was selling, and lands on the camera.
+        .onReceive(NotificationCenter.default.publisher(for: .snapOpenPaywall)) { _ in
+            guard !purchaseService.isSubscribed else { return }
+            vm.paywallTrigger = .storeLink
+            vm.showPaywall = true
+        }
         // Every way in, the entry row's, a purchase's and the tip's: a
         // feature that has been opened gets no tip.
         .onChange(of: showHaul) { _, open in

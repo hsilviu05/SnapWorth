@@ -81,6 +81,12 @@ REQUIRED = {
 }
 
 
+# App Shortcut phrases name the app with `${applicationName}`, which iOS
+# fills in when it matches what was said. A phrase without it is rejected by
+# the App Intents build step, and one with it twice never matches.
+APP_NAME_TOKEN = "${applicationName}"
+
+
 def specifiers(s):
     return [m.group(0) for m in SPECIFIER.finditer(s) if m.group(0) != "%%"]
 
@@ -182,6 +188,10 @@ def build(entries, path, errors, existing=None, untranslated=None):
                 why = specifier_problem(form, source, isinstance(value, dict))
                 if why:
                     errors.append(f"{path}: {key!r} [{lang}] {why}")
+                if form.count(APP_NAME_TOKEN) != source.count(APP_NAME_TOKEN):
+                    errors.append(f"{path}: {key!r} [{lang}] has {APP_NAME_TOKEN} "
+                                  f"{form.count(APP_NAME_TOKEN)} time(s), the source "
+                                  f"{source.count(APP_NAME_TOKEN)}")
 
         entry = {"extractionState": "manual", "localizations": loc}
         if e.get("comment"):
