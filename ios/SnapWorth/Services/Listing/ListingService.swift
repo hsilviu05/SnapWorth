@@ -140,8 +140,8 @@ enum SoldListingsSearch {
         ]
         // `URLQueryItem` leaves "+" as it is, and a query string reads it as
         // a space, so "C++" or "Levi's 501+" lost its plus on eBay.
-        components?.percentEncodedQuery = components?.percentEncodedQuery?
-            .replacingOccurrences(of: "+", with: "%2B")
+        let encoded = components?.percentEncodedQuery?.replacingOccurrences(of: "+", with: "%2B")
+        components?.percentEncodedQuery = encoded
         return components?.url
     }
 }
