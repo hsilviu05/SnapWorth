@@ -56629,41 +56629,6 @@
         }
       }
     },
-    "Sort, share the month, or export a CSV" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Sortieren, den Monat teilen oder als CSV exportieren"
-          }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Sort, share the month, or export a CSV"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Ordena, comparte el mes o exporta un CSV"
-          }
-        },
-        "ro" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Sortează, distribuie luna sau exportă un CSV"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "排序、分享本月，或导出 CSV"
-          }
-        }
-      }
-    },
     "Sort, share the month, or export your flips" : {
       "extractionState" : "manual",
       "localizations" : {

@@ -206,3 +206,62 @@ class TestTheDistributedPathKeys:
             ("trends:pro-keys", ratelimit.TRENDS_RATE_MAX_REQUESTS),
         ]
         assert ip.calls == [("ip:192.0.2.1", ratelimit.IP_RATE_MAX_REQUESTS)] * 4
+
+
+class TestTheInMemoryLimiter:
+    """The fallback when Redis is unset or down."""
+
+    def test_pruning_keeps_a_bucket_for_its_own_window(self, monkeypatch):
+        # Pruning dropped every key an hour after its newest entry, so a weekly
+        # bucket (Ask Tag's free question) emptied an hour after it was used.
+        limiter = ratelimit.InMemoryRateLimiter()
+        now = 1_000_000.0
+        monkeypatch.setattr(ratelimit.time, "time", lambda: now)
+        limiter.check_sync("assist_free:dev", 1, 7 * 86400)
+        limiter.check_sync("hourly:dev", 1)
+        now += 2 * 3600
+        limiter._last_cleanup = 0
+        with pytest.raises(ratelimit.RateLimitExceeded):
+            limiter.check_sync("assist_free:dev", 1, 7 * 86400)
+        limiter.check_sync("hourly:dev", 1)
+        assert "assist_free:dev" in limiter.store
+
+    def test_a_refund_hands_back_one_request(self):
+        limiter = ratelimit.InMemoryRateLimiter()
+        limiter.check_sync("k", 1)
+        with pytest.raises(ratelimit.RateLimitExceeded):
+            limiter.check_sync("k", 1)
+        limiter.refund_sync("k")
+        limiter.check_sync("k", 1)
+        limiter.refund_sync("never-seen")
+
+
+class TestTheResilientLimitersRefund:
+    @pytest.mark.asyncio
+    async def test_goes_to_redis_when_healthy(self):
+        primary = MagicMock()
+        primary.refund = AsyncMock()
+        fallback = ratelimit.InMemoryRateLimiter()
+        await ratelimit.ResilientRateLimiter(primary, fallback).refund("k")
+        primary.refund.assert_awaited_once_with("k")
+
+    @pytest.mark.asyncio
+    async def test_a_failed_refund_is_swallowed(self):
+        primary = MagicMock()
+        primary.refund = AsyncMock(side_effect=ConnectionError("down"))
+        await ratelimit.ResilientRateLimiter(primary, ratelimit.InMemoryRateLimiter()).refund("k")
+
+    @pytest.mark.asyncio
+    async def test_goes_to_the_fallback_when_degraded(self):
+        fallback = ratelimit.InMemoryRateLimiter()
+        fallback.check_sync("k", 1)
+        await ratelimit.ResilientRateLimiter(None, fallback).refund("k")
+        fallback.check_sync("k", 1)
+
+    @pytest.mark.asyncio
+    async def test_redis_pops_the_newest_member(self):
+        client = MagicMock()
+        client.register_script = MagicMock(return_value=AsyncMock())
+        client.zpopmax = AsyncMock()
+        await ratelimit.RedisRateLimiter(client).refund("assist_free:dev")
+        client.zpopmax.assert_awaited_once_with("rl:assist_free:dev")

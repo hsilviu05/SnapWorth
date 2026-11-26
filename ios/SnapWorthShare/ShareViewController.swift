@@ -83,13 +83,22 @@ final class ShareModel {
         }
     }
 
-    /// True when a notification will take the user to the value.
+    /// True when a notification will show up and take the user to the value.
+    ///
+    /// Quiet delivery (`.provisional`, which the app asks for after "Not
+    /// now" since 1.8.3) still gets one, but it goes straight to Notification
+    /// Center with no banner, so the sheet must not say "Tap the
+    /// notification": it says to open SnapWorth. The same for a user who
+    /// allowed notifications and turned their banners off.
     private static func scheduleNotification() async -> Bool {
         let center = UNUserNotificationCenter.current()
-        switch await center.notificationSettings().authorizationStatus {
+        let settings = await center.notificationSettings()
+        switch settings.authorizationStatus {
         case .authorized, .provisional, .ephemeral: break
         default: return false
         }
+        let showsBanner = settings.authorizationStatus != .provisional
+            && settings.alertSetting == .enabled
         let content = UNMutableNotificationContent()
         content.title = String(localized: "Ready to value")
         content.body = String(localized: "Tap to see what it's worth.")
@@ -97,7 +106,7 @@ final class ShareModel {
         do {
             try await center.add(UNNotificationRequest(identifier: notificationID,
                                                        content: content, trigger: trigger))
-            return true
+            return showsBanner
         } catch {
             return false
         }

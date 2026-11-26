@@ -34,8 +34,13 @@ struct ThriftWrapped: Equatable, Identifiable {
 
     /// The year being wrapped on `now`, or nil outside the season: December
     /// wraps its own year, and January the one just ended.
+    ///
+    /// Years are Gregorian whatever the phone's calendar, as the card prints
+    /// one: under the Japanese calendar `.year` is the era's year, and the
+    /// card read "8" for 2026 (Buddhist: "2569"). Only the time zone is
+    /// taken from `calendar`.
     static func seasonYear(now: Date = Date(), calendar: Calendar = .current) -> Int? {
-        let parts = calendar.dateComponents([.year, .month], from: now)
+        let parts = Calendar.gregorian(in: calendar.timeZone).dateComponents([.year, .month], from: now)
         guard let year = parts.year, let month = parts.month else { return nil }
         switch month {
         case 12: return year
@@ -50,7 +55,7 @@ struct ThriftWrapped: Equatable, Identifiable {
     static func offeredYear(now: Date = Date(), calendar: Calendar = .current,
                             isTestBuild: Bool) -> Int? {
         if let year = seasonYear(now: now, calendar: calendar) { return year }
-        return isTestBuild ? calendar.component(.year, from: now) : nil
+        return isTestBuild ? Calendar.gregorian(in: calendar.timeZone).component(.year, from: now) : nil
     }
 
     /// Whether this install came from TestFlight or Xcode, from the App Store's
@@ -62,8 +67,10 @@ struct ThriftWrapped: Equatable, Identifiable {
 
     init?(results: [ScanResult], year: Int, calendar: Calendar = .current,
           locale: Locale = .current) {
-        guard let start = calendar.date(from: DateComponents(year: year, month: 1, day: 1)),
-              let interval = calendar.dateInterval(of: .year, for: start) else { return nil }
+        // `year` is Gregorian (`seasonYear`), so it is read in that calendar.
+        let gregorian = Calendar.gregorian(in: calendar.timeZone)
+        guard let start = gregorian.date(from: DateComponents(year: year, month: 1, day: 1)),
+              let interval = gregorian.dateInterval(of: .year, for: start) else { return nil }
 
         let found = results.filter { LedgerMath.contains(interval, $0.timestamp) }
         guard found.count >= Self.minimumScans,
