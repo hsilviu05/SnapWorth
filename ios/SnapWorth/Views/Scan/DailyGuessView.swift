@@ -425,7 +425,7 @@ struct DailyGuessPill: View {
             .foregroundStyle(Color.snapOnCharcoal.opacity(isDisabled ? 0.4 : 0.95))
             .padding(.horizontal, 14)
             .padding(.vertical, 6)
-            .background(Color.snapCharcoal.opacity(0.5))
+            .background(Color.snapCameraScrim)
             .clipShape(Capsule())
         }
         .disabled(isDisabled)

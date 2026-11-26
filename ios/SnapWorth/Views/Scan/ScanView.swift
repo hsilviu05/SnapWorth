@@ -123,7 +123,7 @@ struct ScanView: View {
             // longer says the user denied something they never chose.
             switch cameraManager.authStatus {
             case .authorized:
-                CameraPreview(session: cameraManager.session)
+                CameraPreview(session: cameraManager.session, adjustable: true)
                     .ignoresSafeArea()
             case .notDetermined:
                 // The charcoal ground behind this ZStack is the whole screen.
@@ -178,7 +178,7 @@ struct ScanView: View {
                                 .multilineTextAlignment(.trailing)
                                 .padding(.horizontal, 10)
                                 .padding(.vertical, 5)
-                                .background(Color.snapCharcoal.opacity(0.5))
+                                .background(Color.snapCameraScrim)
                                 .clipShape(Capsule())
                                 .accessibilityLabel(
                                     String(localized: "\(remaining) free scans left today"))
@@ -206,7 +206,7 @@ struct ScanView: View {
                             .foregroundStyle(Color.snapOnCharcoal.opacity(0.9))
                             .padding(.horizontal, 10)
                             .padding(.vertical, 4)
-                            .background(Color.snapCharcoal.opacity(0.5))
+                            .background(Color.snapCameraScrim)
                             .clipShape(Capsule())
                             .accessibilityLabel(
                                 String(localized: "\(vm.streak) day scanning streak"))
@@ -248,33 +248,9 @@ struct ScanView: View {
                         }
                     }
 
-                // The one label in this chrome drawn straight onto the video.
-                //
-                // 70%-opacity cream composited over whatever the camera is
-                // pointed at has no contrast ratio at all — it depends on the
-                // scene. Point the phone at a white shelf, a shop's strip
-                // lighting or a pale garment, which is most of what this app
-                // is pointed at, and the sentence disappears. Every other
-                // label in the same chrome already carries the capsule scrim:
-                // the free-scan counter, the streak pill and the thrift-run
-                // control all sit on `snapCharcoal.opacity(0.5)`.
-                //
-                // Same treatment, same opacity, so this reads as the set it
-                // belongs to rather than a fourth style. The text is unchanged;
-                // what it gains is a ground that can be measured at all.
-                //
-                // Measured, against the worst thing a camera can show: cream
-                // at 0.7 straight onto white was 1.05:1 — invisible. Cream at
-                // 0.9 on a 50% charcoal scrim over the same white is 2.88:1,
-                // and 6.88:1 over mid grey. Better by a factor of nearly three
-                // and still under AA, because the scrim is translucent too.
-                //
-                // Left at 0.5 anyway: the counter, the streak pill and the run
-                // control all use exactly that, so this label's ceiling is the
-                // whole camera chrome's ceiling. Raising one of the four would
-                // buy compliance for the least important of them and make the
-                // set look wrong. That shared ceiling is recorded in the audit
-                // as its own finding rather than half-fixed here.
+                // Over the video, so on the shared scrim like every other
+                // label in this chrome: straight onto a white shelf, cream at
+                // 0.7 measured 1.05:1. `snapCameraScrim` has the numbers.
                 if let rackTarget {
                     RackTargetBanner(candidate: rackTarget) { self.rackTarget = nil }
                         .padding(.top, 12)
@@ -287,7 +263,7 @@ struct ScanView: View {
                     .fixedSize(horizontal: false, vertical: true)
                     .padding(.horizontal, 12)
                     .padding(.vertical, 5)
-                    .background(Color.snapCharcoal.opacity(0.5))
+                    .background(Color.snapCameraScrim)
                     .clipShape(Capsule())
                     .padding(.horizontal, 20)
                     .padding(.top, 16)
@@ -300,7 +276,7 @@ struct ScanView: View {
                         .foregroundStyle(Color.snapOnCharcoal)
                         .padding(.horizontal, 12)
                         .padding(.vertical, 6)
-                        .background(Color.snapCharcoal.opacity(0.5))
+                        .background(Color.snapCameraScrim)
                         .clipShape(Capsule())
                 }
                 .disabled(vm.isAnalyzing || captureInFlight)
@@ -707,7 +683,15 @@ struct ScanView: View {
                     UIApplication.shared.open(store)
                 }
             }
-            Button("OK", role: .cancel) { vm.errorMessage = nil }
+            // A dropped connection or a busy server: the same photo or
+            // description, sent again (`AppError.isTransient`).
+            if vm.canRetry {
+                Button("Try again") { retryFailedScan() }
+            }
+            Button("OK", role: .cancel) {
+                vm.dropRetry()
+                vm.errorMessage = nil
+            }
         } message: {
             Text(vm.errorMessage ?? "")
         }
@@ -836,6 +820,21 @@ struct ScanView: View {
         captureInFlight = true
         vm.capturedImage = photo
         Task { await triggerScan(image: photo, afterPurchase: true) }
+    }
+
+    /// "Try again" on a failed scan. Claims the shutter as a capture does, so
+    /// a photo cannot start beside it.
+    private func retryFailedScan() {
+        let input = vm.takeInputForRetry()
+        vm.errorMessage = nil
+        guard !captureInFlight, !vm.isAnalyzing else { return }
+        if let photo = input.photo {
+            captureInFlight = true
+            vm.capturedImage = photo
+            Task { await triggerScan(image: photo) }
+        } else if let description = input.description {
+            Task { await triggerTextScan(description) }
+        }
     }
 
     /// The camera permission request held back by onboarding's "Type it
@@ -1132,7 +1131,7 @@ private struct ThriftRunControl: View {
                         .foregroundStyle(Color.snapOnCharcoal.opacity(0.9))
                         .padding(.horizontal, 10)
                         .padding(.vertical, 4)
-                        .background(Color.snapCharcoal.opacity(0.5))
+                        .background(Color.snapCameraScrim)
                         .clipShape(Capsule())
                 }
                 .snapHitTarget()
@@ -1149,7 +1148,7 @@ private struct ThriftRunControl: View {
                         .foregroundStyle(Color.snapOnCharcoal.opacity(0.9))
                         .padding(.horizontal, 10)
                         .padding(.vertical, 4)
-                        .background(Color.snapCharcoal.opacity(0.5))
+                        .background(Color.snapCameraScrim)
                         .clipShape(Capsule())
                         .transition(.opacity)
                 }
@@ -1223,7 +1222,7 @@ private struct FreeScanReturnRow: View {
             .fixedSize(horizontal: false, vertical: true)
             .padding(.horizontal, 10)
             .padding(.vertical, 5)
-            .background(Color.snapCharcoal.opacity(0.5))
+            .background(Color.snapCameraScrim)
             .clipShape(Capsule())
     }
 
@@ -1265,7 +1264,7 @@ private struct FreeScanReturnRow: View {
             .foregroundStyle(Color.snapOnCharcoal.opacity(0.9))
             .padding(.horizontal, 10)
             .padding(.vertical, 5)
-            .background(Color.snapCharcoal.opacity(0.5))
+            .background(Color.snapCameraScrim)
             .clipShape(Capsule())
     }
 
@@ -1432,7 +1431,7 @@ private struct HaulEntryPill: View {
             .foregroundStyle(Color.snapOnCharcoal.opacity(isDisabled ? 0.4 : 0.95))
             .padding(.horizontal, 14)
             .padding(.vertical, 6)
-            .background(Color.snapCharcoal.opacity(0.5))
+            .background(Color.snapCameraScrim)
             .clipShape(Capsule())
         }
         .disabled(isDisabled)

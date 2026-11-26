@@ -58,7 +58,7 @@ struct TagCameraSheet: View {
             // The same three states as ScanView.
             switch camera.authStatus {
             case .authorized:
-                CameraPreview(session: camera.session)
+                CameraPreview(session: camera.session, adjustable: true)
                     .ignoresSafeArea()
             case .notDetermined:
                 // The system prompt is on screen, over this.

@@ -31,6 +31,15 @@ final class ScanViewModel {
 
     var errorOffersUpdate: Bool { failureAlert?.offersUpdate ?? false }
 
+    /// The photo or description of a scan that failed on a transient error
+    /// (`AppError.isTransient`), held while its alert is up so "Try again"
+    /// can send it again instead of the user shooting the item twice.
+    /// Released by `takeInputForRetry`, `dropRetry`, the next scan, or `reset`.
+    @ObservationIgnored private var inputAwaitingRetry: ScanInput?
+    /// Whether the alert offers "Try again". Set before `failureAlert`, so
+    /// the alert is built with it.
+    private(set) var canRetry = false
+
     var showPaywall: Bool = false
     var showImagePicker: Bool = false
     var selectedPhotoItem: PhotosPickerItem?
@@ -156,6 +165,7 @@ final class ScanViewModel {
     private func run(_ input: ScanInput, purchaseService: any PurchaseService,
                      repository: ScanRepository, afterPurchase: Bool) async {
         guard !isAnalyzing else { return }
+        dropRetry()
         let image = input.image
         guard purchaseService.isSubscribed || hasFreeScanRemaining else {
             Analytics.shared.track(.freeScanLimitHit)
@@ -368,8 +378,39 @@ final class ScanViewModel {
                 showSubscriptionUnconfirmed = true
                 return
             }
+            if appError.isTransient {
+                // Downscaled first, as `holdForPurchase` does: the capture
+                // itself is released when this returns, and keeping a 12 MP
+                // frame alive behind an alert is the leak that was fixed there.
+                switch input {
+                case .photo(let image):
+                    let photo = await Task.detached(priority: .userInitiated) {
+                        ScanAPIClient.downscale(image, maxEdge: ScanAPIClient.maxUploadEdge)
+                    }.value
+                    inputAwaitingRetry = .photo(photo)
+                case .description:
+                    inputAwaitingRetry = input
+                }
+                canRetry = true
+            }
             failureAlert = FailureAlert(appError)
         }
+    }
+
+    /// What "Try again" sends: the held photo or description, released here.
+    func takeInputForRetry() -> (photo: UIImage?, description: String?) {
+        defer { dropRetry() }
+        switch inputAwaitingRetry {
+        case .photo(let image):        return (image, nil)
+        case .description(let text):   return (nil, text)
+        case nil:                      return (nil, nil)
+        }
+    }
+
+    /// The alert closed without a retry.
+    func dropRetry() {
+        inputAwaitingRetry = nil
+        canRetry = false
     }
 
     func loadSelectedPhoto() async {
@@ -416,6 +457,7 @@ final class ScanViewModel {
         rareFindWatch?.abandon()
         rareFindWatch = nil
         photoAwaitingPurchase = nil
+        dropRetry()
         capturedImage = nil
         scanResult = nil
         errorMessage = nil

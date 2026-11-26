@@ -207,7 +207,7 @@ struct LegitCheckFlow: View {
         ZStack {
             switch camera.authStatus {
             case .authorized:
-                CameraPreview(session: camera.session).ignoresSafeArea()
+                CameraPreview(session: camera.session, adjustable: true).ignoresSafeArea()
             case .notDetermined:
                 EmptyView()
             case .restricted:

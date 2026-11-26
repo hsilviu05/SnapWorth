@@ -1203,11 +1203,49 @@ actor ScanAPIClient {
     /// belongs and keeps only the pixels the cell shows.
     ///
     /// - Parameter side: the longest displayed edge in points.
+    ///
+    /// Decoded by ImageIO straight at the cell's size (`decodeForScan`), not
+    /// as the full 1024 px bitmap first and redrawn: a JPEG decoder can skip
+    /// most of the work for a reduced size, and the full bitmap was 4 MB of
+    /// transient memory per cell. Kept in `thumbnailCache`, so scrolling back
+    /// up My Finds or returning to a tab shows what was already decoded
+    /// instead of shimmering and decoding it again.
     static func decodedThumbnail(from data: Data, side: CGFloat) async -> UIImage? {
-        await Task.detached(priority: .utility) {
-            guard let image = UIImage(data: data) else { return nil }
-            return downscale(image, maxEdge: side * 3)
+        let key = ThumbnailKey(data: data, pixels: Int(side * 3))
+        if let cached = thumbnailCache.object(forKey: key) { return cached }
+        return await Task.detached(priority: .utility) {
+            guard let image = decodeForScan(data, maxEdge: CGFloat(key.pixels)) else { return nil }
+            let cost = Int(image.size.width * image.size.height * image.scale * image.scale) * 4
+            thumbnailCache.setObject(image, forKey: key, cost: cost)
+            return image
         }.value
+    }
+
+    /// Decoded thumbnails by stored photo and pixel size. `NSCache` is
+    /// thread-safe and evicts under memory pressure; 48 MB is a few hundred
+    /// grid cells, more than a long scroll shows.
+    private static let thumbnailCache: NSCache<ThumbnailKey, UIImage> = {
+        let cache = NSCache<ThumbnailKey, UIImage>()
+        cache.totalCostLimit = 48 * 1024 * 1024
+        return cache
+    }()
+
+    /// The photo's bytes, not a find's id: a re-read can replace a find's
+    /// photo, and the same bytes are the same picture wherever they are drawn.
+    /// `NSData`'s hash reads only its length and first bytes, so a lookup does
+    /// not hash the whole JPEG; equality compares it in full.
+    private final class ThumbnailKey: NSObject {
+        let data: NSData
+        let pixels: Int
+        init(data: Data, pixels: Int) {
+            self.data = data as NSData
+            self.pixels = pixels
+        }
+        override var hash: Int { data.hash ^ pixels }
+        override func isEqual(_ object: Any?) -> Bool {
+            guard let other = object as? ThumbnailKey else { return false }
+            return pixels == other.pixels && data.isEqual(to: other.data as Data)
+        }
     }
 
     /// Aspect-preserving downscale. Returns the original when already small

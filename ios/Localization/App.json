@@ -15398,6 +15398,20 @@
       "pl": "Skanowanie kodów kreskowych książek, gier i DVD",
       "ja": "本・ゲーム・DVDのバーコードをスキャン",
       "nl": "Barcodes scannen op boeken, games en dvd's"
+    },
+    "Taking a bit longer than usual. Hang tight.": {
+      "comment": "Analyzing overlay, shown under the last progress message when a scan has taken more than 12 seconds.",
+      "en": "Taking a bit longer than usual. Hang tight.",
+      "ro": "Durează puțin mai mult decât de obicei. Mai stai puțin.",
+      "es": "Está tardando un poco más de lo normal. Espera un momento.",
+      "de": "Dauert etwas länger als sonst. Einen Moment noch.",
+      "zh-Hans": "比平时稍慢一些，请稍候。",
+      "fr": "C'est un peu plus long que d'habitude. Encore un instant.",
+      "it": "Ci vuole un po' più del solito. Ancora un attimo.",
+      "pt-BR": "Está demorando um pouco mais que o normal. Só um instante.",
+      "pl": "Trwa to trochę dłużej niż zwykle. Jeszcze chwila.",
+      "ja": "いつもより少し時間がかかっています。もう少しお待ちください。",
+      "nl": "Dit duurt iets langer dan normaal. Nog even geduld."
     }
   }
 }

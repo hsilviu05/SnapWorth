@@ -12032,3 +12032,27 @@ final class FeatureVoteTests: XCTestCase {
         XCTAssertEqual(AnalyticsEvent.featureVoteDismissed.name, "feature_vote_dismissed")
     }
 }
+
+// MARK: - Try again on a failed scan
+
+/// "Try again" resends the same photo or description, so it is offered only
+/// where the same request can succeed a moment later.
+final class TransientScanFailureTests: XCTestCase {
+
+    func test_connectionAndServerOutagesAreRetryable() {
+        for error: AppError in [.network, .timeout, .serverUnavailable, .verificationUnavailable] {
+            XCTAssertTrue(error.isTransient, "\(error) should offer Try again")
+        }
+    }
+
+    func test_failuresTheSameRequestWouldRepeatAreNot() {
+        let errors: [AppError] = [
+            .connectionNotTrusted, .rateLimit(retryAfter: 60), .quotaExceeded("x"),
+            .proRequired("x"), .subscriptionUnconfirmed, .aiFailed("x"), .sessionExpired,
+            .deviceUnsupported, .unusablePhoto("x"), .notResalable("x"), .updateRequired,
+        ]
+        for error in errors {
+            XCTAssertFalse(error.isTransient, "\(error) must not offer Try again")
+        }
+    }
+}
