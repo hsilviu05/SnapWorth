@@ -636,7 +636,11 @@ final class PortfolioInsightsTests: XCTestCase {
     private func item(_ status: FlipStatus, daysAgo: Int = 1,
                       paid: Double? = nil, sold: Double? = nil,
                       fees: Double? = nil) -> ScanResult {
-        let r = ScanResult(timestamp: Date().addingTimeInterval(TimeInterval(-daysAgo) * 86_400),
+        // Calendar days, not 86,400 s each: across a daylight-saving change
+        // 45 × 24 h back is 44 calendar days and an hour, so the age line read
+        // "Held for 44 days" on a Mac in Europe while CI, on UTC, passed.
+        let when = Calendar.current.date(byAdding: .day, value: -daysAgo, to: Date())!
+        let r = ScanResult(timestamp: when,
                            itemName: "I", brand: "B", category: "c",
                            conditionNotes: "Good", valueLow: 40, valueHigh: 60,
                            confidence: "High", soldListingsCount: 0,
