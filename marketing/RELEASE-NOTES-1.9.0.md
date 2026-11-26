@@ -96,5 +96,6 @@ line from `app_store_listing.zh-Hans.md`. Promotional text is unchanged.
 
 ### Build 37 — the archive
 
-- **Archive commit:** _to fill in_
-- **Organizer creation date:** _to fill in_
+- **Archive commit:** `53618d4` on `claude/project-thread-pmcqza` (#487): `main` at `19fa9af` plus the bump and a test-only fix, so the binary is `main`'s code.
+- **Organizer creation date:** 2026-11-26 14:29:26 EET (`SnapWorth-1.9.0-37.xcarchive`), Xcode 27. The app and its Share, Stickers and Widgets extensions all read 1.9.0 (37).
+- **Upload:** _to fill in_
